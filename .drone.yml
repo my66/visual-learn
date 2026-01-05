@@ -1,0 +1,37 @@
+kind: pipeline
+name: deploy
+clone:
+  disable: true
+steps:
+- name: clone
+  image: i-hub.gzuni.com/drone/git:1.1.0
+  pull: if-not-exists
+  commands:
+  - mkdir /root/.ssh
+  - echo -e "$SSH_ID_RSA" > /root/.ssh/id_rsa
+  - chmod 600 /root/.ssh/id_rsa
+  - touch /root/.ssh/known_hosts
+  - chmod 600 /root/.ssh/known_hosts
+  - ssh-keyscan -H i-git.gzuni.com > /etc/ssh/ssh_known_hosts 2> /dev/null
+  - git clone --depth 1 -b main git@i-git.gzuni.com:wangjian222/visual-learn.git ./temp
+  environment:
+    SSH_ID_RSA:
+      from_secret: SSH_ID_RSA
+  when:
+    branch:
+    - main
+    event:
+    - push
+- name: deploy
+  image: i-hub.gzuni.com/drone/gdep:1.4
+  pull: always
+  commands:
+  - gdep tg_normal wjapp visual-learn
+  environment:
+    DEPLOY_TOKEN:
+      from_secret: DEPLOY_TOKEN
+  when:
+    branch:
+    - main
+    event:
+    - push
