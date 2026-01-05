@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>平面镜试鞋可视化工坊</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f4f8; }
+        canvas { background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); cursor: crosshair; }
+        .btn { transition: all 0.2s; }
+        .btn:hover { transform: translateY(-2px); }
+        .active-btn { background-color: #2563eb; color: white; border-color: #2563eb; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-5xl mx-auto">
+        <!-- Header -->
+        <div class="mb-6 text-center">
+            <h1 class="text-3xl font-bold text-slate-800 mb-2">物理实验：为什么试鞋看不见？</h1>
+            <p class="text-slate-600">点击下方按钮，模拟不同的解决方案，观察光路变化。</p>
+        </div>
+
+        <!-- Main Layout -->
+        <div class="flex flex-col md:flex-row gap-6">
+            
+            <!-- Controls -->
+            <div class="w-full md:w-1/4 space-y-3">
+                <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
+                    <h3 class="font-bold text-slate-700 mb-3 border-b pb-2">操作选项</h3>
+                    <div class="space-y-2">
+                        <button onclick="setScenario(0)" id="btn0" class="btn w-full py-2 px-4 rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 text-left text-sm font-medium">
+                            0. 初始状态 (看不见)
+                        </button>
+                        <button onclick="setScenario(1)" id="btn1" class="btn w-full py-2 px-4 rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 text-left text-sm font-medium">
+                            1. 远离镜子 (无效)
+                        </button>
+                        <button onclick="setScenario(2)" id="btn2" class="btn w-full py-2 px-4 rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 text-left text-sm font-medium">
+                            2. 靠近镜子 (无效)
+                        </button>
+                        <button onclick="setScenario(3)" id="btn3" class="btn w-full py-2 px-4 rounded border border-green-200 bg-green-50 text-green-800 hover:bg-green-100 text-left text-sm font-bold shadow-sm">
+                            3. 原地蹲下 (可见! ✅)
+                        </button>
+                        <button onclick="setScenario(4)" id="btn4" class="btn w-full py-2 px-4 rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 text-left text-sm font-medium">
+                            4. 提起一只脚 (无效)
+                        </button>
+                        <button onclick="setScenario(5)" id="btn5" class="btn w-full py-2 px-4 rounded border border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100 text-left text-sm font-bold shadow-sm">
+                            5. 别人抬高镜子 (可见! ✅)
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
+                    <h3 class="font-bold text-slate-700 mb-2 text-sm">物理原理</h3>
+                    <p id="explanationText" class="text-sm text-slate-600 leading-relaxed">
+                        请选择一个场景开始模拟。
+                    </p>
+                </div>
+            </div>
+
+            <!-- Canvas Container -->
+            <div class="w-full md:w-3/4">
+                <div class="relative">
+                    <canvas id="simCanvas" width="800" height="500" class="w-full h-auto border border-slate-200"></canvas>
+                    <div id="statusBadge" class="absolute top-4 right-4 px-4 py-2 rounded-full font-bold shadow-md bg-gray-200 text-gray-600">
+                        等待操作
+                    </div>
+                </div>
+                
+                <!-- Legend -->
+                <div class="mt-4 flex flex-wrap gap-4 justify-center text-sm text-slate-600">
+                    <div class="flex items-center"><span class="w-3 h-3 bg-red-500 rounded-full mr-2"></span>光线被阻挡</div>
+                    <div class="flex items-center"><span class="w-3 h-3 bg-green-500 rounded-full mr-2"></span>成功反射的光线</div>
+                    <div class="flex items-center"><span class="w-3 h-3 border border-dashed border-slate-400 bg-transparent mr-2 inline-block" style="width:20px; height:0px; border-top-width:1px;"></span>虚像视线</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const statusBadge = document.getElementById('statusBadge');
+        const explanationText = document.getElementById('explanationText');
+
+        // Physics constants (scaled for canvas)
+        // Canvas coordinate system: 0,0 is top-left.
+        // Floor is at y = 450.
+        const FLOOR_Y = 450;
+        const WALL_X = 50; // Mirror is on the left wall
+        
+        let state = {
+            personX: 300,      // Distance from mirror
+            eyeHeight: 160,    // Eye height in cm (1px = 2cm approx scale for visuals)
+            footHeight: 0,     // Foot height
+            mirrorBottom: 0,   // Mirror bottom height
+            mirrorTop: 50,     // Mirror top height (short mirror on floor)
+            isSquatting: false,
+            scenario: 0
+        };
+
+        // Animation loop variables
+        let targetState = { ...state };
+        let animationId;
+
+        function updatePhysics() {
+            // Smooth transition helper
+            const ease = 0.1;
+            state.personX += (targetState.personX - state.personX) * ease;
+            state.eyeHeight += (targetState.eyeHeight - state.eyeHeight) * ease;
+            state.footHeight += (targetState.footHeight - state.footHeight) * ease;
+            state.mirrorBottom += (targetState.mirrorBottom - state.mirrorBottom) * ease;
+            state.mirrorTop += (targetState.mirrorTop - state.mirrorTop) * ease;
+        }
+
+        function toCanvasY(heightCm) {
+            // Convert physical height (cm) to canvas Y
+            // Scale: let's say 200cm height = 400px space
+            const scale = 2.0; 
+            return FLOOR_Y - (heightCm * scale);
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 1. Draw Environment
+            // Floor
+            ctx.fillStyle = '#e2e8f0';
+            ctx.fillRect(0, FLOOR_Y, canvas.width, canvas.height - FLOOR_Y);
+            
+            // Wall
+            ctx.fillStyle = '#cbd5e1';
+            ctx.fillRect(0, 0, WALL_X, FLOOR_Y);
+
+            // 2. Draw Mirror
+            const mirrorYTop = toCanvasY(state.mirrorTop);
+            const mirrorYBottom = toCanvasY(state.mirrorBottom);
+            
+            // Mirror Frame
+            ctx.fillStyle = '#94a3b8';
+            ctx.fillRect(WALL_X - 5, mirrorYTop - 5, 10, (mirrorYBottom - mirrorYTop) + 10);
+            // Mirror Surface
+            ctx.fillStyle = '#3b82f6'; // Blue glass
+            ctx.fillRect(WALL_X - 2, mirrorYTop, 4, mirrorYBottom - mirrorYTop);
+            
+            // 3. Draw Person
+            const eyeY = toCanvasY(state.eyeHeight);
+            const footY = toCanvasY(state.footHeight);
+            const personX = WALL_X + (state.personX * 1.5); // 1.5 scale for horizontal distance visual
+
+            // Body line
+            ctx.beginPath();
+            ctx.moveTo(personX, eyeY + 20); // Neck
+            ctx.lineTo(personX, footY - (state.isSquatting ? 10 : 60)); // Hip area
+            ctx.lineTo(personX - 10, footY); // Leg
+            ctx.moveTo(personX, footY - (state.isSquatting ? 10 : 60));
+            ctx.lineTo(personX + 10, footY); // Leg
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 4;
+            ctx.stroke();
+
+            // Head
+            ctx.beginPath();
+            ctx.arc(personX, eyeY, 15, 0, Math.PI * 2);
+            ctx.fillStyle = '#fca5a5';
+            ctx.fill();
+            
+            // Eye
+            ctx.beginPath();
+            ctx.arc(personX - 10, eyeY, 3, 0, Math.PI * 2);
+            ctx.fillStyle = '#000';
+            ctx.fill();
+
+            // Shoe (The Object)
+            ctx.fillStyle = '#dc2626'; // Red shoes
+            ctx.fillRect(personX - 15, footY - 10, 30, 10);
+
+            // 4. Calculate Ray Physics
+            // The reflection point on the wall plane must be exactly halfway vertically
+            // between the eye and the foot due to similar triangles.
+            const midPointHeight = (state.eyeHeight + state.footHeight) / 2;
+            const midPointY = toCanvasY(midPointHeight);
+            
+            // Check visibility
+            // Is the midpoint within the mirror's vertical range?
+            const isVisible = (midPointHeight <= state.mirrorTop) && (midPointHeight >= state.mirrorBottom);
+
+            // 5. Draw Rays
+            
+            // Virtual Image (Ghost Shoe)
+            // It appears behind the mirror at the same distance
+            const virtualImageX = WALL_X - (state.personX * 1.5);
+            
+            // Draw Virtual Shoe
+            ctx.globalAlpha = 0.3;
+            ctx.fillStyle = '#dc2626';
+            ctx.fillRect(virtualImageX - 15, footY - 10, 30, 10);
+            ctx.globalAlpha = 1.0;
+
+            // Line of sight (Eye to Virtual Image)
+            ctx.beginPath();
+            ctx.moveTo(personX - 10, eyeY);
+            ctx.lineTo(WALL_X, midPointY); // Hits wall/mirror
+            if (isVisible) {
+                ctx.strokeStyle = '#22c55e'; // Green
+                ctx.lineWidth = 3;
+            } else {
+                ctx.strokeStyle = '#ef4444'; // Red
+                ctx.lineWidth = 3;
+            }
+            ctx.stroke();
+
+            // Dashed line behind mirror
+            ctx.beginPath();
+            ctx.setLineDash([5, 5]);
+            ctx.moveTo(WALL_X, midPointY);
+            ctx.lineTo(virtualImageX, footY);
+            ctx.strokeStyle = '#94a3b8';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Reflected Ray (Mirror/Wall to Foot)
+            ctx.beginPath();
+            ctx.moveTo(WALL_X, midPointY);
+            ctx.lineTo(personX - 15, footY - 5);
+            if (isVisible) {
+                ctx.strokeStyle = '#22c55e';
+            } else {
+                ctx.strokeStyle = '#ef4444'; // Red implies blocked by wall material (non-mirror)
+            }
+            ctx.stroke();
+
+            // 6. Draw Reflection Point Indicator
+            ctx.beginPath();
+            ctx.arc(WALL_X, midPointY, 5, 0, Math.PI * 2);
+            ctx.fillStyle = isVisible ? '#22c55e' : '#ef4444';
+            ctx.fill();
+
+            // 7. Update UI Text
+            if (Math.abs(state.personX - targetState.personX) < 1) {
+                if (isVisible) {
+                    statusBadge.textContent = "看见了！✅";
+                    statusBadge.className = "absolute top-4 right-4 px-4 py-2 rounded-full font-bold shadow-md bg-green-100 text-green-700 border border-green-300";
+                } else {
+                    statusBadge.textContent = "看不见 ❌";
+                    statusBadge.className = "absolute top-4 right-4 px-4 py-2 rounded-full font-bold shadow-md bg-red-100 text-red-700 border border-red-300";
+                }
+            }
+
+            // Annotation lines for math
+            if(state.scenario !== 0) {
+               drawMeasurements(personX, eyeY, footY, midPointY, midPointHeight);
+            }
+
+            requestAnimationFrame(() => {
+                updatePhysics();
+                draw();
+            });
+        }
+
+        function drawMeasurements(px, ey, fy, my, mHeight) {
+            ctx.fillStyle = "#64748b";
+            ctx.font = "12px sans-serif";
+            
+            // Label Reflection Point
+            ctx.fillText(`反射点高度: ${mHeight.toFixed(0)}cm`, WALL_X + 10, my + 5);
+            
+            // Dashed horizontal line at reflection point
+            ctx.beginPath();
+            ctx.setLineDash([2, 4]);
+            ctx.moveTo(WALL_X, my);
+            ctx.lineTo(px, my);
+            ctx.strokeStyle = "#cbd5e1";
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        function setScenario(id) {
+            // Reset base classes
+            for(let i=0; i<=5; i++) {
+                document.getElementById(`btn${i}`).classList.remove('active-btn', 'ring-2', 'ring-blue-300');
+            }
+            document.getElementById(`btn${id}`).classList.add('active-btn', 'ring-2', 'ring-blue-300');
+
+            state.scenario = id;
+            
+            // Default reset
+            targetState.isSquatting = false;
+            targetState.mirrorBottom = 0;
+            targetState.mirrorTop = 45; // Small mirror, 45cm high
+            targetState.footHeight = 0;
+            targetState.personX = 200;
+            targetState.eyeHeight = 170; // Normal height
+
+            let text = "";
+
+            switch(id) {
+                case 0: // Reset
+                    text = "初始状态：镜子高度45cm，放在地面。人眼高度170cm。根据中点定理，需要反射点在 (170+0)/2 = 85cm 处。镜子太矮，够不着。";
+                    break;
+                case 1: // Far
+                    targetState.personX = 350;
+                    text = "远离镜子：虽然人退后了，但光路形成的几何三角形依然是相似的。入射点在墙面的高度依然是眼睛和脚高度的中点 (85cm)。距离改变不改变反射点高度。";
+                    break;
+                case 2: // Near
+                    targetState.personX = 80;
+                    text = "靠近镜子：同理，无论离得多近，光线想要从脚进到眼睛，必须经过两者高度的中点 (85cm)。镜子只有45cm高，依然看不见。";
+                    break;
+                case 3: // Squat
+                    targetState.isSquatting = true;
+                    targetState.eyeHeight = 80; // Squat down
+                    text = "原地蹲下：眼睛高度降低到80cm。此时需要的反射点高度 = (80+0)/2 = 40cm。镜子有45cm高，40cm在镜面范围内，光路接通！✅";
+                    break;
+                case 4: // Lift Foot
+                    targetState.footHeight = 40;
+                    text = "提起一只脚：脚抬高到40cm。需要的反射点 = (170+40)/2 = 105cm。这反而让需要的反射点更高了，离地面的矮镜子更远，完全无效。";
+                    break;
+                case 5: // Raise Mirror
+                    targetState.mirrorBottom = 60;
+                    targetState.mirrorTop = 105;
+                    text = "抬高镜子：将镜子抬起来，覆盖到了85cm这个关键高度区域。虽然人没动，但镜子捕捉到了光线。✅";
+                    break;
+            }
+            explanationText.textContent = text;
+        }
+
+        // Init
+        setScenario(0);
+        animationId = requestAnimationFrame(draw);
+
+    </script>
+</body>
+</html>

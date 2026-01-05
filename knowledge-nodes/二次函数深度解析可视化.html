@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>二次函数深度解析可视化</title>
+    <!-- 引入 p5.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --accent-color: #3498db;
+            --bg-color: #ecf0f1;
+            --panel-bg: #ffffff;
+            --text-color: #333;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            height: 100vh;
+            display: flex;
+            overflow: hidden; /* 内部滚动 */
+        }
+
+        /* 布局容器 */
+        #main-container {
+            display: flex;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* 左侧控制面板 */
+        #control-panel {
+            width: 360px;
+            min-width: 360px;
+            background: var(--panel-bg);
+            padding: 20px;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            z-index: 10;
+        }
+
+        /* 右侧画布区域 */
+        #canvas-container {
+            flex-grow: 1;
+            position: relative;
+            background-color: #fff;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        h1 {
+            font-size: 20px;
+            margin: 0 0 10px 0;
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--accent-color);
+            padding-bottom: 10px;
+        }
+
+        .section {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid var(--accent-color);
+        }
+
+        .section h3 {
+            margin-top: 0;
+            font-size: 16px;
+            color: #555;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+        }
+
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            cursor: pointer;
+        }
+
+        .toggle-row input {
+            margin-right: 10px;
+            transform: scale(1.2);
+        }
+
+        .explanation {
+            font-size: 13px;
+            line-height: 1.5;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .value-display {
+            font-weight: bold;
+            color: var(--accent-color);
+        }
+
+        /* 移动端提示 */
+        @media (max-width: 768px) {
+            body { overflow: auto; flex-direction: column; }
+            #control-panel { width: 100%; min-width: 0; height: auto; }
+            #canvas-container { height: 400px; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="main-container">
+    <div id="control-panel">
+        <h1>二次函数深度解析</h1>
+        
+        <div class="section">
+            <h3>1. 为什么是曲线？(Rate of Change)</h3>
+            <p class="explanation">
+                线性函数每一步上升的高度是相同的。<br>
+                二次函数不同：<b>x每走一步，y上升的高度会变大</b>。这种“变化的速率”产生了弯曲。
+            </p>
+            <div class="toggle-row">
+                <input type="checkbox" id="chk-steps" checked>
+                <span>显示增长阶梯 (Δy的变化)</span>
+            </div>
+             <div class="toggle-row">
+                <input type="checkbox" id="chk-tangent">
+                <span>显示切线与斜率 (Slope)</span>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>2. 它到底是什么？(Geometry)</h3>
+            <p class="explanation">
+                几何上，抛物线是到“焦点”和“准线”距离相等的点的集合。
+            </p>
+            <div class="toggle-row">
+                <input type="checkbox" id="chk-geometry">
+                <span>显示焦点与准线定义</span>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>3. 代数含义 (Area)</h3>
+            <p class="explanation">
+                <b>维度升级</b>：x 是正方形的边长（一维），y 是正方形的面积（二维）。<br>
+                面积膨胀的速度远快于边长，所以图像陡峭地向上弯曲。
+            </p>
+            <div class="toggle-row">
+                <input type="checkbox" id="chk-area">
+                <span>显示正方形面积含义</span>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>参数调整 (y = ax² + bx + c)</h3>
+            
+            <div class="control-group">
+                <label>二次项系数 a: <span id="val-a" class="value-display">1.0</span></label>
+                <input type="range" id="slider-a" min="-2" max="2" step="0.1" value="0.5">
+            </div>
+
+            <div class="control-group">
+                <label>一次项系数 b: <span id="val-b" class="value-display">0.0</span></label>
+                <input type="range" id="slider-b" min="-5" max="5" step="0.5" value="0">
+            </div>
+
+            <div class="control-group">
+                <label>常数项 c: <span id="val-c" class="value-display">-2.0</span></label>
+                <input type="range" id="slider-c" min="-5" max="5" step="0.5" value="-2">
+            </div>
+
+            <div class="toggle-row" style="margin-top:10px; border-top:1px solid #ddd; padding-top:10px;">
+                <input type="checkbox" id="chk-grid" checked>
+                <span>显示网格与坐标轴</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="canvas-container">
+        <!-- p5.js canvas will be created here -->
+    </div>
+</div>
+
+<script>
+    // 全局变量
+    let a = 0.5;
+    let b = 0;
+    let c = -2;
+    
+    // 视图控制
+    let VIEW_SCALE = 40; // 1单位 = 40像素 (现在是变量，允许缩放)
+    let originX, originY;
+
+    // DOM 元素
+    let sliderA, sliderB, sliderC;
+    let chkSteps, chkTangent, chkGeometry, chkArea, chkGrid;
+    let valA, valB, valC;
+
+    // 交互状态
+    let interactionX = 2; // 默认交互点 x 坐标
+
+    function setup() {
+        // 创建画布，适配容器
+        let container = document.getElementById('canvas-container');
+        let canvas = createCanvas(container.clientWidth, container.clientHeight);
+        canvas.parent('canvas-container');
+        
+        // 初始化 DOM 引用
+        sliderA = document.getElementById('slider-a');
+        sliderB = document.getElementById('slider-b');
+        sliderC = document.getElementById('slider-c');
+        
+        chkSteps = document.getElementById('chk-steps');
+        chkTangent = document.getElementById('chk-tangent');
+        chkGeometry = document.getElementById('chk-geometry');
+        chkArea = document.getElementById('chk-area');
+        chkGrid = document.getElementById('chk-grid');
+
+        valA = document.getElementById('val-a');
+        valB = document.getElementById('val-b');
+        valC = document.getElementById('val-c');
+
+        // 事件监听
+        sliderA.addEventListener('input', updateParams);
+        sliderB.addEventListener('input', updateParams);
+        sliderC.addEventListener('input', updateParams);
+        
+        // 窗口大小改变处理
+        window.addEventListener('resize', () => {
+            let container = document.getElementById('canvas-container');
+            resizeCanvas(container.clientWidth, container.clientHeight);
+        });
+
+        updateParams();
+    }
+
+    // 新增：鼠标滚轮缩放功能
+    function mouseWheel(event) {
+        // event.delta > 0 是向下滚动（缩小），< 0 是向上滚动（放大）
+        let zoomFactor = 1.05;
+        if (event.delta > 0) {
+            VIEW_SCALE /= zoomFactor;
+        } else {
+            VIEW_SCALE *= zoomFactor;
+        }
+        
+        // 限制缩放范围，防止过大或过小 (10px 到 200px per unit)
+        VIEW_SCALE = constrain(VIEW_SCALE, 10, 200);
+        
+        // 阻止默认的页面滚动行为，提升体验
+        return false;
+    }
+
+    function updateParams() {
+        a = parseFloat(sliderA.value);
+        if (a === 0) a = 0.01; // 防止 a=0 退化为直线
+        b = parseFloat(sliderB.value);
+        c = parseFloat(sliderC.value);
+
+        valA.textContent = a.toFixed(1);
+        valB.textContent = b.toFixed(1);
+        valC.textContent = c.toFixed(1);
+    }
+
+    function draw() {
+        background(255);
+        
+        // 动态计算原点位置（居中）
+        originX = width / 2;
+        originY = height / 2;
+
+        // 1. 绘制网格和坐标轴
+        if (chkGrid.checked) {
+            drawGrid();
+            drawAxes();
+        }
+
+        // 2. 绘制抛物线主体
+        drawParabolaCurve();
+
+        // 3. 根据开关绘制特性
+        
+        // 交互点逻辑：鼠标如果在画布内，使用鼠标X，否则使用默认X
+        let mouseMathX = (mouseX - originX) / VIEW_SCALE;
+        // 限制交互范围，防止溢出
+        if (mouseX > 0 && mouseX < width && mouseY > 0 && mouseY < height) {
+            interactionX = mouseMathX;
+        }
+
+        // 优先绘制面积（在底部），以免遮挡其他线条
+        if (chkArea.checked) {
+            drawAreaVisual(interactionX);
+        }
+
+        if (chkSteps.checked) {
+            drawGrowthSteps();
+        }
+
+        if (chkGeometry.checked) {
+            drawGeometryDef(interactionX);
+        }
+
+        if (chkTangent.checked) {
+            drawTangent(interactionX);
+        }
+
+        // 绘制交互点本身
+        let px = interactionX;
+        let py = f(px);
+        fill(255, 165, 0); // Orange
+        stroke(255);
+        strokeWeight(2);
+        circle(toScreenX(px), toScreenY(py), 12);
+        
+        // 交互点坐标提示
+        noStroke();
+        fill(50);
+        textAlign(LEFT, BOTTOM);
+        text(`P(${px.toFixed(1)}, ${py.toFixed(1)})`, toScreenX(px) + 10, toScreenY(py) - 10);
+        
+        // 公式显示
+        drawFormula();
+    }
+
+    // --- 核心数学函数 ---
+
+    function f(x) {
+        return a * x * x + b * x + c;
+    }
+
+    function f_prime(x) {
+        return 2 * a * x + b;
+    }
+
+    // --- 绘图辅助函数 ---
+
+    function toScreenX(mathX) {
+        return originX + mathX * VIEW_SCALE;
+    }
+
+    function toScreenY(mathY) {
+        return originY - mathY * VIEW_SCALE; // Y轴反转
+    }
+
+    function toMathX(screenX) {
+        return (screenX - originX) / VIEW_SCALE;
+    }
+
+    // 绘制抛物线
+    function drawParabolaCurve() {
+        noFill();
+        stroke(52, 152, 219); // Blue
+        strokeWeight(3);
+        beginShape();
+        for (let sx = 0; sx <= width; sx += 2) {
+            let mx = toMathX(sx);
+            let my = f(mx);
+            // 简单裁剪，防止数值过大导致渲染问题
+            if (my > -20 && my < 20) {
+                vertex(sx, toScreenY(my));
+            }
+        }
+        endShape();
+    }
+
+    // 绘制增长阶梯 (Why it curves)
+    function drawGrowthSteps() {
+        let stepSize = 1.0;
+        let startX = Math.floor(toMathX(0)); 
+        let endX = Math.ceil(toMathX(width));
+
+        // 限制绘制范围在视图中心附近，避免过多杂乱
+        let centerMathX = 0; // 始终从顶点或轴附近展示比较清晰，或者跟随交互点？
+        // 让我们展示从 x = 0, 1, 2, 3... 的正向增长
+        
+        // 为了清晰，我们固定展示从 Vertex 开始的几步，或者从 x=0 开始
+        let baseX = Math.round(interactionX) - 2; 
+        
+        for (let i = 0; i < 4; i++) {
+            let x1 = baseX + i;
+            let x2 = x1 + 1;
+            let y1 = f(x1);
+            let y2 = f(x2);
+            
+            let sx1 = toScreenX(x1);
+            let sy1 = toScreenY(y1);
+            let sx2 = toScreenX(x2);
+            let sy2 = toScreenY(y2);
+
+            // 水平线 (Run)
+            stroke(100, 100, 100, 100);
+            strokeWeight(1);
+            line(sx1, sy1, sx2, sy1);
+
+            // 垂直线 (Rise)
+            stroke(231, 76, 60); // Red
+            strokeWeight(2);
+            line(sx2, sy1, sx2, sy2);
+
+            // 文字标注 Δy
+            let dy = y2 - y1;
+            fill(231, 76, 60);
+            noStroke();
+            textAlign(LEFT, CENTER);
+            textSize(12);
+            text(`Δy=${dy.toFixed(1)}`, sx2 + 4, (sy1 + sy2) / 2);
+        }
+        
+        // 说明文字
+        fill(50);
+        noStroke();
+        textSize(14);
+        textAlign(LEFT, TOP);
+        text("注意：x每增加1，Δy的变化量是常数 (2a)。\n这就是“加速度”，它使线条变弯。", 20, 20);
+    }
+
+    // 绘制几何定义 (Focus & Directrix)
+    function drawGeometryDef(mx) {
+        // 计算参数
+        // 顶点 Vertex (h, k)
+        let h = -b / (2 * a);
+        let k = c - (b * b) / (4 * a);
+        // 焦距 p = 1 / (4a)
+        let p = 1 / (4 * a);
+        
+        let focusX = h;
+        let focusY = k + p;
+        let directrixY = k - p;
+
+        // 绘制准线
+        stroke(155, 89, 182); // Purple
+        strokeWeight(2);
+        drawingContext.setLineDash([10, 5]);
+        let sDirY = toScreenY(directrixY);
+        line(0, sDirY, width, sDirY);
+        drawingContext.setLineDash([]);
+        
+        noStroke();
+        fill(155, 89, 182);
+        textAlign(RIGHT, BOTTOM);
+        text("准线 (Directrix)", width - 10, sDirY - 5);
+
+        // 绘制焦点
+        fill(155, 89, 182);
+        noStroke();
+        circle(toScreenX(focusX), toScreenY(focusY), 10);
+        textAlign(LEFT, BOTTOM);
+        text("焦点 (Focus)", toScreenX(focusX) + 8, toScreenY(focusY) - 5);
+
+        // 绘制点到焦点连线 d1
+        let px = mx;
+        let py = f(mx);
+        
+        stroke(155, 89, 182); // Purple
+        strokeWeight(2);
+        line(toScreenX(px), toScreenY(py), toScreenX(focusX), toScreenY(focusY));
+
+        // 绘制点到准线连线 d2
+        line(toScreenX(px), toScreenY(py), toScreenX(px), sDirY);
+
+        // 距离文字
+        let d1 = dist(px, py, focusX, focusY); // Math units approx
+        let d2 = Math.abs(py - directrixY);
+        
+        // 在连线中间显示距离
+        fill(0);
+        noStroke();
+        textAlign(CENTER);
+        let midX1 = (toScreenX(px) + toScreenX(focusX)) / 2;
+        let midY1 = (toScreenY(py) + toScreenY(focusY)) / 2;
+        text(`d1`, midX1, midY1);
+        
+        let midY2 = (toScreenY(py) + sDirY) / 2;
+        text(`d2`, toScreenX(px) + 10, midY2);
+
+        // 结论
+        fill(50);
+        textAlign(LEFT, TOP);
+        text("几何定义：抛物线上的点到焦点的距离 d1 \n等于 到准线的垂直距离 d2。", 20, 60);
+    }
+
+    // 绘制切线
+    function drawTangent(mx) {
+        let my = f(mx);
+        let slope = f_prime(mx);
+        
+        // 绘制切线 (画一条足够长的线)
+        // y - y0 = m(x - x0) => y = m(x - x0) + y0
+        // 找左右两个点
+        let delta = 4; // 延伸范围
+        let x1 = mx - delta;
+        let y1 = slope * (x1 - mx) + my;
+        let x2 = mx + delta;
+        let y2 = slope * (x2 - mx) + my;
+
+        stroke(46, 204, 113); // Green
+        strokeWeight(2);
+        line(toScreenX(x1), toScreenY(y1), toScreenX(x2), toScreenY(y2));
+
+        // 显示斜率值
+        fill(46, 204, 113);
+        noStroke();
+        textSize(14);
+        textAlign(LEFT, BOTTOM);
+        text(`斜率 (Slope) = ${slope.toFixed(2)}`, toScreenX(mx) + 15, toScreenY(my) + 30);
+    }
+
+    // 绘制面积含义 (Square)
+    function drawAreaVisual(mx) {
+        // 仅当 abs(x) > 0.1 时绘制，避免闪烁
+        let side = Math.abs(mx);
+        if (side < 0.1) return;
+
+        // 1. 绘制正方形（物理位置：始终立在 X 轴上）
+        // 我们展示标准正方形 x^2。如果当前 a!=1，高度y不完全等于面积，
+        // 但我们主要展示 "x^2" 这个概念。
+        // 为了直观，我们画一个边长为 x 的正方形，紧贴 x 轴。
+        
+        let screenSide = side * VIEW_SCALE;
+        let sx = toScreenX(mx);
+        let groundY = toScreenY(0);
+        
+        // 计算正方形四个角
+        // 为了不遮挡抛物线，我们尽量画在象限比较空的地方，或者直接画在 X 轴和点 P 之间
+        // 让我们画一个以原点为起点的正方形，这样最符合定义
+        
+        rectMode(CORNER);
+        noStroke();
+        fill(52, 152, 219, 40); // 淡蓝色填充
+        
+        // 正方形位置：从原点(0,0)延伸到(x, x) [注意Y轴方向]
+        // p5坐标系中，y向下为正。toScreenY处理了翻转。
+        // 我们手动算一下屏幕坐标
+        
+        let xStart = toScreenX(0);
+        let yStart = toScreenY(0);
+        let w = mx * VIEW_SCALE; // 如果mx负，向左画
+        let h = -Math.abs(mx) * VIEW_SCALE; // 始终向上画（在数学坐标系中）
+        
+        rect(xStart, yStart, w, h);
+        
+        // 正方形边框
+        stroke(52, 152, 219, 150);
+        strokeWeight(2);
+        line(xStart, yStart, xStart + w, yStart); // 底边
+        line(xStart + w, yStart, xStart + w, yStart + h); // 右/左侧边
+        line(xStart + w, yStart + h, xStart, yStart + h); // 顶边
+        line(xStart, yStart + h, xStart, yStart); // 侧边（重合Y轴）
+
+        // 2. 文字标注：边长和面积
+        fill(41, 128, 185);
+        noStroke();
+        textAlign(CENTER, BOTTOM);
+        text("边长 x", xStart + w/2, yStart); 
+        
+        textAlign(CENTER, CENTER);
+        text("面积 x²", xStart + w/2, yStart + h/2);
+
+        // 3. 视觉连接线：从正方形顶部 -> 抛物线上的点
+        // 只有当 a=1, b=0, c=0 时，高度才完全对齐。
+        // 如果不对齐，我们画一条虚线箭头指向 P 点，表示“函数值与面积有关”
+        
+        let px = mx;
+        let py = f(mx);
+        let screenPx = toScreenX(px);
+        let screenPy = toScreenY(py);
+        
+        // 正方形的顶部中心
+        let squareTopX = xStart + w/2;
+        let squareTopY = yStart + h;
+        
+        stroke(230, 126, 34); // Orange dashed line
+        strokeWeight(2);
+        drawingContext.setLineDash([5, 5]);
+        line(squareTopX, squareTopY, screenPx, screenPy);
+        drawingContext.setLineDash([]);
+        
+        // 在连线旁边写字
+        fill(230, 126, 34);
+        noStroke();
+        textAlign(LEFT, CENTER);
+        // 稍微偏离一点位置
+        text("高度 y ∝ 面积", (squareTopX + screenPx)/2 + 10, (squareTopY + screenPy)/2);
+    }
+
+    function drawGrid() {
+        stroke(220);
+        strokeWeight(1);
+        
+        // 垂直线
+        for (let x = 0; x < width; x += VIEW_SCALE) {
+            line(x + originX % VIEW_SCALE, 0, x + originX % VIEW_SCALE, height);
+        }
+        
+        // 水平线
+        for (let y = 0; y < height; y += VIEW_SCALE) {
+            line(0, y + originY % VIEW_SCALE, width, y + originY % VIEW_SCALE);
+        }
+    }
+
+    function drawAxes() {
+        stroke(0);
+        strokeWeight(2);
+        
+        // X轴
+        line(0, originY, width, originY);
+        // Y轴
+        line(originX, 0, originX, height);
+        
+        // 箭头
+        fill(0);
+        noStroke();
+        // X箭头
+        triangle(width, originY, width - 10, originY - 5, width - 10, originY + 5);
+        text("x", width - 20, originY + 20);
+        
+        // Y箭头
+        triangle(originX, 0, originX - 5, 10, originX + 5, 10);
+        text("y", originX + 15, 20);
+        
+        // 动态计算可见范围（根据缩放比例自动决定画多少个刻度）
+        let xRange = Math.ceil(width / 2 / VIEW_SCALE);
+        let yRange = Math.ceil(height / 2 / VIEW_SCALE);
+
+        // 刻度
+        stroke(0);
+        textAlign(CENTER, TOP);
+        for(let i = -xRange; i <= xRange; i++) {
+            if(i === 0) continue;
+            let sx = toScreenX(i);
+            if(sx > 0 && sx < width) {
+                line(sx, originY, sx, originY + 5);
+                text(i, sx, originY + 8);
+            }
+        }
+        
+        // Corrected alignment: Use CENTER instead of MIDDLE
+        textAlign(RIGHT, CENTER);
+        for(let i = -yRange; i <= yRange; i++) {
+            if(i === 0) continue;
+            let sy = toScreenY(i);
+            if(sy > 0 && sy < height) {
+                line(originX, sy, originX - 5, sy);
+                text(i, originX - 8, sy);
+            }
+        }
+    }
+
+    function drawFormula() {
+        // 在画布右上角显示当前公式
+        fill(44, 62, 80);
+        noStroke();
+        textSize(18);
+        textAlign(RIGHT, TOP);
+        
+        let signB = b >= 0 ? "+" : "";
+        let signC = c >= 0 ? "+" : "";
+        
+        let textA = a.toFixed(2);
+        let textB = b.toFixed(2);
+        let textC = c.toFixed(2);
+        
+        // 简化显示：如果是0就不显示，1就省略数字... 为了清晰这里直接显示数字
+        let formula = `y = ${textA}x² ${signB} ${textB}x ${signC} ${textC}`;
+        
+        text(formula, width - 20, 20);
+    }
+
+</script>
+</body>
+</html>

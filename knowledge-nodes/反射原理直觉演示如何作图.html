@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>反射原理直觉演示 (Reflection Intuition)</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: #fdfdfd;
+      font-family: sans-serif;
+      color: #333;
+    }
+    h2 { margin: 10px 0 5px 0; color: #2c3e50; }
+    p { margin: 0 0 15px 0; color: #7f8c8d; font-size: 0.9rem; }
+    #canvas-container {
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .status {
+      margin-top: 10px;
+      font-weight: bold;
+      font-size: 1.1rem;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>为什么是“连直线”？</h2>
+  <p>左右拖动镜子上的 K 点，观察何时角度相等。</p>
+  <div id="canvas-container"></div>
+  <div class="status" id="statusText">请拖动 K 点...</div>
+
+<script>
+// Renamed variables to avoid global scope conflicts
+let pointS, pointP, pointP_Prime, pointK;
+let mirrorY;
+let isDragging = false;
+let success = false;
+
+function setup() {
+  let cvs = createCanvas(800, 500);
+  cvs.parent('canvas-container');
+  textSize(16);
+  
+  mirrorY = height / 2 + 50;
+  pointS = createVector(150, 150);
+  pointP = createVector(650, 100);
+  
+  // P' (Mirror Image) is mathematically fixed
+  pointP_Prime = createVector(pointP.x, mirrorY + (mirrorY - pointP.y));
+  
+  // Initial K position (randomly wrong)
+  pointK = createVector(300, mirrorY);
+}
+
+function draw() {
+  background(255);
+  
+  // 1. Draw Mirror Surface (Table)
+  stroke(50);
+  strokeWeight(4);
+  line(0, mirrorY, width, mirrorY);
+  
+  // Draw "Ground" hashes
+  strokeWeight(1);
+  for(let x=0; x<width; x+=20) {
+    line(x, mirrorY, x-10, mirrorY+10);
+  }
+  noStroke(); fill(80);
+  text("反射面 (镜子)", 20, mirrorY - 10);
+
+  // 2. Draw The "Real" World (Above Mirror)
+  // Path S -> K -> P
+  strokeWeight(3);
+  if (success) stroke(39, 174, 96); // Green if correct
+  else stroke(44, 62, 80); // Dark Blue normally
+  
+  line(pointS.x, pointS.y, pointK.x, pointK.y); // Incoming
+  line(pointK.x, pointK.y, pointP.x, pointP.y); // Outgoing
+  
+  // Draw Normals & Angles
+  drawAngles();
+
+  // 3. Draw The "Virtual" World (Below Mirror) - The Intuition Part
+  
+  // Dashed line K -> P'
+  strokeWeight(2);
+  drawingContext.setLineDash([5, 5]);
+  if (success) stroke(39, 174, 96);
+  else stroke(150);
+  
+  line(pointK.x, pointK.y, pointP_Prime.x, pointP_Prime.y); // The extension
+  
+  // Dashed line S -> P' (The Target Line)
+  stroke(231, 76, 60, 100); // Faint Red
+  line(pointS.x, pointS.y, pointP_Prime.x, pointP_Prime.y); 
+  
+  drawingContext.setLineDash([]); // Reset dash
+
+  // 4. Draw Points
+  drawPoint(pointS, "S (入射点)");
+  drawPoint(pointP, "P (目标点)");
+  drawPoint(pointP_Prime, "P' (P的像)", true);
+  
+  // Draw K (Draggable)
+  fill(230, 126, 34); stroke(255); strokeWeight(2);
+  circle(pointK.x, pointK.y, 20);
+  fill(230, 126, 34); noStroke();
+  text("K (拖动我)", pointK.x - 30, pointK.y - 20);
+  
+  // 5. Check "Straightness"
+  checkStraightLine();
+}
+
+function drawAngles() {
+  // Normal line
+  stroke(180); strokeWeight(1);
+  drawingContext.setLineDash([2, 2]);
+  line(pointK.x, pointK.y - 100, pointK.x, pointK.y + 100);
+  drawingContext.setLineDash([]);
+  
+  // Calculate Angles
+  let normal = createVector(0, -1);
+  let vecKS = p5.Vector.sub(pointS, pointK);
+  let vecKP = p5.Vector.sub(pointP, pointK);
+  
+  // Angle with normal (approx calculation for display)
+  // Slope of normal is Infinity.
+  // Angle from vertical.
+  let ang1 = degrees(Math.atan2(Math.abs(pointS.x - pointK.x), Math.abs(pointS.y - pointK.y)));
+  let ang2 = degrees(Math.atan2(Math.abs(pointP.x - pointK.x), Math.abs(pointP.y - pointK.y)));
+  
+  fill(0); noStroke();
+  text(ang1.toFixed(1) + "°", pointK.x - 40, pointK.y - 40);
+  text(ang2.toFixed(1) + "°", pointK.x + 10, pointK.y - 40);
+  
+  return Math.abs(ang1 - ang2);
+}
+
+function drawPoint(p, label, isVirtual) {
+  noStroke();
+  if (isVirtual) fill(155, 89, 182);
+  else fill(41, 128, 185);
+  circle(p.x, p.y, 10);
+  text(label, p.x + 15, p.y + 5);
+}
+
+function checkStraightLine() {
+  // Check if S, K, P' are collinear
+  // Cross product method or simple slope check
+  let slope1 = (pointK.y - pointS.y) / (pointK.x - pointS.x);
+  let slope2 = (pointP_Prime.y - pointK.y) / (pointP_Prime.x - pointK.x);
+  
+  let diff = Math.abs(slope1 - slope2);
+  let angleDiff = drawAngles(); // reuse calc
+  
+  let statusDiv = document.getElementById('statusText');
+  
+  // Allow small margin of error for interaction
+  if (Math.abs(angleDiff) < 1.0) {
+    success = true;
+    statusDiv.style.color = "#27ae60";
+    statusDiv.innerText = "完美！只有连成直线时，入射角才等于反射角！";
+  } else {
+    success = false;
+    statusDiv.style.color = "#c0392b";
+    statusDiv.innerText = "不对，入射角 ≠ 反射角。请继续拖动 K 把红虚线拉直！";
+  }
+}
+
+function mouseDragged() {
+  // Simple hit detection for K slider behavior
+  if (mouseY > mirrorY - 30 && mouseY < mirrorY + 30) {
+    pointK.x = constrain(mouseX, 0, width);
+  }
+  return false;
+}
+
+function mousePressed() {
+  if (dist(mouseX, mouseY, pointK.x, pointK.y) < 30) {
+    isDragging = true;
+  }
+}
+</script>
+</body>
+</html>

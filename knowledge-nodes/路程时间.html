@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>路程、时间、速度 互动教学</title>
+    <!-- 引入Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入Chart.js 用于绘制图表 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- 引入Chart.js的Annotation插件，用于高亮显示 -->
+    <!-- 这个插件(v3.0.1)会自动注册到Chart.js v3+/v4+ -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-annotation/3.0.1/chartjs-plugin-annotation.min.js"></script>
+    <style>
+        /* 使用Inter字体，更美观 */
+        body {
+            font-family: 'Inter', 'Helvetica Neue', 'Helvetica', 'Arial', 'sans-serif';
+        }
+        /* Chart.js 默认的响应式高度可能过大，我们稍作限制 */
+        .chart-container {
+            position: relative;
+            /* 在移动端（默认）保持较高的高度 */
+            height: 40vh; 
+            width: 100%;
+        }
+        
+        /* 在大屏幕上 (lg: 1024px以上)，当两栏布局激活时，
+           将图表高度降低，以便三个图表能堆叠显示 */
+        @media (min-width: 1024px) {
+            .chart-container {
+                height: 25vh; /* 变得更窄 */
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div class="container mx-auto max-w-7xl p-4 sm:p-8"> <!-- 稍微加宽了max-w -->
+
+        <!-- 1. 标题栏 -->
+        <header class="text-center mb-8">
+            <h1 class="text-3xl sm:text-4xl font-bold text-blue-700">路程、时间、速度的奇妙之旅</h1>
+            <p class="text-lg sm:text-xl text-gray-600 mt-2">s-t, v-t, s-v 图 互动教学</p>
+        </header>
+
+        <!-- 2. 改为左右布局 (大屏幕) -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            
+            <!-- 2.1 左侧栏：控制与信息 -->
+            <div>
+                <!-- 阶段控制按钮 -->
+                <div class="mb-6">
+                    <h2 class="text-xl font-semibold mb-3 text-center">点击查看行程阶段</h2>
+                    <!-- 按钮将由JS动态生成 -->
+                    <div id="controls-container" class="flex flex-wrap justify-center gap-2">
+                        <!-- 示例: <button class="btn">1. 起步加速</button> -->
+                    </div>
+                </div>
+        
+                <!-- 信息显示面板 -->
+                <div id="info-panel" class="bg-white p-5 rounded-lg shadow-md mb-8 lg:mb-0 transition-all duration-300">
+                    <h3 id="info-title" class="text-2xl font-bold text-blue-600 mb-3"></h3>
+                    <p id="info-text" class="text-base sm:text-lg mb-4"></p>
+                    
+                    <!-- 详细计算过程 -->
+                    <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                        <h4 class="text-lg font-semibold mb-2 text-gray-800">阶段计算详情:</h4>
+                        <div id="info-details" class="text-sm sm:text-base space-y-1 font-mono">
+                            <!-- JS will populate this -->
+                        </div>
+                    </div>
+        
+                    <div class="border-t pt-4 mt-4">
+                        <h4 class="text-lg font-semibold mb-2">核心物理概念:</h4>
+                        <ul class="list-disc list-inside space-y-1 text-gray-700">
+                            <li><b>v-t 图 (速度-时间):</b> 
+                                <span class="font-semibold text-red-600">斜率</span> 代表 <span class="font-semibold text-red-600">加速度</span>。
+                                <span class="font-semibold text-red-600">面积</span> 代表 <span class="font-semibold text-red-600">路程</span>。
+                            </li>
+                            <li><b>s-t 图 (路程-时间):</b> 
+                                <span class="font-semibold text-blue-600">斜率</span> 代表 <span class="font-semibold text-blue-600">速度</span>。
+                            </li>
+                            <li><b>s-v 图 (路程-速度):</b> 
+                                <span class="font-semibold text-green-600">展示了</span> 速度随<span class="font-semibold text-green-600">路程</span>的变化关系。
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div> <!-- 结束左侧栏 -->
+
+            <!-- 2.2 右侧栏：图表 -->
+            <div class="grid grid-cols-1 gap-4"> <!-- 减小图表间距 -->
+                <!-- 速度-时间 (v-t) 图 -->
+                <div class="bg-white p-4 rounded-lg shadow-lg">
+                    <!-- 减小标题字号和边距 -->
+                    <h2 class="text-xl font-bold text-center mb-2 text-red-600">速度-时间 (v-t) 图像</h2>
+                    <div class="chart-container">
+                        <canvas id="vtChart"></canvas>
+                    </div>
+                </div>
+    
+                <!-- 路程-时间 (s-t) 图 -->
+                <div class="bg-white p-4 rounded-lg shadow-lg">
+                    <h2 class="text-xl font-bold text-center mb-2 text-blue-600">路程-时间 (s-t) 图像</h2>
+                    <div class="chart-container">
+                        <canvas id="stChart"></canvas>
+                    </div>
+                </div>
+    
+                <!-- 路程-速度 (s-v) 图 -->
+                <div class="bg-white p-4 rounded-lg shadow-lg">
+                    <h2 class="text-xl font-bold text-center mb-2 text-green-600">路程-速度 (s-v) 图像</h2>
+                    <div class="chart-container">
+                        <canvas id="svChart"></canvas>
+                    </div>
+                </div>
+            </div> <!-- 结束右侧栏 -->
+
+        </div> <!-- 结束左右布局 -->
+        
+        <!-- 页脚 -->
+        <footer class="text-center text-gray-500 mt-12">
+            <p>&copy; 2025 物理互动课堂</p>
+        </footer>
+
+    </div>
+
+    <script>
+        // --- 1. 数据定义 ---
+        
+        // 我们将行程细分为10个阶段，使其在物理上更平滑
+        // 每个点代表一个阶段的结束
+        // s (路程) 单位: km
+        // v (速度) 单位: km/h
+        // t (时间) 单位: 分钟
+        const stages = [
+            { t: 0, v: 0, s: 0, label: '出发 (Start)' },
+            { t: 2, v: 30, s: 0.5, label: '1. 起步加速' }, // s = 0.5*(0+30)*(2/60) = 0.5
+            { t: 32, v: 30, s: 15.5, label: '2. 市区行驶' }, // s = 0.5 + 30*(30/60) = 15.5
+            { t: 37, v: 100, s: 20.92, label: '3. 高速加速' }, // s = 15.5 + 0.5*(30+100)*(5/60) = 20.92
+            { t: 157, v: 100, s: 220.92, label: '4. 高速巡航' }, // s = 20.92 + 100*(120/60) = 220.92
+            { t: 160, v: 0, s: 223.42, label: '5. 减速进站' }, // s = 220.92 + 0.5*(100+0)*(3/60) = 223.42
+            { t: 180, v: 0, s: 223.42, label: '6. 休息站停留' }, // s = 223.42 + 0
+            { t: 185, v: 120, s: 228.42, label: '7. 出站加速' }, // s = 223.42 + 0.5*(0+120)*(5/60) = 228.42
+            { t: 215, v: 120, s: 288.42, label: '8. 高速巡航' }, // s = 228.42 + 120*(30/60) = 288.42
+            { t: 220, v: 40, s: 295.09, label: '9. 减速入城' }, // s = 288.42 + 0.5*(120+40)*(5/60) = 295.09
+            { t: 230, v: 40, s: 301.76, label: '10. 市区终点' } // s = 295.09 + 40*(10/60) = 301.76
+        ];
+
+        // 每个阶段对应的教学描述
+        const descriptions = [
+            // 1. 起步加速
+            "汽车从静止开始，<b>匀速加速</b>到30km/h。<br><b>v-t图:</b> 是一条倾斜向上的直线，斜率代表正的加速度。<br><b>s-t图:</b> 是一条向上弯曲的抛物线，斜率（速度）在不断增大。",
+            // 2. 市区行驶
+            "汽车以30km/h的速度<b>匀速行驶</b>。<br><b>v-t图:</b> 是一条水平直线，速度恒定，加速度为0。<br><b>s-t图:</b> 是一条倾斜的直线，斜率恒定且为正，代表匀速运动。",
+            // 3. 高速加速
+            "汽车为上高速<b>再次加速</b>，从30km/h加速到100km/h。<br><b>v-t图:</b> 再次变为倾斜向上的直线，斜率比第一段更大，加速度更大。<br><b>s-t图:</b> 曲线再次向上弯曲，且弯曲程度（斜率变化）更大。",
+            // 4. 高速巡航
+            "汽车以100km/h的速度在高速上<b>长时间匀速行驶</b>。<br><b>v-t图:</b> 保持在100km/h的水平直线，加速度为0。<br><b>s-t图:</b> 是一条倾斜的直线，斜率非常大，代表速度很快。",
+            // 5. 减速进站
+            "汽车驶离高速，<b>匀速减速</b>进入休息站，速度降为0。<br><b>v-t图:</b> 是一条倾斜向下的直线，斜率为负，代表减速运动。<br><b>s-t图:</b> 是一条向上弯曲但“弯曲变平”的曲线，斜率（速度）在不断减小。",
+            // 6. 休息站停留
+            "汽车在休息站<b>完全静止</b>。<br><b>v-t图:</b> 速度为0，图线在x轴上。<br><b>s-t图:</b> 是一条水平直线，路程不再随时间增加，斜率（速度）为0。",
+            // 7. 出站加速
+            "汽车离开休息站，<b>急加速</b>到120km/h。<br><b>v-t图:</b> 是一条非常陡峭的向上直线，代表很大的正加速度。<br><b>s-t图:</b> 是一条快速向上弯曲的抛物线。",
+            // 8. 高速巡航
+            "汽车以120km/h的<b>最高速度匀速行驶</b>。<br><b>v-t图:</b> 保持在120km/h的水平直线。<br><b>s-t图:</b> 是一条斜率最大的直线，代表最快的匀速运动。",
+            // 9. 减速入城
+            "汽车下高速，<b>大幅减速</b>进入市区，速度降至40km/h。<br><b>v-t图:</b> 是一条非常陡峭的向下直线，代表很大的负加速度。<br><b>s-t图:</b> 曲线的斜率急剧减小，表示速度在快速下降。",
+            // 10. 市区终点
+            "汽车以40km/h的速度在市区<b>匀速行驶</b>，到达终点。<br><b>v-t图:</b> 回到40km/h的水平直线。<br><b>s-t图:</b> 是一条倾斜的直线，斜率（速度）恒定在40。"
+        ];
+
+        // 每个阶段的详细计算
+        const stageCalculations = [
+            // 1. 起步加速
+            `<span>时间 (Δt): 2 min</span>
+             <span>初速度 (v₀): 0 km/h | 末速度 (v): 30 km/h</span>
+             <span>公式 (匀加速): s = (v₀ + v) / 2 * Δt</span>
+             <span>路程 (Δs): (0 + 30) / 2 * (2 / 60) h = <b>0.5 km</b></span>
+             <span>加速度 (a): (30 - 0) / (2 / 60) h = <b>900 km/h²</b></span>`,
+            // 2. 市区行驶
+            `<span>时间 (Δt): 30 min</span>
+             <span>速度 (v): 30 km/h (匀速)</span>
+             <span>公式 (匀速): s = v * Δt</span>
+             <span>路程 (Δs): 30 km/h * (30 / 60) h = <b>15 km</b></span>
+             <span>加速度 (a): <b>0 km/h²</b></span>`,
+            // 3. 高速加速
+            `<span>时间 (Δt): 5 min</span>
+             <span>初速度 (v₀): 30 km/h | 末速度 (v): 100 km/h</span>
+             <span>公式 (匀加速): s = (v₀ + v) / 2 * Δt</span>
+             <span>路程 (Δs): (30 + 100) / 2 * (5 / 60) h ≈ <b>5.42 km</b></span>
+             <span>加速度 (a): (100 - 30) / (5 / 60) h = <b>840 km/h²</b></span>`,
+            // 4. 高速巡航
+            `<span>时间 (Δt): 120 min (2 h)</span>
+             <span>速度 (v): 100 km/h (匀速)</span>
+             <span>公式 (匀速): s = v * Δt</span>
+             <span>路程 (Δs): 100 km/h * (120 / 60) h = <b>200 km</b></span>
+             <span>加速度 (a): <b>0 km/h²</b></span>`,
+            // 5. 减速进站
+            `<span>时间 (Δt): 3 min</span>
+             <span>初速度 (v₀): 100 km/h | 末速度 (v): 0 km/h</span>
+             <span>公式 (匀减速): s = (v₀ + v) / 2 * Δt</span>
+             <span>路程 (Δs): (100 + 0) / 2 * (3 / 60) h = <b>2.5 km</b></span>
+             <span>加速度 (a): (0 - 100) / (3 / 60) h = <b>-2000 km/h²</b></span>`,
+            // 6. 休息站停留
+            `<span>时间 (Δt): 20 min</span>
+             <span>速度 (v): 0 km/h (静止)</span>
+             <span>公式 (静止): s = v * Δt</span>
+             <span>路程 (Δs): 0 km/h * (20 / 60) h = <b>0 km</b></span>
+             <span>加速度 (a): <b>0 km/h²</b></span>`,
+            // 7. 出站加速
+            `<span>时间 (Δt): 5 min</span>
+             <span>初速度 (v₀): 0 km/h | 末速度 (v): 120 km/h</span>
+             <span>公式 (匀加速): s = (v₀ + v) / 2 * Δt</span>
+             <span>路程 (Δs): (0 + 120) / 2 * (5 / 60) h = <b>5 km</b></span>
+             <span>加速度 (a): (120 - 0) / (5 / 60) h = <b>1440 km/h²</b></span>`,
+            // 8. 高速巡航
+            `<span>时间 (Δt): 30 min</span>
+             <span>速度 (v): 120 km/h (匀速)</span>
+             <span>公式 (匀速): s = v * Δt</span>
+             <span>路程 (Δs): 120 km/h * (30 / 60) h = <b>60 km</b></span>
+             <span>加速度 (a): <b>0 km/h²</b></span>`,
+            // 9. 减速入城
+            `<span>时间 (Δt): 5 min</span>
+             <span>初速度 (v₀): 120 km/h | 末速度 (v): 40 km/h</span>
+             <span>公式 (匀减速): s = (v₀ + v) / 2 * Δt</span>
+             <span>路程 (Δs): (120 + 40) / 2 * (5 / 60) h ≈ <b>6.67 km</b></span>
+             <span>加速度 (a): (40 - 120) / (5 / 60) h = <b>-960 km/h²</b></span>`,
+            // 10. 市区终点
+            `<span>时间 (Δt): 10 min</span>
+             <span>速度 (v): 40 km/h (匀速)</span>
+             <span>公式 (匀速): s = v * Δt</span>
+             <span>路程 (Δs): 40 km/h * (10 / 60) h ≈ <b>6.67 km</b></span>
+             <span>加速度 (a): <b>0 km/h²</b></span>`
+        ];
+
+        // --- 2. 全局变量 ---
+        let vtChart, stChart, svChart; 
+        const controlsContainer = document.getElementById('controls-container');
+        const infoTitle = document.getElementById('info-title');
+        const infoText = document.getElementById('info-text');
+        const infoDetails = document.getElementById('info-details'); 
+
+        // --- 3. 初始化 ---
+        window.onload = () => {
+            // 插件会自动注册
+            
+            generateControls();
+            initCharts();
+            
+            // 默认高亮第一个阶段
+            highlightStage(1);
+        };
+
+        // --- 4. 功能函数 ---
+
+        /**
+         * 动态生成控制按钮
+         */
+        function generateControls() {
+            controlsContainer.innerHTML = ''; // 清空
+            // stages[0] 是起点，我们从 stages[1] 开始循环
+            stages.slice(1).forEach((stage, index) => {
+                const stageIndex = index + 1; // 阶段编号从1开始
+                const button = document.createElement('button');
+                button.innerHTML = stage.label; // 使用简化后的label
+                button.dataset.index = stageIndex;
+                button.className = "btn px-3 py-2 text-sm sm:px-4 sm:text-base font-medium rounded-lg shadow-sm transition-all duration-200 border";
+                button.onclick = () => highlightStage(stageIndex);
+                controlsContainer.appendChild(button);
+            });
+        }
+
+        /**
+         * 初始化三个图表
+         */
+        function initCharts() {
+            const chartClickHandler = (e) => {
+                const chart = e.chart;
+                // Chart.js v3+ 使用 getRelativePosition
+                const canvasPosition = Chart.helpers.getRelativePosition(e, chart); 
+                
+                let stageIndex;
+
+                if (chart.canvas.id === 'svChart') {
+                    // --- s-v 图表: X轴是路程 ---
+                    const distanceClicked = chart.scales.x.getValueForPixel(canvasPosition.x);
+                    // 找到第一个 s 大于 distanceClicked 的点的索引
+                    stageIndex = stages.findIndex(s => s.s >= distanceClicked);
+                } else {
+                    // --- v-t 和 s-t 图表: X轴是时间 ---
+                    const timeClicked = chart.scales.x.getValueForPixel(canvasPosition.x);
+                    // 找到第一个 t 大于 timeClicked 的点的索引
+                    stageIndex = stages.findIndex(s => s.t >= timeClicked);
+                }
+                
+                if (stageIndex === -1) {
+                    stageIndex = stages.length - 1; // 点击了最后区域
+                } else if (stageIndex === 0) {
+                    stageIndex = 1; // 点击了第一个区域
+                }
+                
+                highlightStage(stageIndex);
+            };
+            
+            // v-t 图表配置
+            const vtConfig = {
+                type: 'line',
+                data: {
+                    datasets: [{
+                        label: '速度 (km/h)',
+                        data: stages.map(s => ({ x: s.t, y: s.v })),
+                        borderColor: 'rgb(239, 68, 68)',
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        fill: true,
+                        tension: 0, // 0 tension = 尖角，符合v-t图的物理意义
+                        pointRadius: 4,
+                        pointHitRadius: 10,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    onClick: chartClickHandler,
+                    scales: {
+                        x: {
+                            type: 'linear',
+                            title: { display: true, text: '时间 (分钟)', font: { size: 14 } },
+                            min: 0,
+                            max: stages[stages.length - 1].t // 230
+                        },
+                        y: {
+                            title: { display: true, text: '速度 (km/h)', font: { size: 14 } },
+                            min: 0,
+                            max: 130 // 留出一点顶部空间
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                title: (context) => `时间: ${context[0].parsed.x} 分钟`,
+                                label: (context) => `速度: ${context.parsed.y} km/h`,
+                            }
+                        },
+                        annotation: {
+                            annotations: {} // 初始为空，由 highlightStage 填充
+                        }
+                    }
+                }
+            };
+
+            // s-t 图表配置
+            const stConfig = {
+                type: 'line',
+                data: {
+                    datasets: [{
+                        label: '路程 (km)',
+                        data: stages.map(s => ({ x: s.t, y: s.s.toFixed(2) })),
+                        borderColor: 'rgb(59, 130, 246)',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        fill: false,
+                        tension: 0.2, // 0.2 tension = 轻微曲线，模拟s-t图的抛物线
+                        pointRadius: 4,
+                        pointHitRadius: 10,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    onClick: chartClickHandler,
+                    scales: {
+                        x: {
+                            type: 'linear',
+                            title: { display: true, text: '时间 (分钟)', font: { size: 14 } },
+                            min: 0,
+                            max: stages[stages.length - 1].t // 230
+                        },
+                        y: {
+                            title: { display: true, text: '路程 (km)', font: { size: 14 } },
+                            min: 0,
+                            max: Math.ceil(stages[stages.length - 1].s / 50) * 50 // 向上取整到50的倍数
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                title: (context) => `时间: ${context[0].parsed.x} 分钟`,
+                                label: (context) => `路程: ${context.parsed.y} km`,
+                            }
+                        },
+                        annotation: {
+                            annotations: {} // 初始为空
+                        }
+                    }
+                }
+            };
+
+            // s-v 图表配置
+            const svConfig = {
+                type: 'line',
+                data: {
+                    datasets: [{
+                        label: '速度 (km/h)',
+                        data: stages.map(s => ({ x: s.s.toFixed(2), y: s.v })),
+                        borderColor: 'rgb(22, 163, 74)', // Green
+                        backgroundColor: 'rgba(22, 163, 74, 0.1)',
+                        fill: false,
+                        tension: 0.0, // 0.1轻微曲线
+                        pointRadius: 4,
+                        pointHitRadius: 10,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    onClick: chartClickHandler,
+                    scales: {
+                        x: {
+                            type: 'linear',
+                            title: { display: true, text: '路程 (km)', font: { size: 14 } },
+                            min: 0,
+                            max: Math.ceil(stages[stages.length - 1].s / 50) * 50 // 同 s-t 图
+                        },
+                        y: {
+                            title: { display: true, text: '速度 (km/h)', font: { size: 14 } },
+                            min: 0,
+                            max: 130 // 同 v-t 图
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                title: (context) => `路程: ${context[0].parsed.x} km`,
+                                label: (context) => `速度: ${context.parsed.y} km/h`,
+                            }
+                        },
+                        annotation: {
+                            annotations: {} // 初始为空
+                        }
+                    }
+                }
+            };
+
+            // 创建图表
+            vtChart = new Chart(document.getElementById('vtChart'), vtConfig);
+            stChart = new Chart(document.getElementById('stChart'), stConfig);
+            svChart = new Chart(document.getElementById('svChart'), svConfig); 
+        }
+
+        /**
+         * 高亮显示指定阶段
+         * @param {number} index - 阶段编号 (从1开始)
+         */
+        function highlightStage(index) {
+            if (index < 1 || index >= stages.length) {
+                console.warn(`Invalid stage index: ${index}`);
+                return;
+            }
+            
+            const start = stages[index - 1];
+            const end = stages[index];
+            const description = descriptions[index - 1];
+            const calculation = stageCalculations[index - 1]; 
+
+            // 1. 更新信息面板
+            infoTitle.innerText = end.label; // "1. 起步加速"
+            infoText.innerHTML = description;
+            infoDetails.innerHTML = calculation; 
+            // 为infoDetails内的span添加样式
+            infoDetails.querySelectorAll('span').forEach(span => {
+                span.className = 'block text-gray-700';
+            });
+
+
+            // 2. 更新高亮按钮
+            const buttons = controlsContainer.querySelectorAll('.btn');
+            buttons.forEach(btn => {
+                if (parseInt(btn.dataset.index) === index) {
+                    btn.className = "btn px-3 py-2 text-sm sm:px-4 sm:text-base font-medium rounded-lg shadow-sm transition-all duration-200 border bg-blue-600 text-white border-blue-700";
+                } else {
+                    btn.className = "btn px-3 py-2 text-sm sm:px-4 sm:text-base font-medium rounded-lg shadow-sm transition-all duration-200 border bg-white text-blue-700 border-blue-300 hover:bg-blue-50";
+                }
+            });
+
+            // 3. 更新图表高亮区域
+            
+            // 为 v-t 和 s-t 创建 "时间" 高亮盒
+            const timeAnnotationBox = {
+                type: 'box',
+                xMin: start.t,
+                xMax: end.t,
+                backgroundColor: 'rgba(255, 235, 59, 0.3)', // 黄色高亮
+                borderColor: 'rgba(255, 205, 0, 0.5)',
+                borderWidth: 1,
+                label: {
+                    content: end.label, // "1. 起步加速"
+                    display: true,
+                    position: 'start',
+                    color: 'black',
+                    font: {
+                        weight: 'bold'
+                    }
+                }
+            };
+            
+            // 为 s-v 创建 "路程" 高亮盒
+            const distanceAnnotationBox = {
+                type: 'box',
+                xMin: start.s,
+                xMax: end.s,
+                backgroundColor: 'rgba(255, 235, 59, 0.3)', // 黄色高亮
+                borderColor: 'rgba(255, 205, 0, 0.5)',
+                borderWidth: 1,
+                label: {
+                    content: end.label, // "1. 起步加速"
+                    display: true,
+                    position: 'start',
+                    color: 'black',
+                    font: {
+                        weight: 'bold'
+                    }
+                }
+            };
+
+            // 更新v-t图
+            vtChart.options.plugins.annotation.annotations = { box: timeAnnotationBox };
+            
+            // 更新s-t图 (需要复制对象，否则Chart.js会认为是同一个引用)
+            stChart.options.plugins.annotation.annotations = { box: { ...timeAnnotationBox } };
+            
+            // 更新s-v图
+            svChart.options.plugins.annotation.annotations = { box: distanceAnnotationBox };
+
+            // 'none' 表示无动画更新，立即生效
+            vtChart.update('none'); 
+            stChart.update('none');
+            svChart.update('none'); 
+        }
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>日食原理互动演示 (Solar Eclipse Visualizer)</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #f4f4f9;
+      font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+      overflow: hidden; /* 防止出现双滚动条 */
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* 顶部标题栏 */
+    header {
+      background-color: #2c3e50;
+      color: white;
+      padding: 15px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 1.2rem;
+    }
+
+    /* 主布局容器 */
+    #main-container {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      height: 100%;
+    }
+
+    /* 左侧控制面板 */
+    #sidebar {
+      width: 340px;
+      background-color: white;
+      padding: 20px;
+      overflow-y: auto;
+      border-right: 1px solid #ddd;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      flex-shrink: 0;
+    }
+
+    /* 右侧画布区域 */
+    #canvas-container {
+      flex: 1;
+      position: relative;
+      background-color: #000; /* 太空背景 */
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    /* UI 组件样式 */
+    .panel-section {
+      background: #f8f9fa;
+      padding: 15px;
+      border-radius: 8px;
+      border: 1px solid #e9ecef;
+    }
+
+    .panel-section h3 {
+      margin-top: 0;
+      margin-bottom: 10px;
+      font-size: 1rem;
+      color: #333;
+      border-bottom: 2px solid #3498db;
+      padding-bottom: 5px;
+      display: inline-block;
+    }
+
+    .control-group {
+      margin-bottom: 12px;
+    }
+
+    label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.9rem;
+      color: #555;
+      cursor: pointer;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      margin-top: 5px;
+      accent-color: #3498db;
+    }
+
+    input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: #3498db;
+    }
+
+    .legend {
+      font-size: 0.85rem;
+      line-height: 1.6;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      margin-bottom: 5px;
+    }
+
+    .color-box {
+      width: 15px;
+      height: 15px;
+      margin-right: 8px;
+      border-radius: 3px;
+      border: 1px solid rgba(0,0,0,0.1);
+    }
+
+    .status-box {
+      background-color: #e8f4fd;
+      border: 1px solid #b6e0fe;
+      padding: 12px;
+      border-radius: 6px;
+      text-align: center;
+      font-weight: bold;
+      color: #2c3e50;
+      font-size: 1.1rem;
+    }
+    
+    .instruction {
+      font-size: 0.85rem;
+      color: #666;
+      font-style: italic;
+      margin-top: 5px;
+    }
+
+    /* 自适应处理 */
+    @media (max-width: 900px) {
+      #main-container {
+        flex-direction: column;
+      }
+      #sidebar {
+        width: 100%;
+        height: 250px;
+        border-right: none;
+        border-bottom: 1px solid #ddd;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>日食原理可视化 (Solar Eclipse Sim)</h1>
+  <div style="font-size: 0.9rem; opacity: 0.8;">针对题目解析设计</div>
+</header>
+
+<div id="main-container">
+  
+  <!-- 控制面板 -->
+  <aside id="sidebar">
+    
+    <div class="panel-section">
+      <h3>当前观测状态</h3>
+      <div id="status-display" class="status-box">移动观测者查看效果</div>
+      <div class="instruction">提示：拖拽画面中的“绿色眼睛”图标移动位置。</div>
+    </div>
+
+    <div class="panel-section">
+      <h3>显示设置</h3>
+      
+      <div class="control-group">
+        <label>
+          <span>显示光线辅助线</span>
+          <input type="checkbox" id="toggle-rays" checked>
+        </label>
+      </div>
+      
+      <div class="control-group">
+        <label>
+          <span>显示区域标注 (A/B/C/D)</span>
+          <input type="checkbox" id="toggle-labels" checked>
+        </label>
+      </div>
+
+      <div class="control-group">
+        <label>
+          <span>显示阴影区域着色</span>
+          <input type="checkbox" id="toggle-shadows" checked>
+        </label>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <h3>参数调节</h3>
+      <div class="control-group">
+        <label>月球距离 <span id="val-moon-dist"></span></label>
+        <input type="range" id="slider-moon-dist" min="200" max="400" value="250">
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <h3>图例说明 (Legend)</h3>
+      <div class="legend">
+        <div class="legend-item">
+          <div class="color-box" style="background: rgba(50, 50, 50, 0.9);"></div>
+          <span>区域 A：本影 (全食)</span>
+        </div>
+        <div class="legend-item">
+          <div class="color-box" style="background: rgba(100, 100, 100, 0.4);"></div>
+          <span>区域 B/D：半影 (偏食)</span>
+        </div>
+        <div class="legend-item">
+          <div class="color-box" style="background: rgba(200, 200, 200, 0.3); border: 1px dashed #666;"></div>
+          <span>区域 C：伪本影 (环食)</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <h3>题目解析</h3>
+      <div class="legend" style="font-size: 0.85rem; color: #444;">
+        <p><strong>A区</strong>：月球完全遮挡太阳 → <strong>日全食</strong>。</p>
+        <p><strong>B/D区</strong>：月球遮挡部分太阳 → <strong>日偏食</strong>。</p>
+        <p><strong>C区</strong>：月球无法完全遮挡太阳（中间透光）→ <strong>日环食</strong>。</p>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- 画布容器 -->
+  <div id="canvas-container">
+    <!-- p5.js canvas will be injected here -->
+  </div>
+
+</div>
+
+<script>
+/**
+ * P5.js Solar Eclipse Simulation - Fixed & Clean Version
+ * Uses precise vertex calculations for clean polygon filling.
+ */
+
+// Global Variables
+let sun, moon;
+let observer;
+let canvasWidth, canvasHeight;
+
+// Simulation Constants
+const SUN_RADIUS = 60;
+const MOON_RADIUS = 15; 
+let moonDist = 250;     // Distance from Sun center
+
+// UI State
+let showRays = true;
+let showLabels = true;
+let showShadows = true;
+
+// DOM Elements
+let statusDiv;
+
+function setup() {
+  const container = document.getElementById('canvas-container');
+  canvasWidth = container.clientWidth;
+  canvasHeight = container.clientHeight;
+  
+  const canvas = createCanvas(canvasWidth, canvasHeight);
+  canvas.parent('canvas-container');
+  
+  // Initialize Objects
+  sun = createVector(canvasWidth * 0.15, canvasHeight / 2);
+  moon = createVector(sun.x + moonDist, sun.y);
+  observer = createVector(sun.x + moonDist + 150, sun.y - 40);
+
+  // Bind DOM controls
+  document.getElementById('toggle-rays').addEventListener('change', (e) => showRays = e.target.checked);
+  document.getElementById('toggle-labels').addEventListener('change', (e) => showLabels = e.target.checked);
+  document.getElementById('toggle-shadows').addEventListener('change', (e) => showShadows = e.target.checked);
+  
+  const sliderDist = document.getElementById('slider-moon-dist');
+  sliderDist.addEventListener('input', (e) => {
+    moonDist = parseInt(e.target.value);
+    moon.x = sun.x + moonDist;
+  });
+  
+  statusDiv = document.getElementById('status-display');
+  
+  textFont('Arial');
+}
+
+function windowResized() {
+  const container = document.getElementById('canvas-container');
+  canvasWidth = container.clientWidth;
+  canvasHeight = container.clientHeight;
+  resizeCanvas(canvasWidth, canvasHeight);
+  
+  sun.y = canvasHeight / 2;
+  moon.y = canvasHeight / 2;
+}
+
+function draw() {
+  background(10, 15, 30); // Deep space
+
+  // Update Moon
+  moon.x = sun.x + moonDist;
+  moon.y = sun.y; 
+
+  // --- PRECISE GEOMETRY CALCULATION ---
+  // We need to find the exact endpoints of the shadow regions.
+  let farX = canvasWidth + 200; // Point far off screen
+
+  // 1. Tangent Angles
+  // Outer Tangent (Sun Top -> Moon Top): creates Umbra
+  // Angle relative to horizontal center line
+  // sin(theta) = (Rs - Rm) / Dist
+  let angOuter = Math.asin((SUN_RADIUS - MOON_RADIUS) / moonDist);
+  
+  // Inner Tangent (Sun Bottom -> Moon Top): creates Penumbra / Antumbra cross
+  // sin(theta) = (Rs + Rm) / Dist
+  let angInner = Math.asin((SUN_RADIUS + MOON_RADIUS) / moonDist);
+
+  // 2. Key Points
+  
+  // Umbra Tip (Apex of A)
+  // Distance from Moon Center = Rm / sin(angOuter)
+  let umbraLen = MOON_RADIUS / Math.sin(angOuter);
+  let umbraTip = createVector(moon.x + umbraLen, sun.y);
+
+  // Inner Cross Point (Apex of Antumbra start if extended backwards, but actually crossover)
+  // Distance from Moon Center = Rm / sin(angInner)
+  let innerCrossLen = MOON_RADIUS / Math.sin(angInner);
+  let innerCross = createVector(moon.x + innerCrossLen, sun.y); // This is where rays cross
+
+  // 3. Ray Endpoints (at farX)
+  
+  // Outer Rays (diverging from Sun) - defining Umbra and C boundary
+  // y = y_tip +/- (x - x_tip) * tan(angOuter)
+  let yOuterTop_Far = sun.y - (farX - umbraTip.x) * Math.tan(angOuter);
+  let yOuterBot_Far = sun.y + (farX - umbraTip.x) * Math.tan(angOuter);
+
+  // Inner Rays (crossing over) - defining B and D outer boundary
+  // Originating from "InnerCross" point essentially for projection
+  // y = y_cross +/- (x - x_cross) * tan(angInner)
+  let yInnerTop_Far = sun.y - (farX - innerCross.x) * Math.tan(angInner);
+  let yInnerBot_Far = sun.y + (farX - innerCross.x) * Math.tan(angInner);
+  
+  
+  // --- DRAWING SHADOW ZONES ---
+  
+  if (showShadows) {
+    noStroke();
+    
+    // Zone A: Umbra (本影) - Triangle from Moon to Tip
+    fill(20, 20, 20, 230); // Almost black
+    triangle(
+      moon.x, moon.y - MOON_RADIUS, // Approx tangent point (simplified vertical)
+      moon.x, moon.y + MOON_RADIUS,
+      umbraTip.x, umbraTip.y
+    );
+    // Correcting the start of Umbra to be nicer:
+    // Actually it starts at tangent points on Moon, but vertical diameter is close enough for schematic.
+    
+    // Zone C: Antumbra (伪本影) - Diverging from Tip
+    fill(60, 60, 60, 150);
+    beginShape();
+    vertex(umbraTip.x, umbraTip.y);
+    vertex(farX, yOuterTop_Far); // Diverges UP (wait, geometry check)
+    // Geometry check: Umbra lines converge. Past the tip, they diverge.
+    // The "Outer" lines cross at UmbraTip. So past UmbraTip, Top goes to Bottom?
+    // Yes. Line from SunTop->MoonTop hits axis at Tip, then goes down.
+    // So yOuterTop_Far is actually the bottom boundary of C?
+    // Let's re-verify:
+    // Line 1: SunTop -> MoonTop -> Tip -> Goes Down.
+    // Line 2: SunBot -> MoonBot -> Tip -> Goes Up.
+    // So C is bounded by Line 1 (bottom edge) and Line 2 (top edge).
+    vertex(farX, yOuterBot_Far); 
+    endShape(CLOSE);
+
+    // Zone B: Upper Penumbra (半影上)
+    // Bounded by:
+    // 1. SunTop -> MoonTop (Outer Tangent) -> this is the Umbra/Antumbra boundary line.
+    // 2. SunBot -> MoonTop (Inner Tangent) -> this is the outer limit of penumbra.
+    fill(100, 100, 100, 80); // Lighter grey
+    beginShape();
+    vertex(moon.x, moon.y - MOON_RADIUS); // Start at moon top
+    vertex(umbraTip.x, umbraTip.y);       // Umbra tip (end of boundary 1)
+    vertex(farX, yOuterBot_Far);          // Continue along Boundary 1 (Top edge of C)
+    vertex(farX, yInnerTop_Far);          // Far point of Boundary 2 (Outer limit)
+    endShape(CLOSE);
+
+    // Zone D: Lower Penumbra (半影下)
+    beginShape();
+    vertex(moon.x, moon.y + MOON_RADIUS); // Start at moon bottom
+    vertex(umbraTip.x, umbraTip.y);       // Umbra tip
+    vertex(farX, yOuterTop_Far);          // Continue along Boundary (Bottom edge of C)
+    vertex(farX, yInnerBot_Far);          // Far point of Boundary 2
+    endShape(CLOSE);
+  }
+
+  // --- DRAWING RAYS (Lines) ---
+  if (showRays) {
+    stroke(255, 255, 0, 150); // Yellow rays
+    strokeWeight(1);
+    
+    // Use actual geometric points for clean lines
+    // Outer Top: SunTop -> MoonTop -> Tip -> FarBot
+    line(sun.x, sun.y - SUN_RADIUS, farX, yOuterBot_Far);
+    
+    // Outer Bot: SunBot -> MoonBot -> Tip -> FarTop
+    line(sun.x, sun.y + SUN_RADIUS, farX, yOuterTop_Far);
+    
+    // Inner Top: SunBot -> MoonTop -> FarTop
+    line(sun.x, sun.y + SUN_RADIUS, farX, yInnerTop_Far);
+    
+    // Inner Bot: SunTop -> MoonBot -> FarBot
+    line(sun.x, sun.y - SUN_RADIUS, farX, yInnerBot_Far);
+  }
+
+  // --- DRAW BODIES ---
+  // Sun
+  noStroke();
+  fill(255, 204, 0);
+  ellipse(sun.x, sun.y, SUN_RADIUS * 2);
+  // Glow
+  drawingContext.shadowBlur = 40;
+  drawingContext.shadowColor = 'orange';
+  ellipse(sun.x, sun.y, SUN_RADIUS * 2);
+  drawingContext.shadowBlur = 0;
+
+  // Moon
+  fill(50);
+  stroke(100);
+  strokeWeight(1);
+  ellipse(moon.x, moon.y, MOON_RADIUS * 2);
+
+  // --- LABELS ---
+  if (showLabels) {
+    fill(255);
+    noStroke();
+    textSize(16);
+    textAlign(CENTER, CENTER);
+    text("A", (moon.x + umbraTip.x)/2, sun.y);
+    text("C", umbraTip.x + 80, sun.y);
+    text("B", moon.x + 80, sun.y - 40);
+    text("D", moon.x + 80, sun.y + 40);
+  }
+
+  // --- INTERACTION & PIP ---
+  handleObserverInteraction();
+  drawObserver();
+  drawObserverView(umbraTip.x);
+}
+
+function handleObserverInteraction() {
+  if (mouseIsPressed && mouseX > sun.x + 50) { 
+    let d = dist(mouseX, mouseY, observer.x, observer.y);
+    if (d < 50) {
+      observer.x = mouseX;
+      observer.y = mouseY;
+    }
+  }
+}
+
+function drawObserver() {
+  push();
+  translate(observer.x, observer.y);
+  noFill();
+  stroke(0, 255, 0, 180);
+  strokeWeight(1);
+  ellipse(0, 0, 24);
+  fill(255);
+  noStroke();
+  ellipse(0, 0, 10, 6);
+  fill(0, 200, 0);
+  ellipse(0, 0, 4);
+  fill(0, 255, 0);
+  textSize(12);
+  textAlign(CENTER);
+  text("观测者", 0, 20);
+  pop();
+}
+
+function drawObserverView(umbraTipX) {
+  let viewSize = 180;
+  let viewX = canvasWidth - viewSize - 20;
+  let viewY = canvasHeight - viewSize - 20;
+  
+  // Container
+  fill(0, 0, 0, 220);
+  stroke(255);
+  strokeWeight(2);
+  rect(viewX, viewY, viewSize, viewSize, 8);
+  
+  noStroke();
+  fill(255);
+  textSize(14);
+  textAlign(LEFT, TOP);
+  text("观测者视野", viewX + 10, viewY + 10);
+  
+  let centerX = viewX + viewSize / 2;
+  let centerY = viewY + viewSize / 2 + 15;
+  
+  // Logic
+  let dx = observer.x - sun.x;
+  let dy = observer.y - sun.y;
+  if (dx < 1) dx = 1;
+
+  // Apparent Sizes (Perspective)
+  let scale = 3500 / dx; 
+  let sunR = SUN_RADIUS * scale * 0.05; 
+  
+  // Moon Logic
+  let distObsMoon = dx - moonDist;
+  
+  if (distObsMoon > 0) {
+    // Observer is behind moon
+    let moonR = MOON_RADIUS * (3500 / distObsMoon) * 0.05;
+    
+    // Calculate vertical shift (parallax)
+    // Shift is proportional to how far off-axis we are (dy)
+    // and the ratio of distances.
+    let shiftY = -dy * (moonDist / distObsMoon);
+    
+    // Normalize to fit box
+    let maxR = 60;
+    let factor = maxR / Math.max(sunR, moonR);
+    if (factor > 2) factor = 2;
+    if (factor < 0.5) factor = 0.5;
+    
+    sunR *= factor;
+    moonR *= factor;
+    // Visually tune shift to match canvas geometry
+    // This factor 4.0 is empirical to make the PIP view "feel" like the canvas position
+    let renderShiftY = shiftY * (factor * 0.2); 
+
+    // Sky
+    fill(100, 180, 255);
+    // Darken sky if significant overlap
+    let overlap = sunR + moonR - Math.abs(renderShiftY);
+    if (moonR > sunR && Math.abs(renderShiftY) < (moonR - sunR)) {
+       fill(10, 10, 30); // Total eclipse
+    } else if (overlap > 0) {
+       // Partial dimming
+       let dimFactor = map(overlap, 0, sunR*2, 180, 50);
+       fill(100 - (180-dimFactor), 180 - (180-dimFactor), 255 - (180-dimFactor));
+    }
+    
+    rect(viewX, viewY + 30, viewSize, viewSize - 30);
+    
+    // Sun
+    fill(255, 204, 0);
+    ellipse(centerX, centerY, sunR * 2);
+    
+    // Moon
+    fill(0);
+    ellipse(centerX, centerY + renderShiftY, moonR * 2);
+    
+    // Text Status
+    fill(255);
+    textAlign(CENTER);
+    let status = "";
+    
+    // Determine Zone logic based on geometry, not just pixels
+    // Using strict geometry from Diagram
+    
+    // Slopes of lines to observer
+    let slopeObsTop = (observer.y - (sun.y - SUN_RADIUS)) / observer.x; // Ray from SunTop
+    let slopeObsBot = (observer.y - (sun.y + SUN_RADIUS)) / observer.x; // Ray from SunBot
+    
+    // Check intersection with Moon y-range at moonDist
+    // y at moonDist = slope * moonDist + StartY
+    let yRayTopAtMoon = (sun.y - SUN_RADIUS) + slopeObsTop * moonDist;
+    let yRayBotAtMoon = (sun.y + SUN_RADIUS) + slopeObsBot * moonDist;
+    
+    // Moon extends from sun.y - Rm to sun.y + Rm
+    let mTop = sun.y - MOON_RADIUS;
+    let mBot = sun.y + MOON_RADIUS;
+    
+    // Check blocking
+    let topBlocked = (yRayTopAtMoon > mTop && yRayTopAtMoon < mBot); // Top ray hits moon?
+    let botBlocked = (yRayBotAtMoon > mTop && yRayBotAtMoon < mBot); // Bot ray hits moon?
+    
+    // But this logic is for point eyes. The sun is an extended source.
+    // Let's stick to the visual overlap in PIP for status text, it's intuitive.
+    
+    let distC = Math.abs(renderShiftY);
+    
+    if (distC >= sunR + moonR) {
+        status = "无日食";
+        statusDiv.style.background = "#e8f4fd";
+        statusDiv.style.color = "#333";
+    } else {
+        if (moonR >= sunR) {
+            // Potential Total
+            if (distC <= moonR - sunR) {
+                status = "日全食 (A区)";
+                statusDiv.style.background = "#2c3e50";
+                statusDiv.style.color = "#fff";
+            } else {
+                status = "日偏食 (B/D区)";
+                statusDiv.style.background = "#fff3cd";
+                statusDiv.style.color = "#856404";
+            }
+        } else {
+            // Potential Annular
+            if (distC <= sunR - moonR) {
+                status = "日环食 (C区)";
+                statusDiv.style.background = "#f8d7da";
+                statusDiv.style.color = "#721c24";
+            } else {
+                status = "日偏食 (B/D区)";
+                statusDiv.style.background = "#fff3cd";
+                statusDiv.style.color = "#856404";
+            }
+        }
+    }
+    
+    text(status, centerX, viewY + viewSize - 10);
+    statusDiv.innerText = status;
+    
+  } else {
+    fill(135, 206, 235);
+    rect(viewX, viewY + 30, viewSize, viewSize - 30);
+    fill(0); 
+    textAlign(CENTER);
+    text("未进入阴影", centerX, centerY);
+    statusDiv.innerText = "未进入阴影区";
+  }
+}
+</script>
+
+</body>
+</html>

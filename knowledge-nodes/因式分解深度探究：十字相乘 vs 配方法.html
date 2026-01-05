@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>因式分解可视化：最终完美版</title>
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+
+  <style>
+    :root {
+      --primary: #4F46E5;    /* 靛蓝 */
+      --secondary: #10B981;  /* 翡翠绿 */
+      --text-main: #1F2937;
+      --bg-color: #F9FAFB;
+      --panel-bg: #FFFFFF;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: "Noto Sans SC", "Segoe UI", sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    header {
+      background: var(--panel-bg);
+      padding: 10px 20px;
+      border-bottom: 1px solid #E5E7EB;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+
+    h1 { margin: 0; font-size: 1.2rem; color: var(--primary); }
+    .subtitle { font-size: 0.9rem; color: #6B7280; margin-left: 10px; }
+
+    .main-container {
+      display: flex;
+      flex: 1;
+      height: calc(100vh - 55px);
+    }
+
+    /* 左侧控制区 */
+    .control-panel {
+      width: 380px;
+      background: var(--panel-bg);
+      border-right: 1px solid #E5E7EB;
+      display: flex;
+      flex-direction: column;
+      z-index: 10;
+      box-shadow: 2px 0 5px rgba(0,0,0,0.02);
+      flex-shrink: 0;
+    }
+
+    .panel-scroll {
+      padding: 20px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .section {
+      margin-bottom: 20px;
+      background: #FAFAFA;
+      border: 1px solid #E5E7EB;
+      border-radius: 8px;
+      padding: 15px;
+    }
+
+    .section-title {
+      font-weight: 600;
+      font-size: 0.95rem;
+      margin-bottom: 10px;
+      color: var(--text-main);
+      border-left: 4px solid var(--primary);
+      padding-left: 8px;
+    }
+
+    .btn-group { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+    
+    button {
+      flex: 1;
+      min-width: 90px;
+      padding: 8px 12px;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-weight: 500;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: #4338CA; }
+    
+    .btn-secondary { background: var(--secondary); color: white; }
+    .btn-secondary:hover { background: #059669; }
+
+    .btn-accent { background: #F59E0B; color: white; }
+    .btn-accent:hover { background: #D97706; }
+
+    .btn-step { background: white; border: 1px solid #D1D5DB; color: #374151; }
+    .btn-step:hover { background: #F3F4F6; border-color: #9CA3AF; }
+    .btn-step:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none;}
+
+    .problem-box {
+      font-family: "Cambria Math", "Times New Roman", serif;
+      font-size: 1.4rem;
+      text-align: center;
+      padding: 15px;
+      background: white;
+      border: 2px dashed #D1D5DB;
+      border-radius: 8px;
+      margin: 10px 0;
+      color: var(--primary);
+      min-height: 40px;
+    }
+
+    /* 进度条 */
+    .step-indicator {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 15px;
+      position: relative;
+    }
+    .step-dot {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: #E5E7EB;
+      color: #6B7280;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      z-index: 2;
+      transition: all 0.3s;
+    }
+    .step-dot.active { background: var(--primary); color: white; font-weight: bold; transform: scale(1.1); }
+    .step-line {
+      position: absolute;
+      top: 12px;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: #E5E7EB;
+      z-index: 1;
+    }
+    .step-line-fill {
+      height: 100%;
+      background: var(--primary);
+      transition: width 0.3s ease;
+    }
+
+    /* 说明文字 */
+    .explanation-card {
+      background: #EFF6FF;
+      border-left: 4px solid var(--primary);
+      padding: 12px;
+      border-radius: 0 4px 4px 0;
+      margin-top: 10px;
+      font-size: 0.9rem;
+      line-height: 1.6;
+      min-height: 80px;
+      color: #374151;
+    }
+
+    /* 右侧画布 */
+    .canvas-area {
+      flex: 1;
+      position: relative;
+      background: #FFFFFF;
+      overflow: hidden;
+    }
+    
+    .canvas-overlay {
+      position: absolute;
+      bottom: 15px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255,255,255,0.95);
+      padding: 6px 16px;
+      border-radius: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      font-size: 0.85rem;
+      color: #4B5563;
+      pointer-events: none;
+      border: 1px solid #E5E7EB;
+    }
+
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>因式分解可视化</h1>
+    <span class="subtitle">精品题库：智能显示优化版</span>
+  </div>
+</header>
+
+<div class="main-container">
+  
+  <div class="control-panel">
+    <div class="panel-scroll">
+      
+      <div class="section">
+        <div class="section-title">1. 选择题型</div>
+        <div class="btn-group">
+          <button class="btn-primary" onclick="generateProblem('simple')">基础题<br>(a=1, 偶数b)</button>
+          <button class="btn-accent" onclick="generateProblem('complex')">进阶题<br>(a≠1)</button>
+          <button class="btn-secondary" onclick="generateProblem('irrational')">无理题<br>(配方专场)</button>
+        </div>
+        <div class="problem-box" id="problem-display">y = ...</div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">2. 分步演示</div>
+        
+        <div class="step-indicator">
+          <div class="step-line"><div class="step-line-fill" id="step-progress" style="width: 0%"></div></div>
+          <div class="step-dot active" id="dot-0">1</div>
+          <div class="step-dot" id="dot-1">2</div>
+          <div class="step-dot" id="dot-2">3</div>
+          <div class="step-dot" id="dot-3">4</div>
+        </div>
+
+        <div class="btn-group">
+          <button class="btn-step" id="btn-prev" onclick="changeStep(-1)" disabled>◀ 上一步</button>
+          <button class="btn-step" id="btn-next" onclick="changeStep(1)">下一步 ▶</button>
+        </div>
+
+        <div class="explanation-card" id="step-explanation">
+          请选择一道题目开始。
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">代数式颜色图例</div>
+        <div style="font-size: 0.85rem; line-height: 1.8; color: #555;">
+          <span style="color:#111827; font-weight:bold">黑色</span>：原有项<br>
+          <span style="color:#D97706; font-weight:bold">橙色</span>：正在处理的项<br>
+          <span style="color:#059669; font-weight:bold">绿色</span>：新增项 (+)<br>
+          <span style="color:#DC2626; font-weight:bold">红色</span>：移除项 (-)
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="canvas-area" id="canvas-wrapper">
+    <div class="canvas-overlay">左：十字相乘 &nbsp;&nbsp;|&nbsp;&nbsp; 右：配方法</div>
+  </div>
+
+</div>
+
+<script>
+// 全局状态
+let currentStep = 0;
+let problem = {};
+let cnv;
+
+// 视觉配置
+const CONFIG = {
+  baseScale: 35, 
+  colors: {
+    primary: '#4F46E5', // 补回缺失的主色
+    secondary: '#10B981', // 补回缺失的次色
+    text: '#111827',      
+    highlight: '#D97706', 
+    added: '#059669',     
+    removed: '#DC2626',   
+    comment: '#6B7280',   
+    
+    geo_x2: '#DBEAFE',    
+    geo_x: '#D1FAE5',     
+    geo_c: '#FEE2E2',     
+    geo_ghost: '#FEF3C7', 
+    geo_stroke: '#4B5563',
+
+    graphLine: '#6366F1', 
+    axis: '#9CA3AF'
+  }
+};
+
+function setup() {
+  const container = document.getElementById('canvas-wrapper');
+  cnv = createCanvas(container.clientWidth, container.clientHeight);
+  cnv.parent('canvas-wrapper');
+  
+  textFont('Noto Sans SC');
+  textAlign(CENTER, CENTER);
+  rectMode(CENTER);
+
+  generateProblem('simple');
+}
+
+function windowResized() {
+  const container = document.getElementById('canvas-wrapper');
+  resizeCanvas(container.clientWidth, container.clientHeight);
+}
+
+// --- 题目生成逻辑 ---
+
+function generateProblem(type) {
+  currentStep = 0; // 重置步骤
+  const randInt = (min, max) => floor(random(min, max + 1));
+
+  if (type === 'simple') {
+    let m, n;
+    do {
+      m = randInt(1, 4);
+      n = randInt(1, 4);
+    } while ((m + n) % 2 !== 0);
+
+    problem = {
+      type: 'simple',
+      a: 1, 
+      b: m + n, 
+      c: m * n,
+      a1: 1, a2: 1, c1: m, c2: n
+    };
+
+  } else if (type === 'complex') {
+    let a1 = randInt(1, 2); 
+    let a2 = randInt(1, 2);
+    if (a1 * a2 === 1) a1 = 2; // 确保 a!=1
+
+    let c1 = randInt(1, 3);
+    let c2 = randInt(1, 3);
+
+    problem = {
+      type: 'complex',
+      a: a1 * a2,
+      b: a1 * c2 + a2 * c1,
+      c: c1 * c2,
+      a1: a1, a2: a2, c1: c1, c2: c2
+    };
+
+  } else {
+    // 无理题
+    let a = randInt(1, 2);
+    let k = randInt(1, 2); 
+    let rem;
+    do {
+      rem = randInt(2, 5); 
+    } while (Math.sqrt(rem) % 1 === 0);
+
+    problem = {
+      type: 'irrational',
+      a: a,
+      b: 2 * a * k,
+      c: a * k * k - rem,
+      halfB_unit: k,
+      remainder: -rem 
+    };
+  }
+  
+  updateUI();
+}
+
+function changeStep(delta) {
+  currentStep = constrain(currentStep + delta, 0, 3);
+  updateUI();
+}
+
+// 智能格式化函数：处理符号和系数 1
+function fmtCoef(n, variable) {
+  if (n === 0) return "";
+  if (n === 1) return variable;
+  if (n === -1) return "-" + variable;
+  return n + variable;
+}
+
+// 智能格式化函数：处理正负号间距
+function fmtNum(n) {
+  if (n >= 0) return "+ " + n;
+  return "- " + Math.abs(n); // 将 "+ -1" 转为 "- 1"
+}
+
+// 纯数字格式化 (无空格)
+function fmtNumTight(n) {
+  if (n >= 0) return "+" + n;
+  return n;
+}
+
+function updateUI() {
+  const aStr = problem.a === 1 ? '' : problem.a;
+  document.getElementById('problem-display').innerText = `y = ${aStr}x² ${fmtNum(problem.b)}x ${fmtNum(problem.c)}`;
+
+  document.getElementById('btn-prev').disabled = (currentStep === 0);
+  document.getElementById('btn-next').disabled = (currentStep === 3);
+
+  document.getElementById('step-progress').style.width = (currentStep * 33.3) + '%';
+  for(let i=0; i<=3; i++) {
+    const dot = document.getElementById(`dot-${i}`);
+    if (i <= currentStep) dot.classList.add('active');
+    else dot.classList.remove('active');
+  }
+
+  const box = document.getElementById('step-explanation');
+  if (currentStep === 0) {
+    box.innerHTML = `<strong>初始状态</strong><br>y = ${aStr}x² ${fmtNum(problem.b)}x ${fmtNum(problem.c)}。<br>观察左图的宽和高如何变化。`;
+  } else if (currentStep === 1) {
+    box.innerHTML = `<strong>拆解过程</strong><br>左侧：尝试拆解系数。<br>右侧：尝试构建完全平方式。`;
+  } else if (currentStep === 2) {
+    box.innerHTML = `<strong>关键运算</strong><br>左侧：验证交叉相乘。<br>右侧：配方凑整 (加项减项)。`;
+  } else {
+    box.innerHTML = `<strong>最终结果</strong><br>展示函数图像的几何特征。`;
+  }
+}
+
+// --- 绘图系统 ---
+
+function draw() {
+  background(255);
+  translate(width/2, height/2);
+
+  let globalScale = 1;
+  if (width < 900) globalScale = 0.8; 
+  scale(globalScale);
+
+  let spacing = 380; 
+
+  push();
+  translate(-spacing/2, -80);
+  drawCrossMethod();
+  pop();
+
+  push();
+  translate(spacing/2, -80);
+  drawSquareMethod();
+  pop();
+}
+
+function drawMathBlock(lines, yStart) {
+  textAlign(CENTER, TOP);
+  let y = yStart;
+  
+  lines.forEach(lineObj => {
+    let totalW = 0;
+    lineObj.parts.forEach(p => {
+      textSize(p.size || 16);
+      textStyle(p.style || NORMAL);
+      totalW += textWidth(p.text);
+    });
+    
+    let curX = -totalW / 2;
+    lineObj.parts.forEach(p => {
+      noStroke(); // 关键：去除描边
+      fill(p.color || CONFIG.colors.text);
+      textStyle(p.style || NORMAL);
+      textSize(p.size || 16);
+      let tw = textWidth(p.text);
+      text(p.text, curX + tw/2, y);
+      curX += tw;
+    });
+    y += (lineObj.gap || 28); 
+  });
+}
+
+// --- 左侧：十字相乘 ---
+function drawCrossMethod() {
+  noStroke(); fill(CONFIG.colors.text); textSize(18); textStyle(BOLD);
+  text("十字相乘法", 0, -200);
+  textStyle(NORMAL);
+
+  let a1 = problem.a1 || problem.a; 
+  let a2 = problem.a2 || 1;
+  let c1 = problem.c1 || 1; 
+  let c2 = problem.c2 || 1; 
+  
+  if (problem.type === 'irrational') { 
+    a1 = problem.a; a2 = 1; c1 = 1; c2 = 1; 
+  }
+
+  let showGraph = (currentStep === 3);
+
+  if (!showGraph) {
+    let s = CONFIG.baseScale;
+    let xLen = 2.0 * s; 
+    let totalW = a1 * xLen + c1 * s;
+    let totalH = a2 * xLen + c2 * s;
+    let startX = -totalW/2;
+    let startY = -totalH/2;
+
+    // 绘制几何块
+    drawRect(startX + a1*xLen/2, startY + a2*xLen/2, a1*xLen, a2*xLen, CONFIG.colors.geo_x2, fmtCoef(problem.a,'x²'));
+    
+    if (currentStep >= 1) {
+      drawRect(startX + a1*xLen + c1*s/2, startY + a2*xLen/2, c1*s, a2*xLen, CONFIG.colors.geo_x, "");
+      drawRect(startX + a1*xLen/2, startY + a2*xLen + c2*s/2, a1*xLen, c2*s, CONFIG.colors.geo_x, "");
+    }
+    if (currentStep >= 2) {
+      let col = (problem.type === 'irrational') ? '#F3F4F6' : CONFIG.colors.geo_c;
+      drawRect(startX + a1*xLen + c1*s/2, startY + a2*xLen + c2*s/2, c1*s, c2*s, col, problem.c);
+    }
+  } else {
+    drawGraphSystem('roots');
+  }
+
+  let mathY = showGraph ? 230 : 160;
+  let lines = [];
+
+  lines.push({ parts: [{ text: `y = ${fmtCoef(problem.a,'x²')} ${fmtNum(problem.b)}x ${fmtNum(problem.c)}`, style: BOLD }] });
+
+  if (currentStep >= 1) {
+    lines.push({ parts: [{ text: "↓ 猜测拆分 ↓", color: CONFIG.colors.comment, size: 12 }], gap: 20 });
+    let colH = CONFIG.colors.highlight;
+    lines.push({ parts: [
+      { text: `${fmtCoef(a1,'x')}`, color: colH, style: BOLD },
+      { text: `            ` },
+      { text: `${fmtNumTight(c1)}`, color: colH, style: BOLD }
+    ]});
+    lines.push({ parts: [{ text: "╳", size: 24, color: CONFIG.colors.text }] });
+    lines.push({ parts: [
+      { text: `${fmtCoef(a2,'x')}`, color: colH, style: BOLD },
+      { text: `            ` },
+      { text: `${fmtNumTight(c2)}`, color: colH, style: BOLD }
+    ]});
+  }
+
+  if (currentStep >= 2) {
+    lines.push({ parts: [{ text: "↓ 验证一次项 ↓", color: CONFIG.colors.comment, size: 12 }], gap: 20 });
+    
+    let calcB = a1*c2 + a2*c1;
+    let isMatch = (calcB === problem.b);
+    if (problem.type === 'irrational') isMatch = false;
+
+    let resCol = isMatch ? CONFIG.colors.added : CONFIG.colors.removed;
+    let icon = isMatch ? "✓" : "✗";
+
+    lines.push({ parts: [
+      { text: `${calcB}x `, color: resCol, style: BOLD },
+      { text: ` vs ` },
+      { text: `${problem.b}x `, style: BOLD },
+      { text: icon, color: resCol, size: 20 }
+    ]});
+  }
+
+  if (currentStep === 3) {
+    lines.push({ gap: 10, parts:[] });
+    if (problem.type !== 'irrational') {
+      lines.push({ parts: [{ text: "↓ 交点式 ↓", color: CONFIG.colors.comment, size: 12 }] });
+      lines.push({ parts: [
+        { text: `y = (${fmtCoef(a1,'x')} ${fmtNum(c1)}) (${fmtCoef(a2,'x')} ${fmtNum(c2)})`, style: BOLD, size: 18, color: CONFIG.colors.primary }
+      ]});
+    } else {
+      lines.push({ parts: [{ text: "无法分解 (无有理根)", color: CONFIG.colors.removed }] });
+    }
+  }
+
+  drawMathBlock(lines, mathY);
+}
+
+// --- 右侧：配方法 ---
+function drawSquareMethod() {
+  noStroke(); fill(CONFIG.colors.text); textSize(18); textStyle(BOLD);
+  text("配方法", 0, -200);
+  textStyle(NORMAL);
+
+  let showGraph = (currentStep === 3);
+
+  if (!showGraph) {
+    let s = CONFIG.baseScale;
+    let xLen = 2.0 * s;
+    let k_draw = problem.type==='irrational' ? problem.halfB_unit : problem.b/(2*problem.a);
+    let halfB_s = k_draw * s; 
+    if(halfB_s > 100) halfB_s = 100;
+    
+    let startX = - (xLen + halfB_s)/2 + xLen/2;
+    let startY = - (xLen + halfB_s)/2 + xLen/2;
+
+    drawRect(startX, startY, xLen, xLen, CONFIG.colors.geo_x2, "x²");
+    
+    if (currentStep >= 1) {
+       drawRect(startX + xLen/2 + halfB_s/2, startY, halfB_s, xLen, CONFIG.colors.geo_x, ""); 
+       drawRect(startX, startY + xLen/2 + halfB_s/2, xLen, halfB_s, CONFIG.colors.geo_x, ""); 
+    }
+    if (currentStep >= 2) {
+       stroke(CONFIG.colors.highlight); drawingContext.setLineDash([4, 2]);
+       fill(CONFIG.colors.geo_ghost);
+       rect(startX + xLen/2 + halfB_s/2, startY + xLen/2 + halfB_s/2, halfB_s, halfB_s);
+       drawingContext.setLineDash([]);
+    }
+  } else {
+    drawGraphSystem('vertex');
+  }
+
+  let mathY = showGraph ? 230 : 160;
+  let lines = [];
+
+  lines.push({ parts: [{ text: `y = ${fmtCoef(problem.a,'x²')} ${fmtNum(problem.b)}x ${fmtNum(problem.c)}`, style: BOLD }] });
+
+  if (currentStep >= 1) {
+    lines.push({ parts: [{ text: "↓ 1. 提系数 ↓", color: CONFIG.colors.comment, size: 12 }], gap: 20 });
+    let b_a = problem.b / problem.a;
+    let b_disp = Number.isInteger(b_a) ? b_a : b_a.toFixed(1);
+
+    if (problem.a !== 1) {
+      lines.push({ parts: [
+        { text: `y = `, color: CONFIG.colors.text },
+        { text: `${problem.a}`, color: CONFIG.colors.highlight, style: BOLD }, 
+        { text: ` [ x² ${fmtNum(b_disp)}x ] ${fmtNum(problem.c)}` }
+      ]});
+    } else {
+      lines.push({ parts: [{ text: `y = 1 [ x² ${fmtNum(problem.b)}x ] ${fmtNum(problem.c)}` }] });
+    }
+  }
+
+  if (currentStep >= 2) {
+    lines.push({ parts: [{ text: "↓ 2. 配方凑整 ↓", color: CONFIG.colors.comment, size: 12 }], gap: 20 });
+    
+    let k, k2;
+    if (problem.type === 'irrational') {
+      k = problem.halfB_unit;
+      k2 = k*k;
+    } else {
+      k = problem.b / (2 * problem.a);
+      k2 = k*k;
+    }
+    
+    let k2_disp = Number.isInteger(k2) ? k2 : k2.toFixed(2);
+    let a_disp = (problem.a === 1) ? "" : problem.a;
+
+    lines.push({ parts: [
+      { text: `y = ${a_disp} [ (x ${fmtNum(k)})² ` },
+      { text: `- ${k2_disp}`, color: CONFIG.colors.removed, style: BOLD }, // 显示为 - 4 
+      { text: ` ] ${fmtNum(problem.c)}` }
+    ]});
+  }
+
+  if (currentStep === 3) {
+    lines.push({ parts: [{ text: "↓ 3. 顶点式 ↓", color: CONFIG.colors.comment, size: 12 }], gap: 15 });
+
+    let k = (problem.type==='irrational') ? problem.halfB_unit : problem.b/(2*problem.a);
+    let rem;
+    if (problem.type === 'irrational') rem = problem.remainder;
+    else rem = problem.c - problem.a * k * k;
+
+    let k_disp = Number.isInteger(k) ? k : k.toFixed(1);
+    let rem_disp = Number.isInteger(rem) ? Math.abs(rem) : Math.abs(rem).toFixed(1);
+    let sign = rem >= 0 ? "+" : "-";
+    let aStr = problem.a === 1 ? "" : problem.a;
+
+    lines.push({ parts: [
+      { text: `y = ${aStr}(x ${fmtNum(k_disp)})² ${sign} ${rem_disp}`, size: 18, color: CONFIG.colors.primary, style: BOLD }
+    ]});
+  }
+
+  drawMathBlock(lines, mathY);
+}
+
+// --- 绘图系统 (自动运镜) ---
+function drawGraphSystem(highlightType) {
+  let w = 240;
+  let h = 200;
+  
+  push();
+  fill(250); stroke(220); strokeWeight(1);
+  rect(0, 0, w, h); 
+  
+  // ★ 核心修复：坐标系对齐逻辑
+  // 先将原点移动到矩形左上角 (-w/2, -h/2)，
+  // 这样后续的 ox, oy 计算（基于左上角）才能在 centered mode 下正确生效。
+  translate(-w/2, -h/2);
+
+  let h_val = -problem.b / (2*problem.a); 
+  let k_val = problem.c - (problem.b*problem.b) / (4*problem.a); 
+
+  // 运镜核心：将顶点映射到画布合适位置
+  let rangeX = 10; 
+  let gScale = (w - 40) / rangeX; 
+  
+  let targetScreenY = (problem.a > 0) ? h * 0.75 : h * 0.25;
+  let ox = w/2 - h_val * gScale; 
+  let oy = targetScreenY + k_val * gScale;
+
+  translate(ox, oy);
+
+  stroke(CONFIG.colors.axis); strokeWeight(1.5);
+  line(-ox, 0, w-ox, 0); 
+  line(0, -oy, 0, h-oy); 
+  
+  noStroke(); fill(CONFIG.colors.axis); textSize(12);
+  text("x", w/2 - ox - 10, 12);
+  text("y", 12, -h/2 - oy + 10); 
+
+  noFill(); stroke(CONFIG.colors.graphLine); strokeWeight(2);
+  beginShape();
+  let startDrawX = (0 - ox) / gScale;
+  let endDrawX = (w - ox) / gScale;
+  
+  for (let xv = startDrawX; xv <= endDrawX; xv += 0.1) {
+    let yv = problem.a * xv * xv + problem.b * xv + problem.c;
+    let screenY = -yv * gScale;
+    if (screenY < -oy || screenY > h - oy) continue;
+    vertex(xv * gScale, -yv * gScale);
+  }
+  endShape();
+
+  if (highlightType === 'roots') {
+    if (problem.type !== 'irrational') {
+      let r1 = -problem.c1 / problem.a1;
+      let r2 = -problem.c2 / problem.a2;
+      drawPoint(r1, 0, gScale, `(${Number(r1.toFixed(1))}, 0)`);
+      drawPoint(r2, 0, gScale, `(${Number(r2.toFixed(1))}, 0)`);
+    } else {
+      let delta = Math.sqrt(problem.b*problem.b - 4*problem.a*problem.c);
+      let r1 = ( -problem.b + delta ) / (2*problem.a);
+      let r2 = ( -problem.b - delta ) / (2*problem.a);
+      drawPoint(r1, 0, gScale, "", true);
+      drawPoint(r2, 0, gScale, "", true);
+    }
+  } 
+  else if (highlightType === 'vertex') {
+    drawPoint(h_val, k_val, gScale, `V(${Number(h_val.toFixed(1))}, ${Number(k_val.toFixed(1))})`);
+    
+    stroke(CONFIG.colors.geo_ghost); drawingContext.setLineDash([3,3]); strokeWeight(1);
+    line(h_val * gScale, -oy, h_val * gScale, h-oy); 
+    drawingContext.setLineDash([]);
+  }
+
+  pop();
+}
+
+function drawPoint(x, y, s, label, hollow=false) {
+  let px = x * s;
+  let py = -y * s;
+  
+  // 画点
+  if (hollow) {
+    fill(255); stroke(CONFIG.colors.primary); strokeWeight(2);
+    circle(px, py, 6);
+  } else {
+    noStroke(); fill(CONFIG.colors.primary);
+    circle(px, py, 6);
+  }
+  
+  // 画标签 (带背景框)
+  if (label) {
+    let yOff = (problem.a > 0) ? 15 : -15; 
+    
+    // 背景框，防止文字看不清
+    let tw = textWidth(label);
+    fill('rgba(255,255,255,0.8)'); noStroke();
+    rect(px, py + yOff, tw + 4, 14); 
+
+    fill(CONFIG.colors.text); textSize(11);
+    text(label, px, py + yOff);
+  }
+}
+
+function drawRect(x, y, w, h, bg, txt, strokeCol) {
+  fill(bg); 
+  stroke(strokeCol || CONFIG.colors.geo_stroke); 
+  strokeWeight(1.5);
+  rect(x, y, w, h);
+  
+  // 如果矩形太小，就不显示文字，防止重叠
+  if (txt && w > 20 && h > 20) {
+    noStroke(); fill(CONFIG.colors.text); text(txt, x, y);
+  }
+}
+
+</script>
+</body>
+</html>

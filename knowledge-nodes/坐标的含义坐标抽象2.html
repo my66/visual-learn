@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>用二维坐标看生活里的关系</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    body {
+      margin: 0;
+      padding: 16px;
+      background: #f5f5fb;
+      color: #222;
+    }
+    h1 {
+      margin-top: 0;
+      font-size: 24px;
+      text-align: center;
+    }
+    .subtitle {
+      text-align: center;
+      font-size: 14px;
+      color: #555;
+      margin-bottom: 16px;
+    }
+    .layout {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .left, .right {
+      background: #fff;
+      border-radius: 10px;
+      padding: 12px 16px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.07);
+    }
+    .left {
+      flex: 1 1 280px;
+      min-width: 260px;
+      max-width: 420px;
+    }
+    .right {
+      flex: 2 1 360px;
+      min-width: 320px;
+    }
+    .scene-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .scene-btn {
+      border: none;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 13px;
+      cursor: pointer;
+      background: #e0e7ff;
+      color: #1d2a6d;
+    }
+    .scene-btn.active {
+      background: #4f46e5;
+      color: #fff;
+      font-weight: 600;
+    }
+    .panel-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .desc {
+      font-size: 13px;
+      color: #444;
+      line-height: 1.5;
+      margin-bottom: 10px;
+    }
+    .control {
+      margin: 10px 0;
+      font-size: 13px;
+    }
+    .control label {
+      display: block;
+      margin-bottom: 4px;
+    }
+    .value-display {
+      font-size: 13px;
+      margin-top: 4px;
+      color: #333;
+    }
+    .explain-box {
+      background: #f5f3ff;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 13px;
+      color: #2d1f64;
+      line-height: 1.5;
+      border: 1px solid #e0ddff;
+    }
+    .axis-label, .tick-label {
+      font-size: 12px;
+      fill: #333;
+    }
+    .coord-display {
+      margin-top: 8px;
+      font-size: 13px;
+      color: #222;
+    }
+    .hint {
+      font-size: 12px;
+      color: #666;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+  <h1>用二维坐标看生活里的“两个好朋友”</h1>
+  <div class="subtitle">横轴一个量，纵轴一个量，把生活场景变成平面上的一条完整曲线（点 + 线 + 刻度 + 数字）。</div>
+
+  <div class="layout">
+    <div class="left">
+      <div class="panel-title">① 先选一个生活场景</div>
+      <div class="scene-buttons">
+        <button class="scene-btn active" data-scene="temp">时间 ⟷ 温度（一天里的变化）</button>
+        <button class="scene-btn" data-scene="violin">练琴天数 ⟷ 熟练程度（小提琴）</button>
+        <button class="scene-btn" data-scene="dance">节奏 ⟷ 动作幅度（跳舞）</button>
+        <button class="scene-btn" data-scene="exam">考试分数 ⟷ 错题数量（没有时间轴）</button>
+      </div>
+
+      <div id="sceneTitle" class="panel-title"></div>
+      <div id="sceneDesc" class="desc"></div>
+
+      <div class="control">
+        <label id="sliderLabel"></label>
+        <input id="slider" type="range" min="0" max="24" step="1" />
+        <div id="sliderValue" class="value-display"></div>
+      </div>
+
+      <div id="explainBox" class="explain-box"></div>
+    </div>
+
+    <div class="right">
+      <svg id="graph" width="460" height="320">
+        <!-- 背景 -->
+        <rect x="0" y="0" width="460" height="320" fill="#fafafa" />
+
+        <!-- 坐标区域边框 -->
+        <rect id="plotArea" x="60" y="20" width="360" height="260" fill="#ffffff" stroke="#d1d5db" />
+
+        <!-- 坐标轴 -->
+        <line id="xAxis" x1="60" y1="280" x2="420" y2="280" stroke="#111827" stroke-width="1.5" />
+        <line id="yAxis" x1="60" y1="20" x2="60" y2="280" stroke="#111827" stroke-width="1.5" />
+
+        <!-- 网格线 + 刻度 + 数字标签 -->
+        <g id="gridLines"></g>
+
+        <!-- 轨迹线（走过的路径） -->
+        <polyline id="path" fill="none" stroke="#a5b4fc" stroke-width="2" />
+
+        <!-- 代表当前生活状态的点 -->
+        <circle id="point" r="5" fill="#4f46e5" stroke="#1d1b75" stroke-width="1" />
+
+        <!-- x/y 轴名称 -->
+        <text id="xLabel" x="250" y="305" class="axis-label" text-anchor="middle"></text>
+        <text id="yLabel" x="18" y="150" class="axis-label" text-anchor="middle" transform="rotate(-90 18 150)"></text>
+      </svg>
+      <div id="coordDisplay" class="coord-display"></div>
+      <div class="hint">小提示：轴上有“刻度”和“数字”，就是在告诉我们：这个点到底是在“第几个时间 / 第几天 / 第几分 / 多快的节奏”，以及“多高的温度 / 多熟练 / 错了几题 / 动作多大”。</div>
+    </div>
+  </div>
+
+  <script>
+    // 定义四个场景：包含刻度值
+    const scenes = {
+      temp: {
+        title: "场景 A：一天中时间和温度的关系",
+        desc: "想象一下：早上凉凉的，中午变热，晚上又慢慢变凉。我们把“时间”放到横轴，把“温度”放到纵轴。滑动下面的滑块，就是在说：现在是一天中的第几个小时，对应的温度大概是多少。",
+        xLabel: "时间（小时）",
+        yLabel: "温度（℃）",
+        slider: {
+          label: "选一个时间：",
+          min: 0,
+          max: 23,
+          step: 1,
+          formatValue: (h) => `现在是假想的一天中的第 ${h} 小时` ,
+        },
+        xRange: [0, 23],
+        yRange: [10, 35],
+        xTicks: [0, 6, 12, 18, 24],
+        yTicks: [10, 15, 20, 25, 30, 35],
+        // 一个简单的“早晚凉、中午热”的温度函数
+        f: (hour) => {
+          if (hour < 6) return 16 + hour * 0.3;           // 凌晨略微上升
+          if (hour < 12) return 17 + (hour - 6) * 1.8;    // 日出到中午快速升温
+          if (hour < 18) return 28 - (hour - 12) * 1;     // 下午慢慢变凉
+          return 22 - (hour - 18) * 0.7;                  // 傍晚到夜里继续变凉
+        },
+        explain: (x, y) => {
+          return `我们选的“横轴坐标”是时间：第 <b>${x} 小时</b>，` +
+                 `竖轴坐标是温度：大约 <b>${y.toFixed(1)}℃</b>。<br>` +
+                 `在二维坐标里，这个时刻就变成了一个点：<b>(${x}, ${y.toFixed(1)})</b>。` +
+                 `<br>当滑块从 0 小时慢慢移动到 ${x} 小时时，这些点连在一起，就是一条“一天温度变化的曲线”。`;
+        },
+        formatCoord: (x, y) => `坐标点：(${x} 小时, ${y.toFixed(1)}℃)`
+      },
+      violin: {
+        title: "场景 B：练小提琴的天数和熟练程度",
+        desc: "假装我们每天都认真练琴一会儿。刚开始几天进步很快，后来会慢慢变得稳定。横轴放“已经坚持了多少天”，纵轴放“熟练程度”（随便用一个 0~100 的分数来表达感觉）。滑动滑块，看“练琴的天数”变，坐标上的点也跟着动。",
+        xLabel: "练琴天数（天）",
+        yLabel: "熟练程度（等级 0~100）",
+        slider: {
+          label: "已经练了多少天小提琴：",
+          min: 0,
+          max: 60,
+          step: 1,
+          formatValue: (d) => `已经坚持练琴 ${d} 天` ,
+        },
+        xRange: [0, 60],
+        yRange: [0, 100],
+        xTicks: [0, 10, 20, 30, 40, 50, 60],
+        yTicks: [0, 20, 40, 60, 80, 100],
+        // 一个“前期上升很快，后期趋于平缓”的函数：100 * (1 - e^{-x/20})
+        f: (days) => 100 * (1 - Math.exp(-days / 20)),
+        explain: (x, y) => {
+          return `横轴是“已经练琴的天数”：<b>${x} 天</b>，竖轴是“大致的熟练程度”：<b>${y.toFixed(1)}</b> 分（等级）。` +
+                 `<br>这一点代表：“如果坚持练了 ${x} 天，大概能有这么熟练。”` +
+                 `<br>把从 0 天到 ${x} 天的所有点连起来，就是“坚持练琴带来进步”的整条曲线。`;
+        },
+        formatCoord: (x, y) => `坐标点：(${x} 天, 熟练度等级 ${y.toFixed(1)})`
+      },
+      dance: {
+        title: "场景 C：跳舞时节奏快慢和动作幅度",
+        desc: "想象你在跳舞：音乐很慢的时候，动作通常比较小、比较柔和；音乐越来越快，动作往往会变得更大、更有力量。但也不会一直变大到无限大，大概会在某个范围里变化。我们把“节奏的快慢（BPM，每分钟多少拍）”放到横轴，把“动作幅度大小（0~10 级）”放到纵轴。",
+        xLabel: "节奏快慢（BPM，拍/分钟）",
+        yLabel: "动作幅度大小（等级 0~10）",
+        slider: {
+          label: "音乐节奏大约是多少（BPM）：",
+          min: 60,
+          max: 180,
+          step: 5,
+          formatValue: (bpm) => `当前音乐节奏大约是 ${bpm} 拍/分钟（BPM）` ,
+        },
+        xRange: [60, 180],
+        yRange: [0, 10],
+        xTicks: [60, 90, 120, 150, 180],
+        yTicks: [0, 2, 4, 6, 8, 10],
+        // 简单假设：节奏越快，动作幅度越大，但在一个有限范围内
+        f: (bpm) => {
+          if (bpm <= 120) {
+            // 60 -> 0, 120 -> 6
+            return (bpm - 60) / 10;
+          } else {
+            // 120 -> 6, 180 -> 10
+            return 6 + (bpm - 120) * 0.067; // 60 * 0.067 ≈ 4
+          }
+        },
+        explain: (x, y) => {
+          return `横轴是“音乐的节奏”：<b>${x} BPM</b>（每分钟 ${x} 拍），竖轴是“你跳舞时动作的大概幅度”：<b>${y.toFixed(1)}</b> 级。` +
+                 `<br>当我们从慢歌（60 BPM 左右）慢慢把节奏调快到 ${x} BPM 时，图上这条线就告诉我们：节奏越快，动作通常会做得越大、越有力量。` +
+                 `<br>这一条曲线，其实就是“节奏”和“动作幅度”这两个好朋友在二维平面上的故事。`;
+        },
+        formatCoord: (x, y) => `坐标点：(${x} BPM, 动作幅度 ${y.toFixed(1)} 级)`
+      },
+      exam: {
+        title: "场景 D：数学考试分数和错题数量（不带时间）",
+        desc: "这里我们不再用“时间”做横轴，而是选两个同时出现的数字：数学考试的“总分数”和“错题数量”。分数越高，一般错的题就越少。我们把“分数”放横轴，“错题数”放纵轴。滑块从左往右，就是在看“分数从低到高时，错题数大致怎么变化”。",
+        xLabel: "数学考试分数（分）",
+        yLabel: "错题数量（题）",
+        slider: {
+          label: "假设这次考试你的分数是：",
+          min: 40,
+          max: 100,
+          step: 1,
+          formatValue: (s) => `这次数学考了 ${s} 分` ,
+        },
+        xRange: [40, 100],
+        yRange: [0, 20],
+        xTicks: [40, 60, 80, 100],
+        yTicks: [0, 5, 10, 15, 20],
+        // 简单假设：分数越高，错题越少。这里不是严格数学关系，只是为了演示。
+        f: (score) => {
+          const wrong = (100 - score) / 3; // 100 分 -> 0 题， 40 分 -> 20 题左右
+          return Math.max(0, Math.min(20, wrong));
+        },
+        explain: (x, y) => {
+          const wrongInt = y.toFixed(1);
+          return `横轴是“这次考试的分数”：<b>${x} 分</b>，竖轴是“错题数量”：大约 <b>${wrongInt} 题</b>。` +
+                 `<br>当我们从 40 分一路看到 ${x} 分时，图上的线告诉我们：分数越高，题一般错得越少。` +
+                 `<br>这条线完全没有用“时间”，但一样在二维平面上画出了两个数之间的关系。`;
+        },
+        formatCoord: (x, y) => `坐标点：(${x} 分, 错题约 ${y.toFixed(1)} 题)`
+      }
+    };
+
+    const sceneButtons = document.querySelectorAll('.scene-btn');
+    const sceneTitleEl = document.getElementById('sceneTitle');
+    const sceneDescEl = document.getElementById('sceneDesc');
+    const sliderLabelEl = document.getElementById('sliderLabel');
+    const sliderEl = document.getElementById('slider');
+    const sliderValueEl = document.getElementById('sliderValue');
+    const explainBoxEl = document.getElementById('explainBox');
+    const xLabelEl = document.getElementById('xLabel');
+    const yLabelEl = document.getElementById('yLabel');
+    const pointEl = document.getElementById('point');
+    const pathEl = document.getElementById('path');
+    const gridLinesEl = document.getElementById('gridLines');
+    const coordDisplayEl = document.getElementById('coordDisplay');
+
+    const plotArea = {
+      x: 60,
+      y: 20,
+      width: 360,
+      height: 260,
+    };
+
+    let currentSceneKey = 'temp';
+
+    function setScene(key) {
+      currentSceneKey = key;
+      const scene = scenes[key];
+
+      // 按钮状态
+      sceneButtons.forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.scene === key);
+      });
+
+      sceneTitleEl.textContent = scene.title;
+      sceneDescEl.textContent = scene.desc;
+      sliderLabelEl.textContent = scene.slider.label;
+
+      sliderEl.min = scene.slider.min;
+      sliderEl.max = scene.slider.max;
+      sliderEl.step = scene.slider.step;
+
+      // 默认取中间值
+      const middle = (scene.slider.min + scene.slider.max) / 2;
+      sliderEl.value = Math.round(middle);
+
+      xLabelEl.textContent = scene.xLabel;
+      yLabelEl.textContent = scene.yLabel;
+
+      drawGrid(scene);
+      // 切换场景时清空旧轨迹
+      pathEl.setAttribute('points', '');
+      updateFromSlider();
+    }
+
+    function drawGrid(scene) {
+      gridLinesEl.innerHTML = '';
+      const [xMin, xMax] = scene.xRange;
+      const [yMin, yMax] = scene.yRange;
+
+      // 垂直方向：根据 xTicks 画竖直网格线 + 刻度 + 数字
+      scene.xTicks.forEach((val) => {
+        const tX = (val - xMin) / (xMax - xMin);
+        const x = plotArea.x + plotArea.width * tX;
+
+        // 网格线
+        const vline = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        vline.setAttribute('x1', x);
+        vline.setAttribute('y1', plotArea.y);
+        vline.setAttribute('x2', x);
+        vline.setAttribute('y2', plotArea.y + plotArea.height);
+        vline.setAttribute('stroke', '#e5e7eb');
+        vline.setAttribute('stroke-width', '1');
+        gridLinesEl.appendChild(vline);
+
+        // x 轴上的小刻度
+        const tick = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        tick.setAttribute('x1', x);
+        tick.setAttribute('y1', 280);
+        tick.setAttribute('x2', x);
+        tick.setAttribute('y2', 284);
+        tick.setAttribute('stroke', '#111827');
+        tick.setAttribute('stroke-width', '1');
+        gridLinesEl.appendChild(tick);
+
+        // x 轴数字标签
+        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        label.setAttribute('x', x);
+        label.setAttribute('y', 298);
+        label.setAttribute('text-anchor', 'middle');
+        label.setAttribute('class', 'tick-label');
+        label.textContent = val;
+        gridLinesEl.appendChild(label);
+      });
+
+      // 水平方向：根据 yTicks 画水平网格线 + 刻度 + 数字
+      scene.yTicks.forEach((val) => {
+        const tY = (val - yMin) / (yMax - yMin);
+        const y = plotArea.y + (1 - tY) * plotArea.height;
+
+        // 网格线
+        const hline = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        hline.setAttribute('x1', plotArea.x);
+        hline.setAttribute('y1', y);
+        hline.setAttribute('x2', plotArea.x + plotArea.width);
+        hline.setAttribute('y2', y);
+        hline.setAttribute('stroke', '#e5e7eb');
+        hline.setAttribute('stroke-width', '1');
+        gridLinesEl.appendChild(hline);
+
+        // y 轴上的小刻度
+        const tick = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        tick.setAttribute('x1', 56);
+        tick.setAttribute('y1', y);
+        tick.setAttribute('x2', 60);
+        tick.setAttribute('y2', y);
+        tick.setAttribute('stroke', '#111827');
+        tick.setAttribute('stroke-width', '1');
+        gridLinesEl.appendChild(tick);
+
+        // y 轴数字标签
+        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        label.setAttribute('x', 52);
+        label.setAttribute('y', y + 4);
+        label.setAttribute('text-anchor', 'end');
+        label.setAttribute('class', 'tick-label');
+        label.textContent = val;
+        gridLinesEl.appendChild(label);
+      });
+    }
+
+    function updatePath(scene, maxX) {
+      const [xMin, xMax] = scene.xRange;
+      const [yMin, yMax] = scene.yRange;
+      const step = Number(scene.slider.step) || 1;
+
+      const points = [];
+      for (let xv = Number(scene.slider.min); xv <= maxX; xv += step) {
+        const yv = scene.f(xv);
+        const tX = (xv - xMin) / (xMax - xMin);
+        const tY = (yv - yMin) / (yMax - yMin);
+        const px = plotArea.x + tX * plotArea.width;
+        const py = plotArea.y + (1 - tY) * plotArea.height; // y 越大越往上
+        points.push(`${px},${py}`);
+      }
+      pathEl.setAttribute('points', points.join(' '));
+    }
+
+    function updateFromSlider() {
+      const scene = scenes[currentSceneKey];
+      const x = Number(sliderEl.value);
+      const y = scene.f(x);
+
+      sliderValueEl.textContent = scene.slider.formatValue(x);
+      explainBoxEl.innerHTML = scene.explain(x, y);
+      coordDisplayEl.textContent = scene.formatCoord(x, y);
+
+      // 坐标转成像素位置（当前点）
+      const [xMin, xMax] = scene.xRange;
+      const [yMin, yMax] = scene.yRange;
+
+      const tX = (x - xMin) / (xMax - xMin);
+      const tY = (y - yMin) / (yMax - yMin);
+
+      const px = plotArea.x + tX * plotArea.width;
+      const py = plotArea.y + (1 - tY) * plotArea.height; // y 越大越往上
+
+      pointEl.setAttribute('cx', px);
+      pointEl.setAttribute('cy', py);
+
+      // 更新从最小值到当前值的轨迹线
+      updatePath(scene, x);
+    }
+
+    sceneButtons.forEach(btn => {
+      btn.addEventListener('click', () => setScene(btn.dataset.scene));
+    });
+
+    sliderEl.addEventListener('input', updateFromSlider);
+
+    // 初始化
+    setScene('temp');
+  </script>
+</body>
+</html>

@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>初中数学交互演示：神奇的“换元法”</title>
+  
+  <!-- p5.js Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  
+  <!-- MathJax for Typography -->
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['\\(', '\\)']],
+        displayMath: [['\\[', '\\]']]
+      },
+      chtml: {
+        scale: 1.1
+      },
+      startup: {
+        typeset: false // We will manually trigger typeset
+      }
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  <style>
+    :root {
+      --primary-color: #3b82f6;
+      --secondary-color: #10b981;
+      --accent-color: #f59e0b;
+      --text-color: #1f2937;
+      --bg-color: #f3f4f6;
+      --panel-width: 340px;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden; /* Prevent body scroll, handle internally */
+    }
+
+    /* Layout */
+    .main-container {
+      display: flex;
+      flex: 1;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    /* Control Panel */
+    .controls {
+      width: var(--panel-width);
+      background: white;
+      padding: 20px;
+      box-shadow: 2px 0 10px rgba(0,0,0,0.05);
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      overflow-y: auto;
+      z-index: 10;
+    }
+
+    .controls h1 {
+      font-size: 1.5rem;
+      margin: 0 0 10px 0;
+      color: var(--primary-color);
+    }
+
+    .controls h2 {
+      font-size: 1.1rem;
+      margin: 15px 0 10px 0;
+      border-bottom: 2px solid var(--bg-color);
+      padding-bottom: 5px;
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Buttons & Toggles */
+    button {
+      padding: 10px 16px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.95rem;
+      transition: all 0.2s;
+      font-weight: 500;
+    }
+
+    .btn-primary {
+      background-color: var(--primary-color);
+      color: white;
+    }
+    .btn-primary:hover { background-color: #2563eb; }
+    .btn-primary:disabled { background-color: #93c5fd; cursor: not-allowed; }
+
+    .btn-secondary {
+      background-color: white;
+      border: 1px solid #d1d5db;
+      color: var(--text-color);
+    }
+    .btn-secondary:hover { background-color: #f9fafb; border-color: #9ca3af; }
+    .btn-secondary.active {
+      background-color: var(--primary-color);
+      color: white;
+      border-color: var(--primary-color);
+    }
+
+    .step-navigation {
+      display: flex;
+      gap: 10px;
+      justify-content: space-between;
+    }
+
+    /* Visualization Area */
+    .vis-area {
+      flex: 1;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background-color: #fafafa;
+      overflow: hidden;
+    }
+
+    #canvas-container {
+      position: relative;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      border-radius: 8px;
+      overflow: hidden;
+      background: white;
+    }
+
+    /* Math Overlay Box */
+    .math-overlay {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255, 255, 255, 0.95);
+      padding: 15px 25px;
+      border-radius: 8px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+      border: 1px solid #e5e7eb;
+      text-align: center;
+      min-width: 300px;
+      max-width: 600px;
+      transition: all 0.3s ease;
+      opacity: 0; /* Hidden by default until rendered */
+    }
+
+    .math-overlay.visible {
+      opacity: 1;
+    }
+
+    .math-title {
+      font-size: 0.9rem;
+      color: #6b7280;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+
+    .math-content {
+      font-size: 1.2rem;
+      color: var(--text-color);
+    }
+
+    /* Status Bar */
+    .status-bar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: rgba(255,255,255,0.9);
+      padding: 8px 15px;
+      font-size: 0.9rem;
+      color: #4b5563;
+      border-bottom: 1px solid #e5e7eb;
+      display: flex;
+      justify-content: space-between;
+      z-index: 5;
+    }
+
+    /* Step Indicator */
+    .step-indicator {
+      display: flex;
+      margin-top: 10px;
+      gap: 5px;
+    }
+    .step-dot {
+      flex: 1;
+      height: 4px;
+      background: #e5e7eb;
+      border-radius: 2px;
+    }
+    .step-dot.active { background: var(--secondary-color); }
+
+    /* Explanation Text */
+    .explanation-box {
+      background: #eff6ff;
+      border-left: 4px solid var(--primary-color);
+      padding: 12px;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      color: #1e40af;
+      margin-top: auto;
+    }
+
+  </style>
+</head>
+<body>
+
+  <div class="main-container">
+    <!-- Left Controls -->
+    <div class="controls">
+      <div>
+        <h1>神奇的“换元法”</h1>
+        <p style="font-size:0.9rem; color:#6b7280; margin-top:0;">初中代数思维可视化</p>
+      </div>
+
+      <div class="control-group">
+        <h2>1. 选择题目类型</h2>
+        <div style="display:flex; gap:10px;">
+          <button id="btn-type-basic" class="btn-secondary active" onclick="setProblemType('basic')">基础：整体代换</button>
+          <button id="btn-type-recip" class="btn-secondary" onclick="setProblemType('reciprocal')">进阶：倒数关系</button>
+        </div>
+        <p id="problem-desc" style="font-size:0.85rem; color:#666;">
+          观察含有相同结构的多项式，直接用 t 替换。
+        </p>
+      </div>
+
+      <div class="control-group">
+        <h2>2. 解题步骤演示</h2>
+        <div class="step-navigation">
+          <button id="btn-prev" class="btn-secondary" onclick="prevStep()">上一步</button>
+          <button id="btn-next" class="btn-primary" onclick="nextStep()">下一步</button>
+        </div>
+        <div class="step-indicator" id="step-dots">
+          <!-- Generated by JS -->
+        </div>
+      </div>
+
+      <div class="control-group">
+        <div class="explanation-box" id="explanation-text">
+          点击“下一步”开始探索换元法的奥秘！
+        </div>
+      </div>
+
+      <button class="btn-secondary" style="margin-top:20px;" onclick="resetSimulation()">重置演示</button>
+    </div>
+
+    <!-- Right Visualization -->
+    <div class="vis-area" id="vis-area">
+      <div class="status-bar">
+        <span id="status-left">当前阶段：准备就绪</span>
+        <span id="status-right">互动模式：演示</span>
+      </div>
+
+      <div id="canvas-container"></div>
+
+      <!-- Floating Math Box -->
+      <div id="math-box" class="math-overlay">
+        <div class="math-title" id="math-label">当前方程</div>
+        <div class="math-content" id="math-content">\[ \text{Loading...} \]</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * CONFIGURATION & STATE
+     */
+    const CONFIG = {
+      canvasWidth: 800,
+      canvasHeight: 500,
+      colors: {
+        primary: '#3b82f6',   // Blue for X terms
+        secondary: '#10b981', // Green for T terms
+        accent: '#f59e0b',    // Orange for Highlights
+        text: '#374151',
+        bg: '#ffffff'
+      },
+      animSpeed: 0.05
+    };
+
+    // Problem Definitions
+    const PROBLEMS = {
+      basic: {
+        id: 'basic',
+        title: '整体代换 (Standard)',
+        desc: '当方程中出现重复的复杂结构时，将其“打包”为 t。',
+        rawEq: String.raw`(x^2-1)^2 - 4(x^2-1) + 3 = 0`,
+        subExpr: String.raw`x^2 - 1`,
+        tEq: String.raw`t^2 - 4t + 3 = 0`,
+        tSol: String.raw`t_1 = 1, \quad t_2 = 3`,
+        finalSol: String.raw`x = \pm\sqrt{2}, \quad x = \pm 2`,
+        steps: [
+          { text: "观察方程：发现长得一模一样的部分了吗？", label: "原方程" },
+          { text: "设元：我们把复杂的 (x²-1) 设为 t。", label: "定义换元" },
+          { text: "换元：将方程中的 (x²-1) 全部替换成 t。", label: "关于 t 的方程" },
+          { text: "求解 t：这是个简单的一元二次方程。", label: "解出 t" },
+          { text: "回代：把 t 换回 (x²-1)，解出 x。", label: "最终答案" }
+        ],
+        // Structure for visualization
+        // Type: 0=text, 1=complex_block
+        structure: [
+          { type: 1, val: "x^2-1", power: 2 }, 
+          { type: 0, val: "- 4" },
+          { type: 1, val: "x^2-1", power: 1 },
+          { type: 0, val: "+ 3 = 0" }
+        ]
+      },
+      reciprocal: {
+        id: 'reciprocal',
+        title: '倒数关系 (Reciprocal)',
+        desc: '注意观察！第二项是第一项的“倒数”（分子分母颠倒）。',
+        rawEq: String.raw`\frac{x}{x-1} + \frac{x-1}{x} = \frac{5}{2}`,
+        subExpr: String.raw`\frac{x}{x-1}`,
+        tEq: String.raw`t + \frac{1}{t} = \frac{5}{2}`,
+        tSol: String.raw`t_1 = 2, \quad t_2 = \frac{1}{2}`,
+        finalSol: String.raw`x = 2, \quad x = -1`,
+        steps: [
+          { text: "观察：这不仅仅是重复，它们互为倒数！", label: "原方程" },
+          { text: "设元：设第一项为 t。", label: "定义换元" },
+          { text: "关键点：既然第二项是第一项颠倒过来，那它就是 1/t。", label: "推导倒数" },
+          { text: "换元：方程变得非常清爽。", label: "关于 t 的方程" },
+          { text: "求解 t：解分式方程得 t=2 或 t=0.5。", label: "解出 t" },
+          { text: "回代：分类讨论，分别解出 x。", label: "最终答案" }
+        ],
+        structure: [
+          { type: 1, val: "\\frac{x}{x-1}", power: 1, isRecip: false },
+          { type: 0, val: "+" },
+          { type: 1, val: "\\frac{x-1}{x}", power: 1, isRecip: true }, // Special flag for reciprocal
+          { type: 0, val: "= \\frac{5}{2}" }
+        ]
+      }
+    };
+
+    let state = {
+      problemType: 'basic', // basic, reciprocal
+      step: 0, // 0 to 5
+      animProgress: 0, // 0.0 to 1.0 for interpolation
+      blocks: [], // Visualization objects
+      targetBlocks: [] // Where they should go
+    };
+
+    // p5.js Instance
+    let myP5;
+
+    /**
+     * MAIN LOGIC
+     */
+    function setupApp() {
+      initStepDots();
+      updateUI();
+      renderMathSafe(document.getElementById('math-content'), PROBLEMS[state.problemType].rawEq);
+    }
+
+    function setProblemType(type) {
+      if(state.problemType === type) return;
+      state.problemType = type;
+      state.step = 0;
+      state.animProgress = 0;
+      
+      // Update UI Buttons
+      document.getElementById('btn-type-basic').className = type === 'basic' ? 'btn-secondary active' : 'btn-secondary';
+      document.getElementById('btn-type-recip').className = type === 'reciprocal' ? 'btn-secondary active' : 'btn-secondary';
+      document.getElementById('problem-desc').textContent = PROBLEMS[type].desc;
+
+      initStepDots();
+      updateUI();
+      // Reset Visualization Objects
+      if(myP5) myP5.resetScene();
+    }
+
+    function nextStep() {
+      if (state.step < PROBLEMS[state.problemType].steps.length) {
+        state.step++;
+        state.animProgress = 0;
+        updateUI();
+      }
+    }
+
+    function prevStep() {
+      if (state.step > 0) {
+        state.step--;
+        state.animProgress = 0;
+        updateUI();
+      }
+    }
+
+    function resetSimulation() {
+      state.step = 0;
+      state.animProgress = 0;
+      updateUI();
+      if(myP5) myP5.resetScene();
+    }
+
+    function initStepDots() {
+      const container = document.getElementById('step-dots');
+      container.innerHTML = '';
+      const totalSteps = PROBLEMS[state.problemType].steps.length + 1; // +1 for initial state 0
+      for(let i=0; i<totalSteps; i++) {
+        const dot = document.createElement('div');
+        dot.className = 'step-dot';
+        if(i===0) dot.classList.add('active');
+        container.appendChild(dot);
+      }
+    }
+
+    function updateUI() {
+      const prob = PROBLEMS[state.problemType];
+      const maxStep = prob.steps.length;
+
+      // Update Navigation State
+      document.getElementById('btn-prev').disabled = state.step === 0;
+      document.getElementById('btn-next').disabled = state.step === maxStep;
+      document.getElementById('btn-next').textContent = state.step === maxStep ? "演示结束" : "下一步";
+
+      // Update Dots
+      const dots = document.getElementsByClassName('step-dot');
+      for(let i=0; i<dots.length; i++) {
+        dots[i].className = i <= state.step ? 'step-dot active' : 'step-dot';
+      }
+
+      // Update Text
+      const explBox = document.getElementById('explanation-text');
+      const statusLeft = document.getElementById('status-left');
+      const mathLabel = document.getElementById('math-label');
+      const mathContent = document.getElementById('math-content');
+
+      if (state.step === 0) {
+        explBox.innerHTML = `<strong>准备开始：</strong> ${prob.desc}`;
+        statusLeft.textContent = "当前阶段：题目观察";
+        mathLabel.textContent = "原始方程";
+        renderMathSafe(mathContent, prob.rawEq);
+      } else {
+        const stepData = prob.steps[state.step - 1];
+        explBox.innerHTML = `<strong>第 ${state.step} 步：</strong> ${stepData.text}`;
+        statusLeft.textContent = `当前阶段：${stepData.label}`;
+        mathLabel.textContent = stepData.label;
+
+        // Content logic per step
+        let content = "";
+        if (state.step === 1) content = prob.rawEq; // Observe
+        else if (state.step === 2) content = `\\text{设 } t = ${prob.subExpr}`; // Define
+        else if (state.step === 3) content = prob.tEq; // Substitute
+        else if (state.step === 4) content = prob.tSol; // Solve t
+        else if (state.step === 5) content = prob.finalSol; // Solve x
+        else content = prob.tEq;
+
+        renderMathSafe(mathContent, content);
+      }
+    }
+
+    // --- MathJax Helper ---
+    function renderMathSafe(container, tex) {
+      // Hide during render
+      container.parentElement.style.opacity = '0';
+      
+      // Inject strict delimiters
+      container.innerHTML = `\\[ ${tex} \\]`;
+      
+      // Typeset
+      MathJax.typesetPromise([container]).then(() => {
+        container.parentElement.style.opacity = '1';
+      }).catch((err) => {
+        console.error("MathJax error:", err);
+        container.textContent = "Formula Error"; // Fallback
+        container.parentElement.style.opacity = '1';
+      });
+    }
+
+    // --- P5.JS Visualization ---
+    const s = (p) => {
+      let blocks = [];
+      let arrows = [];
+      let t_symbol_img; // We will draw t simply
+
+      p.setup = () => {
+        const c = p.createCanvas(CONFIG.canvasWidth, CONFIG.canvasHeight);
+        c.parent('canvas-container');
+        p.rectMode(p.CENTER);
+        p.textAlign(p.CENTER, p.CENTER);
+        p.textFont('sans-serif');
+        p.resetScene();
+      };
+
+      p.resetScene = () => {
+        blocks = [];
+        arrows = [];
+        const prob = PROBLEMS[state.problemType];
+        
+        // Build blocks based on problem structure
+        let startX = p.width * 0.15;
+        const startY = p.height * 0.4;
+        const spacing = 120;
+
+        // Note: This is a simplified block layout logic
+        // We create visual objects corresponding to the terms
+        if (state.problemType === 'basic') {
+          // (x^2-1)^2
+          blocks.push(new Block(p, startX, startY, prob.subExpr, 2, false));
+          // -4
+          blocks.push(new SimpleText(p, startX + 130, startY, "- 4"));
+          // (x^2-1)
+          blocks.push(new Block(p, startX + 220, startY, prob.subExpr, 1, false));
+          // +3 = 0
+          blocks.push(new SimpleText(p, startX + 320, startY, "+ 3 = 0"));
+        } else {
+          // x/(x-1)
+          startX = p.width * 0.2;
+          blocks.push(new Block(p, startX, startY, prob.subExpr, 1, false));
+          // +
+          blocks.push(new SimpleText(p, startX + 100, startY, "+"));
+          // (x-1)/x (The reciprocal)
+          blocks.push(new Block(p, startX + 200, startY, "\\frac{x-1}{x}", 1, true)); // True for reciprocal visual
+          // = 5/2
+          blocks.push(new SimpleText(p, startX + 350, startY, "= 5/2"));
+        }
+      };
+
+      p.draw = () => {
+        p.background(255);
+        
+        // Draw grid for academic feel
+        drawGrid(p);
+
+        // Animate state.animProgress if needed?
+        // Actually, we use state.step to determine appearance.
+        
+        // Step Logic in Visualization
+        // Step 0: Initial
+        // Step 1: Highlight the Complex Parts
+        // Step 2: Show 't' definition floating above
+        // Step 3: Morph Complex Parts into 't'
+        // Step 4: Show Solution for t
+        // Step 5: Show Solution for x
+
+        // Draw Definition Box (Step >= 2)
+        if (state.step >= 2) {
+          drawDefinitionBox(p);
+        }
+
+        // Draw Blocks
+        for (let b of blocks) {
+          b.update(state.step);
+          b.display();
+        }
+
+        // Draw connecting arrows for logic
+        if (state.step === 1) {
+           drawHighlightArrows(p, blocks);
+        }
+      };
+
+      function drawGrid(p) {
+        p.push();
+        p.stroke(240);
+        p.strokeWeight(1);
+        for(let x=0; x<p.width; x+=40) p.line(x,0,x,p.height);
+        for(let y=0; y<p.height; y+=40) p.line(0,y,p.width,y);
+        p.pop();
+      }
+
+      function drawDefinitionBox(p) {
+        const prob = PROBLEMS[state.problemType];
+        p.push();
+        p.translate(p.width/2, 80);
+        
+        // Box style
+        p.fill(255);
+        p.stroke(CONFIG.colors.primary);
+        p.strokeWeight(2);
+        p.rect(0, 0, 240, 60, 10);
+        
+        // Text
+        p.noStroke();
+        p.fill(CONFIG.colors.primary);
+        p.textSize(20);
+        p.textStyle(p.BOLD);
+        // Note: p5 text doesn't do LaTeX well, using simple representation
+        // For visual clarity, we just draw "Let t = [Box Content]"
+        p.textAlign(p.LEFT, p.CENTER);
+        p.text("设  t  = ", -60, 0);
+        
+        // Draw miniature block representing the expression
+        p.fill(230, 240, 255);
+        p.stroke(CONFIG.colors.primary);
+        p.strokeWeight(1);
+        p.rect(50, 0, 80, 40, 5);
+        
+        // Mini text
+        p.fill(CONFIG.colors.primary);
+        p.noStroke();
+        p.textSize(14);
+        p.textAlign(p.CENTER, p.CENTER);
+        if (state.problemType === 'reciprocal') {
+           p.text("x / (x-1)", 50, 0);
+        } else {
+           p.text("x² - 1", 50, 0);
+        }
+        
+        p.pop();
+      }
+
+      function drawHighlightArrows(p, blocks) {
+        p.push();
+        p.noFill();
+        p.stroke(CONFIG.colors.accent);
+        p.strokeWeight(3);
+        
+        // Draw arcs under the relevant blocks
+        blocks.forEach(b => {
+          if (b instanceof Block) {
+            // Arc under
+            p.arc(b.x, b.y + 35, 60, 20, 0, p.PI);
+          }
+        });
+        
+        p.noStroke();
+        p.fill(CONFIG.colors.accent);
+        p.textSize(14);
+        p.text("相同的结构!", p.width/2, p.height*0.4 + 80);
+        p.pop();
+      }
+
+      p.windowResized = () => {
+        // Optional: keep canvas fixed size for stability
+      }
+    };
+
+    // --- Visualization Classes ---
+
+    class Block {
+      constructor(p, x, y, label, power, isRecip) {
+        this.p = p;
+        this.baseX = x;
+        this.baseY = y;
+        this.x = x;
+        this.y = y;
+        this.label = label; // LaTeX string (simplified for p5 display)
+        this.power = power;
+        this.isRecip = isRecip; // Boolean: is this the inverted term?
+        this.currentScale = 1;
+        this.morphState = 0; // 0: Expr, 1: t
+      }
+
+      update(step) {
+        // Morph logic
+        if (step >= 3) {
+          // Morph to 't'
+          this.morphState = this.p.lerp(this.morphState, 1, 0.1);
+        } else {
+          this.morphState = this.p.lerp(this.morphState, 0, 0.1);
+        }
+      }
+
+      display() {
+        const p = this.p;
+        p.push();
+        p.translate(this.x, this.y);
+
+        // Appearance interpolator
+        const isT = this.morphState > 0.5;
+        const sizeW = p.lerp(90, 50, this.morphState);
+        const sizeH = p.lerp(50, 50, this.morphState);
+        const col = p.lerpColor(p.color(230, 240, 255), p.color(209, 250, 229), this.morphState);
+        const strokeCol = p.lerpColor(p.color(CONFIG.colors.primary), p.color(CONFIG.colors.secondary), this.morphState);
+
+        // Draw Box
+        p.fill(col);
+        p.stroke(strokeCol);
+        p.strokeWeight(2);
+        
+        // If reciprocal and showing expression, highlight the flip?
+        // For visualization, we just draw the box.
+        p.rect(0, 0, sizeW, sizeH, 8);
+
+        // Draw Power (if any)
+        if (this.power > 1) {
+          p.textSize(16);
+          p.fill(CONFIG.colors.text);
+          p.noStroke();
+          p.text(this.power, sizeW/2 + 10, -sizeH/2 + 5);
+        }
+
+        // Draw Content
+        p.noStroke();
+        p.fill(strokeCol);
+        p.textSize(20);
+        p.textStyle(p.BOLD);
+
+        if (isT) {
+          // Show 't' or '1/t'
+          if (this.isRecip) {
+            // Draw 1/t
+            p.textSize(18);
+            p.text("1", 0, -10);
+            p.stroke(strokeCol);
+            p.strokeWeight(2);
+            p.line(-10, 0, 10, 0); // Fraction bar
+            p.noStroke();
+            p.text("t", 0, 15);
+          } else {
+            p.textSize(24);
+            p.text("t", 0, 0);
+          }
+        } else {
+          // Show Expression (Simplified rendering for p5)
+          p.textSize(16);
+          if (state.problemType === 'reciprocal') {
+             if(this.isRecip) p.text("(x-1)/x", 0, 0);
+             else p.text("x/(x-1)", 0, 0);
+             
+             // Visual cue for reciprocal: A generic arrow flipping?
+             if(this.isRecip && state.step === 2) {
+                // Show visuals implying it's flipped
+                p.noFill();
+                p.stroke(CONFIG.colors.accent);
+                p.strokeWeight(2);
+                p.arc(0, 0, sizeW+10, sizeH+10, -p.PI/2, p.PI/2);
+                p.noStroke();
+             }
+          } else {
+             p.text("x² - 1", 0, 0);
+          }
+        }
+
+        p.pop();
+      }
+    }
+
+    class SimpleText {
+      constructor(p, x, y, str) {
+        this.p = p;
+        this.x = x;
+        this.y = y;
+        this.str = str;
+      }
+      update(step) {}
+      display() {
+        this.p.push();
+        this.p.fill(CONFIG.colors.text);
+        this.p.noStroke();
+        this.p.textSize(24);
+        this.p.text(this.str, this.x, this.y);
+        this.p.pop();
+      }
+    }
+
+    // Init App
+    document.addEventListener('DOMContentLoaded', () => {
+      setupApp();
+      myP5 = new p5(s);
+    });
+
+  </script>
+</body>
+</html>

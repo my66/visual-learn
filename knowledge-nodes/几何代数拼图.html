@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>几何代数拼图：(2m+n)(m+2n) 可视化</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
+<style>
+    body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+    .container { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 800px; width: 100%; }
+    h2 { color: #2c3e50; text-align: center; margin-bottom: 20px; }
+    .controls { display: flex; justify-content: space-around; background: #eef2f7; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+    .control-group { display: flex; align-items: center; gap: 10px; }
+    label { font-weight: bold; color: #34495e; }
+    input[type=range] { cursor: pointer; }
+    .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; background: #fff8e1; padding: 15px; border-radius: 8px; border-left: 5px solid #ffc107; }
+    .stat-item { font-size: 16px; color: #555; }
+    .math-highlight { font-weight: bold; color: #d32f2f; font-family: 'Courier New', monospace; }
+    canvas { display: block; margin: 0 auto; border: 1px solid #ddd; border-radius: 4px; }
+    .legend { display: flex; justify-content: center; gap: 20px; margin-top: 10px; font-size: 14px; }
+    .dot { width: 12px; height: 12px; display: inline-block; border-radius: 50%; margin-right: 5px; }
+</style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🧩 因式分解可视化：拼图法</h2>
+    <p style="text-align: center; color: #666; margin-bottom: 20px;">
+        观察图形如何对应代数式：<br>
+        $$(2m+n)(m+2n) = 2m^2 + 5mn + 2n^2$$
+    </p>
+
+    <div class="controls">
+        <div class="control-group">
+            <label for="mSlider">边长 m (40-100):</label>
+            <input type="range" id="mSlider" min="40" max="100" value="70">
+            <span id="mVal">70</span>
+        </div>
+        <div class="control-group">
+            <label for="nSlider">边长 n (20-60):</label>
+            <input type="range" id="nSlider" min="20" max="60" value="30">
+            <span id="nVal">30</span>
+        </div>
+    </div>
+
+    <div id="canvas-container"></div>
+    
+    <div class="legend">
+        <span><span class="dot" style="background: #3498db;"></span>m² (大正方形)</span>
+        <span><span class="dot" style="background: #e74c3c;"></span>n² (小正方形)</span>
+        <span><span class="dot" style="background: #ecf0f1; border:1px solid #bdc3c7;"></span>mn (长方形)</span>
+    </div>
+
+    <div class="stats">
+        <div class="stat-item">总长: <span class="math-highlight" id="totalL"></span></div>
+        <div class="stat-item">总宽: <span class="math-highlight" id="totalW"></span></div>
+        <div class="stat-item">阴影面积 (2m² + 2n²): <span class="math-highlight" id="areaShade"></span></div>
+        <div class="stat-item">空白面积 (5mn): <span class="math-highlight" id="areaBlank"></span></div>
+    </div>
+</div>
+
+<script>
+    let m = 70;
+    let n = 30;
+
+    function setup() {
+        let canvas = createCanvas(600, 450);
+        canvas.parent('canvas-container');
+        updateLabels();
+    }
+
+    function draw() {
+        background(255);
+        translate(50, 50); // Margin
+
+        // Get slider values
+        m = parseInt(document.getElementById('mSlider').value);
+        n = parseInt(document.getElementById('nSlider').value);
+        
+        document.getElementById('mVal').innerText = m;
+        document.getElementById('nVal').innerText = n;
+        updateLabels();
+
+        // Layout strictly according to the problem diagram (Fig 2)
+        // Top Row: m, m, n
+        // Middle Row: n, m, m (implied by diagram fit) -> Wait, let's look at Fig 2 structure closely
+        // Fig 2 structure analysis:
+        // Left Column: Top block (m wide, m high), Middle block (m wide, n high), Bottom block (m wide, n high)?
+        // Let's use the algebraic decomposition layout: (2m+n) horizontal, (m+2n) vertical
+        
+        // Drawing Grid Lines logic based on standard algebraic tiling
+        let x1 = 0;
+        let x2 = m;
+        let x3 = m + m;
+        let x4 = m + m + n; // Total width 2m+n
+        
+        let y1 = 0;
+        let y2 = m;
+        let y3 = m + n;
+        let y4 = m + n + n; // Total height m+2n
+        
+        stroke(0);
+        strokeWeight(2);
+
+        // We need to color specific blocks to match "2 squares side m, 2 squares side n"
+        // And generally arranged to form the rectangle.
+        
+        // Block 1 (Top-Left): m x m -> Large Square (Shaded)
+        fill(52, 152, 219); // Blue
+        rect(0, 0, m, m);
+        drawLabel(m/2, m/2, "m²");
+
+        // Block 2 (Top-Middle): m x m -> Large Square (Shaded)
+        // Note: The diagram in problem might be different, but algebra is same.
+        // Let's verify problem diagram Fig 2 logic:
+        // Top row width: m, m, n. Height: m.
+        fill(52, 152, 219);
+        rect(m, 0, m, m);
+        drawLabel(m + m/2, m/2, "m²");
+        
+        // Block 3 (Top-Right): n x m (Rectangle)
+        fill(245); // White
+        rect(m+m, 0, n, m);
+        drawLabel(m+m + n/2, m/2, "mn");
+
+        // Row 2 Height is n.
+        // Block 4 (Mid-Left): m x n
+        fill(245);
+        rect(0, m, m, n);
+        drawLabel(m/2, m + n/2, "mn");
+        
+        // Block 5 (Mid-Mid): m x n
+        fill(245);
+        rect(m, m, m, n);
+        drawLabel(m + m/2, m + n/2, "mn");
+        
+        // Block 6 (Mid-Right): n x n -> Small Square (Shaded)
+        fill(231, 76, 60); // Red
+        rect(m+m, m, n, n);
+        drawLabel(m+m + n/2, m + n/2, "n²");
+
+        // Row 3 Height is n.
+        // Block 7 (Bot-Left): m x n
+        fill(245);
+        rect(0, m+n, m, n);
+        drawLabel(m/2, m+n + n/2, "mn");
+
+        // Block 8 (Bot-Mid): m x n
+        fill(245);
+        rect(m, m+n, m, n);
+        drawLabel(m + m/2, m+n + n/2, "mn");
+
+        // Block 9 (Bot-Right): n x n -> Small Square (Shaded)
+        fill(231, 76, 60);
+        rect(m+m, m+n, n, n);
+        drawLabel(m+m + n/2, m+n + n/2, "n²");
+        
+        // Dimensions Text
+        fill(0); noStroke(); textSize(14);
+        textAlign(CENTER, BOTTOM);
+        text("m", m/2, -5);
+        text("m", m + m/2, -5);
+        text("n", m+m + n/2, -5);
+        
+        textAlign(RIGHT, CENTER);
+        text("m", -5, m/2);
+        text("n", -5, m + n/2);
+        text("n", -5, m + n + n/2);
+    }
+
+    function drawLabel(x, y, txt) {
+        fill(0);
+        noStroke();
+        textAlign(CENTER, CENTER);
+        textSize(16);
+        text(txt, x, y);
+        stroke(0); // reset
+    }
+
+    function updateLabels() {
+        // Logic: 
+        // Total Width = 2m + n
+        // Total Height = m + 2n
+        // Shaded = 2*m*m + 2*n*n
+        // Blank = 5*m*n
+        
+        let totalL = 2*m + n;
+        let totalW = m + 2*n;
+        let shade = 2*m*m + 2*n*n;
+        let blank = 5*m*n;
+        
+        document.getElementById('totalL').innerHTML = `2m+n = ${totalL}`;
+        document.getElementById('totalW').innerHTML = `m+2n = ${totalW}`;
+        document.getElementById('areaShade').innerHTML = shade.toLocaleString();
+        document.getElementById('areaBlank').innerHTML = blank.toLocaleString();
+    }
+</script>
+
+</body>
+</html>

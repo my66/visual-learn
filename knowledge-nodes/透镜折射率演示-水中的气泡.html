@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>透镜折射率演示：水中的气泡</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: "Microsoft YaHei", sans-serif; }
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 6px;
+            background: #e5e7eb;
+            border-radius: 5px;
+            outline: none;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            transition: background .15s ease-in-out;
+        }
+        input[type=range]::-webkit-slider-thumb:hover { background: #2563eb; }
+        .canvas-container {
+            background-color: #f0f9ff; /* 默认淡蓝色背景 */
+            transition: background-color 0.5s;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 h-screen flex flex-col items-center justify-center p-4">
+
+    <!-- 标题区域 -->
+    <div class="text-center mb-6">
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">透镜与介质：谁决定了聚散？</h1>
+        <p class="text-gray-600">探究透镜形状与折射率对光路的影响</p>
+    </div>
+
+    <!-- 主界面：左侧画布，右侧控制 -->
+    <div class="bg-white rounded-xl shadow-xl overflow-hidden max-w-5xl w-full flex flex-col md:flex-row">
+        
+        <!-- Canvas 区域 -->
+        <div class="relative w-full md:w-2/3 h-[400px] canvas-container" id="canvasContainer">
+            <canvas id="simCanvas" class="w-full h-full block"></canvas>
+            
+            <!-- 浮动标签：环境 -->
+            <div class="absolute top-4 left-4 bg-white/90 backdrop-blur px-4 py-2 rounded-lg shadow-md border border-blue-100 text-blue-900 transition-all duration-300" id="envLabelTag">
+                <span class="text-xs font-bold text-gray-500 block uppercase tracking-wider">环境介质</span>
+                <span class="font-bold text-lg" id="envNameTag">空气</span>
+            </div>
+            
+            <!-- 浮动标签：透镜 -->
+            <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none transition-all duration-300 z-10">
+                <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">透镜材料</span>
+                <span class="text-lg font-extrabold text-slate-800" id="lensNameTag">玻璃</span>
+            </div>
+        </div>
+
+        <!-- 控制面板 -->
+        <div class="w-full md:w-1/3 p-6 bg-gray-50 flex flex-col justify-center space-y-6 border-l border-gray-200">
+            
+            <!-- 预设按钮 -->
+            <div class="space-y-2">
+                <h3 class="font-bold text-gray-700 text-sm uppercase tracking-wider">快速场景预设</h3>
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="setPreset('glass')" class="px-4 py-2 bg-white border border-gray-300 rounded hover:bg-blue-50 hover:border-blue-300 transition text-sm font-medium text-gray-700 text-left flex items-center group">
+                        <span class="w-3 h-3 rounded-full bg-yellow-400 mr-2 group-hover:animate-pulse"></span>
+                        玻璃凸透镜<br><span class="text-xs text-gray-400 font-normal">空气中</span>
+                    </button>
+                    <button onclick="setPreset('bubble')" class="px-4 py-2 bg-white border border-gray-300 rounded hover:bg-blue-50 hover:border-blue-300 transition text-sm font-medium text-gray-700 text-left flex items-center group">
+                        <span class="w-3 h-3 rounded-full bg-blue-400 mr-2 group-hover:animate-pulse"></span>
+                        空气泡<br><span class="text-xs text-gray-400 font-normal">水中</span>
+                    </button>
+                </div>
+            </div>
+
+            <hr class="border-gray-200">
+
+            <!-- 滑块控制 -->
+            <div class="space-y-5">
+                <div>
+                    <div class="flex justify-between mb-1 items-end">
+                        <label class="text-sm font-medium text-gray-700">环境折射率 (n<sub>env</sub>)</label>
+                        <div class="text-right">
+                            <span id="envMaterialName" class="text-xs font-bold text-gray-500 mr-1">空气</span>
+                            <span id="envVal" class="text-sm font-mono text-blue-600 bg-blue-100 px-2 rounded">1.00</span>
+                        </div>
+                    </div>
+                    <input type="range" id="nEnv" min="1.0" max="2.0" step="0.01" value="1.0">
+                    <div class="flex justify-between text-xs text-gray-400 mt-1">
+                        <span>1.0</span>
+                        <span>1.5</span>
+                        <span>2.0</span>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="flex justify-between mb-1 items-end">
+                        <label class="text-sm font-medium text-gray-700">透镜折射率 (n<sub>lens</sub>)</label>
+                        <div class="text-right">
+                            <span id="lensMaterialName" class="text-xs font-bold text-gray-500 mr-1">玻璃</span>
+                            <span id="lensVal" class="text-sm font-mono text-blue-600 bg-blue-100 px-2 rounded">1.50</span>
+                        </div>
+                    </div>
+                    <input type="range" id="nLens" min="1.0" max="2.0" step="0.01" value="1.5">
+                    <div class="flex justify-between text-xs text-gray-400 mt-1">
+                        <span>1.0</span>
+                        <span>1.5</span>
+                        <span>2.0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 结果显示 -->
+            <div class="bg-white p-4 rounded border border-gray-200 shadow-sm mt-2 text-center transition-all duration-300" id="resultBox">
+                <span class="text-xs text-gray-500 uppercase font-semibold">当前光学效果</span>
+                <div id="resultText" class="text-2xl font-bold mt-1 text-green-600">会聚光线</div>
+                <div id="explanation" class="text-xs text-gray-500 mt-2 leading-relaxed">
+                    光从稀疏介质进入致密介质
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('canvasContainer');
+        
+        // 物理参数
+        let nEnv = 1.0;
+        let nLens = 1.5;
+        
+        // 透镜几何参数 (双凸透镜)
+        const lensRadius = 180; // 曲率半径
+        const lensThickness = 60; // 中心厚度
+        
+        let cx1, cx2; 
+
+        function updateGeometry() {
+            cx1 = -lensThickness/2 + lensRadius; 
+            cx2 = lensThickness/2 - lensRadius;  
+            
+            // Canvas resize
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+        }
+
+        // 矢量运算帮助函数
+        const vec = {
+            add: (v1, v2) => ({x: v1.x + v2.x, y: v1.y + v2.y}),
+            sub: (v1, v2) => ({x: v1.x - v2.x, y: v1.y - v2.y}),
+            mul: (v, s) => ({x: v.x * s, y: v.y * s}),
+            dot: (v1, v2) => v1.x * v2.x + v1.y * v2.y,
+            mag: (v) => Math.sqrt(v.x * v.x + v.y * v.y),
+            normalize: (v) => {
+                const m = Math.sqrt(v.x * v.x + v.y * v.y);
+                return m === 0 ? {x:0, y:0} : {x: v.x/m, y: v.y/m};
+            },
+            rotate: (v, angle) => ({
+                x: v.x * Math.cos(angle) - v.y * Math.sin(angle),
+                y: v.x * Math.sin(angle) + v.y * Math.cos(angle)
+            })
+        };
+
+        // 射线-圆相交
+        function intersectCircle(origin, dir, center, radius) {
+            const oc = vec.sub(origin, center);
+            const a = vec.dot(dir, dir);
+            const b = 2.0 * vec.dot(oc, dir);
+            const c = vec.dot(oc, oc) - radius * radius;
+            const discriminant = b * b - 4 * a * c;
+            
+            if (discriminant < 0) return null;
+            
+            const t1 = (-b - Math.sqrt(discriminant)) / (2 * a);
+            const t2 = (-b + Math.sqrt(discriminant)) / (2 * a);
+            
+            const epsilon = 0.1;
+            if (t1 > epsilon) return t1;
+            if (t2 > epsilon) return t2;
+            return null;
+        }
+
+        // 斯涅尔定律计算折射向量
+        function refract(I, N, n1, n2) {
+            const eta = n1 / n2;
+            const N_dot_I = vec.dot(N, I);
+            const k = 1.0 - eta * eta * (1.0 - N_dot_I * N_dot_I);
+            
+            if (k < 0.0) {
+                return null; // 全内反射
+            } else {
+                return vec.sub(
+                    vec.mul(I, eta),
+                    vec.mul(N, eta * N_dot_I + Math.sqrt(k))
+                );
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            const w = canvas.width;
+            const h = canvas.height;
+            const centerX = w / 2;
+            const centerY = h / 2;
+
+            // 1. 绘制背景颜色 (代表环境介质)
+            let bgOpacity = (nEnv - 1.0) * 0.5; 
+            container.style.backgroundColor = `rgba(186, 230, 253, ${bgOpacity + 0.1})`; 
+
+            // 2. 绘制透镜
+            ctx.save();
+            ctx.translate(centerX, centerY);
+            
+            const d = lensRadius - lensThickness/2;
+            const h_int = Math.sqrt(lensRadius*lensRadius - d*d);
+            const angle = Math.asin(h_int / lensRadius);
+            
+            ctx.beginPath();
+            // 右半球的左弧
+            ctx.arc(cx1, 0, lensRadius, Math.PI - angle, Math.PI + angle, false);
+            // 左半球的右弧
+            ctx.arc(cx2, 0, lensRadius, -angle, angle, false);
+            ctx.closePath();
+
+            // 填充透镜颜色
+            let lensOpacity = (nLens - 1.0) * 0.6;
+            ctx.fillStyle = `rgba(255, 255, 255, ${0.3 + lensOpacity})`;
+            if (nLens < nEnv) {
+                 // 气泡效果：更白一点
+                 ctx.fillStyle = `rgba(240, 248, 255, 0.9)`;
+                 ctx.strokeStyle = "#94a3b8"; // 灰色边框
+            } else {
+                 ctx.strokeStyle = "#60a5fa"; // 蓝色边框
+            }
+            ctx.fill();
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // 恢复坐标系
+            ctx.restore();
+
+            // 3. 光线追踪
+            const numRays = 7;
+            const spacing = 25;
+            
+            ctx.strokeStyle = "#fbbf24"; 
+            ctx.lineWidth = 3;
+            ctx.lineCap = "round";
+
+            for (let i = 0; i < numRays; i++) {
+                const yOffset = (i - (numRays-1)/2) * spacing;
+                
+                let rayOrigin = {x: 0, y: centerY + yOffset};
+                let rayDir = {x: 1, y: 0}; 
+                
+                ctx.beginPath();
+                ctx.moveTo(rayOrigin.x, rayOrigin.y);
+                
+                let localOrigin = {x: rayOrigin.x - centerX, y: rayOrigin.y - centerY};
+                
+                // --- 第一次交互 (入射面) ---
+                const t1 = intersectCircle(localOrigin, rayDir, {x: cx1, y: 0}, lensRadius);
+                
+                if (t1 !== null) {
+                    let P1 = vec.add(localOrigin, vec.mul(rayDir, t1));
+                    let drawP1 = {x: P1.x + centerX, y: P1.y + centerY};
+                    ctx.lineTo(drawP1.x, drawP1.y);
+                    ctx.stroke();
+                    
+                    let N1 = vec.normalize(vec.sub(P1, {x: cx1, y: 0})); 
+                    
+                    let refractDir1 = refract(rayDir, N1, nEnv, nLens);
+                    
+                    if (refractDir1) {
+                        // --- 第二次交互 (出射面) ---
+                        const t2 = intersectCircle(P1, refractDir1, {x: cx2, y: 0}, lensRadius);
+                        
+                        if (t2 !== null) {
+                            let P2 = vec.add(P1, vec.mul(refractDir1, t2));
+                            let drawP2 = {x: P2.x + centerX, y: P2.y + centerY};
+                            
+                            // 绘制内部光线
+                            ctx.beginPath();
+                            ctx.strokeStyle = "rgba(251, 191, 36, 0.6)"; 
+                            ctx.moveTo(drawP1.x, drawP1.y);
+                            ctx.lineTo(drawP2.x, drawP2.y);
+                            ctx.stroke();
+                            
+                            let N2 = vec.normalize(vec.sub(P2, {x: cx2, y: 0}));
+                            // 修正法线方向：refract函数通常期望法线指向入射侧（与光线方向相反）
+                            // 此时光线向右，N2也向右（向外），所以需要反转
+                            let N2_corrected = vec.mul(N2, -1); 
+                            
+                            let finalDir = refract(refractDir1, N2_corrected, nLens, nEnv);
+                            
+                            if (finalDir) {
+                                // 绘制最终出射光线
+                                ctx.beginPath();
+                                ctx.strokeStyle = "#fbbf24"; 
+                                ctx.moveTo(drawP2.x, drawP2.y);
+                                let endPoint = vec.add(drawP2, vec.mul(finalDir, 1000));
+                                ctx.lineTo(endPoint.x, endPoint.y);
+                                ctx.stroke();
+                            } else {
+                                // 出射面全内反射
+                                drawTIR(drawP2, refractDir1, N2_corrected, ctx);
+                            }
+                        }
+                    } else {
+                        // 入射面全内反射 (新增物理细节)
+                        // 当环境折射率 > 透镜折射率（如水中气泡），且入射角很大时发生
+                        drawTIR(drawP1, rayDir, N1, ctx);
+                    }
+                } else {
+                    // 光线未击中透镜
+                    ctx.beginPath();
+                    ctx.moveTo(rayOrigin.x, rayOrigin.y);
+                    ctx.lineTo(w, rayOrigin.y);
+                    ctx.strokeStyle = "rgba(251, 191, 36, 0.3)";
+                    ctx.stroke();
+                }
+            }
+        }
+        
+        function drawTIR(pos, incident, normal, context) {
+            let reflectDir = vec.sub(incident, vec.mul(normal, 2 * vec.dot(incident, normal)));
+            context.beginPath();
+            context.strokeStyle = "rgba(255, 99, 71, 0.8)"; // 番茄红，表示反射
+            context.moveTo(pos.x, pos.y);
+            // 稍微画长一点以便看清
+            let end = vec.add(pos, vec.mul(reflectDir, 150));
+            context.lineTo(end.x, end.y);
+            context.stroke();
+        }
+
+        // 交互逻辑
+        const sliderEnv = document.getElementById('nEnv');
+        const sliderLens = document.getElementById('nLens');
+        const valEnv = document.getElementById('envVal');
+        const valLens = document.getElementById('lensVal');
+        const envNameTag = document.getElementById('envNameTag');
+        const lensNameTag = document.getElementById('lensNameTag');
+        const envMaterialName = document.getElementById('envMaterialName');
+        const lensMaterialName = document.getElementById('lensMaterialName');
+        const resultText = document.getElementById('resultText');
+        const explanation = document.getElementById('explanation');
+        const resultBox = document.getElementById('resultBox');
+
+        // 辅助函数：根据折射率返回材质名称
+        function getMaterialName(n) {
+            if (n < 1.05) return "真空/空气";
+            if (n >= 1.30 && n <= 1.36) return "水";
+            if (n >= 1.48 && n <= 1.55) return "普通玻璃";
+            if (n >= 1.70 && n <= 1.80) return "蓝宝石";
+            if (n > 2.3) return "钻石";
+            return "自定义介质";
+        }
+
+        function updateSimulation() {
+            nEnv = parseFloat(sliderEnv.value);
+            nLens = parseFloat(sliderLens.value);
+            
+            // 更新数值显示
+            valEnv.textContent = nEnv.toFixed(2);
+            valLens.textContent = nLens.toFixed(2);
+            
+            // 更新材质名称
+            const envName = getMaterialName(nEnv);
+            const lensName = getMaterialName(nLens);
+            
+            envNameTag.textContent = envName;
+            lensNameTag.textContent = lensName;
+            envMaterialName.textContent = envName;
+            lensMaterialName.textContent = lensName;
+            
+            // 结果判断文本
+            if (Math.abs(nEnv - nLens) < 0.05) {
+                resultText.textContent = "无明显折射";
+                resultText.className = "text-2xl font-bold mt-1 text-gray-400";
+                explanation.textContent = "介质与透镜折射率相近，光线几乎直线传播";
+                resultBox.className = "bg-white p-4 rounded border border-gray-200 shadow-sm mt-2 text-center transition-all duration-300";
+            } else if (nLens > nEnv) {
+                resultText.textContent = "会聚 (凸透镜作用)";
+                resultText.className = "text-2xl font-bold mt-1 text-green-600";
+                explanation.textContent = `透镜 (${lensName}) 折射率大于环境 (${envName})，光线向中心靠拢`;
+                resultBox.className = "bg-green-50 p-4 rounded border border-green-200 shadow-sm mt-2 text-center transition-all duration-300";
+            } else {
+                resultText.textContent = "发散 (凹透镜作用)";
+                resultText.className = "text-2xl font-bold mt-1 text-blue-600";
+                explanation.textContent = `透镜 (${lensName}) 折射率小于环境 (${envName})，光线向外逃逸`;
+                resultBox.className = "bg-blue-50 p-4 rounded border border-blue-200 shadow-sm mt-2 text-center transition-all duration-300";
+            }
+
+            draw();
+        }
+
+        function setPreset(type) {
+            if (type === 'glass') {
+                sliderEnv.value = 1.0;
+                sliderLens.value = 1.5;
+            } else if (type === 'bubble') {
+                sliderEnv.value = 1.33;
+                sliderLens.value = 1.0;
+            }
+            updateSimulation();
+        }
+
+        // Init
+        updateGeometry();
+        window.addEventListener('resize', () => {
+            updateGeometry();
+            draw();
+        });
+        
+        sliderEnv.addEventListener('input', updateSimulation);
+        sliderLens.addEventListener('input', updateSimulation);
+        
+        // 启动动画循环或单次绘制
+        updateSimulation();
+
+    </script>
+</body>
+</html>

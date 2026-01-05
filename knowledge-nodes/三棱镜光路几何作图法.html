@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>三棱镜光路几何作图法 (Geometric Optics Construction)</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <style>
+    /* CSS Reset & Layout */
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+      background-color: #f0f2f5;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Header */
+    header {
+      background: #2c3e50;
+      color: white;
+      padding: 15px 20px;
+      flex-shrink: 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 1.2rem;
+      font-weight: 500;
+      letter-spacing: 1px;
+    }
+
+    .subtitle {
+      font-size: 0.85rem;
+      color: #bdc3c7;
+    }
+
+    /* Main Container */
+    #main-container {
+      display: flex;
+      flex: 1;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    /* Control Panel */
+    #controls {
+      width: 320px;
+      background: white;
+      padding: 20px;
+      box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      z-index: 10;
+    }
+
+    /* Section Styling */
+    .control-group {
+      border-bottom: 1px solid #eee;
+      padding-bottom: 15px;
+      margin-bottom: 5px;
+    }
+
+    .control-group h3 {
+      font-size: 1rem;
+      color: #34495e;
+      margin-bottom: 10px;
+      margin-top: 0;
+      border-left: 4px solid #3498db;
+      padding-left: 8px;
+    }
+
+    .info-box {
+      background: #e8f4f8;
+      border: 1px solid #bce0fd;
+      padding: 10px;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      color: #2c3e50;
+      line-height: 1.4;
+      margin-bottom: 10px;
+    }
+
+    /* Inputs */
+    label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.9rem;
+      color: #555;
+      margin-bottom: 8px;
+      cursor: pointer;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      margin: 5px 0;
+      accent-color: #3498db;
+    }
+
+    input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: #27ae60;
+    }
+
+    .value-display {
+      font-family: 'Courier New', monospace;
+      font-weight: bold;
+      color: #2980b9;
+      font-size: 0.9rem;
+    }
+
+    /* Canvas Area */
+    #canvas-wrapper {
+      flex: 1;
+      position: relative;
+      background-color: #ffffff;
+      /* Dots pattern background */
+      background-image: radial-gradient(#d1d1d1 1px, transparent 1px);
+      background-size: 20px 20px;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    /* Legend/Overlay */
+    .legend {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 10px 15px;
+      border-radius: 8px;
+      border: 1px solid #ddd;
+      font-size: 0.85rem;
+      pointer-events: none;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      margin: 4px 0;
+    }
+    .dot { width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; display: inline-block; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div>
+      <h1>三棱镜光路几何作图法</h1>
+      <span class="subtitle">Prism Geometric Construction Visualizer</span>
+    </div>
+    <div style="font-size: 0.8rem; opacity: 0.8;">p5.js Powered</div>
+  </header>
+
+  <div id="main-container">
+    <!-- Sidebar Controls -->
+    <div id="controls">
+      
+      <div class="info-box">
+        <strong>题目解析：</strong><br>
+        已知入射点 S 和出射点 P。<br>
+        <strong>关键问题：</strong>光线在内部如何走？<br>
+        <strong>几何解法：</strong>利用平面镜成像原理（对称法）。将点 P 关于底边 BC 做对称点 P'，连接 S 和 P'，其与 BC 的交点 K 即为反射点。
+      </div>
+
+      <div class="control-group">
+        <h3>位置控制 (Positions)</h3>
+        <label>
+          入射点 S 位置 (AB边)
+        </label>
+        <input type="range" id="sliderS" min="0.1" max="0.9" step="0.01" value="0.3">
+        
+        <label>
+          出射点 P 位置 (AC边)
+        </label>
+        <input type="range" id="sliderP" min="0.1" max="0.9" step="0.01" value="0.7">
+      </div>
+
+      <div class="control-group">
+        <h3>几何辅助线 (Construction)</h3>
+        <label>
+          <span>显示作图辅助线 (Mirror Method)</span>
+          <input type="checkbox" id="checkConstruction" checked>
+        </label>
+        <label>
+          <span>显示 P 的镜像点 (P')</span>
+          <input type="checkbox" id="checkMirrorPoint" checked>
+        </label>
+        <label>
+          <span>显示法线 (Normals)</span>
+          <input type="checkbox" id="checkNormals">
+        </label>
+      </div>
+
+      <div class="control-group">
+        <h3>物理参数推算 (Physics)</h3>
+        <div class="info-box" style="background:#fffbe6; border-color:#ffe58f; color:#856404;">
+          为满足此路径，折射率 n 必须为特定值。
+        </div>
+        <div>计算出的折射率 n: <span id="valN" class="value-display">--</span></div>
+        <div>S 处入射角 i: <span id="valInc" class="value-display">--</span></div>
+        <div>S 处折射角 r: <span id="valRefr" class="value-display">--</span></div>
+      </div>
+
+      <div style="margin-top:auto; font-size: 0.8rem; color:#888; text-align: center;">
+        拖动滑块观察 P' 点如何决定光路
+      </div>
+    </div>
+
+    <!-- Canvas Container -->
+    <div id="canvas-wrapper">
+      <div id="canvas-placeholder"></div>
+      <div class="legend">
+        <div class="legend-item"><span class="dot" style="background:red"></span>光线 (Light Ray)</div>
+        <div class="legend-item"><span class="dot" style="background:#3498db"></span>三棱镜 (Prism)</div>
+        <div class="legend-item"><span class="dot" style="background:#9b59b6; opacity:0.5"></span>辅助线 (Construction)</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+/**
+ * 视题目可视化英文版 - Prism Logic
+ * Engine: Pure p5.js for precise geometric construction
+ */
+
+let canvas;
+let prismA, prismB, prismC; // Vertices
+let prismSize = 400; // Base width relative logic
+
+// State variables
+let sRatio = 0.3;
+let pRatio = 0.7;
+
+// DOM Elements
+let sliderS, sliderP;
+let checkConstruction, checkMirrorPoint, checkNormals;
+let valN, valInc, valRefr;
+
+function setup() {
+  // Create canvas inside the wrapper
+  let wrapper = document.getElementById('canvas-wrapper');
+  let w = wrapper.clientWidth;
+  let h = wrapper.clientHeight;
+  canvas = createCanvas(w, h);
+  canvas.parent('canvas-placeholder');
+  
+  // Initialize UI references
+  sliderS = document.getElementById('sliderS');
+  sliderP = document.getElementById('sliderP');
+  checkConstruction = document.getElementById('checkConstruction');
+  checkMirrorPoint = document.getElementById('checkMirrorPoint');
+  checkNormals = document.getElementById('checkNormals');
+  
+  valN = document.getElementById('valN');
+  valInc = document.getElementById('valInc');
+  valRefr = document.getElementById('valRefr');
+
+  // Listeners
+  sliderS.addEventListener('input', () => { sRatio = parseFloat(sliderS.value); redraw(); });
+  sliderP.addEventListener('input', () => { pRatio = parseFloat(sliderP.value); redraw(); });
+  checkConstruction.addEventListener('change', () => redraw());
+  checkMirrorPoint.addEventListener('change', () => redraw());
+  checkNormals.addEventListener('change', () => redraw());
+  
+  // Use degrees for easy reading
+  angleMode(DEGREES);
+  
+  // No loop needed for static geometry interaction
+  noLoop();
+}
+
+function windowResized() {
+  let wrapper = document.getElementById('canvas-wrapper');
+  resizeCanvas(wrapper.clientWidth, wrapper.clientHeight);
+  redraw();
+}
+
+function draw() {
+  background(255); // Clear
+  translate(width / 2, height / 2); // Center coordinate system
+
+  // 1. Define Prism Geometry (Isosceles Right Triangle)
+  // Top A, Bottom Left B, Bottom Right C
+  // BC is horizontal (parallel to table)
+  let baseW = Math.min(width * 0.6, 500);
+  let hTri = baseW / 2; // Since B and C are 45 deg, height = half base
+  
+  // Centering the triangle vertically
+  let yOffset = hTri / 2; 
+  
+  prismA = createVector(0, -hTri + yOffset);
+  prismB = createVector(-baseW / 2, yOffset);
+  prismC = createVector(baseW / 2, yOffset);
+
+  // 2. Calculate Key Points based on Sliders
+  
+  // Point S on AB
+  // vector from A to B
+  let vAB = p5.Vector.sub(prismB, prismA);
+  let posS = p5.Vector.add(prismA, p5.Vector.mult(vAB, sRatio));
+
+  // Point P on AC
+  // vector from A to C
+  let vAC = p5.Vector.sub(prismC, prismA);
+  let posP = p5.Vector.add(prismA, p5.Vector.mult(vAC, pRatio));
+
+  // 3. The Core Geometric Construction (The "Aha!" moment)
+  // Mirror P across BC.
+  // Since BC is horizontal at y = prismB.y, the reflection logic is simple.
+  let mirrorY = prismB.y;
+  let distToMirror = mirrorY - posP.y;
+  let posP_Prime = createVector(posP.x, mirrorY + distToMirror); // P'
+
+  // Intersection Point K on BC
+  // We need the intersection of Line(S -> P') and Line(B -> C)
+  let posK = lineIntersection(posS, posP_Prime, prismB, prismC);
+
+  // 4. Draw Layout
+
+  // Draw Prism
+  stroke(50, 50, 50);
+  strokeWeight(2);
+  fill(230, 245, 255, 200); // Light blue glass
+  triangle(prismA.x, prismA.y, prismB.x, prismB.y, prismC.x, prismC.y);
+  
+  // Labels
+  fill(0); noStroke(); textSize(16); textStyle(BOLD);
+  text("A", prismA.x, prismA.y - 15);
+  text("B", prismB.x - 20, prismB.y + 10);
+  text("C", prismC.x + 10, prismC.y + 10);
+
+  // Draw Points S and P
+  drawPoint(posS, "S", "left");
+  drawPoint(posP, "P", "right");
+
+  // 5. Draw Construction Lines (The Solution)
+  if (checkConstruction.checked) {
+    // Dashed line BC extension
+    stroke(150); setLineDash([5, 5]); strokeWeight(1);
+    line(prismB.x - 50, prismB.y, prismC.x + 50, prismC.y); // Table/BC line
+
+    // Line from P to P' (The reflection perpendicular)
+    stroke(155, 89, 182, 150); // Purple
+    line(posP.x, posP.y, posP_Prime.x, posP_Prime.y);
+
+    // Line from S to P'
+    stroke(155, 89, 182, 150);
+    line(posS.x, posS.y, posP_Prime.x, posP_Prime.y);
+    
+    setLineDash([]); // Reset
+  }
+
+  // Draw P' (Mirror Image)
+  if (checkMirrorPoint.checked) {
+    drawPoint(posP_Prime, "P' (镜像)", "right", color(155, 89, 182));
+    
+    // Draw "table" hint under P' to show it's virtual
+    noStroke(); fill(150); textSize(12); textStyle(NORMAL);
+    text("BC (反射面)", prismC.x - 60, prismC.y + 15);
+  }
+
+  // 6. Draw The Actual Light Path
+  strokeWeight(3);
+  stroke(231, 76, 60); // Red laser color
+
+  // Incident Ray (Horizontal entering S)
+  line(posS.x - 100, posS.y, posS.x, posS.y);
+  drawArrow(createVector(posS.x - 100, posS.y), createVector(1, 0), 60); // Arrow
+
+  // Internal Ray 1 (S -> K)
+  if (posK) {
+    line(posS.x, posS.y, posK.x, posK.y);
+    // Arrow mid-path
+    let vecSK = p5.Vector.sub(posK, posS);
+    drawArrow(posS, vecSK.normalize(), vecSK.mag() * 0.5);
+
+    // Internal Ray 2 (K -> P)
+    line(posK.x, posK.y, posP.x, posP.y);
+    let vecKP = p5.Vector.sub(posP, posK);
+    drawArrow(posK, vecKP.normalize(), vecKP.mag() * 0.5);
+    
+    drawPoint(posK, "K", "bottom");
+
+    // Exit Ray (P -> Out)
+    // We need to calculate the direction based on Snell's law to be realistic?
+    // Actually, let's just draw it extending out. The prompt focuses on the INTERNAL path construction.
+    // But to be cool, let's calculate the real exit angle if we can.
+    
+    // Normal at P (on AC). AC vector is (1, 1) direction approx.
+    // AC is 45 deg line. Normal is 135 deg line.
+    let acAngle = degrees(Math.atan2(prismC.y - prismA.y, prismC.x - prismA.x));
+    let normalAngleP = acAngle - 90; // Pointing out
+    
+    // For visual completeness, just draw a ray exiting. 
+    // Calculating exact physics requires the N derived below.
+    let rayDirInside = p5.Vector.sub(posP, posK).heading();
+    // Just draw a short extension to indicate exit
+    let exitVec = p5.Vector.fromAngle(rayDirInside).mult(50);
+    // This is NOT physically refracted, just showing direction. 
+    // Wait, let's do better. We calculate N below. Use it.
+  }
+
+  // 7. Physics Calculation & Normals
+  calculatePhysics(posS, posK, posP);
+
+}
+
+function calculatePhysics(S, K, P) {
+  if (!K) return;
+
+  // --- 1. Calculate Refraction at S ---
+  
+  // Normal at S (AB face).
+  // AB Vector: B - A.
+  let vecAB = p5.Vector.sub(prismB, prismA);
+  let angleAB = vecAB.heading();
+  let normalAngleS = angleAB + 90; // Outward normal
+  // Correct normal should point outward relative to surface.
+  // AB goes down-left. Normal goes up-left.
+  
+  // Incident Ray Vector: (1, 0) Horizontal Right.
+  let incAngle = 0; // Horizontal
+  
+  // Calculate Angle of Incidence (theta1) relative to Normal
+  // Geometric normal angle is 135 deg (approx).
+  // Real calculation:
+  let normalS_Vec = p5.Vector.fromAngle(radians(normalAngleS));
+  let incident_Vec = createVector(1, 0); // Horizontal in
+  // Wait, incidence is angle between IncidentRay and Normal.
+  // Incident Ray comes from left (-1, 0) towards S? No, "Parallel to table entering left side". 
+  // So direction is (+1, 0).
+  // Angle between Normal and Incident (reversed).
+  // Normal points OUT. Incident points IN.
+  // Let's use internal angles for Snell's law.
+  // Angle of Incidence i = Angle between Normal and Horizontal.
+  // Since A=90, B=45. AB slope is tan(90+45) = -1. Normal slope is 1 (45 deg).
+  // So Normal is at 45 degrees? No.
+  // A is (0, -h). B is (-w, h). Vector A->B is (-w, 2h).
+  // Wait, Isosceles Right triangle.
+  // AB is 45 deg to horizontal?
+  // B=45, C=45. Yes. AB makes 135 deg with positive x axis.
+  // Normal to AB makes 45 deg with positive x axis.
+  // Incident ray is horizontal (0 deg).
+  // So Incident Angle i = 45 degrees.
+  
+  let i_deg = 45.00;
+
+  // Angle of Refraction r
+  // Vector S->K
+  let vecSK = p5.Vector.sub(K, S);
+  let angleSK = vecSK.heading(); // In degrees
+  // Normal is 45 deg.
+  // Refracted ray angle is angleSK.
+  // r = |45 - angleSK|. (Or similar geometry).
+  // Careful with signs.
+  // Let's use vector angleBetween.
+  let normalVec = createVector(1, -1).normalize(); // Normal pointing Out-Up-Right?
+  // AB slope is 1? No.
+  // A(0, -y), B(-x, y). Slope is (y - -y)/(-x - 0) = 2y/-x = -1. Correct.
+  // Normal slope is 1. Vector (1, 1). Angle 45 deg.
+  
+  // Incident angle i = 45 deg.
+  
+  // Refracted angle r = angle between Normal(inverted) and SK.
+  let normalIn = createVector(-1, -1).normalize(); // Into the glass
+  let angle_r = normalIn.angleBetween(vecSK); // Radians
+  let r_deg = degrees(angle_r);
+
+  // Snell's Law: n1 * sin(i) = n2 * sin(r)
+  // n1 = 1 (air).
+  // n2 = sin(i) / sin(r)
+  let n = Math.sin(radians(i_deg)) / Math.sin(radians(r_deg));
+
+  // Display
+  valInc.innerText = i_deg.toFixed(1) + "°";
+  valRefr.innerText = r_deg.toFixed(1) + "°";
+  valN.innerText = n.toFixed(3);
+  
+  // Warning for impossible physics
+  if (Math.abs(n) > 3 || Math.abs(n) < 1) {
+    valN.innerText = n.toFixed(2) + " (非物理/Impossible)";
+    valN.style.color = "red";
+  } else {
+    valN.style.color = "#2980b9";
+  }
+
+  // Draw Normals if checked
+  if (checkNormals.checked) {
+    stroke(100, 100, 100, 100);
+    strokeWeight(1);
+    
+    // Normal at S
+    let len = 40;
+    line(S.x - len, S.y - len, S.x + len, S.y + len); // 45 deg line
+    
+    // Normal at K (Vertical, since surface BC is horizontal)
+    line(K.x, K.y - len, K.x, K.y + len);
+    
+    // Normal at P (AC is perp to AB. Slope AC is 1. Normal slope -1)
+    line(P.x - len, P.y + len, P.x + len, P.y - len);
+  }
+}
+
+// Helper: Line Intersection
+function lineIntersection(p1, p2, p3, p4) {
+  let x1 = p1.x, y1 = p1.y;
+  let x2 = p2.x, y2 = p2.y;
+  let x3 = p3.x, y3 = p3.y;
+  let x4 = p4.x, y4 = p4.y;
+
+  let denom = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1);
+  if (denom == 0) return null;
+
+  let ua = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / denom;
+  // let ub = ((x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3)) / denom;
+
+  // We only care if intersection is within segment p3-p4 (The Mirror BC)
+  // But strictly, light could hit extension. Let's just return the point on the line.
+  
+  let x = x1 + ua * (x2 - x1);
+  let y = y1 + ua * (y2 - y1);
+  
+  return createVector(x, y);
+}
+
+// Helper: Drawing Utils
+function drawPoint(vec, label, align, col) {
+  noStroke();
+  fill(col || color(44, 62, 80));
+  circle(vec.x, vec.y, 8);
+  
+  if (label) {
+    fill(0);
+    textSize(14);
+    textStyle(BOLD);
+    let offX = 10;
+    if (align === "left") offX = -25;
+    if (align === "right") offX = 15;
+    if (align === "bottom") { offX = -5; vec.y += 15; }
+    text(label, vec.x + offX, vec.y + 5);
+    if (align === "bottom") vec.y -= 15; // restore
+  }
+}
+
+function drawArrow(base, dir, len) {
+  push();
+  translate(base.x, base.y);
+  rotate(dir.heading());
+  let arrowSize = 6;
+  translate(len, 0);
+  fill(231, 76, 60); noStroke();
+  triangle(0, arrowSize / 2, 0, -arrowSize / 2, arrowSize, 0);
+  pop();
+}
+
+function setLineDash(list) {
+  drawingContext.setLineDash(list);
+}
+
+</script>
+</body>
+</html>

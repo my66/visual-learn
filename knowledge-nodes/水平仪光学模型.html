@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>水平仪光学模型 V5：专注视图版</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+      background-color: #f0f2f5;
+      color: #333;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    header {
+      background-color: #fff;
+      padding: 10px 20px;
+      border-bottom: 1px solid #ddd;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      z-index: 10;
+    }
+
+    .header-title h1 { margin: 0; font-size: 1.1rem; color: #1a73e8; }
+    .header-title p { margin: 2px 0 0; font-size: 0.85rem; color: #666; }
+
+    #main-layout {
+      display: flex;
+      flex: 1;
+      height: calc(100vh - 60px);
+    }
+
+    #sidebar {
+      width: 280px;
+      background: #fff;
+      border-right: 1px solid #ddd;
+      padding: 15px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      flex-shrink: 0;
+    }
+
+    .panel {
+      background: #f8f9fa;
+      padding: 12px;
+      border-radius: 6px;
+      border: 1px solid #e9ecef;
+    }
+    .panel-title { font-weight: bold; font-size: 0.9rem; margin-bottom: 10px; border-left: 3px solid #1a73e8; padding-left: 6px; }
+    
+    .control-row { margin-bottom: 12px; }
+    .control-label { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 4px; }
+    input[type=range] { width: 100%; cursor: pointer; }
+
+    .legend-box { font-size: 0.85rem; line-height: 1.5; color: #444; }
+    .legend-item { display: flex; align-items: center; margin-bottom: 4px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; display: inline-block; }
+    
+    #canvas-wrapper {
+      flex: 1;
+      background: #fff;
+      position: relative;
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-title">
+    <h1>水平仪光学模型 V5</h1>
+    <p>简化视图：侧视图 (光强分布) + 俯视图 (气泡位置)</p>
+  </div>
+</header>
+
+<div id="main-layout">
+  <div id="sidebar">
+    
+    <div class="panel legend-box">
+      <div class="panel-title">核心原理</div>
+      <p style="margin-bottom:8px;"><strong>1. 液体段 (两侧)：</strong><br>
+      充满液体的玻璃管如同<strong>柱面凸透镜</strong>，将上方平行光强烈<strong>会聚</strong>，下方形成明亮的聚焦线。</p>
+      <p><strong>2. 气泡段 (中间)：</strong><br>
+      气泡占据了空间，虽然也是凸起的，但作为光疏介质(空气)，它对光的会聚能力远弱于纯液体，甚至使光线发散。相对于两侧的强聚光，中间形成<strong>暗影</strong>。</p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">物理参数</div>
+      <div class="control-row">
+        <div class="control-label"><span>气泡长度 (Length)</span><span id="val-len">120</span></div>
+        <input type="range" id="slider-len" min="40" max="300" value="120">
+      </div>
+      <div class="control-row">
+        <div class="control-label"><span>气泡大小/厚度 (Size)</span><span id="val-depth">40</span></div>
+        <input type="range" id="slider-depth" min="15" max="65" value="40">
+        <div style="font-size:12px; color:#888;">影响侧视厚度和俯视宽度</div>
+      </div>
+      <div class="control-row">
+        <div class="control-label" style="color:#d93025; font-weight:bold;"><span>液体折射率 (n)</span><span id="val-ri">1.33</span></div>
+        <input type="range" id="slider-ri" min="1.05" max="1.8" step="0.01" value="1.33">
+        <div style="font-size:12px; color:#888;">越大则液体聚光越强</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">显示设置</div>
+      <label style="display:block; margin-bottom:8px; cursor:pointer; font-size:0.9rem;">
+        <input type="checkbox" id="chk-rays" checked> 显示光路
+      </label>
+      <label style="display:block; cursor:pointer; font-size:0.9rem;">
+        <input type="checkbox" id="chk-intensity" checked> 显示光强分布图
+      </label>
+    </div>
+
+  </div>
+
+  <div id="canvas-wrapper"></div>
+</div>
+
+<script>
+let bLen = 120;   
+let bDepth = 40;  
+let refIdx = 1.33;
+let showRays = true;
+let showIntensity = true;
+
+function setup() {
+  const container = document.getElementById('canvas-wrapper');
+  const canvas = createCanvas(container.clientWidth, container.clientHeight);
+  canvas.parent('canvas-wrapper');
+  
+  bindSlider('slider-len', 'val-len', v => bLen = parseInt(v));
+  bindSlider('slider-depth', 'val-depth', v => bDepth = parseInt(v));
+  bindSlider('slider-ri', 'val-ri', v => refIdx = parseFloat(v));
+  
+  document.getElementById('chk-rays').addEventListener('change', e => showRays = e.target.checked);
+  document.getElementById('chk-intensity').addEventListener('change', e => showIntensity = e.target.checked);
+  
+  textFont('sans-serif');
+}
+
+function bindSlider(id, labelId, cb) {
+  const el = document.getElementById(id);
+  const label = document.getElementById(labelId);
+  el.addEventListener('input', e => {
+    label.innerText = e.target.value;
+    cb(e.target.value);
+  });
+}
+
+function windowResized() {
+  const container = document.getElementById('canvas-wrapper');
+  resizeCanvas(container.clientWidth, container.clientHeight);
+}
+
+function draw() {
+  background(255);
+  
+  let margin = 40;
+  
+  // 布局计算：只有上(Side)下(Top)两个视图
+  let sideViewH = height * 0.6; // 侧视图占60%高度
+  let topViewH = height - sideViewH - margin * 1.5;
+  let viewW = width - margin * 2; // 宽度占满（减去边距）
+  
+  // 1. 侧视图 (Main)
+  drawSideView(margin, margin, viewW, sideViewH);
+  
+  // 2. 俯视图 (Bottom)
+  let topViewY = sideViewH + margin;
+  drawTopView(margin, topViewY, viewW, topViewH);
+}
+
+// ==========================================
+// 1. 侧视图 (Side View)
+// ==========================================
+function drawSideView(x, y, w, h) {
+  push();
+  translate(x, y);
+  
+  // 标题区域
+  fill(50); noStroke(); textSize(16); textAlign(LEFT, TOP);
+  text("【侧视图】从侧面观察玻璃管光强分布", 0, 0);
+  
+  let cx = w / 2;
+  let cy = h / 2;
+  let tubeL = w * 0.8; // 管长占宽度的80%
+  let tubeH = 100;     // 稍微放大一点管径
+  let paperY = cy + tubeH/2 + 80; 
+
+  // 1. 液体背景
+  noStroke(); fill(210, 240, 255);
+  rectMode(CENTER);
+  rect(cx, cy, tubeL, tubeH);
+
+  // 2. 气泡 (胶囊形，贴顶)
+  let bx = cx; 
+  let by = cy - tubeH/2; 
+  let bw = bLen;
+  let bd = bDepth; 
+
+  fill(255); 
+  beginShape();
+  // 上边缘 (贴玻璃，平直)
+  vertex(bx - bw/2 + bd/2, by);
+  vertex(bx + bw/2 - bd/2, by);
+  // 右上角圆弧 -> 右侧面 -> 右下角过渡
+  // 这里用贝塞尔曲线画出稍微自然一点的气泡侧面
+  bezierVertex(bx + bw/2, by, bx + bw/2, by + bd, bx + bw/2 - bd/2, by + bd);
+  // 下边缘 (受表面张力影响的微弧形，稍微向下凸)
+  bezierVertex(bx + bw/4, by + bd + 5, bx - bw/4, by + bd + 5, bx - bw/2 + bd/2, by + bd);
+  // 左下角 -> 左侧面 -> 左上角
+  bezierVertex(bx - bw/2, by + bd, bx - bw/2, by, bx - bw/2 + bd/2, by);
+  endShape(CLOSE);
+  
+  // 气泡描边
+  stroke(100); strokeWeight(1); noFill();
+  beginShape();
+  vertex(bx - bw/2 + bd/2, by);
+  vertex(bx + bw/2 - bd/2, by);
+  bezierVertex(bx + bw/2, by, bx + bw/2, by + bd, bx + bw/2 - bd/2, by + bd);
+  bezierVertex(bx + bw/4, by + bd + 5, bx - bw/4, by + bd + 5, bx - bw/2 + bd/2, by + bd);
+  bezierVertex(bx - bw/2, by + bd, bx - bw/2, by, bx - bw/2 + bd/2, by);
+  endShape(CLOSE);
+
+  // 3. 玻璃管外框
+  stroke(100, 150, 200); strokeWeight(3); noFill();
+  rect(cx, cy, tubeL, tubeH);
+  
+  // 4. 光路模拟
+  if (showRays) {
+    drawSideRays(cx, cy, tubeL, tubeH, paperY, bx, bw);
+  }
+
+  // 5. 结果分布
+  drawPaperIntensity(cx, paperY, tubeL, bw);
+  
+  pop();
+}
+
+function drawSideRays(cx, cy, tubeL, tubeH, paperY, bx, bw) {
+  let startX = cx - tubeL/2 + 10;
+  let endX = cx + tubeL/2 - 10;
+  let step = 10; // 光线间距
+  let tubeTop = cy - tubeH/2;
+  let tubeBot = cy + tubeH/2;
+  
+  strokeWeight(1.5);
+  
+  for (let x = startX; x <= endX; x+=step) {
+    let inBubble = Math.abs(x - bx) < bw/2;
+    
+    // 入射光 (上方)
+    stroke(255, 200, 0, 120);
+    line(x, tubeTop - 50, x, tubeTop);
+    
+    if (inBubble) {
+      // --- 气泡区 ---
+      // 表现为：光线稍微发散或直线穿过，最终未形成强聚焦
+      // 模拟一点随机散射感，表示它没有很好地聚焦
+      let offset = (x - bx) * 0.15; // 微微散开
+      stroke(255, 180, 0, 40); // 颜色变暗
+      line(x, tubeTop, x + offset, tubeBot); 
+      // 出射后继续发散
+      line(x + offset, tubeBot, x + offset * 3.0, paperY);
+    } else {
+      // --- 液体区 ---
+      // 表现为：强烈的会聚。
+      // 在侧视图（2D投影）中，光线看起来依然是直的，但亮度极高（代表在纵向截面上聚焦了）
+      // 我们用高亮度的线条来表示
+      let brightness = map(refIdx, 1.0, 1.8, 150, 255);
+      stroke(255, 200, 0, brightness);
+      line(x, tubeTop, x, tubeBot);
+      line(x, tubeBot, x, paperY); // 直达下方，形成亮斑
+    }
+  }
+}
+
+function drawPaperIntensity(cx, paperY, tubeL, bw) {
+  // 纸面线
+  stroke(100); strokeWeight(2);
+  line(cx - tubeL/2 - 30, paperY, cx + tubeL/2 + 30, paperY);
+  noStroke(); fill(80); textSize(14);
+  text("纸面/屏幕", cx + tubeL/2 + 35, paperY + 5);
+
+  if (!showIntensity) return;
+
+  // 绘制光强色带
+  rectMode(CORNER);
+  let startX = cx - tubeL/2;
+  let endX = cx + tubeL/2;
+  let step = 4;
+  
+  for (let x = startX; x < endX; x += step) {
+    let dist = Math.abs(x - cx);
+    let alpha, h;
+    
+    // 逻辑：气泡正下方暗，两侧亮
+    if (dist < bw/2 - 5) {
+      // 暗区
+      alpha = 30; 
+      h = 5;
+    } else if (dist < bw/2 + 10) {
+      // 过渡区 (模糊边缘)
+      alpha = 100; 
+      h = 10;
+    } else {
+      // 亮区 (液体下方)
+      // 亮度随折射率增加
+      alpha = map(refIdx, 1.0, 1.8, 160, 255);
+      h = map(refIdx, 1.0, 1.8, 15, 30); // 亮条的高度也稍微变高表示强度大
+    }
+    
+    fill(255, 200, 0, alpha);
+    rect(x, paperY, step, h);
+  }
+  
+  // 文字标注
+  fill(0); textAlign(CENTER); textSize(12);
+  text("暗影 (气泡)", cx, paperY + 45);
+  
+  let leftLiquidX = cx - (tubeL/2 + bw/2)/2;
+  let rightLiquidX = cx + (tubeL/2 + bw/2)/2;
+  
+  if (bw < tubeL - 100) {
+     text("聚光亮条", leftLiquidX, paperY + 45);
+     text("聚光亮条", rightLiquidX, paperY + 45);
+  }
+}
+
+
+// ==========================================
+// 2. 俯视图 (Top View)
+// ==========================================
+function drawTopView(x, y, w, h) {
+  push();
+  translate(x, y);
+  
+  fill(50); noStroke(); textSize(16); textAlign(LEFT, TOP);
+  text("【俯视图】从正上方观察 (气泡形态)", 0, 0);
+  
+  let cx = w/2;
+  let cy = h/2 + 10;
+  let tubeL = w * 0.8;
+  let tubeW = 80; 
+  
+  // 1. 玻璃管
+  fill(220, 245, 255); noStroke();
+  rectMode(CENTER);
+  rect(cx, cy, tubeL, tubeW, tubeW/2);
+  
+  stroke(100, 150, 200); strokeWeight(2); noFill();
+  rect(cx, cy, tubeL, tubeW, tubeW/2);
+  
+  // 2. 气泡
+  // 气泡在俯视图中的宽度与 bDepth 有关 (越深越宽)
+  let bw = bLen;
+  let bh = Math.min(bDepth * 2.0, tubeW - 6); 
+  
+  fill(255); noStroke();
+  rect(cx, cy, bw, bh, bh/2);
+  
+  stroke(100); strokeWeight(1); noFill();
+  rect(cx, cy, bw, bh, bh/2);
+  
+  // 内部的高光圈 (经典水平仪特征)
+  stroke(200);
+  rect(cx, cy, bw - 12, bh - 12, (bh-12)/2);
+  
+  pop();
+}
+
+</script>
+</body>
+</html>

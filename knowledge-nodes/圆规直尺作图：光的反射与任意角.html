@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>圆规直尺作图：光的反射与任意角</title>
+    <!-- 引入 Tailwind CSS 进行快速样式布局 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Lucide 图标库 -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f3f4f6;
+            color: #1f2937;
+            user-select: none;
+        }
+        canvas {
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            cursor: crosshair;
+        }
+        .control-panel {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+        }
+        .step-badge {
+            transition: all 0.3s ease;
+        }
+        .step-active {
+            background-color: #3b82f6;
+            color: white;
+            transform: scale(1.1);
+        }
+        .step-inactive {
+            background-color: #e5e7eb;
+            color: #6b7280;
+        }
+        input[type=range] {
+            accent-color: #3b82f6;
+        }
+        /* 模式切换 Tabs 样式 */
+        .tab-btn {
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+        .tab-active {
+            border-bottom-color: #3b82f6;
+            color: #3b82f6;
+            font-weight: bold;
+        }
+        .tab-inactive {
+            color: #6b7280;
+            border-bottom-color: transparent;
+        }
+        .tab-inactive:hover {
+            color: #374151;
+            background-color: #f9fafb;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+
+    <!-- 顶部标题区 -->
+    <header class="bg-white border-b border-gray-200 p-4 shrink-0 z-10">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <div>
+                <h1 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                    <i data-lucide="compass" class="w-6 h-6 text-blue-600"></i>
+                    圆规直尺作图演示
+                </h1>
+                <p class="text-sm text-gray-500 mt-1">
+                    <span id="headerSubTitle">利用几何作图法解决物理与数学问题</span>
+                </p>
+            </div>
+            <div class="text-right hidden sm:block">
+                <div class="text-xs text-gray-400">数学原理</div>
+                <div class="font-mono text-blue-600 font-bold">SSS 全等三角形构造</div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主体内容区 -->
+    <main class="flex-1 flex flex-col md:flex-row gap-4 p-4 max-w-7xl mx-auto w-full overflow-hidden">
+        
+        <!-- 左侧控制面板 -->
+        <aside class="w-full md:w-80 flex flex-col gap-4 shrink-0 overflow-y-auto pb-4">
+            
+            <!-- 模式切换 Tabs -->
+            <div class="bg-white rounded-lg shadow-sm flex overflow-hidden border border-gray-200">
+                <button onclick="switchMode('reflection')" id="tabReflection" class="flex-1 py-3 text-sm text-center tab-active tab-btn">
+                    光的反射定律
+                </button>
+                <div class="w-px bg-gray-200"></div>
+                <button onclick="switchMode('copyAngle')" id="tabCopy" class="flex-1 py-3 text-sm text-center tab-inactive tab-btn">
+                    作一个角等于已知角
+                </button>
+            </div>
+
+            <!-- 题目描述 -->
+            <div class="control-panel p-4">
+                <h2 class="font-bold text-gray-700 mb-2 border-b pb-2">任务描述</h2>
+                <p id="taskDesc" class="text-sm text-gray-600 leading-relaxed">
+                    <!-- 动态内容 -->
+                </p>
+            </div>
+
+            <!-- 参数控制 -->
+            <div class="control-panel p-4">
+                <h2 class="font-bold text-gray-700 mb-4 border-b pb-2">参数与开关</h2>
+                
+                <!-- 角度滑块 -->
+                <div class="mb-6">
+                    <div class="flex justify-between mb-1">
+                        <label class="text-sm font-medium text-gray-700" id="sliderLabel">入射角</label>
+                        <span id="angleVal" class="text-sm font-bold text-blue-600">45°</span>
+                    </div>
+                    <input type="range" id="angleSlider" min="15" max="75" value="45" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                    <p class="text-xs text-gray-400 mt-1">拖动改变角度，观察作图痕迹的变化</p>
+                </div>
+
+                <!-- 显示开关 -->
+                <div class="space-y-2">
+                    <label class="flex items-center gap-2 cursor-pointer" id="ctrlPhysics">
+                        <input type="checkbox" id="showPhysicsLabels" checked class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500">
+                        <span class="text-sm text-gray-700">显示物理名词 (入射光线/法线)</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="showGeomLabels" checked class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500">
+                        <span class="text-sm text-gray-700">显示几何标注 (点 O, A, B...)</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="showProtractor" class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500">
+                        <span class="text-sm text-gray-700">显示量角器 (验证相等)</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- 步骤说明 -->
+            <div class="control-panel p-4 flex-1">
+                <h2 class="font-bold text-gray-700 mb-2 border-b pb-2">当前步骤</h2>
+                <div id="stepDescription" class="text-sm text-gray-800 font-medium min-h-[60px]">
+                    准备开始...
+                </div>
+                <div class="text-xs text-gray-500 mt-2 italic" id="stepHint">
+                    <!-- 动态提示 -->
+                </div>
+            </div>
+
+        </aside>
+
+        <!-- 右侧可视化区域 -->
+        <div class="flex-1 flex flex-col bg-white rounded-lg shadow-sm overflow-hidden relative">
+            <!-- 步骤进度条 -->
+            <div class="h-12 bg-gray-50 border-b border-gray-200 flex items-center justify-between px-4 shrink-0">
+                <div class="flex gap-2" id="stepIndicators">
+                    <!-- JS 生成步骤点 -->
+                </div>
+                <div class="flex gap-2">
+                    <button id="prevBtn" class="px-3 py-1 text-sm bg-white border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed">上一步</button>
+                    <button id="nextBtn" class="px-3 py-1 text-sm bg-blue-600 text-white border border-transparent rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">下一步</button>
+                </div>
+            </div>
+
+            <!-- Canvas 容器 -->
+            <div class="relative flex-1 bg-white" id="canvasContainer">
+                <canvas id="mainCanvas" class="block w-full h-full"></canvas>
+                
+                <!-- 浮动提示 -->
+                <div id="successMsg" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-green-100 text-green-800 px-6 py-4 rounded-lg shadow-lg border border-green-200 hidden text-center pointer-events-none">
+                    <p class="font-bold text-lg">作图完成！</p>
+                    <p class="text-sm" id="successText">已构建全等三角形</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // --- 1. 数据配置 ---
+        
+        // 模式 I: 反射定律 (现有)
+        const STEPS_REFLECTION = [
+            {
+                text: "准备阶段：已知平面镜、法线(ON)和入射光线(IO)。",
+                hint: "拖动滑块调整入射角。目标是画出反射光线，使反射角等于入射角。"
+            },
+            {
+                text: "步骤 1：以入射点 O 为圆心，任意长为半径画弧。",
+                hint: "圆规针尖扎在 O 点。此弧线分别交入射光线于点 A，交法线于点 M。"
+            },
+            {
+                text: "步骤 2：保持半径不变，继续将弧线延长到法线右侧。",
+                hint: "这是为了在右侧构建关于法线对称的图形。"
+            },
+            {
+                text: "步骤 3：测量弦长。用圆规量取点 A 到点 M 的距离。",
+                hint: "针尖扎在 M 点，调节笔尖到 A 点。这就获取了角度对应的'弦长'。"
+            },
+            {
+                text: "步骤 4：截取等长弧。保持上一步半径，以 M 为圆心在右侧画弧。",
+                hint: "交之前的基准弧于点 B。此时 弧MA = 弧MB，对应圆心角相等。"
+            },
+            {
+                text: "步骤 5：连接 OB 并延长，这就是反射光线。",
+                hint: "根据 SSS 定理，△OMA ≌ △OMB，所以 ∠MOA = ∠MOB。"
+            }
+        ];
+
+        // 模式 II: 任意角迁移 (新增)
+        const STEPS_COPY_ANGLE = [
+            {
+                text: "准备阶段：左侧为已知角 ∠α (顶点P)，右侧为目标射线 (端点Q)。",
+                hint: "我们的任务是将左边的角，原封不动地“搬”到右边射线上。"
+            },
+            {
+                text: "步骤 1：在已知角画基准弧。以 P 为圆心，任意长为半径画弧。",
+                hint: "弧线交角的两边于点 C 和点 D。"
+            },
+            {
+                text: "步骤 2：在目标位置画相同的弧。保持半径不变，以 Q 为圆心画弧。",
+                hint: "弧线交目标射线于点 E。此时 PQ 两处的'基准半径'相等。"
+            },
+            {
+                text: "步骤 3：测量已知角的'开口大小'。用圆规量取 C 到 D 的距离。",
+                hint: "针尖扎在 C，笔尖对准 D。这一步锁定了弦长。"
+            },
+            {
+                text: "步骤 4：在目标处截取弦长。以 E 为圆心，上一步距离为半径画弧。",
+                hint: "新弧线交大弧于点 F。此时弦长 EF = 弦长 CD。"
+            },
+            {
+                text: "步骤 5：连接 QF，则 ∠FQE 即为所求角。",
+                hint: "原理同上(SSS)：△PCD ≌ △QEF，故对应角相等。"
+            }
+        ];
+
+        // --- 2. 状态管理 ---
+        const state = {
+            mode: 'reflection', // 'reflection' | 'copyAngle'
+            step: 0, 
+            totalSteps: 5,
+            angle: 45, // 角度值
+            showPhysics: true,
+            showGeom: true,
+            showProtractor: false
+        };
+
+        // --- 3. 元素引用 ---
+        const canvas = document.getElementById('mainCanvas');
+        const ctx = canvas.getContext('2d');
+        const angleSlider = document.getElementById('angleSlider');
+        const angleVal = document.getElementById('angleVal');
+        const sliderLabel = document.getElementById('sliderLabel');
+        const stepDesc = document.getElementById('stepDescription');
+        const stepHint = document.getElementById('stepHint');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const stepIndicators = document.getElementById('stepIndicators');
+        const successMsg = document.getElementById('successMsg');
+        const successText = document.getElementById('successText');
+        const taskDesc = document.getElementById('taskDesc');
+        const ctrlPhysics = document.getElementById('ctrlPhysics'); // 物理开关容器
+
+        // 开关引用
+        const checkPhysics = document.getElementById('showPhysicsLabels');
+        const checkGeom = document.getElementById('showGeomLabels');
+        const checkProtractor = document.getElementById('showProtractor');
+
+        // --- 4. 初始化与事件监听 ---
+        
+        // 模式切换函数
+        window.switchMode = function(mode) {
+            state.mode = mode;
+            state.step = 0; // 重置步骤
+            state.angle = 45; // 重置角度
+            angleSlider.value = 45;
+            angleVal.innerText = "45°";
+
+            // 更新 Tab 样式
+            const tabRef = document.getElementById('tabReflection');
+            const tabCopy = document.getElementById('tabCopy');
+            if (mode === 'reflection') {
+                tabRef.classList.add('tab-active');
+                tabRef.classList.remove('tab-inactive');
+                tabCopy.classList.add('tab-inactive');
+                tabCopy.classList.remove('tab-active');
+                
+                // 更新文本
+                taskDesc.innerHTML = `已知：平面镜和一条入射光线。<br>求作：利用<strong>圆规和直尺</strong>，画出反射光线，使得反射角等于入射角。`;
+                sliderLabel.textContent = "入射角";
+                ctrlPhysics.style.display = "flex"; // 显示物理开关
+                successText.textContent = "已构建全等三角形 △OMA ≌ △OMB，故反射角等于入射角";
+            } else {
+                tabCopy.classList.add('tab-active');
+                tabCopy.classList.remove('tab-inactive');
+                tabRef.classList.add('tab-inactive');
+                tabRef.classList.remove('tab-active');
+
+                // 更新文本
+                taskDesc.innerHTML = `已知：任意角 ∠α。<br>求作：在另一位置画一个角，使其等于 ∠α。<br><span class="text-xs text-gray-400">这是几何基础作图之一，也是光学作图的原理。</span>`;
+                sliderLabel.textContent = "已知角";
+                ctrlPhysics.style.display = "none"; // 隐藏物理开关
+                successText.textContent = "已构建全等三角形 △PCD ≌ △QEF，故 ∠FQE = ∠CPD";
+            }
+
+            // 重建指示器
+            initIndicators();
+            updateUI();
+            draw();
+        }
+
+        function initIndicators() {
+            stepIndicators.innerHTML = '';
+            for(let i=0; i<=state.totalSteps; i++) {
+                const badge = document.createElement('div');
+                badge.className = `step-badge w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${i===0 ? 'step-active' : 'step-inactive'}`;
+                badge.textContent = i;
+                stepIndicators.appendChild(badge);
+            }
+        }
+
+        function resizeCanvas() {
+            const container = document.getElementById('canvasContainer');
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+            draw();
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        
+        angleSlider.addEventListener('input', (e) => {
+            state.angle = parseInt(e.target.value);
+            angleVal.textContent = state.angle + '°';
+            draw();
+        });
+
+        prevBtn.addEventListener('click', () => setStep(state.step - 1));
+        nextBtn.addEventListener('click', () => setStep(state.step + 1));
+
+        checkPhysics.addEventListener('change', (e) => { state.showPhysics = e.target.checked; draw(); });
+        checkGeom.addEventListener('change', (e) => { state.showGeom = e.target.checked; draw(); });
+        checkProtractor.addEventListener('change', (e) => { state.showProtractor = e.target.checked; draw(); });
+
+        function setStep(newStep) {
+            if (newStep < 0 || newStep > state.totalSteps) return;
+            state.step = newStep;
+            updateUI();
+            draw();
+        }
+
+        function updateUI() {
+            prevBtn.disabled = state.step === 0;
+            nextBtn.disabled = state.step === state.totalSteps;
+
+            const currentInfo = state.mode === 'reflection' ? STEPS_REFLECTION : STEPS_COPY_ANGLE;
+            stepDesc.textContent = currentInfo[state.step].text;
+            stepHint.textContent = currentInfo[state.step].hint;
+
+            const badges = stepIndicators.children;
+            for(let i=0; i<badges.length; i++) {
+                if (i === state.step) {
+                    badges[i].className = 'step-badge w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold step-active';
+                } else {
+                    badges[i].className = 'step-badge w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold step-inactive';
+                }
+            }
+
+            if (state.step === 5) {
+                successMsg.classList.remove('hidden'); 
+            } else {
+                successMsg.classList.add('hidden');
+            }
+        }
+
+        // --- 5. 绘图逻辑分发 ---
+
+        function draw() {
+            if (state.mode === 'reflection') {
+                drawReflection();
+            } else {
+                drawCopyAngle();
+            }
+        }
+
+        // --- 5.1 模式一：反射定律绘图 (原有逻辑) ---
+        function drawReflection() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const cx = canvas.width / 2; 
+            const cy = canvas.height * 0.75; 
+            const radiusMain = Math.min(canvas.width, canvas.height) * 0.35; 
+            const rayLength = Math.min(canvas.width, canvas.height) * 0.5; 
+            const theta = (state.angle * Math.PI) / 180; 
+
+            // 坐标
+            const incX = cx + rayLength * Math.cos(-Math.PI/2 - theta);
+            const incY = cy + rayLength * Math.sin(-Math.PI/2 - theta);
+            const refX = cx + rayLength * Math.cos(-Math.PI/2 + theta);
+            const refY = cy + rayLength * Math.sin(-Math.PI/2 + theta);
+            const mx = cx;
+            const my = cy - radiusMain;
+            const ax = cx + radiusMain * Math.cos(-Math.PI/2 - theta);
+            const ay = cy + radiusMain * Math.sin(-Math.PI/2 - theta);
+            const bx = cx + radiusMain * Math.cos(-Math.PI/2 + theta);
+            const by = cy + radiusMain * Math.sin(-Math.PI/2 + theta);
+
+            // 绘制镜面
+            drawMirror(0, cy, canvas.width, cy);
+
+            // 法线
+            if (state.showPhysics) {
+                drawDashedLine(cx, cy, cx, cy - rayLength, "#64748b");
+                ctx.fillStyle = "#64748b"; ctx.font = "14px Arial"; ctx.fillText("N", cx + 5, cy - rayLength + 20);
+            }
+
+            // 入射光线
+            drawSolidLine(incX, incY, cx, cy, "#ef4444", 3);
+            drawArrow(incX, incY, cx, cy, "#ef4444");
+            if (state.showPhysics) {
+                drawAngleArc(cx, cy, radiusMain * 0.3, -Math.PI/2 - theta, -Math.PI/2, "#ef4444", "∠i");
+            }
+
+            // 构造过程
+            const constructionColor = "#d97706";
+            
+            if (state.step >= 1) {
+                // 左侧弧
+                drawArc(cx, cy, radiusMain, -Math.PI/2 - theta - 0.2, -Math.PI/2, constructionColor, true);
+                if (state.showGeom) { drawPoint(cx, cy, "O"); drawPoint(mx, my, "M"); drawPoint(ax, ay, "A"); }
+            }
+            if (state.step >= 2) {
+                // 右侧弧
+                drawArc(cx, cy, radiusMain, -Math.PI/2, -Math.PI/2 + theta + 0.2, constructionColor, true);
+            }
+            if (state.step >= 3) {
+                const chordRadius = distance(mx, my, ax, ay);
+                if (state.step >= 4) {
+                    const angleMtoB = Math.atan2(by - my, bx - mx);
+                    drawArc(mx, my, chordRadius, angleMtoB - 0.3, angleMtoB + 0.3, constructionColor, false);
+                    if (state.showGeom) drawPoint(bx, by, "B");
+                }
+            }
+            if (state.step >= 5) {
+                drawSolidLine(cx, cy, refX, refY, "#3b82f6", 3);
+                drawArrow(cx, cy, refX, refY, "#3b82f6");
+                if (state.showPhysics) drawAngleArc(cx, cy, radiusMain * 0.3, -Math.PI/2, -Math.PI/2 + theta, "#3b82f6", "∠r");
+            }
+
+            // 动态工具
+            if (state.step === 1) drawCompass(cx, cy, radiusMain, -Math.PI/2 - theta - 0.2, -Math.PI/2);
+            else if (state.step === 2) drawCompass(cx, cy, radiusMain, -Math.PI/2, -Math.PI/2 + theta + 0.2);
+            else if (state.step === 3) {
+                const dist = distance(mx, my, ax, ay);
+                const angleToA = Math.atan2(ay - my, ax - mx);
+                drawCompass(mx, my, dist, angleToA, angleToA, true);
+            } else if (state.step === 4) {
+                const dist = distance(mx, my, ax, ay);
+                const angleToB = Math.atan2(by - my, bx - mx);
+                drawCompass(mx, my, dist, angleToB - 0.2, angleToB + 0.2);
+            }
+
+            if (state.showProtractor) drawProtractorImg(cx, cy, radiusMain * 1.2);
+        }
+
+        // --- 5.2 模式二：任意角迁移绘图 (新增逻辑) ---
+        function drawCopyAngle() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const w = canvas.width;
+            const h = canvas.height;
+            const theta = (state.angle * Math.PI) / 180;
+            const R = Math.min(w, h) * 0.25; // 基准圆半径
+
+            // 左侧：源角位置 P
+            const px = w * 0.25;
+            const py = h * 0.7;
+            
+            // 右侧：目标位置 Q
+            const qx = w * 0.75;
+            const qy = h * 0.7;
+
+            // 绘制基础线条
+            // 源角
+            drawSolidLine(px, py, px + R*1.5, py, "#1f2937", 2); // 底边
+            drawSolidLine(px, py, px + R*1.5*Math.cos(-theta), py + R*1.5*Math.sin(-theta), "#1f2937", 2); // 斜边
+            if (state.showGeom) drawPoint(px, py, "P");
+
+            // 目标射线
+            drawSolidLine(qx, qy, qx + R*1.5, qy, "#1f2937", 2); // 底边
+            if (state.showGeom) drawPoint(qx, qy, "Q");
+
+            // 关键点计算
+            // 左侧
+            const cx = px + R; // 对应底边交点 C (原本是D，为了代码一致叫cx)
+            const cy_pt = py;
+            const dx = px + R * Math.cos(-theta); // 对应斜边交点 D (原本是C)
+            const dy = py + R * Math.sin(-theta);
+
+            // 右侧
+            const ex = qx + R; // 对应底边交点 E
+            const ey = qy;
+            // 最终点 F
+            const fx = qx + R * Math.cos(-theta);
+            const fy = qy + R * Math.sin(-theta);
+
+            // 弦长
+            const chordLen = distance(cx, cy_pt, dx, dy);
+            const constructionColor = "#d97706";
+
+            // 分步绘制
+            if (state.step >= 1) {
+                // 左侧画弧
+                drawArc(px, py, R, -theta - 0.2, 0.2, constructionColor, true);
+                if (state.showGeom) { drawPoint(cx, cy_pt, "C"); drawPoint(dx, dy, "D"); }
+            }
+            if (state.step >= 2) {
+                // 右侧画弧
+                drawArc(qx, qy, R, -1.0, 0.2, constructionColor, true); // 画稍微长一点
+                if (state.showGeom) drawPoint(ex, ey, "E");
+            }
+            if (state.step >= 3) {
+                // 测量弦长 (动画在下面)
+            }
+            if (state.step >= 4) {
+                // 右侧截取弧
+                // 以 E 为圆心，弦长为半径，交大弧于 F
+                // 计算 F 相对于 E 的角度
+                const angleEtoF = Math.atan2(fy - ey, fx - ex);
+                drawArc(ex, ey, chordLen, angleEtoF - 0.3, angleEtoF + 0.3, constructionColor, false);
+                if (state.showGeom) drawPoint(fx, fy, "F");
+            }
+            if (state.step >= 5) {
+                // 连接 QF
+                drawSolidLine(qx, qy, qx + R*1.5*Math.cos(-theta), qy + R*1.5*Math.sin(-theta), "#3b82f6", 3);
+                // 标注完成的角
+                drawAngleArc(qx, qy, R*0.4, -theta, 0, "#3b82f6", "∠α");
+                drawAngleArc(px, py, R*0.4, -theta, 0, "#1f2937", "∠α");
+            }
+
+            // 动态工具
+            if (state.step === 1) {
+                drawCompass(px, py, R, -theta - 0.2, 0.2);
+            } else if (state.step === 2) {
+                // 移到右边画
+                drawCompass(qx, qy, R, -1.0, 0.2);
+            } else if (state.step === 3) {
+                // 测量左边 C 到 D (注意：这里C是底边点，D是斜边点)
+                const angleCtoD = Math.atan2(dy - cy_pt, dx - cx);
+                // 针在 C，笔在 D
+                drawCompass(cx, cy_pt, chordLen, angleCtoD, angleCtoD, true);
+                // 画一条临时的虚线表示弦
+                ctx.setLineDash([2,2]); ctx.strokeStyle = constructionColor; ctx.beginPath(); ctx.moveTo(cx, cy_pt); ctx.lineTo(dx, dy); ctx.stroke(); ctx.setLineDash([]);
+            } else if (state.step === 4) {
+                // 移到右边，针在 E，笔画 F
+                const angleEtoF = Math.atan2(fy - ey, fx - ex);
+                drawCompass(ex, ey, chordLen, angleEtoF - 0.3, angleEtoF + 0.3);
+            }
+
+            if (state.showProtractor) {
+                drawProtractorImg(qx, qy, R * 1.2);
+            }
+        }
+
+        // --- 辅助函数库 ---
+        function distance(x1, y1, x2, y2) { return Math.sqrt(Math.pow(x2-x1, 2) + Math.pow(y2-y1, 2)); }
+        function drawSolidLine(x1, y1, x2, y2, color, width) { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.strokeStyle = color; ctx.lineWidth = width; ctx.stroke(); }
+        function drawDashedLine(x1, y1, x2, y2, color) { ctx.beginPath(); ctx.setLineDash([5, 5]); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke(); ctx.setLineDash([]); }
+        function drawArc(x, y, r, sa, ea, color, dashed) { ctx.beginPath(); ctx.arc(x, y, r, sa, ea); ctx.strokeStyle = color; ctx.lineWidth = 1.5; if(dashed) ctx.setLineDash([4, 3]); ctx.stroke(); ctx.setLineDash([]); }
+        function drawMirror(x1, y1, x2, y2) {
+            ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.lineWidth = 4; ctx.strokeStyle = "#94a3b8"; ctx.stroke();
+            ctx.beginPath(); for(let i=0; i<x2; i+=20) { ctx.moveTo(i, y1); ctx.lineTo(i-10, y1+10); } ctx.lineWidth = 1; ctx.strokeStyle = "#cbd5e1"; ctx.stroke();
+        }
+        function drawPoint(x, y, label) { ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fillStyle = "#1f2937"; ctx.fill(); ctx.font = "bold 16px Arial"; ctx.fillText(label, x + 8, y - 8); }
+        function drawArrow(x1, y1, x2, y2, color) {
+            const headlen = 10; const angle = Math.atan2(y2 - y1, x2 - x1); const midX = (x1 + x2) * 0.5; const midY = (y1 + y2) * 0.5;
+            ctx.beginPath(); ctx.moveTo(midX, midY); ctx.lineTo(midX - headlen * Math.cos(angle - Math.PI / 6), midY - headlen * Math.sin(angle - Math.PI / 6));
+            ctx.moveTo(midX, midY); ctx.lineTo(midX - headlen * Math.cos(angle + Math.PI / 6), midY - headlen * Math.sin(angle + Math.PI / 6));
+            ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.stroke();
+        }
+        function drawAngleArc(x, y, r, sa, ea, color, label) {
+            ctx.beginPath(); ctx.arc(x, y, r, sa, ea); ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.stroke();
+            const mid = (sa + ea) / 2; const lr = r + 20; ctx.fillStyle = color; ctx.font = "14px Arial"; ctx.textAlign = "center"; ctx.fillText(label, x + lr * Math.cos(mid), y + lr * Math.sin(mid)); ctx.textAlign = "start";
+        }
+        function drawCompass(x, y, radius, startAngle, endAngle, staticMode = false) {
+            let currentAngle = endAngle;
+            if (!staticMode) { const time = Date.now() / 500; const swing = (Math.sin(time) + 1) / 2; currentAngle = startAngle + (endAngle - startAngle) * swing; }
+            const penX = x + radius * Math.cos(currentAngle); const penY = y + radius * Math.sin(currentAngle);
+            const compassHeight = 120;
+            const midBaseX = (x + penX) / 2; const midBaseY = (y + penY) / 2;
+            const baseAngle = Math.atan2(penY - y, penX - x); const perpAngle = baseAngle - Math.PI / 2;
+            const pivotX = midBaseX + compassHeight * Math.cos(perpAngle); const pivotY = midBaseY + compassHeight * Math.sin(perpAngle);
+            ctx.save(); ctx.lineCap = "round"; ctx.lineJoin = "round";
+            ctx.beginPath(); ctx.moveTo(pivotX, pivotY); ctx.lineTo(x, y); ctx.strokeStyle = "#9ca3af"; ctx.lineWidth = 6; ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(pivotX, pivotY); ctx.lineTo(penX, penY); ctx.strokeStyle = "#9ca3af"; ctx.lineWidth = 6; ctx.stroke();
+            ctx.beginPath(); ctx.arc(pivotX, pivotY, 8, 0, Math.PI * 2); ctx.fillStyle = "#4b5563"; ctx.fill();
+            ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI * 2); ctx.fillStyle = "black"; ctx.fill();
+            ctx.beginPath(); ctx.moveTo(penX, penY); ctx.lineTo(penX - 10 * Math.cos(currentAngle), penY - 10 * Math.sin(currentAngle)); ctx.strokeStyle = "#d97706"; ctx.lineWidth = 4; ctx.stroke();
+            ctx.restore();
+        }
+        function drawProtractorImg(x, y, r) {
+            ctx.save(); ctx.globalAlpha = 0.3; ctx.beginPath(); ctx.arc(x, y, r, Math.PI, 0); ctx.fillStyle = "#bae6fd"; ctx.fill(); ctx.strokeStyle = "#0284c7"; ctx.lineWidth = 1; ctx.stroke();
+            for (let i = 0; i <= 180; i += 10) {
+                const rad = (Math.PI / 180) * (180 - i); const p1x = x + r * Math.cos(-rad); const p1y = y + r * Math.sin(-rad);
+                const p2x = x + (r - 10) * Math.cos(-rad); const p2y = y + (r - 10) * Math.sin(-rad);
+                ctx.beginPath(); ctx.moveTo(p1x, p1y); ctx.lineTo(p2x, p2y); ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        function animate() { draw(); requestAnimationFrame(animate); }
+        
+        initIndicators();
+        resizeCanvas();
+        updateUI();
+        animate();
+        lucide.createIcons();
+    </script>
+</body>
+</html>

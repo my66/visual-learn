@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>物理实验：平面镜成像作图 (Knowledge Point 3 - Q7)</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f4f8;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            touch-action: none; /* Prevent scroll on mobile while dragging */
+        }
+
+        header {
+            background-color: #2c3e50;
+            color: white;
+            width: 100%;
+            padding: 1rem;
+            text-align: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            z-index: 10;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 1.2rem;
+            font-weight: 500;
+        }
+
+        .controls {
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+            color: #bdc3c7;
+        }
+
+        #canvas-container {
+            position: relative;
+            flex-grow: 1;
+            width: 100%;
+            background-image: 
+                linear-gradient(#e1e8ed 1px, transparent 1px),
+                linear-gradient(90deg, #e1e8ed 1px, transparent 1px);
+            background-size: 20px 20px;
+            background-color: #fff;
+            overflow: hidden;
+            cursor: crosshair;
+        }
+
+        .instruction-card {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            max-width: 300px;
+            border-left: 5px solid #3498db;
+            pointer-events: none; /* Let clicks pass through unless we add buttons later */
+            user-select: none;
+        }
+
+        .instruction-card h3 {
+            margin-top: 0;
+            color: #2c3e50;
+            font-size: 1rem;
+        }
+
+        .instruction-card p {
+            font-size: 0.9rem;
+            color: #555;
+            margin-bottom: 0.5rem;
+            line-height: 1.4;
+        }
+        
+        .key-point {
+            display: inline-block;
+            background-color: #e8f4fc;
+            color: #2980b9;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            margin-right: 5px;
+        }
+
+        .tools {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            transition: transform 0.1s, background-color 0.2s;
+        }
+
+        button:active {
+            transform: scale(0.95);
+        }
+
+        button.reset {
+            background-color: #e74c3c;
+        }
+        
+        /* Mobile adjustments */
+        @media (max-width: 600px) {
+            .instruction-card {
+                top: 10px;
+                left: 10px;
+                right: 10px;
+                max-width: none;
+                font-size: 0.8rem;
+            }
+            header {
+                padding: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>物理实验室：平面镜成像</h1>
+        <div class="controls">拖动 <span style="color:#e74c3c; font-weight:bold">红色物体</span> 或 <span style="color:#2c3e50; font-weight:bold">蓝色镜子</span> 观察成像</div>
+    </header>
+
+    <div id="canvas-container">
+        <canvas id="simCanvas"></canvas>
+        
+        <div class="instruction-card">
+            <h3>第7题 解题要点</h3>
+            <p><span class="key-point">作垂线</span>分别过A、B向镜面作垂线（作图痕迹）</p>
+            <p><span class="key-point">取等距</span>像到镜面的距离 = 物到镜面的距离</p>
+            <p><span class="key-point">画虚像</span>连接A'B'，注意使用虚线</p>
+            <p>像与物关于镜面对称</p>
+        </div>
+
+        <div class="tools">
+            <button onclick="resetScenario7()">重置为第7题</button>
+            <button class="reset" onclick="resetStandard()">标准正立</button>
+        </div>
+    </div>
+
+<script>
+    const canvas = document.getElementById('simCanvas');
+    const ctx = canvas.getContext('2d');
+    let width, height;
+
+    // State
+    // Object AB
+    let objectPoints = {
+        A: { x: 100, y: 300, label: 'A' },
+        B: { x: 250, y: 300, label: 'B' }
+    };
+
+    // Mirror Line (defined by two control points M1, M2)
+    let mirrorPoints = {
+        M1: { x: 400, y: 150, label: '' },
+        M2: { x: 600, y: 450, label: '' }
+    };
+
+    let draggingPoint = null;
+
+    // Colors
+    const COLOR_OBJECT = '#e74c3c'; // Red
+    const COLOR_IMAGE = '#e74c3c';  // Red (faded)
+    const COLOR_MIRROR = '#34495e'; // Dark Blue
+    const COLOR_TRACE = '#f39c12';  // Orange
+    const COLOR_GRID = '#bdc3c7';
+
+    // Initialize
+    function resize() {
+        width = canvas.parentElement.clientWidth;
+        height = canvas.parentElement.clientHeight;
+        canvas.width = width;
+        canvas.height = height;
+        draw();
+    }
+    
+    window.addEventListener('resize', resize);
+    
+    // Initial Setup for Question 7 specifically
+    // Q7: Object horizontal, Mirror slanted roughly -45 degrees (top-left to bottom-right look, or top-right to bottom-left)
+    // Looking at the image provided: Mirror looks like backslash \ 
+    function resetScenario7() {
+        const cx = width / 2;
+        const cy = height / 2;
+        
+        // Object horizontal to the left
+        objectPoints.A.x = cx - 200;
+        objectPoints.A.y = cy;
+        objectPoints.B.x = cx - 100;
+        objectPoints.B.y = cy;
+
+        // Mirror slanted \ (backslash style) to the right
+        // Top-Left to Bottom-Right relative to its center? 
+        // In the image (Q7 middle), it looks like the mirror is to the right of the object.
+        // It is slanted such that the top is closer to the object? No, usually mirrors are drawn / or \.
+        // Let's approximate the visual in the book.
+        // Book Q7: Arrow points right. Mirror is a line like \.
+        mirrorPoints.M1.x = cx; 
+        mirrorPoints.M1.y = cy - 100;
+        mirrorPoints.M2.x = cx + 150;
+        mirrorPoints.M2.y = cy + 50;
+
+        draw();
+    }
+
+    function resetStandard() {
+        const cx = width / 2;
+        const cy = height / 2;
+        
+        objectPoints.A.x = cx - 150;
+        objectPoints.A.y = cy + 50;
+        objectPoints.B.x = cx - 150;
+        objectPoints.B.y = cy - 50;
+
+        mirrorPoints.M1.x = cx;
+        mirrorPoints.M1.y = cy - 150;
+        mirrorPoints.M2.x = cx;
+        mirrorPoints.M2.y = cy + 150;
+
+        draw();
+    }
+
+    // Math Helpers
+    function getDistance(p1, p2) {
+        return Math.sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2);
+    }
+
+    // Reflect point p across line defined by m1, m2
+    function reflectPoint(p, m1, m2) {
+        const dx = m2.x - m1.x;
+        const dy = m2.y - m1.y;
+        const a = (dx * dx - dy * dy) / (dx * dx + dy * dy);
+        const b = 2 * dx * dy / (dx * dx + dy * dy);
+        const x2 = a * (p.x - m1.x) + b * (p.y - m1.y) + m1.x;
+        const y2 = b * (p.x - m1.x) - a * (p.y - m1.y) + m1.y;
+        return { x: x2, y: y2 };
+    }
+    
+    // Get closest point on line segment (for projection visualization)
+    // Actually, for the "trace" lines, we want the projection onto the infinite line of the mirror
+    function getProjectionOnLine(p, m1, m2) {
+        const dx = m2.x - m1.x;
+        const dy = m2.y - m1.y;
+        if (dx === 0 && dy === 0) return m1;
+        
+        const t = ((p.x - m1.x) * dx + (p.y - m1.y) * dy) / (dx * dx + dy * dy);
+        return {
+            x: m1.x + t * dx,
+            y: m1.y + t * dy
+        };
+    }
+
+    // Interaction
+    function getMousePos(evt) {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = evt.touches ? evt.touches[0].clientX : evt.clientX;
+        const clientY = evt.touches ? evt.touches[0].clientY : evt.clientY;
+        return {
+            x: clientX - rect.left,
+            y: clientY - rect.top
+        };
+    }
+
+    function isHit(pos, point) {
+        return getDistance(pos, point) < 20; // Hit radius
+    }
+
+    function handleStart(evt) {
+        if(evt.touches && evt.touches.length > 1) return; // Ignore multi-touch
+        const pos = getMousePos(evt);
+        
+        if (isHit(pos, objectPoints.A)) draggingPoint = objectPoints.A;
+        else if (isHit(pos, objectPoints.B)) draggingPoint = objectPoints.B;
+        else if (isHit(pos, mirrorPoints.M1)) draggingPoint = mirrorPoints.M1;
+        else if (isHit(pos, mirrorPoints.M2)) draggingPoint = mirrorPoints.M2;
+        
+        if (draggingPoint) evt.preventDefault();
+    }
+
+    function handleMove(evt) {
+        if (!draggingPoint) return;
+        evt.preventDefault();
+        const pos = getMousePos(evt);
+        draggingPoint.x = pos.x;
+        draggingPoint.y = pos.y;
+        draw();
+    }
+
+    function handleEnd(evt) {
+        draggingPoint = null;
+    }
+
+    canvas.addEventListener('mousedown', handleStart);
+    canvas.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleEnd);
+    
+    canvas.addEventListener('touchstart', handleStart, {passive: false});
+    canvas.addEventListener('touchmove', handleMove, {passive: false});
+    window.addEventListener('touchend', handleEnd);
+
+    // Drawing
+    function drawArrow(ctx, from, to, color, dashed = false, label = '') {
+        const headlen = 15; // length of head in pixels
+        const dx = to.x - from.x;
+        const dy = to.y - from.y;
+        const angle = Math.atan2(dy, dx);
+        
+        ctx.beginPath();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = color;
+        if (dashed) ctx.setLineDash([5, 5]);
+        else ctx.setLineDash([]);
+        
+        ctx.moveTo(from.x, from.y);
+        ctx.lineTo(to.x, to.y);
+        ctx.stroke();
+
+        // Arrow head
+        ctx.beginPath();
+        ctx.setLineDash([]); // Head always solid? Or dashed if image? Let's keep it consistent.
+        if (dashed) ctx.setLineDash([5, 5]);
+        
+        ctx.moveTo(to.x - headlen * Math.cos(angle - Math.PI / 6), to.y - headlen * Math.sin(angle - Math.PI / 6));
+        ctx.lineTo(to.x, to.y);
+        ctx.lineTo(to.x - headlen * Math.cos(angle + Math.PI / 6), to.y - headlen * Math.sin(angle + Math.PI / 6));
+        ctx.stroke();
+
+        if (label) {
+            ctx.fillStyle = color;
+            ctx.font = 'bold 16px Arial';
+            ctx.fillText(label, from.x - 10, from.y - 10);
+        }
+    }
+
+    function drawPoint(point, color) {
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 6, 0, 2 * Math.PI);
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+    }
+
+    function drawRightAngle(ctx, center, p1, p2, size=10) {
+        // Simple approximation for right angle symbol at projection
+        // We need vector along the line (mirror) and vector along perpendicular (trace)
+        // This is purely aesthetic
+        ctx.beginPath();
+        ctx.strokeStyle = COLOR_TRACE;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([]);
+        // This is hard to draw perfectly generic without vectors, so we'll skip the square symbol to keep code simple
+        // Instead we draw a small dot at intersection
+        ctx.fillStyle = COLOR_TRACE;
+        ctx.arc(center.x, center.y, 3, 0, 2*Math.PI);
+        ctx.fill();
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, width, height);
+
+        const A = objectPoints.A;
+        const B = objectPoints.B;
+        const M1 = mirrorPoints.M1;
+        const M2 = mirrorPoints.M2;
+
+        // 1. Calculate Images
+        const A_prime = reflectPoint(A, M1, M2);
+        const B_prime = reflectPoint(B, M1, M2);
+        
+        // 2. Calculate Projections (for traces)
+        const A_proj = getProjectionOnLine(A, M1, M2);
+        const B_proj = getProjectionOnLine(B, M1, M2);
+
+        // 3. Draw Mirror
+        ctx.beginPath();
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = COLOR_MIRROR;
+        ctx.setLineDash([]);
+        ctx.moveTo(M1.x, M1.y);
+        ctx.lineTo(M2.x, M2.y);
+        ctx.stroke();
+        
+        // Draw hash marks on the "back" of the mirror
+        // We assume the back is opposite to the object center
+        // Or just arbitrarily draw them on one side. 
+        // A better way: vector perpendicular to mirror.
+        const mx = M2.x - M1.x;
+        const my = M2.y - M1.y;
+        const len = Math.sqrt(mx*mx + my*my);
+        const nx = -my / len; // Normal
+        const ny = mx / len;
+        
+        // Check which side object is on
+        // Dot product of (A - M1) and Normal
+        const dot = (A.x - M1.x)*nx + (A.y - M1.y)*ny;
+        const hashDir = dot > 0 ? -1 : 1; // Draw hashes on opposite side of object
+
+        for(let i=0; i<=len; i+=15) {
+            const px = M1.x + (mx/len)*i;
+            const py = M1.y + (my/len)*i;
+            ctx.beginPath();
+            ctx.lineWidth = 1;
+            ctx.moveTo(px, py);
+            ctx.lineTo(px + nx*10*hashDir, py + ny*10*hashDir);
+            ctx.stroke();
+        }
+
+        // 4. Draw Traces (Perpendiculars)
+        ctx.beginPath();
+        ctx.strokeStyle = COLOR_TRACE;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([5, 5]);
+        
+        // Trace AA'
+        ctx.moveTo(A.x, A.y);
+        ctx.lineTo(A_prime.x, A_prime.y);
+        
+        // Trace BB'
+        ctx.moveTo(B.x, B.y);
+        ctx.lineTo(B_prime.x, B_prime.y);
+        ctx.stroke();
+
+        // Right angle markers
+        drawRightAngle(ctx, A_proj);
+        drawRightAngle(ctx, B_proj);
+
+        // 5. Draw Image A'B' (Virtual)
+        drawArrow(ctx, A_prime, B_prime, COLOR_IMAGE, true);
+        
+        // Labels for Image
+        ctx.fillStyle = COLOR_IMAGE;
+        ctx.font = 'italic 16px Arial';
+        ctx.fillText("A'", A_prime.x + 10, A_prime.y);
+        ctx.fillText("B'", B_prime.x + 10, B_prime.y);
+
+        // 6. Draw Object AB
+        drawArrow(ctx, A, B, COLOR_OBJECT, false);
+        ctx.fillStyle = COLOR_OBJECT;
+        ctx.font = 'bold 16px Arial';
+        ctx.fillText("A", A.x - 20, A.y);
+        ctx.fillText("B", B.x - 20, B.y); // B is usually near arrow head
+
+        // 7. Draw Control Points handles
+        drawPoint(A, COLOR_OBJECT);
+        drawPoint(B, COLOR_OBJECT);
+        drawPoint(M1, COLOR_MIRROR);
+        drawPoint(M2, COLOR_MIRROR);
+    }
+
+    // Init
+    setTimeout(() => {
+        resize();
+        resetScenario7();
+    }, 100);
+
+</script>
+</body>
+</html>

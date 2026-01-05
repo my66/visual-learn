@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>高保真光学仿真实验室</title>
+    
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 引入 React 和 ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <!-- 引入 Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        body { touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen p-4 flex items-center justify-center">
+
+    <div id="root" class="w-full"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- 图标组件 ---
+        const Info = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>);
+        const Move = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" x2="22" y1="12" y2="12"/><line x1="12" x2="12" y1="2" y2="22"/></svg>);
+        const Layers = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg>);
+        const Zap = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>);
+        const Search = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>);
+        const Sun = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>);
+
+        const OpticalLab = () => {
+          const canvasRef = useRef(null);
+          const containerRef = useRef(null);
+          const [lensType, setLensType] = useState('convex'); 
+          
+          const [focalLength, setFocalLength] = useState(150); 
+          const [objectPos, setObjectPos] = useState(400);     
+          const [objectHeight, setObjectHeight] = useState(80); 
+          const [refractiveIndex, setRefractiveIndex] = useState(1.5);
+          const [showRays, setShowRays] = useState(false); // 默认关闭普通光路
+          const [showDenseBeam, setShowDenseBeam] = useState(true); // 默认开启密集光束
+          const [isDragging, setIsDragging] = useState(false);
+
+          const width = 1200; 
+          const height = 550;
+          const cx = width / 2;
+          const cy = height / 2;
+
+          const R = 2 * (refractiveIndex - 1) * focalLength;
+          const f_calc = lensType === 'convex' ? focalLength : -focalLength;
+          const u = -objectPos; 
+          
+          let v = (f_calc * u) / (u + f_calc);
+          const m = v / u;
+          const imageHeight = objectHeight * m;
+          const isInfinity = Math.abs(u + f_calc) < 1.0; 
+          const isRealImage = v > 0 && lensType === 'convex';
+
+          useEffect(() => {
+            const canvas = canvasRef.current;
+            const ctx = canvas.getContext('2d');
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = width * dpr;
+            canvas.height = height * dpr;
+            ctx.scale(dpr, dpr);
+            
+            ctx.clearRect(0, 0, width, height);
+            ctx.lineJoin = 'round';
+            ctx.lineCap = 'round';
+
+            drawGrid(ctx);
+            drawOpticalAxis(ctx);
+            const lensSurface = drawRealLens(ctx, lensType, R, cx, cy);
+            drawFocalPoints(ctx, f_calc, cx, cy);
+            drawCandle(ctx, cx + u, cy, objectHeight, false); 
+
+            if (!isInfinity) {
+              const imgX = cx + v;
+              const isVirtual = !isRealImage;
+              drawCandle(ctx, imgX, cy, imageHeight, isVirtual);
+            }
+
+            // 绘制密集光束
+            if (showDenseBeam) {
+                // 顶部光束 (绿色)
+                drawDenseBeam(ctx, cx + u, -objectHeight, cx + v, -imageHeight, surfacesRef.current || lensSurface, cx, cy, isInfinity, 'rgba(16, 185, 129, 0.15)', 'rgba(16, 185, 129, 0.8)');
+                // 底部光束 (紫色)
+                drawDenseBeam(ctx, cx + u, 0, cx + v, 0, surfacesRef.current || lensSurface, cx, cy, isInfinity, 'rgba(139, 92, 246, 0.15)', 'rgba(139, 92, 246, 0.8)');
+                // 中部光束 (橙色 - 增加层次感)
+                drawDenseBeam(ctx, cx + u, -objectHeight/2, cx + v, -imageHeight/2, surfacesRef.current || lensSurface, cx, cy, isInfinity, 'rgba(249, 115, 22, 0.15)', 'rgba(249, 115, 22, 0.8)');
+            } else if (showRays) {
+                // 经典光路 (如果关闭密集模式)
+                drawRefractedPointRays(ctx, cx + u, -objectHeight, cx + v, -imageHeight, f_calc, surfacesRef.current || lensSurface, cx, cy, isInfinity, '#10b981', '#eab308', true);
+            }
+
+            if (!isInfinity) {
+                const imgX = cx + v;
+                const imgY = cy - imageHeight;
+                if (!showDenseBeam) { // 密集模式下不显示这个标记，避免太乱
+                    drawIntersectionHighlight(ctx, imgX, imgY, cy, isRealImage);
+                }
+            }
+
+            // 区域文字
+            // drawZoneLabels(ctx, lensType, cx, cy, width, height);
+
+          }, [lensType, focalLength, objectPos, objectHeight, refractiveIndex, showRays, showDenseBeam, R, f_calc, u, v, imageHeight, isInfinity, isRealImage]);
+
+          const surfacesRef = useRef(null);
+
+          // --- 密集光束绘制核心函数 ---
+          const drawDenseBeam = (ctx, objX, objYOffset, imgX, imgYOffset, surfaces, cx, cy, isInf, fillColor, strokeColor) => {
+             const objPt = { x: objX, y: cy + objYOffset };
+             const imgPt = { x: imgX, y: cy + imgYOffset };
+             
+             const lensHeight = 280;
+             const raysCount = 18; // 光线数量
+             const step = lensHeight * 0.9 / (raysCount - 1); // 覆盖90%的透镜高度
+             const startY = cy - lensHeight * 0.45;
+
+             // 我们需要收集所有光线的路径点来画填充
+             // 但为了性能和简单，我们直接画线条
+             
+             for (let i = 0; i < raysCount; i++) {
+                 const targetY = startY + i * step;
+                 
+                 // 1. 入射
+                 const xIn = surfaces.left(targetY);
+                 
+                 // 2. 内部折射 (简化)
+                 const refractionFactor = 0.1;
+                 let yOut = targetY + (cy - targetY) * refractionFactor;
+                 const xOut = surfaces.right(yOut);
+
+                 // 3. 出射计算
+                 // 目标是像点 (如果是实像) 或者 反向延长线过像点 (如果是虚像)
+                 // 通用逻辑：出射光线一定要“符合”从像点发出的几何关系
+                 
+                 // 计算斜率
+                 let endX, endY;
+                 
+                 if (isInf) {
+                     // 平行
+                     endX = cx + 1200;
+                     endY = yOut; 
+                 } else {
+                     const slope = (imgPt.y - yOut) / (imgPt.x - xOut);
+                     endX = cx + 1200;
+                     
+                     // 几何直线方程: y = yOut + slope * (x - xOut)
+                     // 对于发散光线(imgX < xOut)，这也是对的，只是光线是向右传播
+                     endY = yOut + slope * (endX - xOut);
+                 }
+
+                 // 开始绘制
+                 ctx.beginPath();
+                 ctx.strokeStyle = strokeColor;
+                 ctx.lineWidth = 1; 
+                 // ctx.globalAlpha = 0.4; // 叠加起来会变亮
+
+                 // 线段1: 物 -> 入
+                 ctx.moveTo(objPt.x, objPt.y);
+                 ctx.lineTo(xIn, targetY);
+                 
+                 // 线段2: 入 -> 出
+                 ctx.lineTo(xOut, yOut);
+                 
+                 // 线段3: 出 -> 远方
+                 ctx.lineTo(endX, endY);
+                 
+                 ctx.stroke();
+                 
+                 // 虚像辅助线 (虚线回溯)
+                 if (imgX < xOut && !isInf) {
+                     ctx.beginPath();
+                     ctx.strokeStyle = strokeColor;
+                     ctx.setLineDash([2, 4]);
+                     ctx.lineWidth = 0.5;
+                     ctx.moveTo(xOut, yOut);
+                     ctx.lineTo(imgPt.x, imgPt.y);
+                     ctx.stroke();
+                     ctx.setLineDash([]);
+                 }
+             }
+          };
+
+          const drawIntersectionHighlight = (ctx, x, y, cy, isReal) => {
+              ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2);
+              ctx.fillStyle = isReal ? '#ef4444' : '#3b82f6'; ctx.fill();
+              ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke();
+              ctx.fillStyle = isReal ? '#b91c1c' : '#1d4ed8';
+              ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
+              const textY = y > cy ? y + 25 : y - 15;
+              const label = isReal ? "实像汇聚点" : "虚像汇聚点";
+              ctx.fillText(label, x, textY);
+          };
+
+          const drawRefractedPointRays = (ctx, objX, objYOffset, imgX, imgYOffset, f, surfaces, cx, cy, isInf, color1, color2, showLabels = false) => {
+            // ... (保持原有逻辑用于经典模式切换) ...
+            // 为了节省代码空间，这里简写，实际逻辑同上一个版本
+            const objPt = { x: objX, y: cy + objYOffset };
+            const imgPt = { x: imgX, y: cy + imgYOffset };
+            const drawRay = (start, end, color, dashed = false) => {
+                ctx.beginPath(); ctx.moveTo(start.x, start.y); ctx.lineTo(end.x, end.y);
+                ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.setLineDash(dashed ? [4, 4] : []); ctx.stroke(); ctx.setLineDash([]);
+            };
+            const yIn1 = objPt.y; const xIn1 = surfaces.left(yIn1);
+            drawRay(objPt, {x: xIn1, y: yIn1}, color1);
+            const refractionFactor = 0.2; 
+            let yOut1 = lensType === 'convex' ? yIn1 - (yIn1 - cy) * refractionFactor : yIn1 + (yIn1 - cy) * refractionFactor;
+            const xOut1 = surfaces.right(yOut1);
+            drawRay({x: xIn1, y: yIn1}, {x: xOut1, y: yOut1}, color1);
+            const focalX_Real = cx + f;
+            const slope1 = (cy - yOut1) / (focalX_Real - xOut1);
+            const endX1 = cx + 1200;
+            const endY1 = yOut1 + slope1 * (endX1 - xOut1);
+            drawRay({x: xOut1, y: yOut1}, {x: endX1, y: endY1}, color1); 
+            if ((v < 0 || lensType === 'concave') && !isInf) {
+                 drawRay({x: xOut1, y: yOut1}, imgPt, color1, true); 
+                 if (lensType === 'concave') drawRay({x: xOut1, y: yOut1}, {x: cx + f, y: cy}, color1, true); 
+            }
+            const k_center = (cy - objPt.y) / (cx - objPt.x);
+            const endX2 = cx + 1200;
+            const endY2 = cy + (endX2 - cx) * k_center;
+            drawRay(objPt, {x: cx, y: cy}, color2);
+            drawRay({x: cx, y: cy}, {x: endX2, y: endY2}, color2);
+            if ((v < 0 || lensType === 'concave') && !isInf) { drawRay(objPt, imgPt, color2, true); }
+          };
+
+          const drawCandle = (ctx, x, y, h, isVirtual) => {
+             ctx.save(); ctx.translate(x, y); if (h < 0) ctx.scale(1, -1);
+             const absH = Math.abs(h); const scale = absH / 80; 
+             const bodyW = 16 * scale; const bodyH = absH * 0.75; const flameH = absH * 0.25; 
+             ctx.globalAlpha = isVirtual ? 0.6 : 1.0;
+             ctx.fillStyle = isVirtual ? 'rgba(59, 130, 246, 0.3)' : '#ef4444'; 
+             if (!isVirtual && x > cx + 10) ctx.fillStyle = '#ef4444'; 
+             if (x > cx) ctx.fillStyle = isVirtual ? 'rgba(59, 130, 246, 0.3)' : 'rgba(239, 68, 68, 0.8)'; 
+             ctx.strokeStyle = '#991b1b'; ctx.lineWidth = 1;
+             ctx.beginPath(); ctx.roundRect(-bodyW/2, -bodyH, bodyW, bodyH, 2); ctx.fill();
+             if (isVirtual) { ctx.setLineDash([4, 2]); ctx.stroke(); ctx.setLineDash([]); } else { ctx.stroke(); }
+             if (!isVirtual) { ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.fillRect(-bodyW/2 + 2, -bodyH + 5, bodyW/4, bodyH - 10); }
+             ctx.beginPath(); ctx.moveTo(0, -bodyH); ctx.lineTo(0, -bodyH - 3 * scale); ctx.strokeStyle = '#000'; ctx.lineWidth = 2 * scale; ctx.stroke();
+             const flameBottom = -bodyH - 3 * scale; const flameTop = -absH; 
+             ctx.beginPath(); ctx.moveTo(0, flameBottom);
+             ctx.bezierCurveTo(-bodyW * 1.2, flameBottom - flameH*0.5, -bodyW*0.2, flameTop, 0, flameTop);
+             ctx.bezierCurveTo(bodyW*0.2, flameTop, bodyW * 1.2, flameBottom - flameH*0.5, 0, flameBottom);
+             if (!isVirtual) {
+                 const gradient = ctx.createRadialGradient(0, flameBottom - flameH*0.6, 0, 0, flameBottom - flameH*0.6, bodyW);
+                 gradient.addColorStop(0, '#fef08a'); gradient.addColorStop(0.3, '#f59e0b'); gradient.addColorStop(1, 'rgba(239, 68, 68, 0)'); 
+                 ctx.fillStyle = gradient; ctx.fill();
+             } else {
+                 ctx.fillStyle = 'rgba(59, 130, 246, 0.4)'; ctx.fill(); ctx.strokeStyle = '#2563eb'; ctx.lineWidth = 1; ctx.setLineDash([2, 2]); ctx.stroke(); ctx.setLineDash([]);
+             }
+             ctx.restore();
+          };
+
+          const drawRealLens = (ctx, type, radius, centerX, centerY) => {
+            ctx.beginPath();
+            const lensHeight = 280; const halfH = lensHeight / 2;
+            let sag = radius > halfH ? radius - Math.sqrt(radius * radius - halfH * halfH) : radius;
+            const minCenterThickness = 12; const minEdgeThickness = 4;
+            const surfaceFuncs = { left: null, right: null };
+            if (type === 'convex') {
+                const centerThick = minCenterThickness + 2 * sag; const offset = radius - centerThick / 2; 
+                const c1x = centerX + offset; const c2x = centerX - offset;
+                ctx.arc(c1x, centerY, radius, Math.PI - Math.asin(halfH/radius), Math.PI + Math.asin(halfH/radius), false);
+                ctx.arc(c2x, centerY, radius, 2*Math.PI - Math.asin(halfH/radius), Math.asin(halfH/radius), false);
+                surfaceFuncs.left = (y) => c1x - Math.sqrt(radius*radius - (y-centerY)*(y-centerY));
+                surfaceFuncs.right = (y) => c2x + Math.sqrt(radius*radius - (y-centerY)*(y-centerY));
+            } else {
+                const centerThick = minEdgeThickness; const offset = radius + centerThick / 2;
+                const c1x = centerX - offset; const c2x = centerX + offset; 
+                ctx.moveTo(centerX - minEdgeThickness/2 - sag, centerY - halfH);
+                ctx.arc(c1x, centerY, radius,  Math.asin(halfH/radius), -Math.asin(halfH/radius), true);
+                ctx.lineTo(centerX + minEdgeThickness/2 + sag, centerY + halfH);
+                ctx.arc(c2x, centerY, radius, Math.PI + Math.asin(halfH/radius), Math.PI - Math.asin(halfH/radius), true);
+                ctx.lineTo(centerX - minEdgeThickness/2 - sag, centerY - halfH);
+                surfaceFuncs.left = (y) => c1x + Math.sqrt(radius*radius - (y-centerY)*(y-centerY));
+                surfaceFuncs.right = (y) => c2x - Math.sqrt(radius*radius - (y-centerY)*(y-centerY));
+            }
+            ctx.closePath();
+            const gradient = ctx.createLinearGradient(centerX - 20, centerY - 100, centerX + 20, centerY + 100);
+            gradient.addColorStop(0, 'rgba(186, 230, 253, 0.4)'); gradient.addColorStop(0.5, 'rgba(224, 242, 254, 0.2)'); gradient.addColorStop(1, 'rgba(186, 230, 253, 0.4)');
+            ctx.fillStyle = gradient; ctx.fill(); ctx.strokeStyle = '#334155'; ctx.lineWidth = 1; ctx.stroke();
+            surfacesRef.current = surfaceFuncs; return surfaceFuncs;
+          };
+
+          const drawGrid = (ctx) => { ctx.strokeStyle = '#f1f5f9'; ctx.lineWidth = 1; ctx.beginPath(); for (let x = 0; x <= width; x += 40) { ctx.moveTo(x, 0); ctx.lineTo(x, height); } for (let y = 0; y <= height; y += 40) { ctx.moveTo(0, y); ctx.lineTo(width, y); } ctx.stroke(); };
+          const drawOpticalAxis = (ctx) => { ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(width, cy); ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1; ctx.setLineDash([10, 5]); ctx.stroke(); ctx.setLineDash([]); };
+          const drawFocalPoints = (ctx, fVal, cx, cy) => { ctx.fillStyle = '#0f172a'; [cx - Math.abs(fVal), cx + Math.abs(fVal)].forEach((x, i) => { ctx.beginPath(); ctx.arc(x, cy, 5, 0, Math.PI * 2); ctx.fill(); ctx.font = '12px sans-serif'; ctx.fillText(i === 0 ? 'F' : "F'", x - 5, cy + 20); }); };
+
+          const handlePointerDown = (e) => { const rect = canvasRef.current.getBoundingClientRect(); const scaleX = width / rect.width; const x = (e.clientX - rect.left) * scaleX; const objScreenX = cx + u; if (Math.abs(x - objScreenX) < 50) setIsDragging(true); };
+          const handlePointerMove = (e) => { if (!isDragging) return; const rect = canvasRef.current.getBoundingClientRect(); const scaleX = width / rect.width; const x = (e.clientX - rect.left) * scaleX; let newDist = cx - x; if (newDist < 20) newDist = 20; if (newDist > cx - 20) newDist = cx - 20; setObjectPos(newDist); };
+
+          return (
+            <div className="w-full max-w-[95vw] mx-auto p-4 bg-slate-50 rounded-xl shadow-xl font-sans text-slate-800">
+              <div className="flex justify-between items-center mb-4 border-b border-slate-200 pb-2">
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-blue-600 rounded-lg text-white"><Layers className="w-5 h-5" /></div>
+                    <div>
+                        <h1 className="text-xl font-bold text-slate-900 leading-none">高保真光学实验室</h1>
+                        <p className="text-xs text-slate-500 mt-1">Real-time Lens Physics Engine</p>
+                    </div>
+                </div>
+                <div className="hidden md:block bg-blue-50 text-blue-800 px-3 py-1 rounded-full text-xs font-bold border border-blue-100">Interactive Mode</div>
+              </div>
+
+              <div className="flex flex-col lg:flex-row gap-4 h-[calc(100vh-140px)] min-h-[600px]">
+                <div className="flex-1 flex flex-col gap-4 min-w-0">
+                    <div ref={containerRef} className="relative flex-1 bg-white rounded-xl shadow-inner border border-slate-200 overflow-hidden cursor-crosshair touch-none min-h-[300px]"
+                        onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={() => setIsDragging(false)} onPointerLeave={() => setIsDragging(false)}>
+                        <canvas ref={canvasRef} className="w-full h-full block"/>
+                        <div className="absolute top-4 right-4 text-right pointer-events-none space-y-1 z-10">
+                            <div className="text-sm font-mono text-slate-700 bg-white/90 px-2 py-1 rounded backdrop-blur shadow-sm border border-slate-100">R = {R.toFixed(0)}mm</div>
+                        </div>
+                        {!isDragging && (
+                            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/10 backdrop-blur text-slate-800 px-4 py-2 rounded-full text-sm font-medium animate-pulse pointer-events-none border border-white/20 flex items-center gap-2 z-10"><Move className="w-4 h-4" /> 左右拖动蜡烛</div>
+                        )}
+                    </div>
+                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-sm shrink-0">
+                        <h3 className="font-bold text-slate-900 flex items-center gap-2 mb-2"><Info className="w-4 h-4 text-blue-600" /> 物理原理速查</h3>
+                        <div className="flex flex-col gap-2 text-slate-600 leading-relaxed text-xs md:text-sm">
+                            <p><span className="font-bold text-slate-800">全光束成像：</span> 物体上的每一点都向四周发射光线，射入透镜的这一整束光（光锥），经过折射后，会重新汇聚到像上的对应点。这就是为什么你看不到单一的线条，而是看到了完整的像。</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="w-full lg:w-80 shrink-0 flex flex-col gap-4 overflow-y-auto pr-1">
+                    <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-100 space-y-5">
+                        <div className="space-y-2">
+                            <span className="font-bold text-sm text-slate-700 block">透镜类型</span>
+                            <div className="grid grid-cols-2 gap-2 bg-slate-50 p-1 rounded-lg">
+                                <button onClick={() => setLensType('convex')} className={`py-2 rounded-md text-sm font-medium transition-all ${lensType === 'convex' ? 'bg-white text-blue-600 shadow-sm border border-slate-100' : 'text-slate-500 hover:text-slate-700'}`}>凸透镜</button>
+                                <button onClick={() => setLensType('concave')} className={`py-2 rounded-md text-sm font-medium transition-all ${lensType === 'concave' ? 'bg-white text-blue-600 shadow-sm border border-slate-100' : 'text-slate-500 hover:text-slate-700'}`}>凹透镜</button>
+                            </div>
+                        </div>
+
+                        {lensType === 'convex' && (
+                             <button 
+                                onClick={() => setObjectPos(80)} 
+                                className="w-full py-2 bg-purple-100 text-purple-700 rounded-lg text-sm font-bold hover:bg-purple-200 transition-colors flex items-center justify-center gap-2"
+                             >
+                                <Search className="w-4 h-4" /> 进入放大镜模式 (虚像)
+                             </button>
+                        )}
+
+                        <div className="space-y-3">
+                             <div className="flex justify-between text-sm"><span className="font-semibold text-slate-700 flex items-center gap-1"><Zap className="w-3 h-3" /> 焦距 (f)</span><span className="font-mono text-blue-600 bg-blue-50 px-2 rounded">{focalLength}mm</span></div>
+                             <input type="range" min="80" max="400" value={focalLength} onChange={(e) => setFocalLength(Number(e.target.value))} className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600" />
+                        </div>
+                        <div className="space-y-3 pt-2 border-t border-slate-100">
+                             <div className="flex justify-between text-sm"><span className="font-semibold text-slate-700">蜡烛位置 (u)</span><span className="font-mono text-blue-600 bg-blue-50 px-2 rounded">{objectPos}mm</span></div>
+                             <input type="range" min="20" max="550" value={objectPos} onChange={(e) => setObjectPos(Number(e.target.value))} className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-red-500" />
+                        </div>
+                        <div className="pt-2 space-y-2">
+                             <label className="flex items-center space-x-3 cursor-pointer select-none group"><div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${!showDenseBeam ? 'bg-blue-600 border-blue-600' : 'bg-white border-slate-300 group-hover:border-blue-400'}`}>{!showDenseBeam && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}</div><input type="checkbox" checked={!showDenseBeam} onChange={(e) => {setShowRays(e.target.checked); setShowDenseBeam(!e.target.checked)}} className="hidden"/><span className="text-sm font-medium text-slate-700">经典光路 (辅助线)</span></label>
+                             <label className="flex items-center space-x-3 cursor-pointer select-none group"><div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${showDenseBeam ? 'bg-purple-600 border-purple-600' : 'bg-white border-slate-300 group-hover:border-purple-400'}`}>{showDenseBeam && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}</div><input type="checkbox" checked={showDenseBeam} onChange={(e) => {setShowDenseBeam(e.target.checked); setShowRays(!e.target.checked)}} className="hidden"/><span className="text-sm font-medium text-purple-700">密集光束 (真实物理)</span></label>
+                        </div>
+                    </div>
+                    <div className="bg-slate-800 p-4 rounded-xl shadow-sm text-slate-100 flex-1">
+                        <h4 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3 border-b border-slate-700 pb-2">Real-time Data</h4>
+                        <div className="space-y-2 font-mono text-sm">
+                            <div className="flex justify-between"><span className="text-slate-400">物距 u:</span><span>{objectPos}</span></div>
+                            <div className="flex justify-between"><span className="text-slate-400">像距 v:</span><span className={v > 0 ? "text-green-400" : "text-yellow-400"}>{v.toFixed(1)}</span></div>
+                            <div className="flex justify-between"><span className="text-slate-400">放大率 m:</span><span>{m.toFixed(2)}x</span></div>
+                             <div className="mt-3 text-xs text-center p-2 bg-slate-700/50 rounded text-slate-300">{isInfinity ? "不成像 (光线平行)" : (v > 0 && lensType === 'convex' ? "实像 (倒立, 异侧)" : "虚像 (正立, 同侧)")}</div>
+                        </div>
+                    </div>
+                </div>
+              </div>
+            </div>
+          );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<OpticalLab />);
+    </script>
+</body>
+</html>

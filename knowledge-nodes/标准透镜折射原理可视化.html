@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>标准透镜折射原理可视化 (Standard Lens Refraction)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: "Microsoft YaHei", sans-serif;
+            background-color: #f0f2f5;
+            overflow: hidden;
+            display: flex;
+            height: 100vh;
+        }
+
+        #sidebar {
+            width: 300px;
+            background: #ffffff;
+            padding: 12px;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            z-index: 10;
+        }
+
+        #sidebar::-webkit-scrollbar { width: 6px; }
+        #sidebar::-webkit-scrollbar-thumb { background-color: #ccc; border-radius: 3px; }
+
+        h1 {
+            font-size: 16px;
+            color: #333;
+            margin: 0 0 8px 0;
+            border-left: 4px solid #2196F3;
+            padding-left: 8px;
+        }
+
+        .description {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 10px;
+            line-height: 1.4;
+            background: #e3f2fd;
+            padding: 8px;
+            border-radius: 6px;
+        }
+
+        .control-group {
+            margin-bottom: 10px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 8px;
+        }
+        
+        .control-group:last-of-type {
+            border-bottom: none;
+            padding-bottom: 0;
+            margin-bottom: 0;
+        }
+
+        label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            color: #444;
+            margin-bottom: 2px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            margin: 2px 0 6px 0;
+            height: 4px;
+            cursor: pointer;
+        }
+
+        .value-display {
+            font-weight: bold;
+            color: #2196F3;
+            font-size: 12px;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 6px;
+        }
+
+        button {
+            flex: 1;
+            padding: 5px 0;
+            border: 1px solid #ddd;
+            background: #f8f9fa;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+
+        button.active {
+            background: #2196F3;
+            color: white;
+            border-color: #1976D2;
+        }
+
+        button:hover:not(.active) {
+            background: #e9ecef;
+        }
+
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 2px;
+            cursor: pointer;
+            font-size: 12px;
+            color: #555;
+            min-height: 20px;
+        }
+        
+        .toggle-row input {
+            margin-right: 6px;
+            transform: scale(0.9);
+        }
+
+        #tangent-control-panel {
+            display: none; 
+            margin-left: 20px; 
+            margin-bottom: 4px;
+            border-left: 2px solid #FF9800; 
+            padding-left: 8px; 
+            background: #fff8e1; 
+            border-radius: 0 4px 4px 0;
+            padding-top: 2px;
+            padding-bottom: 2px;
+        }
+        
+        .special-ray-btn {
+            display: block;
+            width: 100%;
+            margin-top: 4px;
+            background: #e0f7fa;
+            border: 1px solid #b2ebf2;
+            color: #006064;
+            text-align: center;
+        }
+        .special-ray-btn:hover {
+            background: #b2ebf2;
+        }
+
+        #canvas-container {
+            flex: 1;
+            position: relative;
+            background-color: #ffffff;
+            cursor: move;
+        }
+        
+        .overlay-info {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 12px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            pointer-events: none;
+            font-size: 12px;
+            color: #555;
+            max-width: 250px;
+            border-left: 3px solid #FF5722;
+        }
+        
+        .shift-warning {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            pointer-events: none;
+            display: none;
+        }
+
+        .math-formula {
+            font-family: "Times New Roman", serif;
+            font-style: italic;
+            font-size: 14px;
+            color: #333;
+            display: block;
+            margin-top: 4px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="sidebar">
+        <h1>标准透镜折射原理</h1>
+        <div class="description">
+            <p style="margin:0;"><b>模型：</b>基于斯涅尔定律的实时光线追踪。透镜形状符合标准几何光学定义。</p>
+            <p style="margin:4px 0 0 0; color:#888;"><b>操作：</b>滚轮缩放 / 拖拽平移 / 拖拽光源。</p>
+        </div>
+
+        <div class="control-group">
+            <label>透镜类型</label>
+            <div class="btn-group">
+                <button id="btn-convex" class="active" onclick="setLensType('convex')">凸透镜</button>
+                <button id="btn-concave" onclick="setLensType('concave')">凹透镜</button>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label>光源模式</label>
+            <div class="btn-group">
+                <button id="btn-beam" class="active" onclick="setLightMode('beam')">平行光</button>
+                <button id="btn-point" onclick="setLightMode('point')">点光源</button>
+            </div>
+            
+            <div id="beam-angle-control">
+                <label>入射角度 <span id="val-angle" class="value-display">0°</span></label>
+                <input type="range" id="input-angle" min="-45" max="45" value="0" step="1">
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label>光线控制</label>
+            <div class="btn-group">
+                <button id="btn-mode-multi" class="active" onclick="setRayMode('multi')">多光束</button>
+                <button id="btn-mode-single" onclick="setRayMode('single')">单根扫描</button>
+            </div>
+            
+            <div id="multi-controls">
+                <label>光线数量 <span id="val-count" class="value-display">5</span></label>
+                <input type="range" id="input-count" min="1" max="21" value="5" step="2">
+            </div>
+
+            <div id="single-controls" style="display:none;">
+                <label id="label-scan">扫描位置 <span id="val-scan" class="value-display">0</span></label>
+                <input type="range" id="input-scan" min="-100" max="100" value="0" step="1">
+                
+                <div style="margin-top: 8px;">
+                    <label style="color:#2196F3; margin-bottom:4px;">特殊光线预设:</label>
+                    <div class="btn-group">
+                        <button class="special-ray-btn" onclick="setPreset('parallel')">平行入射</button>
+                        <button class="special-ray-btn" onclick="setPreset('center')">过光心</button>
+                    </div>
+                    <button class="special-ray-btn" onclick="setPreset('focus')">过/向焦点入射</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label>折射率 (n) <span id="val-ior" class="value-display">1.50</span></label>
+            <input type="range" id="input-ior" min="1.01" max="2.40" value="1.50" step="0.01">
+            
+            <label>曲率半径 (R) <span id="val-radius" class="value-display">250</span></label>
+            <input type="range" id="input-radius" min="150" max="600" value="250" step="10">
+
+            <label>透镜厚度 <span id="val-width" class="value-display">100</span></label>
+            <input type="range" id="input-width" min="40" max="200" value="100" step="5">
+        </div>
+
+        <div class="control-group">
+            <label>辅助显示</label>
+            <div class="toggle-row">
+                <input type="checkbox" id="chk-focus">
+                <span>显示焦点 (F1, F2)</span>
+            </div>
+            <div class="toggle-row">
+                <input type="checkbox" id="chk-extension">
+                <span>光线反向延长线</span>
+            </div>
+            <div class="toggle-row">
+                <input type="checkbox" id="chk-normal">
+                <span>显示法线</span>
+            </div>
+            <div class="toggle-row">
+                <input type="checkbox" id="chk-tangent">
+                <span>显示切线</span>
+            </div>
+            
+            <div id="tangent-control-panel">
+                <label style="font-size:11px; margin-bottom:0;">切线长度 <span id="val-tangent-len" class="value-display">50</span></label>
+                <input type="range" id="input-tangent-len" min="10" max="400" value="50" step="10" style="margin:2px 0;">
+            </div>
+
+            <div class="toggle-row">
+                <input type="checkbox" id="chk-axis" checked>
+                <span>显示主光轴</span>
+            </div>
+            <div class="toggle-row">
+                <input type="checkbox" id="chk-grid">
+                <span>显示网格</span>
+            </div>
+             <div class="toggle-row">
+                <input type="checkbox" id="chk-centers">
+                <span>显示球心 (C1, C2)</span>
+            </div>
+        </div>
+        
+        <div class="control-group" style="margin-top:8px;">
+            <button onclick="resetView()">重置视图</button>
+        </div>
+    </div>
+
+    <div id="canvas-container">
+        <div class="overlay-info">
+            <strong>斯涅尔定律</strong>
+            <span class="math-formula">n₁sin(θ₁) = n₂sin(θ₂)</span>
+            <div style="margin-top:6px; color:#666;">
+                切线决定入射面角度。<br>
+                法线垂直于切线，决定折射。
+            </div>
+        </div>
+        <div id="shift-warning" class="shift-warning">
+            厚透镜特性：过光心光线发生侧移，但方向平行不变。
+        </div>
+    </div>
+
+    <script>
+        // 核心状态
+        let lensType = 'convex';
+        let lightMode = 'beam';
+        let rayMode = 'multi';
+        
+        let ior = 1.5;
+        let lensRadius = 250; 
+        let lensParam = 100; 
+        let beamAngle = 0;
+        
+        let rayCount = 5;
+        let scanPos = 0;
+        let tangentLength = 50;
+        
+        // 视图状态
+        let viewZoom = 1.0;
+        let viewOffset = { x: 0, y: 0 };
+        let isDragging = false;
+        let lastMousePos = { x: 0, y: 0 };
+        
+        let pointSourcePos = { x: -350, y: 0 };
+        let isDraggingSource = false;
+        
+        // 计算辅助
+        let calculatedFocalLength = 0; 
+        const LENS_HEIGHT_LIMIT = 120;
+        let showShiftWarning = false;
+
+        function setup() {
+            let container = document.getElementById('canvas-container');
+            let canvas = createCanvas(container.clientWidth, container.clientHeight);
+            canvas.parent('canvas-container');
+            viewOffset.x = width / 2;
+            viewOffset.y = height / 2;
+            
+            bindEvents();
+            updateScanLabel();
+        }
+
+        function bindEvents() {
+            document.getElementById('input-ior').addEventListener('input', (e) => {
+                ior = parseFloat(e.target.value);
+                document.getElementById('val-ior').textContent = ior.toFixed(2);
+            });
+            document.getElementById('input-radius').addEventListener('input', (e) => {
+                lensRadius = parseInt(e.target.value);
+                document.getElementById('val-radius').textContent = lensRadius;
+            });
+             document.getElementById('input-width').addEventListener('input', (e) => {
+                lensParam = parseInt(e.target.value);
+                document.getElementById('val-width').textContent = lensParam;
+            });
+            document.getElementById('input-angle').addEventListener('input', (e) => {
+                beamAngle = parseInt(e.target.value);
+                document.getElementById('val-angle').textContent = beamAngle + "°";
+            });
+            document.getElementById('input-count').addEventListener('input', (e) => {
+                rayCount = parseInt(e.target.value);
+                document.getElementById('val-count').textContent = rayCount;
+            });
+            document.getElementById('input-scan').addEventListener('input', (e) => {
+                scanPos = parseInt(e.target.value);
+                updateScanLabel();
+                hideShiftWarning();
+            });
+            document.getElementById('input-tangent-len').addEventListener('input', (e) => {
+                tangentLength = parseInt(e.target.value);
+                document.getElementById('val-tangent-len').textContent = tangentLength;
+            });
+            document.getElementById('chk-tangent').addEventListener('change', (e) => {
+                document.getElementById('tangent-control-panel').style.display = e.target.checked ? 'block' : 'none';
+            });
+        }
+
+        function windowResized() {
+            let container = document.getElementById('canvas-container');
+            resizeCanvas(container.clientWidth, container.clientHeight);
+        }
+
+        function draw() {
+            background(255);
+            push();
+            translate(viewOffset.x, viewOffset.y);
+            scale(viewZoom);
+
+            if (document.getElementById('chk-grid').checked) drawGrid();
+
+            if (document.getElementById('chk-axis').checked) {
+                stroke(150);
+                strokeWeight(1 / viewZoom);
+                drawingContext.setLineDash([10, 5]);
+                line(-2000, 0, 2000, 0);
+                drawingContext.setLineDash([]);
+            }
+
+            // 1. 定义几何
+            let cL, cR; 
+            let surfaceR = lensRadius;
+            let centerThick = map(lensParam, 40, 200, 10, 80); 
+            let convexOverlap = map(lensParam, 40, 200, 20, 150); 
+            let convexYLimit = 0;
+            let actualThickness = 0;
+
+            if (lensType === 'convex') {
+                let distFromCenter = surfaceR - convexOverlap/2;
+                cL = createVector(distFromCenter, 0); 
+                cR = createVector(-distFromCenter, 0); 
+                convexYLimit = Math.sqrt(Math.max(0, surfaceR*surfaceR - distFromCenter*distFromCenter));
+                actualThickness = convexOverlap;
+            } else {
+                cL = createVector(-centerThick/2 - surfaceR, 0); 
+                cR = createVector(centerThick/2 + surfaceR, 0); 
+                actualThickness = centerThick; 
+            }
+            
+            calculateFocalLength(actualThickness, surfaceR);
+
+            // 2. 绘制透镜
+            drawLensBody(cL, cR, surfaceR, convexYLimit);
+
+            if (document.getElementById('chk-focus').checked) {
+                drawFocalPoints();
+            }
+
+            // 3. 生成并追踪光线
+            try {
+                let lensGeo = { cL, cR, r: surfaceR, yLimit: convexYLimit };
+                let rays = generateRays(lensGeo);
+                rays.forEach(ray => {
+                    traceRay(ray, cL, cR, surfaceR, convexYLimit);
+                });
+            } catch (e) {
+                console.error("Ray tracing error:", e);
+            }
+            
+            drawControls();
+            
+            if (document.getElementById('chk-centers').checked) {
+                fill(0); noStroke();
+                circle(cL.x, cL.y, 4/viewZoom);
+                text("C1", cL.x, cL.y+15/viewZoom);
+                circle(cR.x, cR.y, 4/viewZoom);
+                text("C2", cR.x, cR.y+15/viewZoom);
+            }
+
+            pop();
+        }
+        
+        function calculateFocalLength(d, R) {
+            if (lensType === 'convex') {
+                let term1 = (ior - 1);
+                let term2 = (1/R - (1/(-R))); 
+                let term3 = ((ior - 1) * d) / (ior * R * (-R));
+                let power = term1 * (term2 + term3);
+                calculatedFocalLength = 1 / power;
+            } else {
+                let term1 = (ior - 1);
+                let term2 = (1/(-R) - 1/R);
+                let term3 = ((ior - 1) * d) / (ior * (-R) * R);
+                let power = term1 * (term2 + term3);
+                calculatedFocalLength = 1 / power; 
+            }
+        }
+
+        // --- 光线生成逻辑 ---
+
+        function generateRays(lensGeo) {
+            let rays = [];
+            
+            if (lightMode === 'beam') {
+                let dir = p5.Vector.fromAngle(radians(beamAngle));
+                let perp = createVector(-dir.y, dir.x);
+                let baseOrigin = createVector(-400, 0); 
+                
+                if (rayMode === 'multi') {
+                    let spacing = map(rayCount, 1, 21, 60, 10);
+                    for (let i = 0; i < rayCount; i++) {
+                        let offset = (i - (rayCount - 1) / 2) * spacing;
+                        let rayPos = p5.Vector.add(baseOrigin, p5.Vector.mult(perp, offset));
+                        rays.push({ pos: rayPos, dir: dir.copy() });
+                    }
+                } else {
+                    let offset = map(scanPos, -100, 100, -150, 150);
+                    let rayPos = p5.Vector.add(baseOrigin, p5.Vector.mult(perp, offset));
+                    rays.push({ pos: rayPos, dir: dir.copy() });
+                }
+            } else {
+                let srcPos = createVector(pointSourcePos.x, pointSourcePos.y); 
+                let centerDir = createVector(0, 0).sub(srcPos);
+                let baseAngle = centerDir.heading();
+                let spread = lensType === 'concave' ? 20 : 30;
+
+                if (rayMode === 'multi') {
+                    for (let i = 0; i < rayCount; i++) {
+                        let a = 0;
+                        if (rayCount > 1) {
+                            a = map(i, 0, rayCount - 1, radians(-spread), radians(spread));
+                        }
+                        let dir = p5.Vector.fromAngle(baseAngle + a);
+                        rays.push({ pos: srcPos.copy(), dir: dir });
+                    }
+                } else {
+                    let aDeg = map(scanPos, -100, 100, -45, 45);
+                    let dir = p5.Vector.fromAngle(baseAngle + radians(aDeg));
+                    rays.push({ pos: srcPos.copy(), dir: dir });
+                }
+            }
+            return rays;
+        }
+
+        // --- 核心绘图 ---
+        
+        function drawLensBody(cL, cR, r, yLimit) {
+            fill(200, 230, 255, 180); 
+            stroke(66, 133, 244);     
+            strokeWeight(2 / viewZoom);
+            
+            beginShape();
+            if (lensType === 'convex') {
+                let angle = Math.asin(Math.min(1, yLimit / r));
+                for (let a = PI - angle; a < PI + angle; a += 0.02) vertex(cL.x + r * Math.cos(a), cL.y + r * Math.sin(a));
+                vertex(cL.x + r * Math.cos(PI + angle), cL.y + r * Math.sin(PI + angle)); 
+                for (let a = -angle; a < angle; a += 0.02) vertex(cR.x + r * Math.cos(a), cR.y + r * Math.sin(a));
+                vertex(cR.x + r * Math.cos(angle), cR.y + r * Math.sin(angle)); 
+            } else {
+                let h = LENS_HEIGHT_LIMIT;
+                let angle = Math.asin(Math.min(1, h / r));
+                for (let a = -angle; a < angle; a += 0.02) vertex(cL.x + r * Math.cos(a), cL.y + r * Math.sin(a));
+                vertex(cL.x + r * Math.cos(angle), cL.y + r * Math.sin(angle)); 
+                vertex(cR.x + r * Math.cos(PI - angle), cR.y + r * Math.sin(PI - angle)); 
+                for (let a = PI - angle; a < PI + angle; a += 0.02) vertex(cR.x + r * Math.cos(a), cR.y + r * Math.sin(a));
+                vertex(cR.x + r * Math.cos(PI + angle), cR.y + r * Math.sin(PI + angle)); 
+            }
+            endShape(CLOSE);
+        }
+        
+        function drawFocalPoints() {
+            let f = Math.abs(calculatedFocalLength);
+            fill(255, 0, 0); noStroke();
+            circle(f, 0, 6/viewZoom);
+            text("F2", f + 5/viewZoom, -10/viewZoom);
+            circle(-f, 0, 6/viewZoom);
+            text("F1", -f - 15/viewZoom, -10/viewZoom);
+        }
+
+        // --- 光路追踪 (含箭头) ---
+        
+        function drawRayWithArrow(p1, p2) {
+            line(p1.x, p1.y, p2.x, p2.y);
+            // 绘制箭头 (位于中点)
+            let mid = p5.Vector.add(p1, p2).mult(0.5);
+            let dir = p5.Vector.sub(p2, p1).normalize();
+            let perp = createVector(-dir.y, dir.x);
+            let size = 6 / viewZoom;
+            
+            // 为了防止在极短线段上画箭头导致混乱，加个长度判断
+            if (p5.Vector.dist(p1, p2) > 10 / viewZoom) {
+                push();
+                noStroke();
+                fill(drawingContext.strokeStyle); // 使用当前线条颜色
+                translate(mid.x, mid.y);
+                rotate(dir.heading());
+                // 画三角形箭头
+                triangle(size, 0, -size*0.6, size*0.6, -size*0.6, -size*0.6);
+                pop();
+            }
+        }
+        
+        function traceRay(ray, cL, cR, r, yLimit) {
+            strokeWeight(2 / viewZoom);
+            let hitData = getFirstHit(ray, cL, cR, r, yLimit);
+            
+            if (hitData) {
+                stroke(255, 0, 0); 
+                drawRayWithArrow(ray.pos, hitData.pos); // 入射光 + 箭头
+                
+                let normal = (lensType === 'convex') 
+                    ? p5.Vector.sub(hitData.pos, hitData.center).normalize()
+                    : p5.Vector.sub(hitData.center, hitData.pos).normalize();
+
+                if (document.getElementById('chk-normal').checked) drawNormal(hitData.pos, normal);
+                if (document.getElementById('chk-tangent').checked) drawTangent(hitData.pos, normal);
+                
+                let dirInside = refract(ray.dir, normal, 1.0, ior);
+                
+                if (dirInside) {
+                    let exitTargetCenter = cR; 
+                    let startInside = p5.Vector.add(hitData.pos, p5.Vector.mult(dirInside, 0.1));
+                    let exitData = getExitHit(startInside, dirInside, exitTargetCenter, r, yLimit);
+                    
+                    if (exitData) {
+                        stroke(0, 180, 0); 
+                        drawRayWithArrow(hitData.pos, exitData.pos); // 内部光 + 箭头
+                        
+                        let normalPointingAir;
+                        if (lensType === 'convex') {
+                            normalPointingAir = p5.Vector.sub(exitData.pos, exitData.center).normalize(); 
+                        } else {
+                             normalPointingAir = p5.Vector.sub(exitData.center, exitData.pos).normalize();
+                        }
+                        
+                        let normalForMath = p5.Vector.mult(normalPointingAir, -1); 
+                        
+                        if (document.getElementById('chk-normal').checked) drawNormal(exitData.pos, normalForMath);
+                        if (document.getElementById('chk-tangent').checked) drawTangent(exitData.pos, normalForMath);
+                        
+                        let dirFinal = refract(dirInside, normalForMath, ior, 1.0);
+                        
+                        if (dirFinal) {
+                            stroke(255, 0, 0);
+                            let endPos = p5.Vector.add(exitData.pos, p5.Vector.mult(dirFinal, 1200)); 
+                            drawRayWithArrow(exitData.pos, endPos); // 出射光 + 箭头
+                            
+                            if (document.getElementById('chk-extension').checked) {
+                                stroke(255, 100, 0, 100); 
+                                drawingContext.setLineDash([5, 5]);
+                                let backPos = p5.Vector.add(exitData.pos, p5.Vector.mult(dirFinal, -1200));
+                                line(exitData.pos.x, exitData.pos.y, backPos.x, backPos.y);
+                                drawingContext.setLineDash([]);
+                            }
+                        }
+                    }
+                }
+            } else {
+                stroke(255, 0, 0, 50);
+                let end = p5.Vector.add(ray.pos, p5.Vector.mult(ray.dir, 2000));
+                drawRayWithArrow(ray.pos, end);
+            }
+        }
+
+        // --- 几何与数学 ---
+
+        function getFirstHit(ray, cL, cR, r, yLimit) {
+            let hits = intersectRayCircle(ray.pos, ray.dir, cL, r);
+            for (let t of hits) {
+                let pos = p5.Vector.add(ray.pos, p5.Vector.mult(ray.dir, t));
+                if (lensType === 'convex') {
+                    if (p5.Vector.dist(pos, cR) < r - 0.1) return { pos: pos, center: cL, t: t };
+                } else {
+                    if (Math.abs(pos.y) <= LENS_HEIGHT_LIMIT) return { pos: pos, center: cL, t: t };
+                }
+            }
+            return null;
+        }
+        
+        function getExitHit(pos, dir, center, r, yLimit) {
+            let hits = intersectRayCircle(pos, dir, center, r);
+            for (let t of hits) {
+                 let hitPos = p5.Vector.add(pos, p5.Vector.mult(dir, t));
+                 if (t > 0.01) {
+                     if (lensType === 'convex') {
+                         return { pos: hitPos, center: center };
+                     } else {
+                         if (Math.abs(hitPos.y) <= LENS_HEIGHT_LIMIT) return { pos: hitPos, center: center };
+                     }
+                 }
+            }
+            return null;
+        }
+
+        function refract(I, N, n1, n2) {
+            let eta = n1 / n2;
+            let cosI = -p5.Vector.dot(N, I);
+            let sinT2 = eta * eta * (1.0 - cosI * cosI);
+            if (sinT2 > 1.0) return null;
+            let cosT = Math.sqrt(1.0 - sinT2);
+            return p5.Vector.add(p5.Vector.mult(I, eta), p5.Vector.mult(N, eta * cosI - cosT));
+        }
+
+        function intersectRayCircle(p, d, c, r) {
+            let m = p5.Vector.sub(p, c);
+            let b = p5.Vector.dot(m, d);
+            let cVal = p5.Vector.dot(m, m) - r * r;
+            let delta = b*b - cVal;
+            if (delta < 0) return [];
+            let t1 = -b - Math.sqrt(delta);
+            let t2 = -b + Math.sqrt(delta);
+            return [t1, t2].filter(t => t > 0.1).sort((a,b)=>a-b);
+        }
+
+        // --- 预设逻辑 ---
+        
+        function setPreset(type) {
+            setRayMode('single');
+            hideShiftWarning();
+            
+            let surfaceR = lensRadius;
+            let centerThick = map(lensParam, 40, 200, 10, 80); 
+            let convexOverlap = map(lensParam, 40, 200, 20, 150); 
+            let cL, cR, yLimit;
+            
+            if (lensType === 'convex') {
+                let distFromCenter = surfaceR - convexOverlap/2;
+                cL = createVector(distFromCenter, 0);
+                cR = createVector(-distFromCenter, 0);
+                yLimit = Math.sqrt(Math.max(0, surfaceR*surfaceR - distFromCenter*distFromCenter));
+            } else {
+                cL = createVector(-centerThick/2 - surfaceR, 0); 
+                cR = createVector(centerThick/2 + surfaceR, 0);
+                yLimit = LENS_HEIGHT_LIMIT;
+            }
+            let lensGeo = { cL, cR, r: surfaceR, yLimit };
+
+            let f = Math.abs(calculatedFocalLength);
+            if (f === 0) f = 100;
+
+            if (lightMode === 'point') {
+                if (Math.abs(pointSourcePos.y) < 20) pointSourcePos.y = -120;
+                let srcPos = createVector(pointSourcePos.x, pointSourcePos.y);
+                
+                if (type === 'center') {
+                    let bestScan = 0;
+                    let minDist = 9999;
+                    for (let s = -100; s <= 100; s += 2) {
+                        let dir = getDirFromScanPos(s, srcPos);
+                        let dist = getInternalRayDistFromCenter(srcPos, dir, lensGeo);
+                        if (dist !== null && dist < minDist) { minDist = dist; bestScan = s; }
+                    }
+                    for (let s = bestScan - 2; s <= bestScan + 2; s += 0.2) {
+                        let dir = getDirFromScanPos(s, srcPos);
+                        let dist = getInternalRayDistFromCenter(srcPos, dir, lensGeo);
+                        if (dist !== null && dist < minDist) { minDist = dist; bestScan = s; }
+                    }
+                    scanPos = Math.round(bestScan);
+                    document.getElementById('input-scan').value = scanPos;
+                    updateScanLabel();
+                    showShiftWarningBox();
+                    
+                } else {
+                    let targetPos;
+                    if (type === 'parallel') {
+                        let baseAngle = createVector(0,0).sub(srcPos).heading();
+                        let diff = 0 - baseAngle;
+                        while(diff > PI) diff -= TWO_PI; while(diff < -PI) diff += TWO_PI;
+                        scanPos = map(degrees(diff), -45, 45, -100, 100);
+                    } else if (type === 'focus') {
+                        if (lensType === 'convex') targetPos = createVector(-f, 0);
+                        else targetPos = createVector(f, 0);
+                        let dir = p5.Vector.sub(targetPos, srcPos);
+                        let centerDir = createVector(0,0).sub(srcPos);
+                        let diff = dir.heading() - centerDir.heading();
+                        while(diff > PI) diff -= TWO_PI; while(diff < -PI) diff += TWO_PI;
+                        scanPos = map(degrees(diff), -45, 45, -100, 100);
+                    }
+                    scanPos = constrain(Math.round(scanPos), -100, 100);
+                    document.getElementById('input-scan').value = scanPos;
+                    updateScanLabel();
+                }
+
+            } else {
+                if (type === 'center') {
+                    beamAngle = 20; 
+                    document.getElementById('input-angle').value = 20;
+                    document.getElementById('val-angle').textContent = "20°";
+                    let bestScan = 0;
+                    let minDist = 9999;
+                    for(let s = -100; s <= 100; s+=2) {
+                        let ray = getBeamRayFromScanPos(s);
+                        let dist = getInternalRayDistFromCenter(ray.pos, ray.dir, lensGeo);
+                        if(dist!==null && dist<minDist) { minDist=dist; bestScan=s; }
+                    }
+                    for(let s = bestScan - 2; s <= bestScan + 2; s+=0.2) {
+                        let ray = getBeamRayFromScanPos(s);
+                        let dist = getInternalRayDistFromCenter(ray.pos, ray.dir, lensGeo);
+                        if(dist!==null && dist<minDist) { minDist=dist; bestScan=s; }
+                    }
+                    scanPos = Math.round(bestScan);
+                    document.getElementById('input-scan').value = scanPos;
+                    updateScanLabel();
+                    showShiftWarningBox();
+
+                } else if (type === 'parallel') {
+                    beamAngle = 0;
+                    document.getElementById('input-angle').value = 0;
+                    document.getElementById('val-angle').textContent = "0°";
+                    scanPos = 50; 
+                    document.getElementById('input-scan').value = 50;
+                    updateScanLabel();
+                } else if (type === 'focus') {
+                    beamAngle = -15; 
+                    document.getElementById('input-angle').value = -15;
+                    document.getElementById('val-angle').textContent = "-15°";
+                    if (lensType === 'convex') calculateBeamOffsetForTarget(-f, 0);
+                    else calculateBeamOffsetForTarget(f, 0);
+                }
+            }
+            
+            document.getElementById('chk-focus').checked = true;
+            if(lensType === 'concave') document.getElementById('chk-extension').checked = true;
+        }
+        
+        function getDirFromScanPos(s, srcPos) {
+            let centerDir = createVector(0,0).sub(srcPos);
+            let baseAngle = centerDir.heading();
+            let aDeg = map(s, -100, 100, -45, 45);
+            return p5.Vector.fromAngle(baseAngle + radians(aDeg));
+        }
+        
+        function getBeamRayFromScanPos(s) {
+            let dir = p5.Vector.fromAngle(radians(beamAngle));
+            let perp = createVector(-dir.y, dir.x);
+            let baseOrigin = createVector(-400, 0);
+            let offset = map(s, -100, 100, -150, 150);
+            return { pos: p5.Vector.add(baseOrigin, p5.Vector.mult(perp, offset)), dir: dir.copy() };
+        }
+        
+        function getInternalRayDistFromCenter(pos, dir, lensGeo) {
+            let hitData = getFirstHit({pos, dir}, lensGeo.cL, lensGeo.cR, lensGeo.r, lensGeo.yLimit);
+            if (!hitData) return null;
+            
+            let normal;
+            if (lensType === 'convex') normal = p5.Vector.sub(hitData.pos, hitData.center).normalize();
+            else normal = p5.Vector.sub(hitData.center, hitData.pos).normalize();
+            
+            let dirInside = refract(dir, normal, 1.0, ior);
+            if (!dirInside) return null;
+            
+            let dist = Math.abs(hitData.pos.x * dirInside.y - hitData.pos.y * dirInside.x);
+            return dist;
+        }
+
+        function calculateBeamOffsetForTarget(tx, ty) {
+             let dir = p5.Vector.fromAngle(radians(beamAngle));
+             let perp = createVector(-dir.y, dir.x);
+             let origin = createVector(-400, 0);
+             let V = createVector(tx, ty).sub(origin);
+             let crossVDir = V.x*dir.y - V.y*dir.x;
+             let crossPerpDir = perp.x*dir.y - perp.y*dir.x;
+             let offset = crossVDir / crossPerpDir;
+             let val = map(offset, -150, 150, -100, 100);
+             scanPos = constrain(Math.round(val), -100, 100);
+             document.getElementById('input-scan').value = scanPos;
+             updateScanLabel();
+        }
+        
+        function showShiftWarningBox() {
+            let box = document.getElementById('shift-warning');
+            box.style.display = 'block';
+            setTimeout(() => { box.style.display = 'none'; }, 4000);
+        }
+        function hideShiftWarning() {
+            document.getElementById('shift-warning').style.display = 'none';
+        }
+
+        function drawNormal(pos, n) {
+            stroke(100, 100, 255, 150);
+            strokeWeight(1 / viewZoom);
+            drawingContext.setLineDash([3, 3]);
+            line(pos.x - n.x*30, pos.y - n.y*30, pos.x + n.x*30, pos.y + n.y*30);
+            drawingContext.setLineDash([]);
+        }
+
+        function drawTangent(pos, n) {
+            stroke(255, 140, 0, 200); 
+            strokeWeight(1.5 / viewZoom);
+            let tx = -n.y; let ty = n.x;
+            let len = tangentLength;
+            line(pos.x - tx*len, pos.y - ty*len, pos.x + tx*len, pos.y + ty*len);
+            fill(255, 140, 0); noStroke();
+            circle(pos.x, pos.y, 3 / viewZoom);
+        }
+
+        function drawGrid() {
+            stroke(240); strokeWeight(1 / viewZoom);
+            let size = 50;
+            let left = -viewOffset.x/viewZoom, top = -viewOffset.y/viewZoom;
+            let right = (width-viewOffset.x)/viewZoom, bottom = (height-viewOffset.y)/viewZoom;
+            for(let x=Math.floor(left/size)*size; x<right; x+=size) line(x,top,x,bottom);
+            for(let y=Math.floor(top/size)*size; y<bottom; y+=size) line(left,y,right,y);
+        }
+
+        function drawControls() {
+            if (lightMode === 'point') {
+                fill(255, 193, 7); stroke(255, 111, 0); strokeWeight(2/viewZoom);
+                circle(pointSourcePos.x, pointSourcePos.y, 12/viewZoom);
+                if(dist((mouseX-viewOffset.x)/viewZoom, (mouseY-viewOffset.y)/viewZoom, pointSourcePos.x, pointSourcePos.y) < 15/viewZoom) {
+                    cursor('pointer');
+                } else if (!isDragging) {
+                    cursor('default');
+                }
+            }
+        }
+
+        // --- Interaction ---
+        function mouseWheel(e) {
+            viewZoom = constrain(viewZoom - e.delta * 0.001, 0.4, 5.0);
+            return false;
+        }
+        function mousePressed() {
+            let mx = (mouseX - viewOffset.x)/viewZoom;
+            let my = (mouseY - viewOffset.y)/viewZoom;
+            if (lightMode === 'point' && dist(mx, my, pointSourcePos.x, pointSourcePos.y) < 20/viewZoom) {
+                isDraggingSource = true;
+            } else if (mouseX < width) {
+                isDragging = true; lastMousePos = {x: mouseX, y: mouseY};
+            }
+        }
+        function mouseDragged() {
+            if (isDraggingSource) {
+                pointSourcePos.x = (mouseX - viewOffset.x)/viewZoom;
+                pointSourcePos.y = (mouseY - viewOffset.y)/viewZoom;
+            } else if (isDragging) {
+                viewOffset.x += mouseX - lastMousePos.x; viewOffset.y += mouseY - lastMousePos.y;
+                lastMousePos = {x: mouseX, y: mouseY};
+            }
+        }
+        function mouseReleased() { isDragging = false; isDraggingSource = false; }
+
+        // UI Helpers
+        function setLensType(t) {
+            lensType = t;
+            document.getElementById('btn-convex').className = t==='convex'?'active':'';
+            document.getElementById('btn-concave').className = t==='concave'?'active':'';
+        }
+        function setLightMode(m) {
+            lightMode = m;
+            document.getElementById('btn-beam').className = m==='beam'?'active':'';
+            document.getElementById('btn-point').className = m==='point'?'active':'';
+            document.getElementById('beam-angle-control').style.display = m==='beam'?'block':'none';
+            updateScanLabel();
+        }
+        function setRayMode(m) {
+            rayMode = m;
+            document.getElementById('btn-mode-multi').className = m==='multi'?'active':'';
+            document.getElementById('btn-mode-single').className = m==='single'?'active':'';
+            document.getElementById('multi-controls').style.display = m==='multi'?'block':'none';
+            document.getElementById('single-controls').style.display = m==='single'?'block':'none';
+        }
+        function updateScanLabel() {
+            let lbl = lightMode==='beam' ? "扫描位置" : "扫描角度";
+            let unit = lightMode==='beam' ? "" : "°";
+            document.getElementById('label-scan').innerHTML = lbl + ' <span id="val-scan" class="value-display">'+scanPos + unit + '</span>';
+        }
+        function resetView() {
+            viewZoom = 1.0; viewOffset.x = width/2; viewOffset.y = height/2;
+            beamAngle = 0; pointSourcePos = {x:-350, y:0};
+            document.getElementById('input-angle').value=0;
+            document.getElementById('val-angle').textContent="0°";
+            scanPos=0; document.getElementById('input-scan').value=0; updateScanLabel();
+            tangentLength = 50; document.getElementById('input-tangent-len').value=50; document.getElementById('val-tangent-len').textContent=50;
+            setRayMode('multi');
+            hideShiftWarning();
+        }
+    </script>
+</body>
+</html>

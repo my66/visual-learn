@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>初中代数公式几何可视化 - 旋转割补版</title>
+    
+    <!-- 引入 React 和 Babel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        body { margin: 0; padding: 0; background-color: #f8fafc; }
+        /* 动画过渡配置 */
+        rect, text, line, path, g { transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1); } /* 增加一点弹性效果 */
+        .cursor-help { cursor: help; }
+        .crisp-edges { shape-rendering: crispEdges; }
+        
+        @keyframes pulse-border {
+            0%, 100% { border-color: rgba(16, 185, 129, 0.2); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+            50% { border-color: rgba(16, 185, 129, 0.8); box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1); }
+        }
+        .animate-pulse-border {
+            animation: pulse-border 2s infinite;
+        }
+        
+        .toggle-checkbox:checked { right: 0; border-color: #4f46e5; }
+        .toggle-checkbox:checked + .toggle-label { background-color: #4f46e5; }
+        .font-mono-num { font-variant-numeric: tabular-nums; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // 错误边界检查
+        if (typeof React === 'undefined' || typeof ReactDOM === 'undefined') {
+            document.body.innerHTML = '<div style="padding: 20px; color: red;">Error: React libraries failed to load. Please check your internet connection.</div>';
+            throw new Error('React not loaded');
+        }
+
+        const { useState, useEffect } = React;
+
+        // --- 图标组件 ---
+        const IconBase = ({ children, size = 20, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>{children}</svg>
+        );
+        const Grid = (p) => <IconBase {...p}><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V3"/></IconBase>;
+        const Plus = (p) => <IconBase {...p}><path d="M5 12h14"/><path d="M12 5v14"/></IconBase>;
+        const Minus = (p) => <IconBase {...p}><path d="M5 12h14"/></IconBase>;
+        const Diff = (p) => <IconBase {...p}><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/></IconBase>;
+        const XMult = (p) => <IconBase {...p}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></IconBase>;
+        const Maximize = (p) => <IconBase {...p}><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></IconBase>;
+        const Scissors = (p) => <IconBase {...p}><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></IconBase>;
+        const HandClick = (p) => <IconBase {...p}><path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4c0-1.1.9-2 2-2h8a2 2 0 0 1 2 2v5Z"/><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"/></IconBase>;
+        const RotateIcon = (p) => <IconBase {...p}><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></IconBase>;
+
+        // --- 尺寸标注线组件 (精度优化版) ---
+        const DimH = ({ x, y, width, label, offset = -20, color = "stroke-slate-300", textColor = "fill-slate-400", show = true }) => {
+            if (!show) return null;
+            const yPos = y + offset;
+            const tickSize = 5 * (offset > 0 ? -1 : 1);
+            return (
+                <g className="pointer-events-none opacity-80 hover:opacity-100 transition-opacity">
+                    <line x1={x} y1={yPos} x2={x + width} y2={yPos} className={`${color} stroke-1 crisp-edges`} />
+                    <line x1={x} y1={y + (offset > 0 ? 2 : -2)} x2={x} y2={yPos + tickSize} className={`${color} stroke-1 crisp-edges`} />
+                    <line x1={x + width} y1={y + (offset > 0 ? 2 : -2)} x2={x + width} y2={yPos + tickSize} className={`${color} stroke-1 crisp-edges`} />
+                    <text x={x + width / 2} y={yPos + (offset > 0 ? 15 : -5)} textAnchor="middle" className={`text-xs font-bold font-mono ${textColor}`}>{label}</text>
+                </g>
+            );
+        };
+
+        const DimV = ({ x, y, height, label, offset = -20, color = "stroke-slate-300", textColor = "fill-slate-400", show = true }) => {
+            if (!show) return null;
+            const xPos = x + offset;
+            const tickSize = 5 * (offset > 0 ? -1 : 1);
+            return (
+                <g className="pointer-events-none opacity-80 hover:opacity-100 transition-opacity">
+                    <line x1={xPos} y1={y} x2={xPos} y2={y + height} className={`${color} stroke-1 crisp-edges`} />
+                    <line x1={x + (offset > 0 ? 2 : -2)} y1={y} x2={xPos + tickSize} y2={y} className={`${color} stroke-1 crisp-edges`} />
+                    <line x1={x + (offset > 0 ? 2 : -2)} y1={y + height} x2={xPos + tickSize} y2={y + height} className={`${color} stroke-1 crisp-edges`} />
+                    <text x={xPos + (offset > 0 ? 15 : -5)} y={y + height / 2} textAnchor={offset > 0 ? "start" : "end"} dominantBaseline="middle" className={`text-xs font-bold font-mono ${textColor}`}>{label}</text>
+                </g>
+            );
+        };
+
+        // --- 公式项组件 ---
+        const TermDisplay = ({ term, colorClass, highlightKey, desc, hoveredTerm, setHoveredTerm, onClick }) => (
+            <div className="relative group inline-block mx-1">
+                <span 
+                    onClick={onClick}
+                    className={`inline-block px-3 py-1.5 rounded-lg transition-all duration-200 select-none border border-transparent ${
+                        hoveredTerm === highlightKey 
+                        ? 'bg-slate-100 scale-110 shadow-md font-bold border-slate-200 z-10' 
+                        : 'hover:bg-slate-50 hover:border-slate-100'
+                    } ${onClick ? 'cursor-pointer active:scale-95' : 'cursor-help'}`}
+                    onMouseEnter={() => setHoveredTerm(highlightKey)}
+                    onMouseLeave={() => setHoveredTerm(null)}
+                >
+                    <span className={`${colorClass} whitespace-nowrap`}>{term}</span>
+                </span>
+                {hoveredTerm === highlightKey && (
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1 bg-slate-800 text-white text-xs rounded shadow-lg whitespace-nowrap z-20 pointer-events-none">
+                        {desc}
+                        {onClick && <div className="text-[10px] text-emerald-300 mt-0.5 text-center font-bold">👇 点击演示变换</div>}
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800"></div>
+                    </div>
+                )}
+            </div>
+        );
+
+        // --- 主程序 ---
+        const MathViz = () => {
+            const [mode, setMode] = useState('plus'); 
+            const [a, setA] = useState(200);
+            const [b, setB] = useState(80);
+            const [x, setX] = useState(120); 
+            const [hoveredTerm, setHoveredTerm] = useState(null);
+            const [diffRearrange, setDiffRearrange] = useState(false);
+
+            const padding = 100;
+
+            const c = {
+                blue: 'fill-blue-500',
+                blueLight: 'fill-blue-100',
+                red: 'fill-rose-500',
+                purple: 'fill-purple-500',
+                yellow: 'fill-amber-400',
+                green: 'fill-emerald-500',
+                greenBright: 'fill-emerald-400',
+                orange: 'fill-orange-400',
+            };
+
+            const handleAChange = (val) => {
+                const newA = Number(val);
+                setA(newA);
+                if ((mode === 'minus' || mode === 'diff_sq') && newA <= b + 20) setB(newA - 40);
+            };
+
+            const handleBChange = (val) => {
+                const newB = Number(val);
+                if ((mode === 'minus' || mode === 'diff_sq') && newB >= a - 20) return; 
+                setB(newB);
+            };
+
+            const modes = [
+                { id: 'plus', label: '(a + b)²', icon: <Plus size={16} />, color: 'text-indigo-600' },
+                { id: 'minus', label: '(a - b)²', icon: <Minus size={16} />, color: 'text-rose-600' },
+                { id: 'diff_sq', label: 'a² - b²', icon: <Diff size={16} />, color: 'text-emerald-600' },
+                { id: 'cross_mult', label: '(x+a)(x+b)', icon: <XMult size={16} />, color: 'text-orange-600' },
+            ];
+
+            return (
+                <div className="min-h-screen flex flex-col font-sans text-slate-800">
+                    <header className="bg-white shadow-sm px-4 py-3 border-b border-slate-200 sticky top-0 z-30">
+                        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+                            <div className="flex items-center gap-2">
+                                <div className="bg-indigo-600 text-white p-1.5 rounded-lg"><Grid size={20} /></div>
+                                <h1 className="text-xl font-bold text-slate-800">代数公式几何可视化</h1>
+                            </div>
+                            <div className="flex bg-slate-100 p-1 rounded-xl overflow-x-auto max-w-full no-scrollbar">
+                                {modes.map(m => (
+                                    <button
+                                        key={m.id}
+                                        onClick={() => {
+                                            setMode(m.id);
+                                            setDiffRearrange(false);
+                                            if (m.id === 'diff_sq' && b >= a) setB(a - 40);
+                                        }}
+                                        className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all text-sm font-bold whitespace-nowrap ${
+                                            mode === m.id ? 'bg-white shadow-sm text-slate-800 ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
+                                        }`}
+                                    >
+                                        <span className={mode === m.id ? m.color : ''}>{m.icon}</span>
+                                        {m.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </header>
+
+                    <main className="flex-1 max-w-6xl mx-auto w-full p-4 md:p-6 flex flex-col lg:flex-row gap-6">
+                        
+                        {/* 左侧控制栏 */}
+                        <div className="w-full lg:w-80 flex flex-col gap-4 order-2 lg:order-1">
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                                <h2 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-6 flex items-center gap-2">
+                                    <Maximize size={16} /> 调整几何尺寸
+                                </h2>
+                                
+                                <div className="space-y-8">
+                                    {mode === 'cross_mult' && (
+                                        <div>
+                                            <div className="flex justify-between mb-2">
+                                                <label className="text-sm font-bold text-slate-600">公共边 x</label>
+                                                <span className="text-xs font-mono bg-orange-100 text-orange-700 px-2 py-0.5 rounded font-mono-num">{x}</span>
+                                            </div>
+                                            <input type="range" min="50" max="200" value={x} onChange={(e) => setX(Number(e.target.value))} className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-orange-500" />
+                                        </div>
+                                    )}
+
+                                    <div>
+                                        <div className="flex justify-between mb-2">
+                                            <label className="text-sm font-bold text-slate-600">
+                                                {mode === 'cross_mult' ? '常数 a' : '边长 a'}
+                                            </label>
+                                            <span className="text-xs font-mono bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-mono-num">{a}</span>
+                                        </div>
+                                        <input type="range" min="120" max="280" value={a} onChange={(e) => handleAChange(e.target.value)} className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600" />
+                                    </div>
+
+                                    <div>
+                                        <div className="flex justify-between mb-2">
+                                            <label className="text-sm font-bold text-slate-600">
+                                                {mode === 'cross_mult' ? '常数 b' : '边长 b'}
+                                            </label>
+                                            <span className="text-xs font-mono bg-rose-100 text-rose-700 px-2 py-0.5 rounded font-mono-num">{b}</span>
+                                        </div>
+                                        <input type="range" min="30" max={mode === 'plus' || mode === 'cross_mult' ? 250 : a - 40} value={b} onChange={(e) => handleBChange(e.target.value)} className={`w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer ${mode === 'plus' || mode === 'cross_mult' ? 'accent-rose-500' : 'accent-rose-500'}`} />
+                                    </div>
+
+                                    {mode === 'diff_sq' && (
+                                        <div className="pt-4 border-t border-slate-100">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                                    <RotateIcon size={16} className="text-emerald-600"/> 旋转割补
+                                                </span>
+                                                <div className="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in">
+                                                    <input 
+                                                        type="checkbox" 
+                                                        name="toggle" 
+                                                        id="toggle" 
+                                                        checked={diffRearrange}
+                                                        onChange={() => setDiffRearrange(!diffRearrange)}
+                                                        className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer border-slate-300 transition-all duration-300 left-0"
+                                                    />
+                                                    <label htmlFor="toggle" className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer transition-colors duration-300 ${diffRearrange ? 'bg-emerald-500' : 'bg-slate-300'}`}></label>
+                                                </div>
+                                            </div>
+                                            <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+                                                观察橙色矩形如何<strong>旋转 90°</strong> 并拼接到下方。
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 右侧画布与公式 */}
+                        <div className="w-full lg:w-2/3 flex flex-col gap-6 order-1 lg:order-2">
+                            
+                            {/* 画布区域 */}
+                            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 flex items-center justify-center min-h-[500px] overflow-hidden relative select-none">
+                                <svg 
+                                    className="max-w-full max-h-[500px] overflow-visible"
+                                    width={mode === 'plus' ? a+b+padding*2 : (mode === 'cross_mult' ? x+Math.max(a,b)+padding*2 : a+b+padding*2)} 
+                                    height={mode === 'plus' ? a+b+padding*2 : (mode === 'cross_mult' ? x+Math.max(a,b)+padding*2 : a+padding*2)}
+                                >
+                                    <defs>
+                                        <pattern id="diagonalHatch1" width="10" height="10" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+                                            <line x1="0" y1="0" x2="0" y2="10" className="stroke-rose-600 stroke-1 opacity-30" />
+                                        </pattern>
+                                        <pattern id="diagonalHatch2" width="10" height="10" patternTransform="rotate(-45 0 0)" patternUnits="userSpaceOnUse">
+                                            <line x1="0" y1="0" x2="0" y2="10" className="stroke-rose-600 stroke-1 opacity-30" />
+                                        </pattern>
+                                    </defs>
+
+                                    <g transform={`translate(${padding}, ${padding})`}>
+                                        
+                                        {/* ==================== (a+b)² 模式 ==================== */}
+                                        {mode === 'plus' && (
+                                            <>
+                                                <rect width={a+b} height={a+b} className="fill-white stroke-slate-200 crisp-edges" />
+                                                <g className={hoveredTerm && hoveredTerm !== 'a2' ? 'opacity-10' : ''}>
+                                                    <rect width={a} height={a} className={`${c.blue} stroke-white stroke-2 crisp-edges`} />
+                                                    <text x={a/2} y={a/2} className="fill-white font-bold text-2xl" textAnchor="middle" dominantBaseline="middle">a²</text>
+                                                </g>
+                                                <g transform={`translate(${a}, ${a})`} className={hoveredTerm && hoveredTerm !== 'b2' ? 'opacity-10' : ''}>
+                                                    <rect width={b} height={b} className={`${c.red} stroke-white stroke-2 crisp-edges`} />
+                                                    <text x={b/2} y={b/2} className="fill-white font-bold text-lg" textAnchor="middle" dominantBaseline="middle">b²</text>
+                                                </g>
+                                                <g transform={`translate(${a}, 0)`} className={hoveredTerm && hoveredTerm !== '2ab' ? 'opacity-10' : ''}>
+                                                    <rect width={b} height={a} className={`${c.purple} stroke-white stroke-2 crisp-edges`} />
+                                                    <text x={b/2} y={a/2} className="fill-white font-medium text-lg" textAnchor="middle" dominantBaseline="middle">ab</text>
+                                                </g>
+                                                <g transform={`translate(0, ${a})`} className={hoveredTerm && hoveredTerm !== '2ab' ? 'opacity-10' : ''}>
+                                                    <rect width={a} height={b} className={`${c.purple} stroke-white stroke-2 crisp-edges`} />
+                                                    <text x={a/2} y={b/2} className="fill-white font-medium text-lg" textAnchor="middle" dominantBaseline="middle">ab</text>
+                                                </g>
+
+                                                <DimH x={0} y={0} width={a} label="a" />
+                                                <DimH x={a} y={0} width={b} label="b" />
+                                                <DimV x={0} y={0} height={a} label="a" />
+                                                <DimV x={0} y={a} height={b} label="b" />
+                                                <DimH x={0} y={a+b} width={a+b} label="a + b" offset={25} textColor="fill-indigo-600" />
+                                                <DimV x={a+b} y={0} height={a+b} label="a + b" offset={25} textColor="fill-indigo-600" />
+                                            </>
+                                        )}
+
+                                        {/* ==================== (a-b)² 模式 ==================== */}
+                                        {mode === 'minus' && (
+                                            <>
+                                                <rect width={a} height={a} className={`${c.blueLight} stroke-blue-300 stroke-1 crisp-edges`} />
+                                                
+                                                <g className={hoveredTerm && hoveredTerm !== 'result' ? 'opacity-20' : ''}>
+                                                    <rect width={a-b} height={a-b} className={`${c.yellow} stroke-white stroke-2 crisp-edges`} />
+                                                    <text x={(a-b)/2} y={(a-b)/2} className="fill-amber-900 font-bold text-xl" textAnchor="middle" dominantBaseline="middle">(a-b)²</text>
+                                                </g>
+                                                
+                                                <g className={`transition-opacity duration-300 ${hoveredTerm === 'minus_ab' ? 'opacity-100' : (hoveredTerm ? 'opacity-0' : 'opacity-60')}`}>
+                                                    <g>
+                                                        <rect x={a-b} y="0" width={b} height={a} className="fill-rose-400 opacity-50 crisp-edges" />
+                                                        <rect x={a-b} y="0" width={b} height={a} fill="url(#diagonalHatch1)" className="stroke-rose-500 stroke-1 crisp-edges" />
+                                                        <text x={a-b/2} y={(a-b)/2} className="fill-rose-700 font-bold" textAnchor="middle">-ab</text>
+                                                    </g>
+                                                    <g>
+                                                        <rect x="0" y={a-b} width={a} height={b} className="fill-rose-400 opacity-50 crisp-edges" />
+                                                        <rect x="0" y={a-b} width={a} height={b} fill="url(#diagonalHatch2)" className="stroke-rose-500 stroke-1 crisp-edges" />
+                                                        <text x={(a-b)/2} y={a-b/2} className="fill-rose-700 font-bold" textAnchor="middle" dominantBaseline="middle">-ab</text>
+                                                    </g>
+                                                    {hoveredTerm === 'minus_ab' && (
+                                                        <g className="animate-pulse">
+                                                            <rect x={a-b} y={a-b} width={b} height={b} className="fill-none stroke-rose-800 stroke-2 stroke-dashed crisp-edges" />
+                                                            <text x={a-b/2} y={a+20} className="fill-rose-800 font-bold text-xs" textAnchor="middle">重叠</text>
+                                                        </g>
+                                                    )}
+                                                </g>
+
+                                                <g transform={`translate(${a-b}, ${a-b})`} 
+                                                   className={`transition-all ${hoveredTerm === 'plus_b2' ? 'opacity-100 scale-110' : (hoveredTerm && hoveredTerm !== 'minus_ab' ? 'opacity-10' : 'opacity-0')}`}>
+                                                    <rect width={b} height={b} className={`${c.greenBright} stroke-emerald-600 stroke-2 crisp-edges`} />
+                                                    <text x={b/2} y={b/2} className="fill-emerald-900 font-bold text-lg" textAnchor="middle" dominantBaseline="middle">+b²</text>
+                                                </g>
+                                                
+                                                <rect width={a} height={a} className={`fill-none stroke-blue-600 stroke-4 pointer-events-none transition-opacity ${hoveredTerm === 'whole_a2' ? 'opacity-100 stroke-[3px]' : 'opacity-0'} crisp-edges`} />
+
+                                                <DimH x={0} y={0} width={a} label="a" offset={-25} textColor="fill-blue-600" />
+                                                <DimV x={0} y={0} height={a} label="a" offset={-25} textColor="fill-blue-600" />
+                                                <DimH x={0} y={a} width={a-b} label="a - b" offset={25} textColor="fill-amber-600" />
+                                                <DimH x={a-b} y={a} width={b} label="b" offset={25} textColor="fill-rose-500" />
+                                                <DimV x={a} y={0} height={a-b} label="a - b" offset={25} textColor="fill-amber-600" />
+                                                <DimV x={a} y={a-b} height={b} label="b" offset={25} textColor="fill-rose-500" />
+                                            </>
+                                        )}
+
+                                        {/* ==================== a² - b² 模式 (真旋转版) ==================== */}
+                                        {mode === 'diff_sq' && (
+                                            <>
+                                                {/* 变换提示虚线 */}
+                                                {!diffRearrange && (hoveredTerm === 'term_a_plus_b' || hoveredTerm === 'term_a_minus_b') && (
+                                                    <g className="opacity-40 pointer-events-none">
+                                                        <rect x="0" y="a" width={a-b} height={b} className="stroke-emerald-500 stroke-2 stroke-dashed fill-none crisp-edges" />
+                                                        <rect x="0" y="0" width={a-b} height={a+b} className="stroke-emerald-300 stroke-1 stroke-dashed fill-none crisp-edges" />
+                                                        <text x={(a-b)/2} y={a+b/2} className="fill-emerald-600 text-xs font-bold" textAnchor="middle" dominantBaseline="middle">即将旋转并拼接这里</text>
+                                                    </g>
+                                                )}
+
+                                                <g className={hoveredTerm && hoveredTerm !== 'term_a_plus_b' && hoveredTerm !== 'term_a_minus_b' && hoveredTerm !== 'diff_area' ? 'opacity-20' : ''}>
+                                                    <rect x="0" y="0" width={a-b} height={a} className={`${c.blue} stroke-white stroke-2 crisp-edges`} />
+                                                    <text x={(a-b)/2} y={a/2} className="fill-white font-bold text-xl" textAnchor="middle">a(a-b)</text>
+                                                </g>
+
+                                                {/* 旋转的橙色方块 */}
+                                                <g 
+                                                    className={`${hoveredTerm && hoveredTerm !== 'term_a_plus_b' && hoveredTerm !== 'term_a_minus_b' && hoveredTerm !== 'diff_area' ? 'opacity-20' : ''}`}
+                                                    style={{ 
+                                                        transform: diffRearrange 
+                                                            ? `translate(${a-b}px, ${a}px) rotate(90deg)` // 移动到正确位置并旋转
+                                                            : `translate(${a-b}px, ${b}px) rotate(0deg)`  // 初始位置
+                                                    }}
+                                                >
+                                                    {/* 方块本地坐标 x=0, y=0 */}
+                                                    <rect 
+                                                        x="0" y="0" 
+                                                        width={b} height={a-b} 
+                                                        className={`${c.orange} stroke-white stroke-2 crisp-edges`} 
+                                                    />
+                                                    
+                                                    {/* 文字反向旋转，保持水平 */}
+                                                    <g style={{
+                                                        transform: `translate(${b/2}px, ${(a-b)/2}px) rotate(${diffRearrange ? -90 : 0}deg)`,
+                                                        transformOrigin: 'center'
+                                                    }}>
+                                                        <text 
+                                                            x="0" y="0"
+                                                            className="fill-white font-bold text-lg" 
+                                                            textAnchor="middle" 
+                                                            dominantBaseline="middle"
+                                                        >
+                                                            b(a-b)
+                                                        </text>
+                                                    </g>
+                                                </g>
+
+                                                <g transform={`translate(${a-b}, 0)`} className="opacity-40">
+                                                    <rect width={b} height={b} className="fill-slate-50 stroke-slate-300 stroke-dasharray-4 crisp-edges" />
+                                                    <text x={b/2} y={b/2} className="fill-slate-400 text-xs" textAnchor="middle" dominantBaseline="middle">-b²</text>
+                                                </g>
+
+                                                {/* 初始尺寸 */}
+                                                <DimV x={0} y={0} height={a} label="a" offset={-25} />
+                                                <DimH x={0} y={0} width={a-b} label="a - b" />
+                                                <DimH x={a-b} y={0} width={b} label="b" show={!diffRearrange} offset={-25} color="stroke-slate-200" textColor="fill-slate-300"/>
+                                                
+                                                {/* 拼接后尺寸 */}
+                                                <DimV 
+                                                    x={0} 
+                                                    y={0} 
+                                                    height={a+b} 
+                                                    label="a + b" 
+                                                    offset={-50} 
+                                                    show={diffRearrange || hoveredTerm === 'term_a_plus_b'}
+                                                    color={diffRearrange ? "stroke-emerald-500" : "stroke-emerald-300 stroke-dashed"}
+                                                    textColor="fill-emerald-600"
+                                                />
+                                                <DimH 
+                                                    x={0} 
+                                                    y={a+b} 
+                                                    width={a-b} 
+                                                    label="a - b" 
+                                                    offset={25}
+                                                    show={diffRearrange}
+                                                    color="stroke-emerald-500"
+                                                    textColor="fill-emerald-600"
+                                                />
+                                                
+                                                <DimV x={a-b} y={a} height={b} label="b" offset={15} show={diffRearrange} />
+                                            </>
+                                        )}
+
+                                        {/* ==================== (x+a)(x+b) 模式 ==================== */}
+                                        {mode === 'cross_mult' && (
+                                            <>
+                                                <g className={hoveredTerm && hoveredTerm !== 'x2' ? 'opacity-10' : ''}>
+                                                    <rect width={x} height={x} className={`${c.orange} stroke-white stroke-2 crisp-edges`} />
+                                                    <text x={x/2} y={x/2} className="fill-white font-bold text-xl" textAnchor="middle" dominantBaseline="middle">x²</text>
+                                                </g>
+                                                <g transform={`translate(${x}, 0)`} className={hoveredTerm && hoveredTerm !== 'ax_bx_combo' ? 'opacity-10' : ''}>
+                                                    <rect width={a} height={x} className={`${c.blue} stroke-white stroke-2 crisp-edges`} />
+                                                    <text x={a/2} y={x/2} className="fill-white font-bold text-xl" textAnchor="middle" dominantBaseline="middle">ax</text>
+                                                </g>
+                                                <g transform={`translate(0, ${x})`} className={hoveredTerm && hoveredTerm !== 'ax_bx_combo' ? 'opacity-10' : ''}>
+                                                    <rect width={x} height={b} className={`${c.red} stroke-white stroke-2 crisp-edges`} />
+                                                    <text x={x/2} y={b/2} className="fill-white font-bold text-xl" textAnchor="middle" dominantBaseline="middle">bx</text>
+                                                </g>
+                                                <g transform={`translate(${x}, ${x})`} className={hoveredTerm && hoveredTerm !== 'ab' ? 'opacity-10' : ''}>
+                                                    <rect width={a} height={b} className={`${c.green} stroke-white stroke-2 crisp-edges`} />
+                                                    <text x={a/2} y={b/2} className="fill-white font-bold text-xl" textAnchor="middle" dominantBaseline="middle">ab</text>
+                                                </g>
+                                                {hoveredTerm === 'ax_bx_combo' && (
+                                                    <path d={`M ${x},0 L ${x+a},0 L ${x+a},${x} M 0,${x} L 0,${x+b} L ${x},${x+b}`} className="fill-none stroke-slate-800 stroke-dashed stroke-2 crisp-edges" />
+                                                )}
+
+                                                <DimH x={0} y={0} width={x} label="x" />
+                                                <DimH x={x} y={0} width={a} label="a" />
+                                                <DimV x={0} y={0} height={x} label="x" />
+                                                <DimV x={0} y={x} height={b} label="b" />
+                                                <DimH x={0} y={x+b} width={x+a} label="x + a" offset={25} textColor="fill-slate-500" />
+                                                <DimV x={x+a} y={0} height={x+b} label="x + b" offset={25} textColor="fill-slate-500" />
+                                            </>
+                                        )}
+
+                                    </g>
+                                </svg>
+                                
+                                <div className="absolute bottom-6 bg-white/95 backdrop-blur px-5 py-2 rounded-full shadow-lg border border-slate-200 text-sm font-bold text-slate-700 pointer-events-none">
+                                    {mode === 'diff_sq' && diffRearrange ? "完美！橙色方块旋转 90° 后填补了下方空间，形成长 (a+b) 宽 (a-b) 的矩形。" :
+                                     hoveredTerm === 'minus_ab' ? "注意深色交叉区域，这里被减了两次。" :
+                                     hoveredTerm === 'plus_b2' ? "补回被多减去的重叠部分 b²。" :
+                                     hoveredTerm ? "当前高亮区域对应公式中的项" : "💡 提示：点击下方的公式项，可以直接触发演示动画"}
+                                </div>
+                            </div>
+
+                            {/* 交互式公式区域 */}
+                            <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 text-center relative overflow-visible z-10">
+                                <div className="text-3xl md:text-5xl font-serif text-slate-800 flex flex-wrap justify-center items-center gap-3 leading-relaxed">
+                                    
+                                    {mode === 'plus' && (
+                                        <>
+                                            <span className="opacity-50">(a + b)² = </span>
+                                            <TermDisplay term="a²" colorClass="text-indigo-600" highlightKey="a2" desc="蓝色正方形" hoveredTerm={hoveredTerm} setHoveredTerm={setHoveredTerm} />
+                                            <span>+</span>
+                                            <TermDisplay term="2ab" colorClass="text-purple-600" highlightKey="2ab" desc="两个紫色长方形" hoveredTerm={hoveredTerm} setHoveredTerm={setHoveredTerm} />
+                                            <span>+</span>
+                                            <TermDisplay term="b²" colorClass="text-rose-600" highlightKey="b2" desc="红色小正方形" hoveredTerm={hoveredTerm} setHoveredTerm={setHoveredTerm} />
+                                        </>
+                                    )}
+
+                                    {mode === 'minus' && (
+                                        <>
+                                            <TermDisplay term="(a - b)²" colorClass="text-amber-600" highlightKey="result" desc="黄色正方形" hoveredTerm={hoveredTerm} setHoveredTerm={setHoveredTerm} />
+                                            <span>=</span>
+                                            <TermDisplay term="a²" colorClass="text-blue-600" highlightKey="whole_a2" desc="大正方形" hoveredTerm={hoveredTerm} setHoveredTerm={setHoveredTerm} />
+                                            <span>-</span>
+                                            <TermDisplay term="2ab" colorClass="text-rose-600" highlightKey="minus_ab" desc="减去两个长方形 (查看重叠)" hoveredTerm={hoveredTerm} setHoveredTerm={setHoveredTerm} />
+                                            <span>+</span>
+                                            <TermDisplay term="b²" colorClass="text-emerald-600" highlightKey="plus_b2" desc="补回重叠部分" hoveredTerm={hoveredTerm} setHoveredTerm={setHoveredTerm} />
+                                        </>
+                                    )}
+
+                                    {mode === 'diff_sq' && (
+                                        <>
+                                            <TermDisplay term="a² - b²" colorClass="text-slate-800" highlightKey="diff_area" desc="大正方形挖去小正方形" hoveredTerm={hoveredTerm} setHoveredTerm={setHoveredTerm} />
+                                            <span>=</span>
+                                            {/* 可点击区域 */}
+                                            <div 
+                                                className={`flex items-center rounded-lg px-2 border transition-all cursor-pointer ${
+                                                    diffRearrange ? 'bg-emerald-50 border-emerald-200 scale-105' : 'bg-slate-50 border-slate-100 hover:border-emerald-300 animate-pulse-border'
+                                                }`}
+                                                onClick={() => setDiffRearrange(!diffRearrange)}
+                                            >
+                                                <TermDisplay 
+                                                    term="(a + b)" 
+                                                    colorClass={diffRearrange ? "text-emerald-600 font-bold" : "text-slate-500"} 
+                                                    highlightKey="term_a_plus_b" 
+                                                    desc={diffRearrange ? "总高度" : "点击这里查看旋转拼图动画！"} 
+                                                    hoveredTerm={hoveredTerm} setHoveredTerm={setHoveredTerm}
+                                                />
+                                                <TermDisplay 
+                                                    term="(a - b)" 
+                                                    colorClass={diffRearrange ? "text-emerald-600 font-bold" : "text-slate-500"} 
+                                                    highlightKey="term_a_minus_b" 
+                                                    desc={diffRearrange ? "总宽度" : "点击这里查看旋转拼图动画！"} 
+                                                    hoveredTerm={hoveredTerm} setHoveredTerm={setHoveredTerm}
+                                                />
+                                                {!diffRearrange && <HandClick size={24} className="text-emerald-500 animate-bounce ml-2"/>}
+                                            </div>
+                                        </>
+                                    )}
+
+                                    {mode === 'cross_mult' && (
+                                        <>
+                                            <span className="opacity-50">(x+a)(x+b) = </span>
+                                            <TermDisplay term="x²" colorClass="text-orange-600" highlightKey="x2" desc="边长为 x 的大正方形" hoveredTerm={hoveredTerm} setHoveredTerm={setHoveredTerm} />
+                                            <span>+</span>
+                                            <TermDisplay term="(a+b)x" colorClass="text-blue-600" highlightKey="ax_bx_combo" desc="两个一次项矩形" hoveredTerm={hoveredTerm} setHoveredTerm={setHoveredTerm} />
+                                            <span>+</span>
+                                            <TermDisplay term="ab" colorClass="text-emerald-600" highlightKey="ab" desc="常数项矩形" hoveredTerm={hoveredTerm} setHoveredTerm={setHoveredTerm} />
+                                        </>
+                                    )}
+
+                                </div>
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<MathViz />);
+    </script>
+</body>
+</html>

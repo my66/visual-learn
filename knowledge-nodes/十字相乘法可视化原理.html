@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>十字相乘法可视化原理 (Interactive Factorization)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <style>
+        :root {
+            --primary: #3f51b5;
+            --accent: #ff4081;
+            --bg-color: #f5f7fa;
+            --panel-bg: #ffffff;
+            --text-main: #2c3e50;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: "Noto Sans SC", "Microsoft YaHei", sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; /* 防止body滚动 */
+        }
+
+        header {
+            background-color: var(--primary);
+            color: white;
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            flex-shrink: 0;
+        }
+
+        h1 { margin: 0; font-size: 1.5rem; }
+        p.subtitle { margin: 5px 0 0 0; opacity: 0.9; font-size: 0.9rem; }
+
+        /* 主布局容器 */
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden; /* 内部滚动 */
+            height: calc(100vh - 80px); /* 减去header高度 */
+        }
+
+        /* 左侧控制面板 */
+        .control-panel {
+            width: 360px;
+            background: var(--panel-bg);
+            padding: 20px;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+            flex-shrink: 0;
+            border-right: 1px solid #ddd;
+        }
+
+        .panel-section {
+            border-bottom: 1px solid #eee;
+            padding-bottom: 15px;
+        }
+
+        .panel-section h3 {
+            margin-top: 0;
+            color: var(--primary);
+            font-size: 1.1rem;
+            border-left: 4px solid var(--accent);
+            padding-left: 10px;
+        }
+
+        .description {
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: #555;
+            background: #f9f9f9;
+            padding: 10px;
+            border-radius: 4px;
+        }
+
+        /* 按钮组 */
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 8px 16px;
+            border: 1px solid #ccc;
+            background: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+            flex: 1;
+        }
+
+        button.active {
+            background-color: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        button:hover:not(.active) {
+            background-color: #f0f0f0;
+        }
+
+        button.primary-btn {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            font-weight: bold;
+            padding: 10px 20px;
+        }
+
+        button.primary-btn:hover {
+            background-color: #303f9f;
+        }
+
+        button:disabled {
+            background-color: #e0e0e0;
+            color: #999;
+            cursor: not-allowed;
+        }
+
+        /* 切换开关 */
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        /* 画布区域 */
+        .canvas-container {
+            flex: 1;
+            position: relative;
+            background-color: #ffffff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: auto;
+        }
+
+        /* 状态栏 */
+        .status-bar {
+            padding: 10px 20px;
+            background: #e8eaf6;
+            border-top: 1px solid #c5cae9;
+            font-family: monospace;
+            color: var(--primary);
+            font-weight: bold;
+        }
+
+        /* 公式高亮 */
+        .math-term {
+            font-family: 'Times New Roman', serif;
+            font-style: italic;
+        }
+
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>十字相乘法可视化原理</h1>
+        <p class="subtitle">Interactive Cross Multiplication Method Visualizer</p>
+    </header>
+
+    <div class="main-container">
+        <!-- 控制面板 -->
+        <aside class="control-panel">
+            
+            <div class="panel-section">
+                <h3>1. 选择题目 (Select Problem)</h3>
+                <div class="description">
+                    选择不同难度的题目来观察十字相乘法的应用。
+                </div>
+                <div class="btn-group">
+                    <button id="btn-prob-1" class="active" onclick="selectProblem(0)">基础题<br>x² + 5x + 6</button>
+                    <button id="btn-prob-2" onclick="selectProblem(1)">含负数<br>x² - x - 6</button>
+                    <button id="btn-prob-3" onclick="selectProblem(2)">进阶题<br>2x² + 7x + 3</button>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <h3>2. 分步演示 (Step-by-Step)</h3>
+                <div class="description" id="step-desc">
+                    准备开始...
+                </div>
+                <div class="btn-group">
+                    <button onclick="prevStep()" id="btn-prev" disabled>上一步</button>
+                    <button class="primary-btn" onclick="nextStep()" id="btn-next">下一步</button>
+                </div>
+                <div style="margin-top: 10px; text-align: center; color: #666;">
+                    进度: <span id="step-indicator">0 / 5</span>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <h3>3. 视觉辅助 (Visual Aids)</h3>
+                <div class="toggle-row">
+                    <label for="toggle-area">显示几何面积模型 (Area Model)</label>
+                    <input type="checkbox" id="toggle-area" checked onchange="updateVisOptions()">
+                </div>
+                <div class="toggle-row">
+                    <label for="toggle-tips">显示思维提示 (Show Tips)</label>
+                    <input type="checkbox" id="toggle-tips" checked onchange="updateVisOptions()">
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <h3>原理说明</h3>
+                <div class="description">
+                    十字相乘法是多项式乘法的逆运算。<br>
+                    对于二次三项式 ax² + bx + c：
+                    <ul>
+                        <li>左边列相乘 = 二次项 (ax²)</li>
+                        <li>右边列相乘 = 常数项 (c)</li>
+                        <li>交叉相乘再相加 = 一次项 (bx)</li>
+                    </ul>
+                </div>
+            </div>
+
+        </aside>
+
+        <!-- 画布 -->
+        <main class="canvas-container" id="canvas-wrapper">
+            <!-- p5.js canvas will be injected here -->
+        </main>
+    </div>
+
+    <div class="status-bar" id="status-bar">
+        当前状态: 准备就绪
+    </div>
+
+<script>
+/**
+ * 题目数据定义
+ */
+const problems = [
+    {
+        id: 0,
+        expr: "x² + 5x + 6",
+        a_coeff: 1, b_coeff: 5, c_coeff: 6,
+        left_col: ["x", "x"],      // 左列分解
+        right_col: ["+2", "+3"],   // 右列分解
+        check_1: "2x",             // 交叉乘积1 (Upward: x * 2)
+        check_2: "3x",             // 交叉乘积2 (Downward: x * 3)
+        sum_check: "2x + 3x = 5x", // 验算
+        result: "(x + 2)(x + 3)",
+        geom_w: [1, 2], // 几何模型宽比例 (x, 2)
+        geom_h: [1, 3]  // 几何模型高比例 (x, 3)
+    },
+    {
+        id: 1,
+        expr: "x² - x - 6",
+        a_coeff: 1, b_coeff: -1, c_coeff: -6,
+        left_col: ["x", "x"],
+        right_col: ["+2", "-3"],
+        check_1: "2x",             // Upward: x * 2
+        check_2: "-3x",            // Downward: x * -3
+        sum_check: "2x + (-3x) = -x",
+        result: "(x + 2)(x - 3)",
+        geom_w: [1, 2],
+        geom_h: [1, -3] 
+    },
+    {
+        id: 2,
+        expr: "2x² + 7x + 3",
+        a_coeff: 2, b_coeff: 7, c_coeff: 3,
+        left_col: ["2x", "x"],
+        right_col: ["+1", "+3"],
+        check_1: "1x",             // Upward: x * 1
+        check_2: "6x",             // Downward: 2x * 3
+        sum_check: "x + 6x = 7x",
+        result: "(2x + 1)(x + 3)",
+        geom_w: [2, 1],
+        geom_h: [1, 3]
+    }
+];
+
+let currentProblemIndex = 0;
+let currentStep = 0; // 0=Start, 1=Split A, 2=Split C, 3=Cross, 4=Sum, 5=Result
+let showAreaModel = true;
+let showTips = true;
+let canvas;
+
+// 步骤描述文本
+const stepDescriptions = [
+    "观察题目：这是一个二次三项式 ax² + bx + c。",
+    "第一步（拆头）：将二次项 ax² 分解为两个因式的积，写在左边。",
+    "第二步（拆尾）：将常数项 c 分解为两个因式的积，写在右边。",
+    "第三步（交叉）：画出交叉线，计算交叉相乘的结果。",
+    "第四步（验算）：将交叉相乘的结果相加，看是否等于一次项 bx。",
+    "第五步（书写）：横向组合，写出最终的因式分解结果。"
+];
+
+function setup() {
+    const wrapper = document.getElementById('canvas-wrapper');
+    // 动态计算尺寸
+    canvas = createCanvas(wrapper.offsetWidth, wrapper.offsetHeight);
+    canvas.parent('canvas-wrapper');
+    textFont('Noto Sans SC');
+    updateStatus();
+}
+
+function windowResized() {
+    const wrapper = document.getElementById('canvas-wrapper');
+    resizeCanvas(wrapper.offsetWidth, wrapper.offsetHeight);
+}
+
+function draw() {
+    background(255);
+    
+    // 绘制网格背景
+    drawGrid();
+
+    let p = problems[currentProblemIndex];
+
+    // 分割画面：左侧为十字相乘逻辑，右侧（如果开启）为几何验证
+    let leftWidth = showAreaModel ? width * 0.5 : width;
+    
+    // 绘制左侧：十字相乘
+    drawCrossDiagram(p, 0, 0, leftWidth, height);
+
+    // 绘制右侧：几何面积
+    if (showAreaModel) {
+        drawGeometryModel(p, leftWidth, 0, width - leftWidth, height);
+    }
+}
+
+// 绘制网格背景
+function drawGrid() {
+    stroke(240);
+    strokeWeight(1);
+    for (let x = 0; x < width; x += 40) line(x, 0, x, height);
+    for (let y = 0; y < height; y += 40) line(0, y, width, y);
+}
+
+// === 核心绘制逻辑：十字相乘图 ===
+function drawCrossDiagram(p, x, y, w, h) {
+    push();
+    translate(x + w/2, y + h/2); // 居中
+    
+    // 标题/原题显示
+    textAlign(CENTER, CENTER);
+    fill(50);
+    textSize(32);
+    textStyle(BOLD);
+    text(p.expr, 0, -180);
+    
+    // 辅助标注 ax² + bx + c
+    if (currentStep === 0 && showTips) {
+        textSize(16);
+        fill(100);
+        textStyle(NORMAL);
+        text("对应的 ax² + bx + c", 0, -140);
+        
+        // 颜色指示
+        fill(63, 81, 181); text("二次项", -80, -220);
+        fill(255, 64, 129); text("一次项", 0, -220);
+        fill(255, 152, 0); text("常数项", 80, -220);
+    }
+
+    // 布局参数 - 增大间距以防重叠
+    let gapX = 180; // 左右列间距 (原120 -> 180)
+    let gapY = 100; // 上下行间距
+
+    // 第一步：左列 (ax²)
+    if (currentStep >= 1) {
+        fill(63, 81, 181); // Blue
+        textSize(28);
+        text(p.left_col[0], -gapX/2, -gapY/2);
+        text(p.left_col[1], -gapX/2, gapY/2);
+        
+        // 提示线
+        if (currentStep === 1 && showTips) {
+            stroke(63, 81, 181, 100);
+            noFill();
+            line(-gapX/2, -gapY/2 + 20, -gapX/2, gapY/2 - 20);
+            fill(150); textSize(14);
+            text("乘积 = " + p.a_coeff + "x²", -gapX/2 - 80, 0);
+        }
+    }
+
+    // 第二步：右列 (c)
+    if (currentStep >= 2) {
+        fill(255, 152, 0); // Orange
+        textSize(28);
+        text(p.right_col[0], gapX/2, -gapY/2);
+        text(p.right_col[1], gapX/2, gapY/2);
+
+        if (currentStep === 2 && showTips) {
+            fill(150); textSize(14);
+            text("乘积 = " + p.c_coeff, gapX/2 + 80, 0);
+        }
+    }
+
+    // 第三步：交叉线
+    if (currentStep >= 3) {
+        stroke(100);
+        strokeWeight(3);
+        // 左上 -> 右下
+        line(-gapX/2 + 30, -gapY/2 + 10, gapX/2 - 30, gapY/2 - 10);
+        // 左下 -> 右上
+        line(-gapX/2 + 30, gapY/2 - 10, gapX/2 - 30, -gapY/2 + 10);
+    }
+
+    // 第四步：计算结果
+    if (currentStep >= 4) {
+        fill(255, 64, 129); // Pink/Red
+        textSize(24);
+        textAlign(LEFT, CENTER);
+        
+        // --- 修正逻辑 ---
+        // 上行显示 (对应右上位置) -> 显示向上箭头的结果 (check_1)
+        // 下行显示 (对应右下位置) -> 显示向下箭头的结果 (check_2)
+        
+        let resultX = gapX/2 + 50;
+        
+        // 1. 上行 (-gapY/2)
+        // 对应：左下 * 右上 (Upward) -> check_1
+        text("= " + p.check_1, resultX, -gapY/2); 
+
+        // 2. 下行 (gapY/2)
+        // 对应：左上 * 右下 (Downward) -> check_2
+        text("= " + p.check_2, resultX, gapY/2); 
+
+        // 显示详细计算过程
+        fill(100);
+        textSize(18); 
+        let detailX = resultX + 80; 
+        
+        // 上行计算式 (Upward Arrow: ↗)
+        text("↗ " + p.left_col[1] + " · " + p.right_col[0], detailX, -gapY/2);
+        
+        // 下行计算式 (Downward Arrow: ↘)
+        text("↘ " + p.left_col[0] + " · " + p.right_col[1], detailX, gapY/2);
+        
+        // 汇总线和结果
+        stroke(255, 64, 129);
+        strokeWeight(2);
+        line(resultX - 10, 80, detailX + 100, 80); 
+        
+        noStroke();
+        fill(255, 64, 129);
+        textSize(24);
+        textAlign(LEFT, TOP);
+        text("相加: " + p.sum_check, resultX, 90);
+        
+        // 成功标记
+        if (p.sum_check.includes(p.b_coeff + "x") || (p.b_coeff === -1 && p.sum_check.includes("-x")) || (p.b_coeff === 1 && p.sum_check.includes("= x"))) {
+             fill(76, 175, 80);
+             textSize(20);
+             textAlign(CENTER, TOP);
+             text("✓ 验证成功 (等于中间项)", 0, 150);
+        }
+    }
+
+    // 第五步：横向括弧
+    if (currentStep === 5) {
+        noFill();
+        stroke(63, 81, 181);
+        strokeWeight(2);
+        
+        // 手绘风格括号 - 随gapX自动调整宽度
+        drawBracket(-gapX/2 - 40, -gapY/2, gapX/2 + 40, -gapY/2);
+        drawBracket(-gapX/2 - 40, gapY/2, gapX/2 + 40, gapY/2);
+
+        fill(63, 81, 181);
+        noStroke();
+        textSize(36);
+        textAlign(CENTER, CENTER);
+        text("结果: " + p.result, 0, 220);
+    }
+
+    pop();
+}
+
+function drawBracket(x1, y, x2, y) {
+    // 简单的横向括弧示意
+    let w = x2 - x1;
+    let h = 40;
+    stroke(63, 81, 181);
+    strokeWeight(2);
+    noFill();
+    arc(x1, y, 20, 40, HALF_PI, 3*HALF_PI); // 左括弧
+    arc(x2, y, 20, 40, -HALF_PI, HALF_PI); // 右括弧
+}
+
+// === 几何面积模型绘制 ===
+function drawGeometryModel(p, x, y, w, h) {
+    push();
+    translate(x + w/2, y + h/2);
+    
+    textAlign(CENTER, CENTER);
+    fill(50);
+    textSize(20);
+    text("几何面积验证 (Area Model)", 0, -180);
+
+    // 基础单位大小
+    let scale = 40; 
+    let startX = -100;
+    let startY = -50;
+
+    let isNegative = p.geom_w[1] < 0 || p.geom_h[1] < 0;
+    
+    if (isNegative && currentStep > 0) {
+        fill(100);
+        textSize(16);
+        text("注：含负数时，面积模型代表代数和", 0, 180);
+    }
+
+    // 绘制主矩形 (x * x)
+    // 假设 x 代表长度 80
+    let unitX = 80;
+    let unit1 = 40; // 代表 1 的长度
+
+    // 计算总宽高用于居中
+    let totalW = (p.geom_w[0] === 2 ? unitX*2 : unitX) + Math.abs(p.geom_w[1]) * unit1;
+    let totalH = unitX + Math.abs(p.geom_h[1]) * unit1;
+    
+    let curX = -totalW / 2;
+    let curY = -totalH / 2;
+
+    stroke(255);
+    strokeWeight(2);
+
+    // 1. 绘制 ax^2 部分 (左上)
+    let w_x = (p.geom_w[0] === 2) ? unitX * 2 : unitX;
+    let h_x = unitX;
+    
+    if (currentStep >= 1) {
+        fill(63, 81, 181, 200); // Blue
+        rect(curX, curY, w_x, h_x);
+        fill(255); textSize(20);
+        text(p.left_col[0] + "·" + p.left_col[1], curX + w_x/2, curY + h_x/2);
+        
+        // 标注边长
+        fill(0); textSize(16);
+        text(p.left_col[1], -totalW/2 - 20, curY + h_x/2); // 左边高
+        text(p.left_col[0], curX + w_x/2, -totalH/2 - 20); // 顶边宽
+    }
+
+    // 2. 绘制常数部分 (右下)
+    let w_c = Math.abs(p.geom_w[1]) * unit1;
+    let h_c = Math.abs(p.geom_h[1]) * unit1;
+    
+    if (currentStep >= 3) {
+        fill(255, 152, 0, 200); // Orange
+        // 右下角的坐标：curX + w_x, curY + h_x
+        rect(curX + w_x, curY + h_x, w_c, h_c);
+        fill(255); textSize(16);
+        text(p.c_coeff, curX + w_x + w_c/2, curY + h_x + h_c/2);
+    }
+
+    // 3. 绘制交叉项 (右上 和 左下)
+    if (currentStep >= 4) {
+        fill(76, 175, 80, 200); // Green
+        
+        // 右上 (Right Top) -> 对应 Upward Calc?
+        // 宽 w_c, 高 h_x
+        rect(curX + w_x, curY, w_c, h_x);
+        fill(255); 
+        text(p.check_2, curX + w_x + w_c/2, curY + h_x/2); 
+
+        // 左下 (Left Bottom) -> 对应 Downward Calc?
+        // 宽 w_x, 高 h_c
+        rect(curX, curY + h_x, w_x, h_c);
+        fill(255);
+        text(p.check_1, curX + w_x/2, curY + h_x + h_c/2);
+        
+        // 标注剩余边长
+        fill(0);
+        text(p.right_col[0], curX + w_x + w_c/2, -totalH/2 - 20); // 顶边右
+        text(p.right_col[1], -totalW/2 - 20, curY + h_x + h_c/2); // 左边下
+    }
+
+    pop();
+}
+
+// === 交互逻辑 ===
+
+function selectProblem(index) {
+    currentProblemIndex = index;
+    currentStep = 0;
+    
+    // 更新按钮状态
+    document.querySelectorAll('.btn-group button').forEach((btn, idx) => {
+        // 前三个是题目按钮
+        if(idx < 3) {
+            if(idx === index) btn.classList.add('active');
+            else btn.classList.remove('active');
+        }
+    });
+
+    updateStatus();
+}
+
+function nextStep() {
+    if (currentStep < 5) {
+        currentStep++;
+        updateStatus();
+    }
+}
+
+function prevStep() {
+    if (currentStep > 0) {
+        currentStep--;
+        updateStatus();
+    }
+}
+
+function updateVisOptions() {
+    showAreaModel = document.getElementById('toggle-area').checked;
+    showTips = document.getElementById('toggle-tips').checked;
+}
+
+function updateStatus() {
+    // 更新步骤描述
+    document.getElementById('step-desc').innerText = stepDescriptions[currentStep];
+    
+    // 更新指示器
+    document.getElementById('step-indicator').innerText = currentStep + " / 5";
+    
+    // 更新按钮禁用状态
+    document.getElementById('btn-prev').disabled = (currentStep === 0);
+    document.getElementById('btn-next').disabled = (currentStep === 5);
+    
+    // 更新底部状态栏
+    let p = problems[currentProblemIndex];
+    document.getElementById('status-bar').innerHTML = `当前题目: <span class="math-term">${p.expr}</span>`;
+}
+
+</script>
+</body>
+</html>

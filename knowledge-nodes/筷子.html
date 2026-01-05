@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>光的折射与视深演示 - MathPhysics Master</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #f4f4f9;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overflow-y: auto;
+    }
+    header {
+      background-color: #2c3e50;
+      color: white;
+      width: 100%;
+      padding: 1rem 0;
+      text-align: center;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    h1 { margin: 0; font-size: 1.5rem; }
+    p { margin: 0.5rem 0 0; font-size: 0.9rem; opacity: 0.8; }
+    
+    #main-container {
+      display: flex;
+      flex-direction: row;
+      margin-top: 20px;
+      gap: 20px;
+      max-width: 1400px;
+      width: 95%;
+      justify-content: center;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+
+    #controls {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+      width: 300px;
+      flex-shrink: 0;
+    }
+
+    .control-group {
+      margin-bottom: 20px;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 15px;
+    }
+    .control-group:last-child { border-bottom: none; }
+    
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #34495e;
+    }
+    
+    .value-display {
+      float: right;
+      font-weight: normal;
+      color: #7f8c8d;
+    }
+
+    input[type=range] { width: 100%; }
+    
+    .toggle-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .explanation-box {
+      background-color: #e8f6f3;
+      border-left: 4px solid #1abc9c;
+      padding: 10px;
+      margin-top: 10px;
+      font-size: 0.9rem;
+      color: #2c3e50;
+      line-height: 1.5;
+    }
+
+    #canvas-container {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+      padding: 10px;
+      flex-grow: 1;
+      display: flex;
+      justify-content: center;
+      min-width: 600px;
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+</head>
+<body>
+
+<header>
+  <h1>光的折射与视深演示</h1>
+  <p>为什么水中的物体看起来变浅了？(对应题目 D 选项原理)</p>
+</header>
+
+<div id="main-container">
+  
+  <div id="controls">
+    <div class="control-group">
+      <label>显示选项</label>
+      <div class="toggle-row">
+        <span>显示法线</span>
+        <input type="checkbox" id="chk-normal" checked>
+      </div>
+      <div class="toggle-row">
+        <span>显示反向延长线 (虚像)</span>
+        <input type="checkbox" id="chk-virtual" checked>
+      </div>
+      <div class="toggle-row">
+        <span>显示观察者视线</span>
+        <input type="checkbox" id="chk-eye" checked>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <label>折射率 (n)</label>
+      <div>水 (n ≈ 1.33)</div>
+    </div>
+
+    <div class="explanation-box">
+      <strong>操作说明：</strong><br>
+      1. 鼠标拖动水下的<span style="color:#e74c3c; font-weight:bold;">红色圆点</span>（物体）。<br>
+      2. 观察<span style="color:#2ecc71; font-weight:bold;">绿色光线</span>（折射光）。<br>
+      3. 注意<span style="color:#9b59b6; font-weight:bold;">虚像点</span>的位置总是比实物高。<br>
+      <br>
+      这解释了为什么筷子在水下看起来向上弯折（因为你看到的是虚像）。
+    </div>
+  </div>
+
+  <div id="canvas-container">
+    <div id="p5-canvas"></div>
+  </div>
+
+</div>
+
+<script>
+let objPos;
+let waterLevel;
+let nWater = 1.33; // Refractive index of water
+let nAir = 1.0;    // Refractive index of air
+let dragging = false;
+
+// UI Elements
+let chkNormal, chkVirtual, chkEye;
+
+function setup() {
+  let canvas = createCanvas(800, 500);
+  canvas.parent('p5-canvas');
+  
+  waterLevel = height / 2;
+  // Initial object position under water
+  objPos = createVector(width / 2 - 50, height * 0.75);
+  
+  // Get UI elements
+  chkNormal = select('#chk-normal');
+  chkVirtual = select('#chk-virtual');
+  chkEye = select('#chk-eye');
+  
+  rectMode(CENTER);
+  textAlign(CENTER, CENTER);
+  textSize(16);
+}
+
+function draw() {
+  background(255);
+  
+  // 1. Draw Mediums
+  noStroke();
+  // Air
+  fill(240, 248, 255); 
+  rect(width/2, waterLevel/2, width, waterLevel);
+  // Water
+  fill(200, 230, 255);
+  rect(width/2, waterLevel + (height-waterLevel)/2, width, height-waterLevel);
+  
+  // Water surface line
+  stroke(52, 152, 219);
+  strokeWeight(2);
+  line(0, waterLevel, width, waterLevel);
+  
+  // Labels
+  fill(52, 152, 219);
+  noStroke();
+  text("空气 (n=1.0)", 60, 30);
+  text("水 (n=1.33)", 60, height - 30);
+  
+  // 2. Draw Object (Real)
+  fill(231, 76, 60);
+  noStroke();
+  circle(objPos.x, objPos.y, 16);
+  fill(231, 76, 60);
+  text("实物 P", objPos.x, objPos.y + 20);
+  
+  // 3. Calculate Rays
+  // We simulate two rays entering the eye to determine the virtual image position.
+  // For simplicity in this demo, we calculate one main ray to a fixed "Eye" position
+  // and show the refraction logic explicitly.
+  
+  // Let's pick a target "Eye" position roughly above and to the right
+  let eyeX = width * 0.8;
+  let eyeY = height * 0.2;
+  
+  // We need to find the point on the surface (xS) where the ray bends to hit the eye.
+  // This requires solving Fermat's Principle or Snells law numerically because it's a 4th order equation.
+  // For this visualization, we can approximate or iterate.
+  // Let's iterate to find intersection point 'surfX'
+  let surfX = findRefractionPoint(objPos.x, objPos.y, eyeX, eyeY);
+  
+  // Draw Eye
+  if(chkEye.checked()) {
+    drawEye(eyeX, eyeY);
+  }
+
+  // Draw Ray: Object -> Surface
+  stroke(46, 204, 113); // Green for light
+  strokeWeight(3);
+  line(objPos.x, objPos.y, surfX, waterLevel);
+  
+  // Draw Ray: Surface -> Eye
+  line(surfX, waterLevel, eyeX, eyeY);
+  
+  // Arrows for direction
+  drawArrow(objPos.x, objPos.y, surfX, waterLevel, 0.6); // Underwater arrow
+  drawArrow(surfX, waterLevel, eyeX, eyeY, 0.5);         // Air arrow
+  
+  // 4. Draw Normal
+  if (chkNormal.checked()) {
+    stroke(127, 140, 141);
+    strokeWeight(1);
+    drawingContext.setLineDash([5, 5]);
+    line(surfX, waterLevel - 100, surfX, waterLevel + 100);
+    drawingContext.setLineDash([]);
+    
+    // Draw angle arcs (qualitative)
+    noFill();
+    stroke(100);
+    // Incidence
+    // arc(surfX, waterLevel, 40, 40, PI/2, PI/2 + atan2(objPos.x-surfX, objPos.y-waterLevel));
+  }
+  
+  // 5. Calculate Virtual Image Position
+  // The virtual image is formed where the backward extension of the refracted ray intersects the vertical line of the object
+  // (Approximation for paraxial rays, which is what textbooks use: Apparent Depth = Real Depth / n)
+  // Or more accurately: intersection of two close rays.
+  // Textbooks usually teach h' = h / n.
+  // Let's use the h' = h/n approximation for the "vertical looking" concept, 
+  // but for oblique rays, the image shifts sideways too.
+  // To keep it consistent with the ray shown:
+  // The virtual image is on the line extending from Eye->Surface.
+  // AND, for the observer, the brain assumes straight line. 
+  // But where exactly? For a single ray, it's just a line. 
+  // To define a point, we need the vertical depth approximation or a second ray.
+  // Let's use the back-extension of the ray shown and find intersection with the vertical from object (simplified model commonly taught).
+  
+  // Calculate slope of air ray
+  let mAir = (eyeY - waterLevel) / (eyeX - surfX);
+  // Equation of line in air: y - waterLevel = mAir * (x - surfX)
+  // We want to find x, y. 
+  // Simple Textbook Model: Image is directly above Object.
+  // Let's draw the intersection of the "Air Ray Extension" and the vertical line passing through Object.
+  // While strictly speaking astigmatism occurs, for this level, assuming image is at x = objPos.x is standard.
+  let virtualY = waterLevel + mAir * (objPos.x - surfX);
+  
+  // However, simpler Apparent Depth formula: d' = d / n
+  // Real depth d = objPos.y - waterLevel
+  // Apparent depth d' = d / 1.33
+  let realDepth = objPos.y - waterLevel;
+  let apparentDepth = realDepth / nWater;
+  let simpleVirtualY = waterLevel + apparentDepth;
+  
+  // Let's use the extension line method for visual consistency with the ray
+  if (chkVirtual.checked()) {
+    // Draw extension line
+    stroke(155, 89, 182); // Purple
+    strokeWeight(1);
+    drawingContext.setLineDash([5, 5]);
+    line(eyeX, eyeY, surfX - (eyeX-surfX)*1.5, waterLevel - (eyeY-waterLevel)*1.5);
+    drawingContext.setLineDash([]);
+    
+    // Let's calculate the "Effective" image point for this specific ray intersection with vertical
+    // x = objPos.x
+    // y = virtualY (calculated above)
+    
+    fill(155, 89, 182);
+    noStroke();
+    circle(objPos.x, virtualY, 14);
+    text("虚像 P'", objPos.x + 30, virtualY);
+    
+    // Draw connection to show "Bending Up"
+    stroke(155, 89, 182, 100);
+    line(objPos.x, objPos.y, objPos.x, virtualY);
+  }
+}
+
+// Function to find the x-coordinate on the surface where refraction happens
+// Solve for x such that: n1 * x / sqrt(x^2 + d1^2) = n2 * (L-x) / sqrt((L-x)^2 + d2^2)
+// where L is horizontal dist, d1, d2 are vertical depths.
+// We use binary search for stability.
+function findRefractionPoint(x1, y1, x2, y2) {
+  let left = Math.min(x1, x2);
+  let right = Math.max(x1, x2);
+  // Ensure we cover the range even if x1 > x2
+  if (x1 > x2) { let temp = left; left = right; right = temp; }
+  
+  // In our case, x1 (obj) is usually left of x2 (eye) or vice versa.
+  // We search between them.
+  
+  for(let i=0; i<20; i++) {
+    let mid = (left + right) / 2;
+    let sinTheta1 = (mid - x1) / Math.sqrt(Math.pow(mid - x1, 2) + Math.pow(waterLevel - y1, 2));
+    let sinTheta2 = (x2 - mid) / Math.sqrt(Math.pow(x2 - mid, 2) + Math.pow(y2 - waterLevel, 2));
+    
+    // Snell's Law: n1 * sin1 = n2 * sin2
+    // We want n1*sin1 - n2*sin2 = 0
+    let val = nWater * sinTheta1 - nAir * sinTheta2;
+    
+    if (val > 0) {
+      right = mid;
+    } else {
+      left = mid;
+    }
+  }
+  return (left + right) / 2;
+}
+
+function drawEye(x, y) {
+  push();
+  translate(x, y);
+  stroke(0);
+  fill(255);
+  ellipse(0, 0, 40, 20);
+  fill(0);
+  circle(0, 0, 10);
+  pop();
+}
+
+function drawArrow(x1, y1, x2, y2, ratio) {
+  let cx = x1 + (x2 - x1) * ratio;
+  let cy = y1 + (y2 - y1) * ratio;
+  let angle = atan2(y2 - y1, x2 - x1);
+  push();
+  translate(cx, cy);
+  rotate(angle);
+  fill(46, 204, 113);
+  noStroke();
+  triangle(-5, 3, -5, -3, 5, 0);
+  pop();
+}
+
+function mousePressed() {
+  let d = dist(mouseX, mouseY, objPos.x, objPos.y);
+  if (d < 20) {
+    dragging = true;
+  }
+}
+
+function mouseDragged() {
+  if (dragging) {
+    objPos.x = constrain(mouseX, 50, width-50);
+    objPos.y = constrain(mouseY, waterLevel + 20, height-20);
+  }
+}
+
+function mouseReleased() {
+  dragging = false;
+}
+
+function windowResized() {
+  // Optional: handle resize logic if needed for full robustness
+}
+</script>
+</body>
+</html>

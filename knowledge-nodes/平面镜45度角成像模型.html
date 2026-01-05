@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>物理演示：平面镜45度角成像模型</title>
+    <style>
+        :root {
+            --primary-color: #3b82f6;
+            --bg-color: #f8fafc;
+            --panel-bg: #ffffff;
+            --text-color: #334155;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #1e293b;
+            margin-bottom: 10px;
+            font-size: 1.5rem;
+        }
+
+        .container {
+            position: relative;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            border-radius: 12px;
+            overflow: hidden;
+            background-color: white;
+            border: 1px solid #e2e8f0;
+        }
+
+        canvas {
+            display: block;
+            background-color: #ffffff;
+            cursor: crosshair;
+        }
+
+        .controls {
+            padding: 20px;
+            background-color: var(--panel-bg);
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .control-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .slider-container {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        input[type="range"] {
+            flex-grow: 1;
+            height: 6px;
+            background: #cbd5e1;
+            border-radius: 5px;
+            appearance: none;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            background: var(--primary-color);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        button {
+            padding: 8px 16px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: #2563eb;
+        }
+
+        button.secondary {
+            background-color: #64748b;
+        }
+
+        button.secondary:hover {
+            background-color: #475569;
+        }
+
+        .info-panel {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #eff6ff;
+            border-left: 4px solid var(--primary-color);
+            border-radius: 4px;
+            max-width: 800px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .info-title {
+            font-weight: bold;
+            color: #1e3a8a;
+            margin-bottom: 5px;
+        }
+
+        .legend {
+            display: flex;
+            gap: 15px;
+            font-size: 0.9rem;
+            margin-top: 5px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        /* Toggle Switch */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 22px;
+        }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider { background-color: var(--primary-color); }
+        input:checked + .slider:before { transform: translateX(18px); }
+
+    </style>
+</head>
+<body>
+
+    <h1>平面镜成像：45度角模型演示</h1>
+
+    <div class="container">
+        <canvas id="simCanvas" width="800" height="500"></canvas>
+        
+        <div class="controls">
+            <div class="control-row">
+                <div class="slider-container">
+                    <span>蜡烛位置:</span>
+                    <input type="range" id="positionSlider" min="0" max="100" value="10">
+                </div>
+                <div>
+                    <button id="playBtn">播放动画</button>
+                    <button id="resetBtn" class="secondary">重置</button>
+                </div>
+            </div>
+            
+            <div class="control-row">
+                <div class="legend-item">
+                    <span>显示辅助线:</span>
+                    <label class="switch">
+                        <input type="checkbox" id="showLinesCheck" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="legend">
+                    <div class="legend-item"><div class="dot" style="background:red"></div> 物体 (实)</div>
+                    <div class="legend-item"><div class="dot" style="background:rgba(255,0,0,0.4); border:1px dashed red"></div> 像 (虚)</div>
+                    <div class="legend-item"><div class="dot" style="background:#3b82f6"></div> 平面镜</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="info-panel">
+        <div class="info-title">物理原理解析</div>
+        <p>当平面镜与水平面成 <strong>45°</strong> 角放置时：</p>
+        <ul style="margin: 5px 0 0 20px; padding:0;">
+            <li><strong>运动方向改变：</strong> 物体水平向右运动，像会竖直向下运动（两者运动方向垂直）。</li>
+            <li><strong>旋转效应：</strong> 竖直放置的蜡烛，在镜中成的像是水平倒置的。</li>
+            <li><strong>核心规律：</strong> 像与物关于镜面对称。连接物点和像点的连线始终与镜面垂直，且到镜面的距离相等。</li>
+        </ul>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const slider = document.getElementById('positionSlider');
+        const playBtn = document.getElementById('playBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const showLinesCheck = document.getElementById('showLinesCheck');
+
+        // Config
+        const CONFIG = {
+            groundY: 400,
+            mirrorBaseX: 550,
+            mirrorLength: 350,
+            candleHeight: 60,
+            candleWidth: 15,
+            startMsg: "蜡烛向右移动 ->",
+            isAnimating: false,
+            animationId: null,
+            flameFrame: 0
+        };
+
+        // Mirror Calculation (45 degrees)
+        // Mirror line passes through (CONFIG.mirrorBaseX, CONFIG.groundY)
+        // Angle is -135 degrees (leaning left-up) or 45 degrees relative to table
+        // Based on problem diagram: Mirror /  Candle A ->
+        // Coordinates: (0,0) is top-left.
+        // Ground is y = 400.
+        // Mirror base at (550, 400).
+        // Mirror angle 135 degrees (math convention) or 225?
+        // Let's construct mirror end point.
+        const mirrorAngleRad = 135 * (Math.PI / 180); // 135 degrees standard
+        const mirrorEnd = {
+            x: CONFIG.mirrorBaseX + Math.cos(mirrorAngleRad) * CONFIG.mirrorLength,
+            y: CONFIG.groundY + Math.sin(mirrorAngleRad) * CONFIG.mirrorLength // Remember sin(135) is positive, but in canvas Y goes down? No, sin(135) is +y. Wait.
+            // In canvas: +Y is down.
+            // We want mirror to go UP and LEFT.
+            // dx = cos(angle) * len. dy = sin(angle) * len.
+            // To go UP, dy must be negative.
+            // To go LEFT, dx must be negative.
+        };
+        
+        // Let's redefine mirror simply by two points
+        const mirrorP1 = { x: CONFIG.mirrorBaseX, y: CONFIG.groundY }; // Bottom right on ground
+        const mirrorP2 = { x: CONFIG.mirrorBaseX - 250, y: CONFIG.groundY - 250 }; // Top left (45 deg)
+
+        // State
+        let progress = 10; // 0 to 100
+
+        // Helper: Reflect point p across line p1-p2
+        function reflectPoint(p, p1, p2) {
+            const dx = p2.x - p1.x;
+            const dy = p2.y - p1.y;
+            const a = (dx * dx - dy * dy) / (dx * dx + dy * dy);
+            const b = 2 * dx * dy / (dx * dx + dy * dy);
+            const x2 = a * (p.x - p1.x) + b * (p.y - p1.y) + p1.x;
+            const y2 = b * (p.x - p1.x) - a * (p.y - p1.y) + p1.y;
+            return { x: x2, y: y2 };
+        }
+
+        function drawCandle(x, y, scale = 1, opacity = 1, rotation = 0) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(rotation);
+            ctx.globalAlpha = opacity;
+
+            // Body
+            ctx.fillStyle = '#dc2626'; // Red
+            ctx.fillRect(-CONFIG.candleWidth/2, -CONFIG.candleHeight, CONFIG.candleWidth, CONFIG.candleHeight);
+            
+            // Wick
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, -CONFIG.candleHeight);
+            ctx.lineTo(0, -CONFIG.candleHeight - 5);
+            ctx.stroke();
+
+            // Flame (Simple animation)
+            const flicker = Math.sin(Date.now() / 100) * 2;
+            ctx.fillStyle = '#fbbf24'; // Yellow
+            ctx.beginPath();
+            ctx.ellipse(0, -CONFIG.candleHeight - 12, 6 + flicker/2, 10 + flicker, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Flame Core
+            ctx.fillStyle = '#fef3c7';
+            ctx.beginPath();
+            ctx.ellipse(0, -CONFIG.candleHeight - 10, 3, 5, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        function drawScene() {
+            // Clear
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw Grid (Optional background)
+            ctx.strokeStyle = '#f1f5f9';
+            ctx.lineWidth = 1;
+            for(let i=0; i<canvas.width; i+=50) {
+                ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i, canvas.height); ctx.stroke();
+            }
+            for(let i=0; i<canvas.height; i+=50) {
+                ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(canvas.width, i); ctx.stroke();
+            }
+
+            // Draw Ground
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, CONFIG.groundY);
+            ctx.lineTo(canvas.width, CONFIG.groundY);
+            ctx.stroke();
+
+            // Draw Table Hatching
+            ctx.strokeStyle = '#cbd5e1';
+            ctx.lineWidth = 1;
+            for(let i=0; i<canvas.width; i+=20) {
+                ctx.beginPath(); ctx.moveTo(i, CONFIG.groundY); ctx.lineTo(i-10, CONFIG.groundY+10); ctx.stroke();
+            }
+
+            // Draw Mirror
+            ctx.strokeStyle = '#3b82f6'; // Blue glass color
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(mirrorP1.x, mirrorP1.y);
+            ctx.lineTo(mirrorP2.x, mirrorP2.y);
+            ctx.stroke();
+
+            // Mirror Non-reflective hatching (back side)
+            ctx.strokeStyle = '#94a3b8';
+            ctx.lineWidth = 1;
+            const dx = mirrorP2.x - mirrorP1.x;
+            const dy = mirrorP2.y - mirrorP1.y;
+            const len = Math.sqrt(dx*dx + dy*dy);
+            const steps = 20;
+            for(let i=0; i<=steps; i++) {
+                const px = mirrorP1.x + (dx/steps)*i;
+                const py = mirrorP1.y + (dy/steps)*i;
+                // Hatch direction: perpendicular to mirror, pointing up-left
+                ctx.beginPath();
+                ctx.moveTo(px, py);
+                ctx.lineTo(px - 10, py); // Simple horizontal hatching works visually
+                ctx.stroke();
+            }
+
+            // --- Object (Real Candle) ---
+            // Range x: from 50 to 450 (close to mirror)
+            const startX = 100;
+            const endX = 450;
+            const currentX = startX + (progress/100) * (endX - startX);
+            const currentY = CONFIG.groundY;
+
+            drawCandle(currentX, currentY);
+
+            // --- Image (Virtual Candle) ---
+            // Calculate base point reflection
+            const objectBase = {x: currentX, y: currentY};
+            const imageBase = reflectPoint(objectBase, mirrorP1, mirrorP2);
+
+            // Calculate top point reflection to determine rotation
+            const objectTop = {x: currentX, y: currentY - CONFIG.candleHeight};
+            const imageTop = reflectPoint(objectTop, mirrorP1, mirrorP2);
+
+            // Calculate rotation of image
+            const imgDx = imageTop.x - imageBase.x;
+            const imgDy = imageTop.y - imageBase.y;
+            const rotation = Math.atan2(imgDy, imgDx) + Math.PI/2;
+
+            drawCandle(imageBase.x, imageBase.y, 1, 0.4, rotation);
+
+            // --- Visual Aids ---
+            if (showLinesCheck.checked) {
+                ctx.setLineDash([5, 5]);
+                ctx.strokeStyle = '#64748b';
+                ctx.lineWidth = 1;
+
+                // Base to Base connection
+                ctx.beginPath();
+                ctx.moveTo(objectBase.x, objectBase.y - 5); // offset slightly so we see it
+                ctx.lineTo(imageBase.x, imageBase.y);
+                ctx.stroke();
+
+                // Top to Top connection
+                ctx.beginPath();
+                ctx.moveTo(objectTop.x, objectTop.y);
+                ctx.lineTo(imageTop.x, imageTop.y);
+                ctx.stroke();
+                
+                ctx.setLineDash([]);
+            }
+
+            // --- Text Labels ---
+            ctx.fillStyle = '#0f172a';
+            ctx.font = '14px Arial';
+            ctx.fillText("物体 A", currentX - 20, currentY + 25);
+            
+            ctx.fillStyle = '#64748b';
+            ctx.fillText("像 A'", imageBase.x + 10, imageBase.y - 10);
+            
+            // Arrows indicating motion
+            if (progress > 5) {
+                // Object Motion Arrow
+                ctx.strokeStyle = '#dc2626';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(currentX - 40, currentY - CONFIG.candleHeight/2);
+                ctx.lineTo(currentX - 10, currentY - CONFIG.candleHeight/2);
+                ctx.stroke();
+                // Arrowhead
+                ctx.beginPath();
+                ctx.moveTo(currentX - 15, currentY - CONFIG.candleHeight/2 - 3);
+                ctx.lineTo(currentX - 10, currentY - CONFIG.candleHeight/2);
+                ctx.lineTo(currentX - 15, currentY - CONFIG.candleHeight/2 + 3);
+                ctx.fill();
+
+                // Image Motion Arrow
+                ctx.strokeStyle = '#ef4444';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(imageBase.x, imageBase.y - 40); // Since image is horizontal, adjust visual
+                // Wait, based on reflection, the image base moves DOWN.
+                // Image base y increases.
+                // Let's draw arrow showing path from previous position? 
+                // Let's just draw a static arrow indicating "Down" near the image
+                ctx.beginPath();
+                ctx.moveTo(imageBase.x + CONFIG.candleHeight/2, imageBase.y - 40);
+                ctx.lineTo(imageBase.x + CONFIG.candleHeight/2, imageBase.y - 10);
+                ctx.stroke();
+                // Arrowhead
+                ctx.beginPath();
+                ctx.moveTo(imageBase.x + CONFIG.candleHeight/2 - 3, imageBase.y - 15);
+                ctx.lineTo(imageBase.x + CONFIG.candleHeight/2, imageBase.y - 10);
+                ctx.lineTo(imageBase.x + CONFIG.candleHeight/2 + 3, imageBase.y - 15);
+                ctx.fill();
+            }
+        }
+
+        // Animation Loop
+        function animate() {
+            drawScene();
+            
+            if (CONFIG.isAnimating) {
+                if (progress < 100) {
+                    progress += 0.5;
+                    slider.value = progress;
+                } else {
+                    CONFIG.isAnimating = false;
+                    playBtn.textContent = "重放";
+                }
+                CONFIG.animationId = requestAnimationFrame(animate);
+            } else {
+                requestAnimationFrame(animate); // Keep flame flickering even if stopped
+            }
+        }
+
+        // Events
+        slider.addEventListener('input', (e) => {
+            progress = parseFloat(e.target.value);
+            CONFIG.isAnimating = false;
+            playBtn.textContent = "播放动画";
+        });
+
+        playBtn.addEventListener('click', () => {
+            if (progress >= 100) progress = 0;
+            CONFIG.isAnimating = !CONFIG.isAnimating;
+            playBtn.textContent = CONFIG.isAnimating ? "暂停" : "播放动画";
+        });
+
+        resetBtn.addEventListener('click', () => {
+            CONFIG.isAnimating = false;
+            progress = 0;
+            slider.value = 0;
+            playBtn.textContent = "播放动画";
+        });
+
+        // Start
+        animate();
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>硬币悖论（运动拆解，带彩色参照点）</title>
+    <!-- 加载 Tailwind CSS --><script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .anim-container {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 360px; /* 缩小以容纳3个 */
+            height: 360px;
+            margin: auto;
+        }
+
+        .coin-fixed {
+            width: 100px; /* 缩小尺寸 */
+            height: 100px;
+            position: absolute;
+            z-index: 20;
+        }
+
+        .coin-rolling {
+            width: 100px;
+            height: 100px;
+            position: absolute;
+            transform-origin: center;
+            z-index: 30;
+        }
+
+        .arrow {
+            position: absolute;
+            width: 3px; /* 箭头线宽 */
+            height: 50%; /* 半径 50px */
+            left: 50%;
+            top: 0;
+            transform: translateX(-50%);
+            border-radius: 2px 2px 0 0;
+            z-index: 32; /* 在点之上 */
+        }
+        
+        .arrow::after {
+            content: '';
+            position: absolute;
+            width: 0;
+            height: 0;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-bottom: 8px solid white;
+            top: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        
+        /* 演示1: 红色箭头 (打滑) */
+        #arrow-slide { background-color: #f87171; }
+        #arrow-slide::after { border-bottom-color: #f87171; }
+        /* 演示2: 黄色箭头 (公转) */
+        #arrow-orbit { background-color: #fde047; }
+        #arrow-orbit::after { border-bottom-color: #fde047; }
+        /* 演示3: 白色箭头 (叠加) */
+        #arrow-combined { background-color: white; }
+        #arrow-combined::after { border-bottom-color: white; }
+
+        /* 彩色参照点 */
+        .dot {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            border: 1px solid rgba(0,0,0,0.5);
+            z-index: 31;
+        }
+        .dot-bottom {
+            background-color: #f87171; /* Red */
+            bottom: 5px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        .dot-left {
+            background-color: #fde047; /* Yellow */
+            left: 5px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        .dot-right {
+            background-color: #c084fc; /* Purple */
+            right: 5px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+
+        .orbit-path {
+            /* 轨道直径 = (r1 + r2) * 2 = (50 + 50) * 2 = 200px */
+            width: 200px;
+            height: 200px;
+            position: absolute;
+            z-index: 10;
+        }
+
+        /* 绿色辅助线 (轨道杆) */
+        .orbit-reference-line {
+            position: absolute;
+            width: 2px;
+            height: 100px; /* 轨道半径 (r1+r2) */
+            background-color: #34d399; /* 绿色 */
+            opacity: 0.7;
+            left: 50%;
+            bottom: 50%;
+            transform-origin: bottom center;
+            z-index: 21; /* 在固定硬币之上 */
+        }
+        
+        /* 接触点标记 */
+        .contact-point {
+            position: absolute;
+            width: 8px; /* 点的直径 */
+            height: 8px;
+            background-color: black;
+            border-radius: 50%;
+            left: 50%; /* 初始居中 */
+            top: calc(100% - 4px); /* 初始在固定硬币底部边缘 */
+            transform: translateX(-50%);
+            z-index: 22; /* 在绿色辅助线之上 */
+        }
+
+        /* Canvas 用于绘制接触点轨迹 */
+        .contact-trace-canvas {
+            position: absolute;
+            width: 360px;
+            height: 360px;
+            z-index: 15; /* 在轨道路径和硬币之间 */
+            pointer-events: none;
+        }
+
+        #angle-slider {
+            -webkit-appearance: none;
+            width: 100%;
+            max-width: 960px; /* 调整以适应三个并排 */
+            height: 10px;
+            border-radius: 5px;
+            background: #4a5568;
+            outline: none;
+            opacity: 0.7;
+            transition: opacity .2s;
+        }
+        #angle-slider:hover { opacity: 1; }
+        #angle-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            background: #38b2ac;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white font-sans flex flex-col items-center justify-center min-h-screen p-4">
+
+    <h1 class="text-3xl font-bold mb-4 text-center">运动拆解与叠加（带彩色参照点）</h1>
+    <p class="text-gray-300 text-center max-w-4xl mb-8">
+        观察蓝色硬币上的<span class="text-red-400">红</span>/<span class="text-yellow-400">黄</span>/<span class="text-purple-400">紫</span>色参照点，看它们如何旋转。
+    </p>
+
+    <!-- 演示区域 --><div class="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- 演示 1: 纯平移 (打滑) --><div class="border border-gray-700 rounded-lg p-4">
+            <h2 class="text-xl font-bold text-center text-red-400 mb-2">1. 拆解：纯平移（打滑）</h2>
+            <div id="container-slide" class="anim-container">
+                <canvas id="contact-trace-slide" class="contact-trace-canvas"></canvas>
+                <div class="orbit-path rounded-full border-2 border-dashed border-gray-600"></div>
+                <div class="coin-fixed rounded-full bg-gray-700 border-4 border-gray-500 flex items-center justify-center">
+                    <span class="text-lg font-bold text-gray-300">固定</span>
+                </div>
+                <div id="coin-rolling-slide" class="coin-rolling rounded-full bg-blue-600 border-4 border-blue-400 opacity-80">
+                    <div id="arrow-slide" class="arrow"></div>
+                    <div class="dot dot-bottom"></div>
+                    <div class="dot dot-left"></div>
+                    <div class="dot dot-right"></div>
+                </div>
+                <div id="contact-point-slide" class="contact-point" style="background-color: transparent;"></div>
+            </div>
+            <p id="stats-slide" class="text-sm text-red-400 mt-2 font-mono text-center">
+                轨道角度: 0° | 箭头旋转: 0°
+            </p>
+            <p class="text-center text-gray-400 text-sm mt-2">
+                参照点(红/黄/紫)和箭头<br>
+                <span class="font-bold text-white">始终保持朝向不变。</span>
+            </p>
+        </div>
+
+        <!-- 演示 2: 纯公转 --><div class="border border-gray-700 rounded-lg p-4">
+            <h2 class="text-xl font-bold text-center text-yellow-400 mb-2">2. 拆解：纯公转（第1圈）</h2>
+            <div id="container-orbit" class="anim-container">
+                <canvas id="contact-trace-orbit" class="contact-trace-canvas"></canvas>
+                <div class="orbit-path rounded-full border-2 border-dashed border-gray-600"></div>
+                <div class="coin-fixed rounded-full bg-gray-700 border-4 border-gray-500 flex items-center justify-center">
+                    <span class="text-lg font-bold text-gray-300">固定</span>
+                    <!-- 绿色辅助线 --><div id="ref-line-orbit" class="orbit-reference-line"></div>
+                </div>
+                <div id="coin-rolling-orbit" class="coin-rolling rounded-full bg-blue-600 border-4 border-blue-400 opacity-80">
+                    <div id="arrow-orbit" class="arrow"></div>
+                    <div class="dot dot-bottom"></div>
+                    <div class="dot dot-left"></div>
+                    <div class="dot dot-right"></div>
+                </div>
+                <!-- 接触点 --><div id="contact-point-orbit" class="contact-point" style="background-color: transparent;"></div>
+            </div>
+            <p id="stats-orbit" class="text-sm text-yellow-400 mt-2 font-mono text-center">
+                轨道角度: 0° | 箭头旋转: 0°
+            </p>
+            <p class="text-center text-gray-400 text-sm mt-2">
+                参照点<span class="font-bold text-white">跟随</span><span class="text-green-400">绿色辅助线</span>同步旋转。<br>
+                <span class="font-bold text-white">没有接触点滚动。</span>
+            </p>
+        </div>
+
+        <!-- 演示 3: 公转 + 滚动 --><div class="border border-gray-700 rounded-lg p-4">
+            <h2 class="text-xl font-bold text-center text-cyan-400 mb-2">3. 叠加：公转 + 滚动（第2圈）</h2>
+            <div id="container-combined" class="anim-container">
+                <canvas id="contact-trace-combined" class="contact-trace-canvas"></canvas>
+                <div class="orbit-path rounded-full border-2 border-dashed border-gray-600"></div>
+                <div class="coin-fixed rounded-full bg-gray-700 border-4 border-gray-500 flex items-center justify-center">
+                    <span class="text-lg font-bold text-gray-300">固定</span>
+                    <!-- 绿色辅助线 --><div id="ref-line-combined" class="orbit-reference-line"></div>
+                </div>
+                <div id="coin-rolling-combined" class="coin-rolling rounded-full bg-blue-600 border-4 border-blue-400">
+                    <div id="arrow-combined" class="arrow"></div>
+                    <div class="dot dot-bottom"></div>
+                    <div class="dot dot-left"></div>
+                    <div class="dot dot-right"></div>
+                </div>
+                <!-- 接触点 --><div id="contact-point-combined" class="contact-point"></div>
+            </div>
+            <p id="stats-combined" class="text-sm text-cyan-400 mt-2 font-mono text-center">
+                轨道角度: 0° | 箭头旋转: 0°
+            </p>
+            <p class="text-center text-gray-400 text-sm mt-2">
+                参照点<span class="font-bold text-white">旋转速度</span>是<span class="text-green-400">绿色辅助线</span>的<span class="font-bold text-white">两倍</span>。<br>
+                <span class="font-bold text-white">有接触点滚动！</span>
+            </p>
+        </div>
+
+    </div>
+
+    <!-- 控制滑块 --><div class="w-full max-w-5xl mt-8 p-4">
+        <label for="angle-slider" class="block text-center text-gray-400 mb-2">拖动我来控制三个动画</label>
+        <input 
+            type="range" 
+            id="angle-slider"
+            min="-1.57079632679" 
+            max="4.71238898038" 
+            value="-1.57079632679" 
+            step="0.01">
+    </div>
+
+    <script>
+        // --- 全局元素 ---
+        const slider = document.getElementById('angle-slider');
+        
+        // 演示 1 (打滑)
+        const coinSlide = document.getElementById('coin-rolling-slide');
+        const statsSlide = document.getElementById('stats-slide');
+        const canvasSlide = document.getElementById('contact-trace-slide');
+        const ctxSlide = canvasSlide.getContext('2d');
+
+        // 演示 2 (公转)
+        const coinOrbit = document.getElementById('coin-rolling-orbit');
+        const statsOrbit = document.getElementById('stats-orbit');
+        const refLineOrbit = document.getElementById('ref-line-orbit');
+        const canvasOrbit = document.getElementById('contact-trace-orbit');
+        const ctxOrbit = canvasOrbit.getContext('2d');
+
+        // 演示 3 (叠加)
+        const coinCombined = document.getElementById('coin-rolling-combined');
+        const statsCombined = document.getElementById('stats-combined');
+        const refLineCombined = document.getElementById('ref-line-combined');
+        const contactPointCombined = document.getElementById('contact-point-combined'); // 接触点
+        const canvasCombined = document.getElementById('contact-trace-combined');
+        const ctxCombined = canvasCombined.getContext('2d');
+
+        // --- 常量 ---
+        const COIN_RADIUS_PX = 50; 
+        const FIXED_COIN_RADIUS_PX = 50; // 固定硬币半径
+        const ORBIT_PATH_RADIUS_PX = COIN_RADIUS_PX + FIXED_COIN_RADIUS_PX; // 滚动硬币圆心轨道半径
+
+        const ANIM_CONTAINER_SIZE = 360; // 动画容器尺寸
+        const START_ANGLE_RAD = -Math.PI / 2; // -90度 (顶部)
+
+        // --- Canvas 设置 ---
+        [ctxSlide, ctxOrbit, ctxCombined].forEach(ctx => {
+            ctx.canvas.width = ANIM_CONTAINER_SIZE;
+            ctx.canvas.height = ANIM_CONTAINER_SIZE;
+            // 将 Canvas 的 (0,0) 移动到中心
+            ctx.translate(ANIM_CONTAINER_SIZE / 2, ANIM_CONTAINER_SIZE / 2);
+            ctx.strokeStyle = '#f87171'; // 红色轨迹
+            ctx.lineWidth = 2;
+        });
+
+        // --- 核心更新函数 ---
+        function updateAnimation(angle) {
+            // -----
+            // 0. 计算通用值
+            // -----
+            const x = ORBIT_PATH_RADIUS_PX * Math.cos(angle);
+            const y = ORBIT_PATH_RADIUS_PX * Math.sin(angle);
+            const orbitTranslate = `translate(${x}px, ${y}px)`;
+            
+            const orbitDeg = ((angle * 180 / Math.PI) + 90) % 360;
+            const refLineRotationRad = angle + Math.PI / 2; // +90度 修正，使绿色辅助线从顶部开始转动
+            
+            // -----
+            // 1. 演示 1 (纯平移/打滑): 旋转 = 0
+            // -----
+            coinSlide.style.transform = orbitTranslate; // 硬币本身不旋转，只平移
+            statsSlide.innerHTML = `轨道角度: ${orbitDeg.toFixed(0)}° | 箭头旋转: 0°`;
+            ctxSlide.clearRect(-ANIM_CONTAINER_SIZE / 2, -ANIM_CONTAINER_SIZE / 2, ANIM_CONTAINER_SIZE, ANIM_CONTAINER_SIZE);
+
+            // -----
+            // 2. 演示 2 (纯公转): 旋转 = 1 * 轨道角度
+            // -----
+            const rotationOrbitRad = (angle - START_ANGLE_RAD); // 1x 旋转
+            coinOrbit.style.transform = `${orbitTranslate} rotate(${rotationOrbitRad}rad)`; // 硬币旋转
+            statsOrbit.innerHTML = `轨道角度: ${orbitDeg.toFixed(0)}° | 箭头旋转: ${(rotationOrbitRad * 180 / Math.PI).toFixed(0)}°`;
+            refLineOrbit.style.transform = `rotate(${refLineRotationRad}rad)`;
+            ctxOrbit.clearRect(-ANIM_CONTAINER_SIZE / 2, -ANIM_CONTAINER_SIZE / 2, ANIM_CONTAINER_SIZE, ANIM_CONTAINER_SIZE);
+
+            // -----
+            // 3. 演示 3 (公转 + 滚动): 旋转 = 2 * 轨道角度
+            // -----
+            const rotationCombinedRad = (angle - START_ANGLE_RAD) * 2; // 2x 旋转
+            coinCombined.style.transform = `${orbitTranslate} rotate(${rotationCombinedRad}rad)`; // 硬币旋转
+            statsCombined.innerHTML = `轨道角度: ${orbitDeg.toFixed(0)}° | 箭头旋转: ${(rotationCombinedRad * 180 / Math.PI).toFixed(0)}°`;
+            refLineCombined.style.transform = `rotate(${refLineRotationRad}rad)`;
+
+            // --- 接触点计算和绘制 (仅用于演示3) ---
+            const contactX_relative = FIXED_COIN_RADIUS_PX * Math.sin(angle);
+            const contactY_relative = FIXED_COIN_RADIUS_PX * Math.cos(angle);
+            
+            contactPointCombined.style.left = `calc(50% + ${contactX_relative}px)`;
+            contactPointCombined.style.top = `calc(50% - ${contactY_relative}px)`; // Y轴向下
+
+            // 绘制接触点轨迹
+            ctxCombined.clearRect(-ANIM_CONTAINER_SIZE / 2, -ANIM_CONTAINER_SIZE / 2, ANIM_CONTAINER_SIZE, ANIM_CONTAINER_SIZE);
+            ctxCombined.beginPath();
+            
+            const step = 0.01;
+            for (let a = START_ANGLE_RAD; a <= angle; a += step) {
+                const traceX = FIXED_COIN_RADIUS_PX * Math.sin(a);
+                const traceY = FIXED_COIN_RADIUS_PX * Math.cos(a);
+
+                if (a === START_ANGLE_RAD) {
+                    ctxCombined.moveTo(traceX, -traceY); // Y轴反向
+                } else {
+                    ctxCombined.lineTo(traceX, -traceY);
+                }
+            }
+            ctxCombined.stroke();
+        }
+
+        // --- 事件监听 ---
+        function handleSliderChange() {
+            const angle = parseFloat(slider.value);
+            updateAnimation(angle);
+        }
+
+        slider.addEventListener('input', handleSliderChange);
+
+        // --- 初始状态 ---
+        handleSliderChange();
+    </script>
+</body>
+</html>
+

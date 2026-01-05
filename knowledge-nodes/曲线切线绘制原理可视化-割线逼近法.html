@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>曲线切线绘制原理可视化 - 割线逼近法</title>
+  
+  <!-- 引入 p5.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  
+  <style>
+    /* 全局重置与基础样式 */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: "Microsoft YaHei", "Heiti SC", sans-serif;
+      background-color: #f0f2f5;
+      color: #333;
+      height: 100vh;
+      overflow: hidden; /* 防止整个页面滚动，内容区域独立滚动 */
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* 顶部标题栏 */
+    header {
+      background-color: #2c3e50;
+      color: white;
+      padding: 15px 30px;
+      flex-shrink: 0;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+
+    header h1 {
+      font-size: 24px;
+      margin-bottom: 5px;
+    }
+
+    header p {
+      font-size: 14px;
+      color: #bdc3c7;
+    }
+
+    /* 主布局容器 */
+    .main-container {
+      display: flex;
+      flex: 1;
+      overflow: hidden; /* 内部滚动 */
+    }
+
+    /* 左侧控制面板 */
+    .control-panel {
+      width: 380px;
+      background-color: white;
+      padding: 25px;
+      overflow-y: auto;
+      border-right: 1px solid #ddd;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      flex-shrink: 0;
+    }
+
+    .panel-section {
+      border-bottom: 1px solid #eee;
+      padding-bottom: 20px;
+    }
+
+    .panel-section:last-child {
+      border-bottom: none;
+    }
+
+    h3 {
+      font-size: 18px;
+      color: #2c3e50;
+      margin-bottom: 15px;
+      border-left: 4px solid #3498db;
+      padding-left: 10px;
+    }
+
+    .control-group {
+      margin-bottom: 15px;
+    }
+
+    label {
+      display: flex;
+      justify-content: space-between;
+      font-weight: bold;
+      margin-bottom: 5px;
+      font-size: 14px;
+      color: #555;
+    }
+
+    .value-display {
+      color: #3498db;
+      font-family: monospace;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      cursor: pointer;
+    }
+
+    select {
+      width: 100%;
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      font-size: 14px;
+    }
+
+    .toggle-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 10px;
+      font-weight: normal;
+      cursor: pointer;
+    }
+
+    input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+
+    .info-box {
+      background-color: #f8f9fa;
+      border: 1px solid #e9ecef;
+      padding: 15px;
+      border-radius: 6px;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .info-box strong {
+      color: #e74c3c;
+    }
+
+    .math-formula {
+      font-family: "Times New Roman", serif;
+      font-style: italic;
+      background: #eee;
+      padding: 2px 5px;
+      border-radius: 3px;
+    }
+
+    .legend {
+      display: flex;
+      gap: 15px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      font-size: 12px;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 5px;
+    }
+
+    .line-sample {
+      width: 20px;
+      height: 3px;
+      margin-right: 5px;
+    }
+
+    /* 右侧画布区域 */
+    .canvas-container {
+      flex: 1;
+      background-color: #ffffff;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    #defaultCanvas0 {
+      box-shadow: 0 0 20px rgba(0,0,0,0.05);
+    }
+
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>数学实验室：切线是如何形成的？</h1>
+    <p>MathPhysics Interactive Visualizer - Tangent Line Construction</p>
+  </header>
+
+  <div class="main-container">
+    
+    <!-- 控制面板 -->
+    <aside class="control-panel">
+      
+      <div class="panel-section">
+        <h3>1. 场景设置</h3>
+        <div class="control-group">
+          <label for="funcSelect">选择曲线函数 f(x)：</label>
+          <select id="funcSelect">
+            <option value="cubic">三次函数 (y = 0.5x³ - 1.5x)</option>
+            <option value="sine">正弦波 (y = 2sin(x))</option>
+            <option value="parabola">抛物线 (y = 0.5x² - 2)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <h3>2. 探索过程</h3>
+        <p style="font-size:12px; color:#666; margin-bottom:10px;">
+          切线是割线的极限。移动 Δx 使 Q 点接近 P 点。
+        </p>
+
+        <div class="control-group">
+          <label>
+            切点 P 位置 (x₀)
+            <span id="val-x0" class="value-display">0.00</span>
+          </label>
+          <input type="range" id="slider-x0" min="-2.5" max="2.5" step="0.1" value="0.5">
+        </div>
+
+        <div class="control-group">
+          <label>
+            动点 Q 偏移量 (Δx)
+            <span id="val-dx" class="value-display">1.50</span>
+          </label>
+          <input type="range" id="slider-dx" min="-2.0" max="2.0" step="0.01" value="1.5">
+        </div>
+
+        <div class="control-group">
+          <button id="anim-btn" style="width:100%; padding:10px; background:#3498db; color:white; border:none; border-radius:4px; cursor:pointer;">
+            ▶ 播放演示 (Q → P)
+          </button>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <h3>3. 概念开关</h3>
+        <div class="toggle-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="check-secant" checked>
+            显示割线 PQ (Secant)
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="check-slope-tri" checked>
+            显示斜率三角形 (Δy/Δx)
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="check-tangent" checked>
+            显示理论切线 (Tangent)
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="check-normal">
+            显示法线 (Normal)
+          </label>
+        </div>
+
+        <div class="legend">
+          <div class="legend-item"><div class="line-sample" style="background:#27ae60;"></div>割线 (近似)</div>
+          <div class="legend-item"><div class="line-sample" style="background:#e74c3c;"></div>切线 (目标)</div>
+          <div class="legend-item"><div class="dot" style="background:#34495e;"></div>P点</div>
+          <div class="legend-item"><div class="dot" style="background:#27ae60;"></div>Q点</div>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <h3>4. 数据监测</h3>
+        <div class="info-box">
+          <div>割线斜率 k<sub style="color:#27ae60">sec</sub> = <span id="data-k-sec">--</span></div>
+          <div>切线斜率 k<sub style="color:#e74c3c">tan</sub> = <span id="data-k-tan">--</span></div>
+          <div style="margin-top:5px; font-size:12px; color:#666;">
+            当 Δx → 0 时，k<sub>sec</sub> → k<sub>tan</sub>
+          </div>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- 可视化画布 -->
+    <main class="canvas-container" id="canvas-wrapper">
+      <!-- p5.js canvas will be injected here -->
+    </main>
+
+  </div>
+
+<script>
+/**
+ * MathPhysics Engine: Pure p5.js
+ * Focus: High precision curve rendering and geometric construction
+ */
+
+let canvas;
+let wrapper;
+
+// State Variables
+let currentFunc = 'cubic';
+let x0 = 0.5;      // x-coordinate of P
+let dx = 1.5;      // distance to Q
+let isAnimating = false;
+
+// UI Elements
+let sliderX0, sliderDx, selectFunc, btnAnim;
+let checkSecant, checkSlopeTri, checkTangent, checkNormal;
+let domValX0, domValDx, domKSec, domKTan;
+
+// Coordinate System Settings
+let scaleFactor = 80; // pixels per unit
+let originX, originY;
+
+function setup() {
+  wrapper = document.getElementById('canvas-wrapper');
+  let w = wrapper.clientWidth;
+  let h = wrapper.clientHeight;
+  
+  canvas = createCanvas(w, h);
+  canvas.parent('canvas-wrapper');
+  
+  // Setup Controls
+  setupUI();
+  
+  // Initialize Position
+  originX = width / 2;
+  originY = height / 2;
+  
+  textFont("Arial");
+  strokeJoin(ROUND); // Smoother corners for triangles
+}
+
+function windowResized() {
+  let w = wrapper.clientWidth;
+  let h = wrapper.clientHeight;
+  resizeCanvas(w, h);
+  originX = width / 2;
+  originY = height / 2;
+}
+
+function setupUI() {
+  // Bind standard HTML inputs
+  sliderX0 = document.getElementById('slider-x0');
+  sliderDx = document.getElementById('slider-dx');
+  selectFunc = document.getElementById('funcSelect');
+  btnAnim = document.getElementById('anim-btn');
+  
+  checkSecant = document.getElementById('check-secant');
+  checkSlopeTri = document.getElementById('check-slope-tri');
+  checkTangent = document.getElementById('check-tangent');
+  checkNormal = document.getElementById('check-normal');
+  
+  domValX0 = document.getElementById('val-x0');
+  domValDx = document.getElementById('val-dx');
+  domKSec = document.getElementById('data-k-sec');
+  domKTan = document.getElementById('data-k-tan');
+
+  // Event Listeners
+  sliderX0.addEventListener('input', () => { x0 = parseFloat(sliderX0.value); isAnimating = false; });
+  sliderDx.addEventListener('input', () => { dx = parseFloat(sliderDx.value); isAnimating = false; });
+  selectFunc.addEventListener('change', () => { currentFunc = selectFunc.value; });
+  
+  btnAnim.addEventListener('click', startAnimation);
+}
+
+function startAnimation() {
+  if (isAnimating) return;
+  // Reset dx to a visible distance if it's too close to 0
+  if (Math.abs(dx) < 0.1) dx = 1.5;
+  sliderDx.value = dx; // sync UI
+  isAnimating = true;
+}
+
+function updateAnimation() {
+  if (!isAnimating) return;
+  
+  // Exponential approach to 0
+  if (Math.abs(dx) > 0.005) {
+    dx = dx * 0.95;
+  } else {
+    dx = 0;
+    isAnimating = false;
+  }
+  
+  // Update Slider UI
+  sliderDx.value = dx;
+}
+
+// ==========================================
+// Math Functions
+// ==========================================
+
+// Returns y for a given x
+function f(x) {
+  if (currentFunc === 'cubic') {
+    // y = 0.5x^3 - 1.5x
+    return 0.5 * Math.pow(x, 3) - 1.5 * x;
+  } else if (currentFunc === 'sine') {
+    // y = 2sin(x)
+    return 2 * Math.sin(x);
+  } else if (currentFunc === 'parabola') {
+    // y = 0.5x^2 - 2
+    return 0.5 * Math.pow(x, 2) - 2;
+  }
+  return 0;
+}
+
+// Returns derivative (slope) for a given x
+function f_prime(x) {
+  if (currentFunc === 'cubic') {
+    // y' = 1.5x^2 - 1.5
+    return 1.5 * Math.pow(x, 2) - 1.5;
+  } else if (currentFunc === 'sine') {
+    // y' = 2cos(x)
+    return 2 * Math.cos(x);
+  } else if (currentFunc === 'parabola') {
+    // y' = x
+    return x;
+  }
+  return 0;
+}
+
+// Coordinate Helpers
+function toScreenX(x) {
+  return originX + x * scaleFactor;
+}
+
+function toScreenY(y) {
+  // Y is inverted in p5.js
+  return originY - y * scaleFactor;
+}
+
+// ==========================================
+// Main Draw Loop
+// ==========================================
+
+function draw() {
+  background(255);
+  
+  // Update Logic
+  updateAnimation();
+  
+  // Sync Text Displays
+  domValX0.innerText = x0.toFixed(2);
+  domValDx.innerText = dx.toFixed(2);
+
+  // 1. Draw Grid & Axes
+  drawGrid();
+
+  // 2. Draw Function Curve
+  drawCurve();
+
+  // 3. Calculate Points
+  // P (Fixed Point)
+  let pX = x0;
+  let pY = f(pX);
+  
+  // Q (Moving Point)
+  let qX = pX + dx;
+  let qY = f(qX);
+
+  // Slopes
+  let slopeTangent = f_prime(pX);
+  let slopeSecant = 0;
+  
+  // Avoid division by zero and handle "Limit" state
+  if (Math.abs(dx) < 0.0001) {
+    slopeSecant = slopeTangent; // Limit reached
+  } else {
+    slopeSecant = (qY - pY) / (qX - pX);
+  }
+
+  // Update Data Panel
+  domKSec.innerText = slopeSecant.toFixed(4);
+  domKTan.innerText = slopeTangent.toFixed(4);
+
+  // 4. Draw Tangent (Theoretical Target) - RED
+  if (checkTangent.checked) {
+    drawSlopeLine(pX, pY, slopeTangent, color(231, 76, 60), 2, false);
+  }
+  
+  // 5. Draw Normal (Perpendicular) - BLUE DASHED
+  if (checkNormal.checked) {
+    let normalSlope = -1 / slopeTangent;
+    // Handle vertical normal if tangent slope is near 0
+    if (Math.abs(slopeTangent) < 0.001) {
+      drawVerticalLine(pX, color(52, 152, 219));
+    } else {
+      drawSlopeLine(pX, pY, normalSlope, color(52, 152, 219), 1.5, true);
+    }
+  }
+
+  // 6. Draw Secant (Approximation) - GREEN
+  if (checkSecant.checked) {
+    // If dx is tiny, it basically overlaps tangent. 
+    // We draw secant on top if enabled to show the convergence.
+    drawSlopeLine(pX, pY, slopeSecant, color(39, 174, 96), 2, false);
+  }
+
+  // 7. Draw Slope Triangle (Delta X, Delta Y)
+  // Hide triangle if dx is too small to see clearly
+  if (checkSlopeTri.checked && Math.abs(dx) > 0.15) {
+    drawSlopeTriangle(pX, pY, qX, qY);
+  }
+
+  // 8. Draw Points P and Q
+  // Point P
+  noStroke();
+  fill(52, 73, 94); // Dark Blue
+  circle(toScreenX(pX), toScreenY(pY), 10);
+  drawLabelWithBackground("P", toScreenX(pX), toScreenY(pY), -15, -18);
+
+  // Point Q
+  if (Math.abs(dx) > 0.05) {
+    fill(39, 174, 96); // Green
+    circle(toScreenX(qX), toScreenY(qY), 10);
+    // Smart label positioning for Q to avoid overlapping triangle
+    let qLabelOffY = (f(qX) > f(pX)) ? -18 : 18; 
+    drawLabelWithBackground("Q", toScreenX(qX), toScreenY(qY), 15, qLabelOffY);
+  } else {
+    // Q merged with P indication
+    noFill();
+    stroke(39, 174, 96, 150);
+    strokeWeight(2);
+    circle(toScreenX(qX), toScreenY(qY), 18); // Halo effect when merged
+  }
+}
+
+// ==========================================
+// Drawing Helpers
+// ==========================================
+
+function drawGrid() {
+  stroke(245);
+  strokeWeight(1);
+  
+  // Vertical Grid
+  for (let x = -10; x <= 10; x+=0.5) {
+    let sx = toScreenX(x);
+    if (sx > 0 && sx < width) line(sx, 0, sx, height);
+  }
+  
+  // Horizontal Grid
+  for (let y = -10; y <= 10; y+=0.5) {
+    let sy = toScreenY(y);
+    if (sy > 0 && sy < height) line(0, sy, width, sy);
+  }
+
+  // Axes
+  stroke(100);
+  strokeWeight(1.5);
+  
+  // X Axis with Arrow
+  line(0, originY, width, originY);
+  fill(100); noStroke();
+  triangle(width, originY, width - 10, originY - 4, width - 10, originY + 4); // Arrowhead
+  textSize(14);
+  text("x", width - 20, originY + 20);
+
+  // Y Axis with Arrow
+  stroke(100);
+  line(originX, 0, originX, height);
+  fill(100); noStroke();
+  triangle(originX, 0, originX - 4, 10, originX + 4, 10); // Arrowhead
+  text("y", originX + 12, 15);
+  
+  // Origin label
+  text("O", originX - 15, originY + 18);
+}
+
+function drawCurve() {
+  noFill();
+  stroke(41, 128, 185); // Function Color (Blue)
+  strokeWeight(3);
+  
+  beginShape();
+  // Draw slightly outside screen to ensure continuity
+  let startX = (0 - originX) / scaleFactor - 1;
+  let endX = (width - originX) / scaleFactor + 1;
+  
+  for (let x = startX; x <= endX; x += 0.05) {
+    let y = f(x);
+    // Safety check for large values
+    if (Math.abs(y) < 50) {
+      vertex(toScreenX(x), toScreenY(y));
+    }
+  }
+  endShape();
+}
+
+function drawSlopeLine(cx, cy, slope, col, weight, dashed) {
+  stroke(col);
+  strokeWeight(weight);
+  if (dashed) drawingContext.setLineDash([6, 4]);
+  else drawingContext.setLineDash([]);
+
+  // y - y0 = m(x - x0) => y = m(x - x0) + y0
+  // Find intersect with screen bounds (approximate by drawing very long line)
+  let deltaDraw = 10; // 10 units left and right
+  
+  let x1 = cx - deltaDraw;
+  let y1 = slope * (x1 - cx) + cy;
+  
+  let x2 = cx + deltaDraw;
+  let y2 = slope * (x2 - cx) + cy;
+
+  line(toScreenX(x1), toScreenY(y1), toScreenX(x2), toScreenY(y2));
+  
+  drawingContext.setLineDash([]); // Reset
+}
+
+function drawVerticalLine(cx, col) {
+  stroke(col);
+  strokeWeight(1.5);
+  drawingContext.setLineDash([5, 5]);
+  line(toScreenX(cx), 0, toScreenX(cx), height);
+  drawingContext.setLineDash([]);
+}
+
+function drawSlopeTriangle(px, py, qx, qy) {
+  let sx1 = toScreenX(px);
+  let sy1 = toScreenY(py);
+  
+  let sx2 = toScreenX(qx);
+  let sy2 = toScreenY(qy);
+  
+  // The corner point C (qx, py) in math coords -> (sx2, sy1) in screen coords
+  let sx3 = sx2; 
+  let sy3 = sy1;
+
+  stroke(100, 100, 100, 180);
+  strokeWeight(1.5);
+  drawingContext.setLineDash([3, 3]);
+  
+  // Horizontal (Delta X)
+  line(sx1, sy1, sx3, sy3);
+  
+  // Vertical (Delta Y)
+  line(sx2, sy2, sx3, sy3);
+  
+  drawingContext.setLineDash([]);
+  
+  // Labels with background for clarity
+  fill(80);
+  noStroke();
+  textSize(12);
+  textAlign(CENTER);
+  
+  // Position dx label: center of horizontal leg, slightly below
+  let dxLabelY = sy3 + 15;
+  drawLabelWithBackground("Δx", (sx1 + sx3)/2, dxLabelY, 0, 0, 10);
+  
+  textAlign(LEFT);
+  // Position dy label: right of vertical leg, center
+  let dyLabelX = sx3 + 5;
+  drawLabelWithBackground("Δy", dyLabelX, (sy2 + sy3)/2, 0, 4, 10);
+}
+
+function drawLabelWithBackground(str, x, y, offsetX, offsetY, fontSize = 14) {
+  push();
+  textSize(fontSize);
+  textStyle(BOLD);
+  
+  let tw = textWidth(str);
+  let th = fontSize;
+  
+  // Background rect to make text readable over lines
+  fill(255, 255, 255, 220);
+  noStroke();
+  rectMode(CENTER);
+  rect(x + offsetX + tw/2 - (textAlign() === LEFT ? 0 : tw/2), y + offsetY - th/4, tw + 4, th + 2);
+  
+  fill(0);
+  text(str, x + offsetX, y + offsetY);
+  pop();
+}
+
+</script>
+</body>
+</html>

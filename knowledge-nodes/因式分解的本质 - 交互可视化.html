@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>因式分解的本质 - 交互可视化</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <style>
+    /* 全局样式 - 适配 PC 桌面端 */
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #f0f2f5;
+      font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+      overflow-y: auto; /* 允许垂直滚动 */
+      color: #333;
+      display: flex;
+      justify-content: center;
+    }
+
+    /* 主容器 */
+    #container {
+      display: flex;
+      flex-direction: row;
+      width: 100%;
+      max-width: 1400px;
+      min-height: 100vh;
+      box-shadow: 0 0 20px rgba(0,0,0,0.05);
+      background: white;
+    }
+
+    /* 左侧控制面板 */
+    #sidebar {
+      width: 380px;
+      background-color: #ffffff;
+      border-right: 1px solid #e0e0e0;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+
+    /* 右侧画布区域 */
+    #canvas-area {
+      flex-grow: 1;
+      position: relative;
+      background-color: #fcfcfc;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    h1 { font-size: 20px; color: #1a1a1a; margin-bottom: 10px; border-bottom: 2px solid #3b82f6; padding-bottom: 10px; }
+    h2 { font-size: 16px; color: #444; margin-top: 20px; margin-bottom: 10px; font-weight: bold; }
+    p { font-size: 14px; color: #666; line-height: 1.6; margin-bottom: 15px; }
+    
+    .math-expr {
+      font-family: "Times New Roman", serif;
+      font-style: italic;
+      font-size: 16px;
+      background: #f8f9fa;
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid #e9ecef;
+      text-align: center;
+      margin: 10px 0;
+      color: #000;
+    }
+
+    /* 场景切换按钮 */
+    .scenario-btn-group {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap; /* 允许换行以防按钮过多 */
+    }
+    
+    .scenario-btn {
+      flex: 1 1 40%; /* 弹性宽度 */
+      padding: 10px 5px;
+      border: 1px solid #ddd;
+      background: #fff;
+      cursor: pointer;
+      font-size: 13px;
+      border-radius: 6px;
+      transition: all 0.2s;
+      text-align: center;
+    }
+    
+    .scenario-btn.active {
+      background: #3b82f6;
+      color: white;
+      border-color: #3b82f6;
+      font-weight: bold;
+    }
+
+    /* 控制项样式 */
+    .control-group {
+      background: #f8f9fa;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 15px;
+      border: 1px solid #edf2f7;
+    }
+
+    .slider-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .slider-label {
+      width: 70px;
+      font-size: 14px;
+      font-weight: bold;
+    }
+
+    input[type="range"] {
+      flex-grow: 1;
+      margin: 0 10px;
+      cursor: pointer;
+    }
+
+    .slider-value {
+      width: 40px;
+      text-align: right;
+      font-size: 14px;
+      font-family: monospace;
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 8px;
+      cursor: pointer;
+    }
+
+    .toggle-row input { margin-right: 10px; }
+    .toggle-row span { font-size: 14px; }
+
+    /* 状态栏 */
+    #status-bar {
+      margin-top: auto;
+      padding-top: 20px;
+      border-top: 1px solid #eee;
+      font-size: 13px;
+      color: #888;
+    }
+
+    /* 重点高亮 */
+    .highlight { color: #d32f2f; font-weight: bold; }
+    .highlight-blue { color: #1976d2; font-weight: bold; }
+
+  </style>
+</head>
+<body>
+
+  <div id="container">
+    <!-- 左侧面板 -->
+    <div id="sidebar">
+      <h1>因式分解的本质可视化</h1>
+      
+      <p>为什么要分解？因为展开式掩盖了特征，而分解式暴露了结构。</p>
+
+      <div class="scenario-btn-group">
+        <button class="scenario-btn active" onclick="setScenario(0)">1. 找根(解方程)</button>
+        <button class="scenario-btn" onclick="setScenario(1)">2. 判号(不等式)</button>
+        <button class="scenario-btn" onclick="setScenario(2)">3. 化简(分式)</button>
+        <button class="scenario-btn" onclick="setScenario(3)">4. 彻底分解(递归)</button>
+      </div>
+
+      <div id="controls">
+        <!-- 动态内容由 JS 生成 -->
+      </div>
+
+      <div id="explanation-box">
+        <!-- 动态解释文本 -->
+      </div>
+
+      <div id="status-bar">
+        提示：拖动滑块观察图形与代数式的联动。注意观察零点位置。
+      </div>
+    </div>
+
+    <!-- 右侧画布 -->
+    <div id="canvas-area">
+      <!-- p5.js canvas will be injected here -->
+    </div>
+  </div>
+
+  <script>
+    // --- 全局变量 ---
+    let currentScenario = 0; // 0: Roots, 1: Inequalities, 2: Rational, 3: Recursive
+    let stepIndex = 0; // 用于场景4的步骤追踪
+    let canvasWidth, canvasHeight;
+    let canvas;
+    
+    // 颜色定义
+    const COLOR_BG = '#fcfcfc';
+    const COLOR_AXIS = '#333333';
+    const COLOR_GRID = '#e0e0e0';
+    const COLOR_CURVE = '#3b82f6';
+    const COLOR_ROOT = '#d32f2f'; // 红色强调根
+    const COLOR_POS_REGION = 'rgba(59, 130, 246, 0.1)'; // 蓝色背景
+    const COLOR_NEG_REGION = 'rgba(211, 47, 47, 0.1)'; // 红色背景
+    
+    // 参数状态
+    let params = {
+      // 场景1 & 2 参数
+      a: 1,      // 开口/缩放
+      x1: -2,    // 根1
+      x2: 3,     // 根2
+      x3: 1,     // 根3 (仅场景2用)
+      
+      // 场景3 参数
+      k: 2,      // 那个“可去间断点”的位置
+
+      // 场景4 参数
+      scaleRatio: 0.1, // 用于缩小高次函数的Y轴显示
+
+      // 开关
+      showGrid: true,
+      showFactors: true,
+      showExpanded: true,
+      showRegions: false
+    };
+
+    // --- p5.js Setup & Draw ---
+
+    function setup() {
+      // 计算画布大小
+      const canvasDiv = document.getElementById('canvas-area');
+      canvasWidth = canvasDiv.offsetWidth;
+      canvasHeight = canvasDiv.offsetHeight;
+
+      canvas = createCanvas(canvasWidth, canvasHeight);
+      canvas.parent('canvas-area');
+      
+      textFont("sans-serif");
+      
+      updateControlPanel();
+    }
+
+    function windowResized() {
+      const canvasDiv = document.getElementById('canvas-area');
+      canvasWidth = canvasDiv.offsetWidth;
+      canvasHeight = canvasDiv.offsetHeight;
+      resizeCanvas(canvasWidth, canvasHeight);
+    }
+
+    function draw() {
+      background(COLOR_BG);
+      
+      // 坐标系变换：原点移到屏幕中心
+      translate(width / 2, height / 2);
+      // Y轴翻转，使向上为正
+      scale(1, -1);
+      
+      // 缩放比例 (像素 per 单位)
+      const scaleFactor = 40; 
+
+      drawGrid(scaleFactor);
+
+      if (currentScenario === 0) {
+        drawScenarioRoots(scaleFactor);
+      } else if (currentScenario === 1) {
+        drawScenarioInequalities(scaleFactor);
+      } else if (currentScenario === 2) {
+        drawScenarioRational(scaleFactor);
+      } else if (currentScenario === 3) {
+        drawScenarioRecursive(scaleFactor);
+      }
+    }
+
+    // --- 绘图逻辑：通用网格 ---
+    function drawGrid(s) {
+      strokeWeight(1);
+      
+      if (params.showGrid) {
+        stroke(COLOR_GRID);
+        // 竖线
+        for (let x = -width/2; x < width/2; x += s) {
+          line(x, -height/2, x, height/2);
+        }
+        // 横线
+        for (let y = -height/2; y < height/2; y += s) {
+          line(-width/2, y, width/2, y);
+        }
+      }
+
+      // 坐标轴
+      stroke(COLOR_AXIS);
+      strokeWeight(2);
+      line(-width/2, 0, width/2, 0); // X轴
+      line(0, -height/2, 0, height/2); // Y轴
+
+      // 箭头与标签 (需要解除翻转绘制文字)
+      push();
+      scale(1, -1); 
+      fill(0);
+      noStroke();
+      textSize(14);
+      text("x", width/2 - 20, 20);
+      text("y", 20, -height/2 + 20);
+      
+      // 刻度值
+      textSize(10);
+      fill(100);
+      for (let i = -10; i <= 10; i++) {
+        if (i === 0) continue;
+        text(i, i * s - 4, 15);
+      }
+      pop();
+    }
+
+    // --- 场景 1: 方程求解 (二次函数) ---
+    function drawScenarioRoots(s) {
+      // y = a(x - x1)(x - x2)
+      const f = (x) => params.a * (x - params.x1) * (x - params.x2);
+
+      // 1. 绘制曲线
+      noFill();
+      stroke(COLOR_CURVE);
+      strokeWeight(3);
+      beginShape();
+      for (let px = -width/2; px < width/2; px += 2) {
+        let x = px / s;
+        let y = f(x);
+        vertex(px, y * s);
+      }
+      endShape();
+
+      // 2. 绘制根 (交点)
+      // 恢复非翻转状态画标签
+      push();
+      scale(1, -1); 
+      
+      drawRootPoint(params.x1, s, "x₁");
+      drawRootPoint(params.x2, s, "x₂");
+      
+      // 绘制对称轴
+      if (params.showFactors) {
+        let axisX = (params.x1 + params.x2) / 2;
+        stroke(100, 100, 100, 100);
+        strokeWeight(1);
+        drawingContext.setLineDash([5, 5]);
+        line(axisX * s, -height/2, axisX * s, height/2);
+        drawingContext.setLineDash([]);
+        
+        fill(100);
+        noStroke();
+        text("对称轴", axisX * s + 5, -height/2 + 50);
+      }
+
+      pop();
+    }
+
+    // --- 场景 2: 符号分析 (三次函数) ---
+    function drawScenarioInequalities(s) {
+      // y = a(x - x1)(x - x2)(x - x3) scaled down a bit to fit
+      const scaleY = 0.5; 
+      const f = (x) => params.a * scaleY * (x - params.x1) * (x - params.x2) * (x - params.x3);
+
+      // 1. 绘制区域 (不等式可视化的核心)
+      if (params.showRegions) {
+        noStroke();
+        // 扫描屏幕宽度
+        let step = 4;
+        for (let px = -width/2; px < width/2; px += step) {
+          let x = px / s;
+          let y = f(x);
+          
+          if (y > 0) fill(COLOR_POS_REGION); // y > 0 区域 (上方)
+          else fill(COLOR_NEG_REGION);       // y < 0 区域 (下方)
+          
+          // 绘制矩形条，从轴到边界
+          if (y > 0) rect(px, -height/2, step, height/2); 
+          else rect(px, 0, step, height/2);
+        }
+      }
+
+      // 2. 绘制曲线
+      noFill();
+      stroke(COLOR_CURVE);
+      strokeWeight(3);
+      beginShape();
+      for (let px = -width/2; px < width/2; px += 2) {
+        let x = px / s;
+        let y = f(x);
+        // 限制绘制范围防止溢出太夸张
+        if (Math.abs(y * s) < height) {
+           vertex(px, y * s);
+        }
+      }
+      endShape();
+
+      // 3. 绘制根
+      push();
+      scale(1, -1); 
+      drawRootPoint(params.x1, s, "x₁");
+      drawRootPoint(params.x2, s, "x₂");
+      drawRootPoint(params.x3, s, "x₃");
+      pop();
+    }
+
+    // --- 场景 3: 分式化简 (可去间断点) ---
+    function drawScenarioRational(s) {
+      // y = (x^2 - k^2) / (x - k)  => y = x + k, 但 x != k
+      const k = params.k;
+      const f_simplified = (x) => x + k;
+
+      // 1. 绘制直线 (简化后的形式)
+      stroke(COLOR_CURVE);
+      strokeWeight(3);
+      
+      // 画两段，避开孔洞
+      let x_start = -width/2 / s;
+      let y_start = f_simplified(x_start);
+      let x_end = width/2 / s;
+      let y_end = f_simplified(x_end);
+      
+      line(x_start * s, y_start * s, x_end * s, y_end * s);
+
+      // 2. 绘制空心圆环 (Hole)
+      push();
+      scale(1, -1); // 标签坐标系
+      
+      let holeX = k * s;
+      let holeY = - (k + k) * s; // 注意 Y 轴翻转
+      
+      stroke(COLOR_CURVE);
+      strokeWeight(2);
+      fill(255); // 白色填充模拟空心
+      circle(holeX, holeY, 10);
+      
+      fill(0);
+      noStroke();
+      textAlign(LEFT);
+      text(`x = ${k} 时无定义`, holeX + 15, holeY);
+      
+      // 绘制导引虚线
+      stroke(150);
+      strokeWeight(1);
+      drawingContext.setLineDash([3, 3]);
+      line(holeX, 0, holeX, holeY + 6); // 垂线
+      drawingContext.setLineDash([]);
+      
+      pop();
+    }
+
+    // --- 场景 4: 彻底分解 (递归演示) ---
+    function drawScenarioRecursive(s) {
+      // 函数模型: y = a(x^5 - 16x)
+      // 步骤 0: x^5 - 16x
+      // 步骤 1: x(x^4 - 16)
+      // 步骤 2: x(x^2 - 4)(x^2 + 4)
+      // 步骤 3: x(x - 2)(x + 2)(x^2 + 4)
+      
+      const f = (x) => params.a * (Math.pow(x, 5) - 16 * x);
+      
+      // 1. 绘制曲线 (Y轴需要大幅压缩，因为5次方增长极快)
+      const yScale = params.scaleRatio; 
+
+      noFill();
+      stroke(COLOR_CURVE);
+      strokeWeight(3);
+      beginShape();
+      for (let px = -width/2; px < width/2; px += 2) {
+        let x = px / s;
+        let y = f(x);
+        
+        // 限制Y值防止绘图崩溃
+        let py = y * s * yScale;
+        if (Math.abs(py) < height * 2) {
+          vertex(px, py);
+        }
+      }
+      endShape();
+
+      // 2. 绘制根 (根据当前步骤揭示)
+      push();
+      scale(1, -1);
+      
+      // 根: 0, 2, -2
+      let roots = [0];
+      if (stepIndex >= 2) {
+        // 步骤2此时出现了 (x^2-4)，隐约暗示了 2 和 -2
+        // 但严格来说，步骤3才显式把 (x-2)(x+2) 写出来
+        // 我们在步骤 2 就把根画出来，或者等到 3
+        roots = [0, 2, -2];
+      }
+      
+      roots.forEach(r => {
+        let px = r * s;
+        fill(COLOR_ROOT);
+        noStroke();
+        circle(px, 0, 10);
+        
+        fill(0);
+        textSize(14);
+        textAlign(CENTER);
+        text(r, px, 20);
+      });
+
+      // 标注文字
+      if (stepIndex === 0) {
+        fill(100);
+        noStroke();
+        text("高次多项式形态", 0, -height/2 + 50);
+      }
+      
+      pop();
+    }
+
+
+    // --- 辅助：绘制根点 ---
+    function drawRootPoint(xVal, s, label) {
+      let px = xVal * s;
+      fill(COLOR_ROOT);
+      noStroke();
+      circle(px, 0, 10); // 注意是在翻转后的Y轴上，所以Y=0
+      
+      fill(0);
+      textSize(14);
+      textAlign(CENTER);
+      text(label, px, 20); // 标签在轴下方
+      
+      // 显示具体数值
+      textSize(10);
+      fill(100);
+      text(xVal.toFixed(1), px, 35);
+    }
+
+    // --- DOM 控制逻辑 ---
+
+    function setScenario(id) {
+      currentScenario = id;
+      stepIndex = 0; // 重置步骤
+      document.querySelectorAll('.scenario-btn').forEach((btn, idx) => {
+        if (idx === id) btn.classList.add('active');
+        else btn.classList.remove('active');
+      });
+      updateControlPanel();
+    }
+
+    function nextStep() {
+      if (stepIndex < 3) {
+        stepIndex++;
+        updateControlPanel();
+      }
+    }
+
+    function resetStep() {
+      stepIndex = 0;
+      updateControlPanel();
+    }
+
+    function updateControlPanel() {
+      const container = document.getElementById('controls');
+      const explainBox = document.getElementById('explanation-box');
+      container.innerHTML = '';
+      
+      // 通用参数 a (除场景3外)
+      if (currentScenario !== 2) {
+        addSlider(container, 'a (整体缩放)', 'a', 0.1, 2, 0.1, params.a);
+      }
+
+      if (currentScenario === 0) {
+        // 场景 1：找根
+        addSlider(container, '根 x₁', 'x1', -5, 5, 0.5, params.x1);
+        addSlider(container, '根 x₂', 'x2', -5, 5, 0.5, params.x2);
+        addToggle(container, '显示“分解式”与“对称轴”', 'showFactors', params.showFactors);
+
+        let b = -params.a * (params.x1 + params.x2);
+        let c = params.a * params.x1 * params.x2;
+        
+        let polyStr = `y = ${fmt(params.a)}x² ${fmtSign(b)}x ${fmtSign(c)}`;
+        let factorStr = `y = ${fmt(params.a)}(x ${fmtRoot(-params.x1)})(x ${fmtRoot(-params.x2)})`;
+        
+        let html = `<h2>当前函数</h2>`;
+        html += `<div class="math-expr">${factorStr}</div>`;
+        html += `<div style="text-align:center; color:#888; font-size:12px;">↓ 展开 (如果不分解，你只能看到下面这个) ↓</div>`;
+        html += `<div class="math-expr">${polyStr}</div>`;
+        html += `<p class="highlight">观察：改变根 x₁ 和 x₂，展开式中的 b 和 c 都在乱变。只有分解式能直接看出图像与 x 轴交点在哪里。</p>`;
+        explainBox.innerHTML = html;
+
+      } else if (currentScenario === 1) {
+        // 场景 2：不等式
+        addSlider(container, '根 x₁', 'x1', -4, 0, 0.5, params.x1);
+        addSlider(container, '根 x₂', 'x2', -2, 2, 0.5, params.x2);
+        addSlider(container, '根 x₃', 'x3', 0, 4, 0.5, params.x3);
+        addToggle(container, '显示正负区域', 'showRegions', params.showRegions);
+        
+        let factorStr = `y = ${params.a}(x ${fmtRoot(-params.x1)})(x ${fmtRoot(-params.x2)})(x ${fmtRoot(-params.x3)})`;
+        
+        let html = `<h2>三次函数符号分析</h2>`;
+        html += `<div class="math-expr">${factorStr}</div>`;
+        html += `<p>因式分解将数轴切分成了不同区间。在每个区间内，函数的符号（正/负）是固定的。</p>`;
+        html += `<p class="highlight-blue">用途：解不等式 f(x) > 0 时，只需找到根，然后观察（或测试）区间符号。</p>`;
+        explainBox.innerHTML = html;
+
+      } else if (currentScenario === 2) {
+        // 场景 3：分式
+        addSlider(container, '参数 k', 'k', -4, 4, 0.5, params.k);
+        
+        let numStr = `x² - ${params.k*params.k}`; // x^2 - k^2
+        if (params.k < 0) numStr = `x² - ${(params.k*params.k)}`; // 简单处理显示
+        
+        let denStr = `x ${fmtRoot(-params.k)}`;
+        let simplifiedStr = `x ${fmtRoot(params.k)}`;
+        
+        // 构造分式 HTML
+        let fracHtml = `
+          <div style="display:inline-block; vertical-align:middle; text-align:center;">
+            <div style="border-bottom:1px solid black; padding-bottom:2px;">x² - ${(params.k*params.k).toFixed(0)}</div>
+            <div style="padding-top:2px;">x ${fmtRoot(-params.k)}</div>
+          </div>
+        `;
+        
+        let html = `<h2>分式化简</h2>`;
+        html += `<div class="math-expr">y = ${fracHtml}</div>`;
+        html += `<div style="text-align:center; margin:10px;">因式分解分子：(x ${fmtRoot(-params.k)})(x ${fmtRoot(params.k)})</div>`;
+        html += `<div class="math-expr"> = ${simplifiedStr}, (x ≠ ${params.k})</div>`;
+        html += `<p class="highlight">本质：分解让我们发现了分子分母的“公因子”。约分后，图像是一条直线，但必须挖掉 x=${params.k} 这一样点（空心圆）。</p>`;
+        explainBox.innerHTML = html;
+
+      } else if (currentScenario === 3) {
+        // 场景 4：彻底分解逻辑
+        
+        // 步骤内容定义
+        let steps = [
+          {
+            title: "初始状态",
+            expr: "y = x⁵ - 16x",
+            desc: "观察这个式子，非常复杂。虽然它是5次函数，但好像每项都有点眼熟？",
+            action: "寻找公因式"
+          },
+          {
+            title: "第1次分解 (提公因式)",
+            expr: "y = x(x⁴ - 16)",
+            desc: "提取了 x。现在括号里是 <span class='highlight-blue'>x⁴ - 16</span>。<br>做完了吗？<br>没有！仔细看，x⁴ 是平方，16 也是平方(4²)。",
+            action: "使用平方差公式 a²-b²"
+          },
+          {
+            title: "第2次分解 (平方差)",
+            expr: "y = x(x² - 4)(x² + 4)",
+            desc: "分解成了 (x² - 4) 和 (x² + 4)。<br>做完了吗？<br>还没有！请看 <span class='highlight-blue'>x² - 4</span>，这又是一个平方差！(x² - 2²)",
+            action: "再次使用平方差"
+          },
+          {
+            title: "第3次分解 (彻底完成)",
+            expr: "y = x(x - 2)(x + 2)(x² + 4)",
+            desc: "现在分解为 (x - 2)(x + 2)。<br>那 (x² + 4) 呢？它在实数范围内无法分解（永远大于0，没有根）。<br><span class='highlight'>分解彻底完成！</span>",
+            action: "完成"
+          }
+        ];
+
+        let s = steps[stepIndex];
+
+        let html = `<h2>步骤 ${stepIndex} / 3: ${s.title}</h2>`;
+        html += `<div class="math-expr" style="font-size:20px; padding:15px;">${s.expr}</div>`;
+        html += `<p>${s.desc}</p>`;
+        
+        // 按钮区域
+        html += `<div style="margin-top:20px; display:flex; gap:10px;">`;
+        
+        if (stepIndex < 3) {
+           html += `<button onclick="nextStep()" style="flex:2; background:#3b82f6; color:white; border:none; padding:10px; border-radius:5px; cursor:pointer; font-size:15px;">下一步：${s.action}</button>`;
+        } else {
+           html += `<button disabled style="flex:2; background:#4caf50; color:white; border:none; padding:10px; border-radius:5px; cursor:default; font-size:15px;">✅ 已彻底分解</button>`;
+        }
+        
+        html += `<button onclick="resetStep()" style="flex:1; background:#fff; border:1px solid #ddd; padding:10px; border-radius:5px; cursor:pointer;">重置</button>`;
+        html += `</div>`;
+
+        explainBox.innerHTML = html;
+        
+        // 额外提示
+        let hintHtml = `<p style="font-size:12px; color:#888; margin-top:15px;">
+          当前函数图像已被Y轴压缩以便观察整体形态。<br>
+          根的位置：0, 2, -2。
+        </p>`;
+        explainBox.innerHTML += hintHtml;
+      }
+    }
+
+    // 辅助：生成滑块
+    function addSlider(parent, label, key, min, max, step, initialVal) {
+      let row = document.createElement('div');
+      row.className = 'slider-row';
+      
+      let labelSpan = document.createElement('span');
+      labelSpan.className = 'slider-label';
+      labelSpan.innerText = label;
+      
+      let input = document.createElement('input');
+      input.type = 'range';
+      input.min = min;
+      input.max = max;
+      input.step = step;
+      input.value = initialVal;
+      
+      let valSpan = document.createElement('span');
+      valSpan.className = 'slider-value';
+      valSpan.innerText = initialVal;
+      
+      input.oninput = function() {
+        params[key] = parseFloat(this.value);
+        valSpan.innerText = params[key];
+        updateControlPanel(); // 更新公式显示
+        // 不需要 redraw() 因为 p5 loop 默认开启
+      };
+      
+      row.appendChild(labelSpan);
+      row.appendChild(input);
+      row.appendChild(valSpan);
+      parent.appendChild(row);
+    }
+
+    // 辅助：生成开关
+    function addToggle(parent, label, key, initialVal) {
+      let row = document.createElement('div');
+      row.className = 'toggle-row';
+      
+      let input = document.createElement('input');
+      input.type = 'checkbox';
+      input.checked = initialVal;
+      
+      let span = document.createElement('span');
+      span.innerText = label;
+      
+      row.onclick = function(e) {
+        if (e.target !== input) input.checked = !input.checked;
+        params[key] = input.checked;
+      };
+      
+      input.onchange = function() {
+        params[key] = this.checked;
+      };
+      
+      row.appendChild(input);
+      row.appendChild(span);
+      parent.appendChild(row);
+    }
+
+    // 辅助：格式化数字为字符串 (处理正负号)
+    function fmt(n) {
+      return parseFloat(n.toFixed(2));
+    }
+    
+    function fmtSign(n) {
+      if (Math.abs(n) < 0.001) return "+ 0";
+      return (n >= 0 ? "+ " : "- ") + Math.abs(parseFloat(n.toFixed(2)));
+    }
+    
+    function fmtRoot(n) {
+      // 用于 (x - x1) 这种格式
+      if (Math.abs(n) < 0.001) return "";
+      return (n >= 0 ? "+ " : "- ") + Math.abs(parseFloat(n.toFixed(2)));
+    }
+
+  </script>
+</body>
+</html>

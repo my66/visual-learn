@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>几何全等模型可视化：一线三等角</title>
+    <style>
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; background-color: #f0f2f5; }
+        h2 { color: #333; }
+        .canvas-container { position: relative; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-radius: 8px; overflow: hidden; background: white; }
+        canvas { display: block; background-color: #fff; }
+        .controls { margin-top: 15px; padding: 10px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: center; width: 600px;}
+        .info { margin-top: 10px; font-size: 14px; color: #555; line-height: 1.6; }
+        .math { font-family: "Times New Roman", serif; font-style: italic; font-weight: bold;}
+    </style>
+</head>
+<body>
+
+    <h2>第21题可视化：坐标系中的“K字型”全等</h2>
+
+    <div class="canvas-container">
+        <canvas id="geometryCanvas" width="600" height="400"></canvas>
+    </div>
+
+    <div class="controls">
+        <label>拖动滑块改变点 B 的位置 (y): <input type="range" id="sliderB" min="0.5" max="5" step="0.1" value="2"></label>
+        <div class="info" id="statusInfo">
+            A: (-6, 0), B: (0, 2)<br>
+            计算得 C: (2, -4)
+        </div>
+        <div class="info" style="border-top: 1px solid #eee; padding-top:10px; margin-top:10px; text-align: left;">
+            <strong>原理解析：</strong><br>
+            1. <span style="color:red">红色三角形 (△ABO)</span> 与 <span style="color:blue">蓝色三角形 (△BCF)</span> 始终全等 (AAS)。<br>
+            2. 因为 ∠ABC = 90°，所以 ∠ABO + ∠CBF = 90°。<br>
+            3. 观察边长关系：<span class="math">BF</span> (蓝色竖直边) = <span class="math">AO</span> (红色水平边)。<br>
+            4. 坐标计算：<span class="math">y<sub>C</sub> = y<sub>B</sub> - BF = y<sub>B</sub> - AO</span>。
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('geometryCanvas');
+        const ctx = canvas.getContext('2d');
+        const slider = document.getElementById('sliderB');
+        const info = document.getElementById('statusInfo');
+
+        // 坐标系配置
+        const scale = 30; // 1单位 = 30像素
+        const originX = 300; // 原点 x
+        const originY = 200; // 原点 y
+
+        // 初始点 A
+        const A = { x: -6, y: 0 };
+        let B = { x: 0, y: 2 };
+
+        function toScreen(x, y) {
+            return { x: originX + x * scale, y: originY - y * scale };
+        }
+
+        function drawGrid() {
+            ctx.strokeStyle = "#e0e0e0";
+            ctx.lineWidth = 1;
+            
+            // Grid
+            for(let x = 0; x <= canvas.width; x+=scale) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x, canvas.height); ctx.stroke(); }
+            for(let y = 0; y <= canvas.height; y+=scale) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width, y); ctx.stroke(); }
+
+            // Axes
+            ctx.strokeStyle = "#000";
+            ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(0, originY); ctx.lineTo(canvas.width, originY); ctx.stroke(); // X axis
+            ctx.beginPath(); ctx.moveTo(originX, 0); ctx.lineTo(originX, canvas.height); ctx.stroke(); // Y axis
+
+            // Labels
+            ctx.fillStyle = "#000";
+            ctx.font = "12px Arial";
+            ctx.fillText("x", canvas.width - 20, originY - 5);
+            ctx.fillText("y", originX + 5, 20);
+            ctx.fillText("O", originX - 15, originY + 15);
+        }
+
+        function drawPoint(pt, label, color="black") {
+            const s = toScreen(pt.x, pt.y);
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, 4, 0, Math.PI*2);
+            ctx.fill();
+            ctx.font = "bold 14px Arial";
+            ctx.fillText(label, s.x + 8, s.y - 8);
+        }
+
+        function drawLine(p1, p2, color="#333", width=2, dashed=false) {
+            const s1 = toScreen(p1.x, p1.y);
+            const s2 = toScreen(p2.x, p2.y);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = width;
+            if(dashed) ctx.setLineDash([5, 5]); else ctx.setLineDash([]);
+            ctx.beginPath();
+            ctx.moveTo(s1.x, s1.y);
+            ctx.lineTo(s2.x, s2.y);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        function update() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawGrid();
+
+            // Update B from slider
+            B.y = parseFloat(slider.value);
+
+            // Calculate C
+            // Vector BA = (Ax - Bx, Ay - By) = (-6, -B.y)
+            // Rotate BA by -90 degrees (clockwise) to get BC: (x, y) -> (y, -x) ? 
+            // Wait, standard rotation +90 (CCW) is (x,y)->(-y, x). 
+            // Here we want C such that angle ABC is 90. 
+            // Visual check: A is left, B is up. C should be Right. So it's a CW rotation.
+            // Vector BA = (-6, -By). CW 90 deg -> (-(-By), -6) = (By, -6)? No.
+            // Let's use Geometry Congruence logic explicitly.
+            // Triangle 1: Horizontal leg = AO = 6, Vertical leg = OB = By.
+            // Triangle 2: Vertical leg = BF = 6, Horizontal leg = FC = By.
+            // C is in Quadrant 4 (x>0, y<0).
+            // Cx = FC = By.
+            // Cy = By - BF = By - 6.
+            
+            const C = { x: B.y, y: B.y - 6 }; // Using logic derived in text
+            const F = { x: 0, y: C.y }; // Projection on Y axis
+
+            // Draw Triangle ABO (Red)
+            ctx.fillStyle = "rgba(255, 0, 0, 0.2)";
+            const sA = toScreen(A.x, A.y);
+            const sO = toScreen(0, 0);
+            const sB = toScreen(B.x, B.y);
+            ctx.beginPath(); ctx.moveTo(sA.x, sA.y); ctx.lineTo(sO.x, sO.y); ctx.lineTo(sB.x, sB.y); ctx.closePath(); ctx.fill();
+
+            // Draw Triangle BFC (Blue)
+            ctx.fillStyle = "rgba(0, 0, 255, 0.2)";
+            const sF = toScreen(F.x, F.y);
+            const sC = toScreen(C.x, C.y);
+            ctx.beginPath(); ctx.moveTo(sB.x, sB.y); ctx.lineTo(sF.x, sF.y); ctx.lineTo(sC.x, sC.y); ctx.closePath(); ctx.fill();
+
+            // Draw Lines
+            drawLine(A, B, "#333", 3);
+            drawLine(B, C, "#333", 3);
+            drawLine(C, {x:0, y:C.y}, "#999", 1, true); // CF dashed
+
+            // Draw Points
+            drawPoint(A, `A(-6,0)`);
+            drawPoint(B, `B(0,${B.y.toFixed(1)})`);
+            drawPoint(C, `C(${C.x.toFixed(1)}, ${C.y.toFixed(1)})`, "red");
+            drawPoint({x:0, y:C.y}, "F", "grey");
+
+            // Right Angle Mark at B
+            // ... (Simple check)
+
+            // Update Text
+            info.innerHTML = `
+                <b>A:</b> (-6, 0) <br>
+                <b>B:</b> (0, ${B.y.toFixed(1)}) <br>
+                <b>全等推导:</b> BF = AO = 6, CF = OB = ${B.y.toFixed(1)} <br>
+                <b>C 坐标:</b> x = CF = ${C.x.toFixed(1)}, y = B_y - BF = ${(B.y - 6).toFixed(1)}
+            `;
+        }
+
+        slider.addEventListener('input', update);
+        update();
+    </script>
+</body>
+</html>

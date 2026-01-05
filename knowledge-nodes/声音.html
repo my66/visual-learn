@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>声音的物理特性可视化</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: "Inter", sans-serif; }
+        /* 滑动条样式优化 */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: #4a5568;
+            outline: none;
+            opacity: 0.9;
+            transition: opacity .2s;
+        }
+        input[type="range"]:hover { opacity: 1; }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+        }
+        .canvas-label {
+            position: absolute;
+            top: 8px;
+            left: 12px;
+            background: rgba(0,0,0,0.6);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            color: #9ca3af;
+            border: 1px solid #374151;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-200 p-4 md:p-8 min-h-screen flex flex-col items-center">
+
+    <div class="container mx-auto max-w-4xl bg-gray-800 rounded-2xl shadow-2xl p-6 md:p-8 border border-gray-700">
+        
+        <h1 class="text-3xl font-bold text-center mb-2 text-white">声音物理特性可视化</h1>
+        <p class="text-center text-gray-400 mb-6 text-sm">横波与纵波对比 · 真实的物理频率模拟</p>
+        
+        <div class="relative w-full h-40 bg-black rounded-t-lg border-2 border-b-0 border-blue-900 overflow-hidden">
+            <canvas id="waveformCanvas" class="w-full h-full"></canvas>
+            <div class="canvas-label">示波器视图 (横波表示)</div>
+            <div id="zoneLabel" class="absolute top-2 right-4 text-xs font-mono px-2 py-1 rounded bg-opacity-50 bg-gray-800 text-white transition-colors">
+                等待播放...
+            </div>
+        </div>
+
+        <div class="relative w-full h-32 bg-black rounded-b-lg border-2 border-t border-blue-900 mb-6 overflow-hidden shadow-[0_10px_20px_rgba(0,0,0,0.5)]">
+            <canvas id="particleCanvas" class="w-full h-full"></canvas>
+            <div class="canvas-label">空气分子视图 (纵波/疏密波)</div>
+            <div class="absolute bottom-2 right-4 text-[10px] text-gray-500 pointer-events-none">
+                <span class="inline-block w-2 h-2 rounded-full bg-red-500 mr-1"></span>参考粒子
+            </div>
+            <div id="playHint" class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-60 pointer-events-none transition-opacity duration-500 z-10">
+                <p class="text-white font-bold text-lg tracking-wider animate-pulse">点击下方“播放”查看对比</p>
+            </div>
+        </div>
+        
+        <div class="mb-8 text-center">
+            <button id="audioToggleButton" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-10 rounded-full transition-all transform hover:scale-105 shadow-lg flex items-center justify-center mx-auto gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span id="btnText">播放声音 & 演示</span>
+            </button>
+        </div>
+
+        <div class="grid md:grid-cols-3 gap-8 mb-8 bg-gray-700 rounded-xl p-4">
+            
+            <div class="bg-gray-700 p-5 rounded-xl shadow-lg border border-gray-600 col-span-1 md:col-span-1 relative">
+                <div class="flex justify-between items-end mb-2">
+                    <label for="frequency" class="font-bold text-lg text-blue-300">频率 (Hz)</label>
+                    <span id="freqValue" class="text-xl font-mono font-bold text-blue-200">440 Hz</span>
+                </div>
+                
+                <div class="relative w-full">
+                    <input type="range" id="frequency" min="0" max="100" value="50" step="0.1" class="w-full relative z-10">
+                    <div class="w-full h-1 flex mt-2 rounded overflow-hidden text-[0px]">
+                        <div class="h-full bg-purple-500 opacity-50" style="width: 15%" title="次声波"></div>
+                        <div class="h-full bg-green-500 opacity-50" style="width: 70%" title="可听声波"></div>
+                        <div class="h-full bg-red-500 opacity-50" style="width: 15%" title="超声波"></div>
+                    </div>
+                    <div class="flex justify-between text-[10px] text-gray-400 mt-1 font-mono">
+                        <span>1</span>
+                        <span class="relative left-[-8%]">20</span>
+                        <span class="relative left-[8%]">20k</span>
+                        <span>30k</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-gray-700 p-5 rounded-xl shadow-lg border border-gray-600">
+                <div class="flex justify-between items-end mb-2">
+                    <label for="amplitude" class="font-bold text-lg text-green-300">响度 (振幅)</label>
+                    <span id="ampValue" class="text-2xl font-mono font-bold">1.0</span>
+                </div>
+                <input type="range" id="amplitude" min="0.0" max="1.5" value="1.0" step="0.01" class="w-full">
+                <div class="mt-3 text-xs text-gray-300 flex justify-between">
+                    <span>静音</span>
+                    <span>最大</span>
+                </div>
+            </div>
+            
+            <div class="bg-gray-700 p-5 rounded-xl shadow-lg border border-gray-600">
+                <label for="timbre" class="block font-bold text-lg text-purple-300 mb-3">音色 (波形)</label>
+                <div class="relative">
+                    <select id="timbre" class="block w-full bg-gray-800 border border-gray-500 text-white py-3 px-4 pr-8 rounded leading-tight focus:outline-none focus:bg-gray-600 focus:border-purple-500 transition-colors">
+                        <option value="sine">正弦波 (纯音)</option>
+                        <option value="piano">钢琴 (复合波)</option>
+                        <option value="violin">小提琴 (丰富泛音)</option>
+                        <option value="square">方波 (电子感)</option>
+                        <option value="sawtooth">锯齿波 (尖锐)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-gray-800 border-t border-gray-700 pt-6 w-full">
+            <h2 class="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4 text-center">物理频段快速跳转</h2>
+            <div class="flex justify-center gap-4 flex-wrap">
+                <button id="btnInfrasound" class="px-4 py-2 bg-purple-900 hover:bg-purple-800 text-purple-100 rounded-lg border border-purple-700 text-sm transition-colors shadow-md">次声波 (5 Hz)</button>
+                <button id="btnAudible" class="px-4 py-2 bg-green-900 hover:bg-green-800 text-green-100 rounded-lg border border-green-700 text-sm transition-colors shadow-md">标准音 (440 Hz)</button>
+                <button id="btnHighFreq" class="px-4 py-2 bg-green-800 hover:bg-green-700 text-green-100 rounded-lg border border-green-600 text-sm transition-colors shadow-md">高频 (15 kHz)</button>
+                <button id="btnUltrasound" class="px-4 py-2 bg-red-900 hover:bg-red-800 text-red-100 rounded-lg border border-red-700 text-sm transition-colors shadow-md">超声波 (25 kHz)</button>
+            </div>
+        </div>
+        
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // 获取画布
+            const cvsWave = document.getElementById('waveformCanvas');
+            const ctxWave = cvsWave.getContext('2d');
+            const cvsPart = document.getElementById('particleCanvas');
+            const ctxPart = cvsPart.getContext('2d');
+
+            const playHint = document.getElementById('playHint');
+            const zoneLabel = document.getElementById('zoneLabel');
+            
+            // Web Audio API
+            let audioCtx = null;
+            let oscillator = null;
+            let gainNode = null;
+            let isPlaying = false;
+            let periodicWaves = {}; 
+            
+            // 动画变量
+            let phase = 0; 
+            let animationId = null;
+            let particles = []; // 粒子数组
+
+            // UI 元素引用
+            const elements = {
+                freqSlider: document.getElementById('frequency'),
+                ampSlider: document.getElementById('amplitude'),
+                timbreSelect: document.getElementById('timbre'),
+                freqValue: document.getElementById('freqValue'),
+                ampValue: document.getElementById('ampValue'),
+                btnToggle: document.getElementById('audioToggleButton'),
+                btnText: document.getElementById('btnText'),
+                // 预设按钮
+                btnInfrasound: document.getElementById('btnInfrasound'),
+                btnAudible: document.getElementById('btnAudible'),
+                btnHighFreq: document.getElementById('btnHighFreq'),
+                btnUltrasound: document.getElementById('btnUltrasound')
+            };
+
+            // 乐器泛音数据
+            const instrumentCoeffs = {
+                piano: { imag: [0, 1.0, 0.4, 0.2, 0.1, 0.05, 0.02], real: [0,0,0,0,0,0,0] },
+                violin: { imag: [0, 1.0, 0.5, 0.33, 0.25, 0.2, 0.16, 0.14, 0.12, 0.1, 0.09, 0.08], real: [0,0,0,0,0,0,0,0,0,0,0,0] }
+            };
+
+            // --- 初始化粒子 ---
+            // 创建网格状分布的空气分子
+            function initParticles() {
+                particles = [];
+                const cols = 40; // 列数
+                const rows = 6;  // 行数
+                const spacingX = cvsPart.width / cols;
+                const spacingY = cvsPart.height / (rows + 1);
+
+                for (let i = 0; i <= cols; i++) {
+                    for (let j = 1; j <= rows; j++) {
+                        particles.push({
+                            baseX: i * spacingX, // 平衡位置 X
+                            baseY: j * spacingY, // 平衡位置 Y
+                            x: i * spacingX,
+                            y: j * spacingY,
+                            isRef: (i === Math.floor(cols/2) && j === Math.floor(rows/2)) // 标记一个红色参考粒子
+                        });
+                    }
+                }
+            }
+
+            // --- 频率映射 ---
+            // 将 0-100 的滑块值映射到 1Hz - 30000Hz
+            function sliderToHz(val) {
+                if (val <= 15) return 1 + (val / 15) * 19; // 1-20Hz
+                else if (val <= 85) { // 20-20000Hz 对数映射
+                    const minF = 20, maxF = 20000;
+                    const norm = (val - 15) / 70; 
+                    return minF * Math.pow(maxF / minF, norm);
+                } else { // 20k-30kHz 线性
+                    const norm = (val - 85) / 15;
+                    return 20000 + norm * 10000;
+                }
+            }
+            function HzToSlider(hz) {
+                if (hz <= 20) return ((hz - 1) / 19) * 15;
+                else if (hz <= 20000) {
+                    const minF = 20, maxF = 20000;
+                    const norm = Math.log(hz / minF) / Math.log(maxF / minF);
+                    return 15 + norm * 70;
+                } else return 85 + ((hz - 20000) / 10000) * 15;
+            }
+            function getZoneInfo(hz) {
+                if (hz < 20) return { text: "次声波 (不可听)", color: "text-purple-400", bg: "bg-purple-900" };
+                if (hz > 20000) return { text: "超声波 (不可听)", color: "text-red-400", bg: "bg-red-900" };
+                return { text: "可听声波", color: "text-green-400", bg: "bg-green-900" };
+            }
+
+            // --- 尺寸处理 ---
+            function resizeCanvas() {
+                const dpr = window.devicePixelRatio || 1;
+                [cvsWave, cvsPart].forEach(canvas => {
+                    const rect = canvas.getBoundingClientRect();
+                    canvas.width = rect.width * dpr;
+                    canvas.height = rect.height * dpr;
+                    const ctx = canvas.getContext('2d');
+                    ctx.scale(dpr, dpr); // 缩放上下文，保持逻辑坐标一致
+                });
+                initParticles(); // 重置粒子
+                if (!isPlaying) drawFrame();
+            }
+
+            // --- 波形函数 ---
+            function getComplexY(coeffs, angle) {
+                let y = 0;
+                for (let i = 1; i < coeffs.length; i++) y += coeffs[i] * Math.sin(angle * i);
+                return y;
+            }
+            function getY(type, angle) {
+                switch (type) {
+                    case 'sine': return Math.sin(angle);
+                    case 'piano': return getComplexY(instrumentCoeffs.piano.imag, angle);
+                    case 'violin': return getComplexY(instrumentCoeffs.violin.imag, angle);
+                    case 'square': return Math.sign(Math.sin(angle));
+                    case 'sawtooth': return 1 - 2 * ((angle / (2 * Math.PI)) % 1 + 1) % 1; 
+                    default: return Math.sin(angle);
+                }
+            }
+
+            // --- 绘图核心 ---
+            function drawFrame() {
+                const width = cvsWave.getBoundingClientRect().width;
+                const heightWave = cvsWave.getBoundingClientRect().height;
+                const heightPart = cvsPart.getBoundingClientRect().height;
+
+                const sliderVal = parseFloat(elements.freqSlider.value);
+                const realHz = sliderToHz(sliderVal);
+                const amplitude = parseFloat(elements.ampSlider.value);
+                const waveform = elements.timbreSelect.value;
+
+                // 更新文字显示
+                if(elements.freqValue) elements.freqValue.textContent = realHz >= 1000 ? (realHz/1000).toFixed(2) + " kHz" : Math.round(realHz) + " Hz";
+                if(elements.ampValue) elements.ampValue.textContent = amplitude.toFixed(2);
+                
+                const zone = getZoneInfo(realHz);
+                if(zoneLabel) {
+                    zoneLabel.textContent = zone.text;
+                    zoneLabel.className = `absolute top-2 right-4 text-xs font-bold px-2 py-1 rounded bg-opacity-80 transition-colors ${zone.bg} text-white`;
+                }
+
+                // 颜色定义
+                const waveColor = isPlaying ? (realHz < 20 ? '#a855f7' : (realHz > 20000 ? '#f87171' : '#60a5fa')) : '#4b5563';
+                const particleColor = isPlaying ? (realHz < 20 ? '#d8b4fe' : (realHz > 20000 ? '#fca5a5' : '#93c5fd')) : '#6b7280';
+
+                // === 1. 绘制横波 (示波器) ===
+                ctxWave.clearRect(0, 0, width, heightWave);
+                
+                // 网格线
+                ctxWave.strokeStyle = '#1f2937';
+                ctxWave.lineWidth = 1;
+                ctxWave.beginPath();
+                ctxWave.moveTo(0, heightWave / 2);
+                ctxWave.lineTo(width, heightWave / 2);
+                ctxWave.stroke();
+
+                // 视觉系数 (控制波形密度，不完全等于真实周期，避免高频过密)
+                let visualK = Math.log10(realHz) * 8; 
+                if (visualK < 0.5) visualK = 0.5;
+
+                ctxWave.strokeStyle = waveColor;
+                ctxWave.lineWidth = 2;
+                ctxWave.lineJoin = 'round';
+                ctxWave.beginPath();
+
+                const waveScale = heightWave / 2.5;
+                let normFactor = (waveform === 'piano' || waveform === 'violin') ? 0.6 : 1.0;
+
+                for (let x = 0; x < width; x += 2) { // 步长优化性能
+                    // 波函数 angle: kx - wt
+                    const angle = (x / width) * visualK * Math.PI * 2 - phase;
+                    const rawY = getY(waveform, angle);
+                    const y = (heightWave / 2) - (rawY * amplitude * waveScale * normFactor);
+                    
+                    if (x === 0) ctxWave.moveTo(x, y);
+                    else ctxWave.lineTo(x, y);
+                }
+                ctxWave.stroke();
+
+                // === 2. 绘制纵波 (粒子) ===
+                ctxPart.clearRect(0, 0, width, heightPart);
+                
+                // 粒子运动最大偏移量 (像素)
+                const maxDisplacement = (width / 40) * 1.5 * amplitude; 
+
+                particles.forEach(p => {
+                    // 计算该粒子平衡位置对应的相位
+                    // 注意：为了与上方波形对齐，这里的相位计算公式要一致
+                    const angle = (p.baseX / width) * visualK * Math.PI * 2 - phase;
+                    
+                    // 纵波核心：位移方向与传播方向平行 (X轴变化)
+                    // 波峰(高压)对应密集区？波谷对应稀疏？
+                    // 数学上：密度变化 ~ -位移导数。
+                    // 简单模拟：直接用 cos 或 sin 控制偏移。
+                    // 若 y = sin(kx-wt)，则位移 s = cos(kx-wt) 此时波峰处粒子向左聚，波谷处向右聚，形成疏密。
+                    // 为了视觉直观，我们让示波器的“波峰”对应“密部”。
+                    // 当使用 -cos 函数作为位移时，波峰处聚集效果较好。
+                    
+                    let displacement = 0;
+                    // 获取波形函数的瞬时值作为位移基准
+                    // 稍微偏移相位 Math.PI/2 使得波峰对齐密部
+                    const rawVal = getY(waveform, angle + Math.PI/2); 
+                    
+                    displacement = rawVal * maxDisplacement * normFactor;
+                    
+                    p.x = p.baseX + displacement;
+
+                    // 绘制
+                    ctxPart.beginPath();
+                    ctxPart.arc(p.x, p.y, p.isRef ? 4 : 1.5, 0, Math.PI * 2);
+                    ctxPart.fillStyle = p.isRef ? '#ef4444' : particleColor;
+                    ctxPart.fill();
+                });
+            }
+
+            function animate() {
+                if (!isPlaying) return;
+                
+                const sliderVal = parseFloat(elements.freqSlider.value);
+                const realHz = sliderToHz(sliderVal);
+                
+                // 动画速度控制：让高频快一点，但不要太快
+                let speedFactor = Math.sqrt(realHz) * 0.08; 
+                phase += speedFactor;
+
+                drawFrame();
+                updateSound();
+                animationId = requestAnimationFrame(animate);
+            }
+
+            // --- 音频控制 ---
+            function getPeriodicWave(type) {
+                if (!audioCtx || !instrumentCoeffs[type]) return null;
+                if (periodicWaves[type]) return periodicWaves[type];
+                const real = new Float32Array(instrumentCoeffs[type].real);
+                const imag = new Float32Array(instrumentCoeffs[type].imag);
+                const wave = audioCtx.createPeriodicWave(real, imag);
+                periodicWaves[type] = wave;
+                return wave;
+            }
+
+            function updateSound() {
+                if (!audioCtx || !oscillator || !gainNode) return;
+                const sliderVal = parseFloat(elements.freqSlider.value);
+                const realHz = sliderToHz(sliderVal);
+                const visualAmp = parseFloat(elements.ampSlider.value);
+                const timbre = elements.timbreSelect.value;
+                const now = audioCtx.currentTime;
+                
+                oscillator.frequency.setTargetAtTime(realHz, now, 0.1);
+                const audioGain = (visualAmp / 1.5) * 0.3; 
+                gainNode.gain.setTargetAtTime(audioGain, now, 0.1);
+
+                if (instrumentCoeffs[timbre]) {
+                    const w = getPeriodicWave(timbre);
+                    if (w) try { oscillator.setPeriodicWave(w); } catch(e){}
+                } else {
+                    oscillator.type = timbre;
+                }
+            }
+
+            function toggleAudio() {
+                if (isPlaying) {
+                    if (audioCtx) audioCtx.suspend();
+                    isPlaying = false;
+                    cancelAnimationFrame(animationId);
+                    elements.btnText.textContent = "播放声音 & 演示";
+                    elements.btnToggle.classList.replace('bg-red-600', 'bg-blue-600');
+                    elements.btnToggle.classList.replace('hover:bg-red-500', 'hover:bg-blue-500');
+                    playHint.style.opacity = '1';
+                    drawFrame(); // 静态重绘
+                } else {
+                    if (!audioCtx) {
+                        try {
+                            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                            oscillator = audioCtx.createOscillator();
+                            gainNode = audioCtx.createGain();
+                            oscillator.connect(gainNode);
+                            gainNode.connect(audioCtx.destination);
+                            oscillator.start();
+                        } catch(e) { alert("浏览器不支持 Web Audio API"); return; }
+                    }
+                    audioCtx.resume();
+                    isPlaying = true;
+                    elements.btnText.textContent = "停止播放";
+                    elements.btnToggle.classList.replace('bg-blue-600', 'bg-red-600');
+                    elements.btnToggle.classList.replace('hover:bg-blue-500', 'hover:bg-red-500');
+                    playHint.style.opacity = '0';
+                    animate();
+                }
+            }
+
+            // 事件监听
+            elements.btnToggle.addEventListener('click', toggleAudio);
+            elements.freqSlider.addEventListener('input', () => { if(!isPlaying) drawFrame(); });
+            elements.ampSlider.addEventListener('input', () => { if(!isPlaying) drawFrame(); });
+            elements.timbreSelect.addEventListener('change', () => { if(isPlaying) updateSound(); drawFrame(); });
+
+            const setFreq = (hz) => {
+                elements.freqSlider.value = HzToSlider(hz);
+                if(!isPlaying) drawFrame();
+            };
+            elements.btnInfrasound.addEventListener('click', () => setFreq(5));
+            elements.btnAudible.addEventListener('click', () => setFreq(440));
+            elements.btnHighFreq.addEventListener('click', () => setFreq(15000));
+            elements.btnUltrasound.addEventListener('click', () => setFreq(25000));
+
+            window.addEventListener('resize', resizeCanvas);
+            resizeCanvas();
+        });
+    </script>
+</body>
+</html>

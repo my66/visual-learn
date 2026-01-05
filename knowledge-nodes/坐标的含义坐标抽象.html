@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>魔法坐标画家 - 互动教学</title>
+    <!-- 引入 Tailwind CSS 用于样式 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 React 和 ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- 引入 Babel 用于解析 JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        /* 简单的动画过渡 */
+        .transition-all { transition-property: all; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); transition-duration: 150ms; }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // 获取 React Hooks
+        const { useState, useEffect, useRef } = React;
+
+        // -----------------------------------------------------------------------------
+        // 内置图标组件 (替代 lucide-react，确保单文件可运行)
+        // -----------------------------------------------------------------------------
+        const IconWrapper = ({ children, size = 24, className = "" }) => (
+            <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                width={size} 
+                height={size} 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                className={className}
+            >
+                {children}
+            </svg>
+        );
+
+        const Play = (props) => <IconWrapper {...props}><polygon points="5 3 19 12 5 21 5 3"></polygon></IconWrapper>;
+        const Pause = (props) => <IconWrapper {...props}><line x1="10" y1="4" x2="10" y2="20"></line><line x1="14" y1="4" x2="14" y2="20"></line></IconWrapper>;
+        const RotateCcw = (props) => <IconWrapper {...props}><path d="M1 4v6h6"></path><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></IconWrapper>;
+        const Music = (props) => <IconWrapper {...props}><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></IconWrapper>;
+        const Footprints = (props) => <IconWrapper {...props}><path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 11 3.8 11 8c0 1.25-1 2-1 4.5V16c0 2.15-1.8 4-4 4-1.1 0-2.1-.4-2.8-1.2"></path><path d="M20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C14.63 6 13 7.8 13 12c0 1.25 1 2 1 4.5V20c0 2.15 1.8 4 4 4 1.1 0 2.1-.4 2.8-1.2"></path></IconWrapper>;
+        const ShoppingCart = (props) => <IconWrapper {...props}><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></IconWrapper>;
+        const Info = (props) => <IconWrapper {...props}><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></IconWrapper>;
+        const Gauge = (props) => <IconWrapper {...props}><path d="m12 14 4-4"></path><path d="M3.34 19a10 10 0 1 1 17.32 0"></path></IconWrapper>;
+
+        // -----------------------------------------------------------------------------
+        // 通用组件：卡片与布局
+        // -----------------------------------------------------------------------------
+        const Card = ({ children, className = "" }) => (
+            <div className={`bg-white rounded-xl shadow-lg p-4 md:p-6 ${className}`}>
+                {children}
+            </div>
+        );
+
+        const Button = ({ onClick, disabled, children, color = "blue", size = "normal" }) => {
+            const colors = {
+                blue: "bg-blue-500 hover:bg-blue-600",
+                green: "bg-green-500 hover:bg-green-600",
+                red: "bg-red-500 hover:bg-red-600",
+                purple: "bg-purple-500 hover:bg-purple-600",
+                orange: "bg-orange-500 hover:bg-orange-600",
+                gray: "bg-gray-200 text-gray-700 hover:bg-gray-300",
+                activeGray: "bg-gray-800 text-white hover:bg-gray-900"
+            };
+            
+            const padding = size === "small" ? "py-1 px-2 text-xs" : "py-2 px-4";
+
+            return (
+                <button
+                    onClick={onClick}
+                    disabled={disabled}
+                    className={`${colors[color]} font-bold ${padding} rounded-lg transition-all transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 justify-center`}
+                >
+                    {children}
+                </button>
+            );
+        };
+
+        // -----------------------------------------------------------------------------
+        // 组件：速度控制器
+        // -----------------------------------------------------------------------------
+        const SpeedControl = ({ speed, setSpeed }) => {
+            const speeds = [0.1, 0.2, 0.5, 1, 2];
+            
+            return (
+                <div className="flex flex-col items-center bg-gray-50 p-2 rounded-lg border border-gray-200 w-full md:w-auto">
+                    <div className="flex items-center gap-2 mb-2 text-xs font-bold text-gray-500 uppercase tracking-wider">
+                        <Gauge size={14} /> 演示速度
+                    </div>
+                    <div className="flex flex-wrap justify-center gap-2">
+                        {speeds.map((s) => (
+                            <Button
+                                key={s}
+                                onClick={() => setSpeed(s)}
+                                color={speed === s ? "activeGray" : "gray"}
+                                size="small"
+                            >
+                                {s}x
+                            </Button>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        // -----------------------------------------------------------------------------
+        // 场景 1: 跳舞记录仪 (时间 vs 高度)
+        // -----------------------------------------------------------------------------
+        const DanceGraph = () => {
+            const [isPlaying, setIsPlaying] = useState(false);
+            const [time, setTime] = useState(0);
+            const [dancerHeight, setDancerHeight] = useState(0); 
+            const [points, setPoints] = useState([]);
+            const [speed, setSpeed] = useState(1);
+            const requestRef = useRef();
+
+            const jump = () => {
+                if (!isPlaying) return;
+                setDancerHeight(100);
+            };
+
+            const animate = () => {
+                if (isPlaying) {
+                    const delta = 1 * speed;
+                    setTime((prev) => prev + delta);
+                    setDancerHeight((prev) => Math.max(0, prev - 2 * speed));
+                    
+                    const bufferSize = Math.floor(200 / speed);
+                    setPoints((prev) => [...prev, { x: time, y: dancerHeight }].slice(-bufferSize));
+                    
+                    requestRef.current = requestAnimationFrame(animate);
+                }
+            };
+
+            useEffect(() => {
+                if (isPlaying) {
+                    requestRef.current = requestAnimationFrame(animate);
+                } else {
+                    cancelAnimationFrame(requestRef.current);
+                }
+                return () => cancelAnimationFrame(requestRef.current);
+            }, [isPlaying, time, dancerHeight, speed]);
+
+            const reset = () => {
+                setIsPlaying(false);
+                setTime(0);
+                setPoints([]);
+                setDancerHeight(0);
+            };
+
+            return (
+                <div className="flex flex-col gap-6">
+                    <div className="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500 text-sm text-blue-800">
+                        <p className="font-bold mb-1">给小朋友的解释：</p>
+                        想象有一个魔法照相机。如果你不动，时间也在走，所以线会向右画。如果你跳起来，线就会向上画。
+                        <br/>
+                        <span className="text-indigo-600 font-bold">尝试点击 0.1x 或 0.2x 慢速</span>，你能更清楚地看到每一瞬间发生了什么！
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 h-96">
+                        {/* 左侧：现实世界视图 */}
+                        <div className="col-span-1 bg-gradient-to-b from-sky-100 to-green-100 rounded-xl relative border-2 border-blue-200 overflow-hidden flex flex-col items-center justify-end p-4">
+                            <div className="absolute top-2 left-2 bg-white/80 px-2 py-1 rounded text-xs font-bold text-blue-600">
+                                现实世界
+                            </div>
+                            
+                            <div 
+                                className="absolute border-t-2 border-dashed border-red-400 w-full right-0"
+                                style={{ bottom: `${dancerHeight * 2.5 + 40}px` }} 
+                            />
+
+                            <div 
+                                className="transition-all duration-0 linear flex flex-col items-center" 
+                                style={{ transform: `translateY(-${dancerHeight * 2.5}px)` }}
+                            >
+                                <div className="text-6xl">💃</div>
+                                <div className="w-8 h-2 bg-black/20 rounded-full mt-1 blur-sm"></div>
+                            </div>
+                            <div className="w-full h-4 bg-green-600 rounded mt-2"></div>
+                        </div>
+
+                        {/* 右侧：坐标纸视图 */}
+                        <div className="col-span-1 md:col-span-2 bg-white rounded-xl border-2 border-gray-200 relative overflow-hidden">
+                            <div className="absolute top-2 right-2 bg-gray-100 px-2 py-1 rounded text-xs font-bold text-gray-600">
+                                坐标纸 (图表)
+                            </div>
+
+                            <div className="absolute bottom-2 right-2 text-xs font-bold text-gray-500">时间 (往右走) →</div>
+                            <div className="absolute top-2 left-2 text-xs font-bold text-gray-500">高度 (往上走) ↑</div>
+
+                            <svg className="w-full h-full" viewBox="0 0 400 300" preserveAspectRatio="none">
+                                <line x1="20" y1="280" x2="380" y2="280" stroke="black" strokeWidth="2" />
+                                <line x1="20" y1="280" x2="20" y2="20" stroke="black" strokeWidth="2" />
+
+                                <polyline
+                                    points={points.map(p => `${20 + (p.x * 2) % 360},${280 - p.y * 2.5}`).join(' ')}
+                                    fill="none"
+                                    stroke="#ec4899"
+                                    strokeWidth="4"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                />
+
+                                {points.length > 0 && (
+                                    <React.Fragment>
+                                        <circle cx={20 + (time * 2) % 360} cy={280 - dancerHeight * 2.5} r="6" fill="red" />
+                                        <line x1={20 + (time * 2) % 360} y1={280 - dancerHeight * 2.5} x2={20 + (time * 2) % 360} y2={280} stroke="blue" strokeWidth="1" strokeDasharray="4" opacity="0.6"/>
+                                        <line x1={20} y1={280 - dancerHeight * 2.5} x2={20 + (time * 2) % 360} y2={280 - dancerHeight * 2.5} stroke="red" strokeWidth="1" strokeDasharray="4" opacity="0.6"/>
+                                    </React.Fragment>
+                                )}
+                            </svg>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-gray-50 p-4 rounded-xl">
+                        <div className="flex gap-4">
+                            {!isPlaying ? (
+                                <Button onClick={() => setIsPlaying(true)} color="green"><Play size={20}/> 开始记录</Button>
+                            ) : (
+                                <Button onClick={() => setIsPlaying(false)} color="orange"><Pause size={20}/> 暂停</Button>
+                            )}
+                            <Button onClick={jump} color="purple" disabled={!isPlaying}>🚀 跳跳！</Button>
+                            <Button onClick={reset} color="blue"><RotateCcw size={20}/> 重来</Button>
+                        </div>
+                        
+                        <SpeedControl speed={speed} setSpeed={setSpeed} />
+                    </div>
+                </div>
+            );
+        };
+
+        // -----------------------------------------------------------------------------
+        // 场景 2: 小提琴音量 (时间 vs 强度)
+        // -----------------------------------------------------------------------------
+        const ViolinGraph = () => {
+            const [volume, setVolume] = useState(20); 
+            const [isPlaying, setIsPlaying] = useState(false);
+            const [time, setTime] = useState(0);
+            const [points, setPoints] = useState([]);
+            const [speed, setSpeed] = useState(1); 
+            const requestRef = useRef();
+
+            const animate = () => {
+                if (isPlaying) {
+                    const delta = 2 * speed;
+                    setTime((prev) => prev + delta);
+                    const bufferSize = Math.floor(200 / speed);
+                    setPoints((prev) => [...prev, { x: time, y: volume }].slice(-bufferSize));
+                    requestRef.current = requestAnimationFrame(animate);
+                }
+            };
+
+            useEffect(() => {
+                if (isPlaying) {
+                    requestRef.current = requestAnimationFrame(animate);
+                } else {
+                    cancelAnimationFrame(requestRef.current);
+                }
+                return () => cancelAnimationFrame(requestRef.current);
+            }, [isPlaying, time, volume, speed]);
+
+            const reset = () => {
+                setIsPlaying(false);
+                setTime(0);
+                setPoints([]);
+            };
+
+            return (
+                <div className="flex flex-col gap-6">
+                    <div className="bg-purple-50 p-4 rounded-lg border-l-4 border-purple-500 text-sm text-purple-800">
+                        <p className="font-bold mb-1">给小朋友的解释：</p>
+                        这一次，我们把小提琴的声音大小画出来。
+                        <br/>
+                        <strong>向右走</strong>代表乐曲正在播放（时间）。
+                        <strong>向上走</strong>代表声音变大，<strong>向下走</strong>代表声音变小。
+                        <span className="text-purple-700 font-bold">试着用 0.2x 速度，慢慢拖动滑块，看看波浪是怎么一点点画出来的！</span>
+                    </div>
+
+                    <div className="flex flex-col md:flex-row gap-4 items-stretch h-96">
+                        <div className="w-full md:w-1/3 bg-gray-50 rounded-xl border-2 border-gray-200 p-6 flex flex-col items-center justify-center gap-4 relative">
+                            <div className="absolute top-2 left-2 bg-white/80 px-2 py-1 rounded text-xs font-bold text-purple-600">
+                                控制台
+                            </div>
+                            <div className="text-6xl mb-4 relative">
+                                🎻
+                                <div className={`absolute -top-4 -right-4 text-2xl transition-opacity duration-300 ${isPlaying && volume > 10 ? 'opacity-100' : 'opacity-0'}`}>🎵</div>
+                            </div>
+                            
+                            <label className="font-bold text-gray-700 w-full text-center">
+                                拉弓力度 (音量): {volume}
+                            </label>
+                            <input 
+                                type="range" 
+                                min="0" 
+                                max="100" 
+                                value={volume} 
+                                onChange={(e) => setVolume(Number(e.target.value))}
+                                className="w-full h-4 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                            />
+                            <p className="text-xs text-gray-500">拖动滑块改变音量</p>
+                            
+                            <div 
+                                className="absolute w-8 border-t-2 border-dashed border-red-400 right-0 hidden md:block"
+                                style={{ bottom: `${(volume / 100) * 200 + 80}px` }}
+                            />
+                        </div>
+
+                        <div className="w-full md:w-2/3 bg-white rounded-xl border-2 border-gray-200 relative overflow-hidden">
+                            <div className="absolute bottom-2 right-2 text-xs font-bold text-gray-500">时间 (乐曲进度) →</div>
+                            <div className="absolute top-2 left-2 text-xs font-bold text-gray-500">音量 (大声/小声) ↑</div>
+                            
+                            <svg className="w-full h-full" viewBox="0 0 400 300" preserveAspectRatio="none">
+                                <line x1="20" y1="280" x2="380" y2="280" stroke="black" strokeWidth="2" />
+                                <line x1="20" y1="280" x2="20" y2="20" stroke="black" strokeWidth="2" />
+
+                                <polyline
+                                    points={points.map(p => `${20 + (p.x) % 360},${280 - p.y * 2.5}`).join(' ')}
+                                    fill="none"
+                                    stroke="#8b5cf6"
+                                    strokeWidth="4"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                />
+                                
+                                {points.length > 0 && (
+                                    <React.Fragment>
+                                        <circle cx={20 + (time) % 360} cy={280 - volume * 2.5} r="6" fill="red" />
+                                        <line x1={0} y1={280 - volume * 2.5} x2={20 + (time) % 360} y2={280 - volume * 2.5} stroke="red" strokeWidth="1" strokeDasharray="4" opacity="0.5"/>
+                                    </React.Fragment>
+                                )}
+                            </svg>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-gray-50 p-4 rounded-xl">
+                        <div className="flex gap-4">
+                            {!isPlaying ? (
+                                <Button onClick={() => setIsPlaying(true)} color="green"><Play size={20}/> 播放乐曲</Button>
+                            ) : (
+                                <Button onClick={() => setIsPlaying(false)} color="orange"><Pause size={20}/> 暂停</Button>
+                            )}
+                            <Button onClick={reset} color="blue"><RotateCcw size={20}/> 重来</Button>
+                        </div>
+                        <SpeedControl speed={speed} setSpeed={setSpeed} />
+                    </div>
+                </div>
+            );
+        };
+
+        // -----------------------------------------------------------------------------
+        // 场景 3: 糖果商店 (数量 vs 价格)
+        // -----------------------------------------------------------------------------
+        const ShopGraph = () => {
+            const [apples, setApples] = useState(1);
+            const PRICE_PER_APPLE = 2; 
+            const [history, setHistory] = useState([]);
+
+            const addRecord = () => {
+                if (!history.some(h => h.count === apples)) {
+                    setHistory([...history, { count: apples, price: apples * PRICE_PER_APPLE }]);
+                }
+            };
+
+            const clearHistory = () => {
+                setHistory([]);
+                setApples(1);
+            };
+
+            const sortedHistory = [...history].sort((a, b) => a.count - b.count);
+
+            return (
+                <div className="flex flex-col gap-6">
+                    <div className="bg-orange-50 p-4 rounded-lg border-l-4 border-orange-500 text-sm text-orange-800">
+                        <p className="font-bold mb-1">给小朋友的解释（最重要的一步！）：</p>
+                        这里<strong>没有时间</strong>在流逝了。
+                        <br/>
+                        X轴（横着）代表：<strong>买了几个苹果</strong>。
+                        <br/>
+                        Y轴（竖着）代表：<strong>花了多少钱</strong>。
+                        <br/>
+                        每个点都是一次购买记录。连起来看，你会发现买得越多，点就越高！这就是把两个数字变成一张图的方法。
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="bg-white p-6 rounded-xl border-2 border-orange-200 shadow-sm flex flex-col items-center justify-center">
+                            <h3 className="text-xl font-bold text-gray-700 mb-4">🍎 苹果小摊</h3>
+                            <div className="text-lg mb-2">单价: <span className="font-bold text-orange-600">2 元/个</span></div>
+                            
+                            <div className="flex items-center gap-4 mb-6 bg-gray-100 p-4 rounded-lg">
+                                <button onClick={() => setApples(Math.max(1, apples - 1))} className="w-10 h-10 rounded-full bg-gray-300 text-2xl font-bold hover:bg-gray-400">-</button>
+                                <div className="text-3xl font-bold text-gray-800 w-16 text-center">{apples}</div>
+                                <button onClick={() => setApples(Math.min(10, apples + 1))} className="w-10 h-10 rounded-full bg-gray-300 text-2xl font-bold hover:bg-gray-400">+</button>
+                            </div>
+
+                            <div className="text-2xl font-bold text-gray-800 mb-6">
+                                总价: <span className="text-green-600">{apples * PRICE_PER_APPLE} 元</span>
+                            </div>
+
+                            <Button onClick={addRecord} color="orange">
+                                <ShoppingCart size={20}/> 记到本子上（画点）
+                            </Button>
+                        </div>
+
+                        <div className="bg-white p-4 rounded-xl border-2 border-gray-200 relative h-80">
+                            <div className="absolute bottom-2 right-2 text-xs font-bold text-gray-500">苹果数量 (个) →</div>
+                            <div className="absolute top-2 left-2 text-xs font-bold text-gray-500">总价 (元) ↑</div>
+
+                            <svg className="w-full h-full" viewBox="0 0 300 300">
+                                <line x1="40" y1="260" x2="280" y2="260" stroke="black" strokeWidth="2" />
+                                <line x1="40" y1="260" x2="40" y2="20" stroke="black" strokeWidth="2" />
+
+                                {[2,4,6,8,10].map(i => (
+                                    <text key={i} x={40 + i * 20} y="280" fontSize="10" textAnchor="middle">{i}</text>
+                                ))}
+                                {[5,10,15,20].map(i => (
+                                    <React.Fragment key={i}>
+                                        <line x1="40" y1={260 - i * 10} x2="280" y2={260 - i * 10} stroke="#eee" strokeWidth="1" />
+                                        <text x="30" y={260 - i * 10 + 4} fontSize="10" textAnchor="end">{i}</text>
+                                    </React.Fragment>
+                                ))}
+
+                                <polyline
+                                    points={sortedHistory.map(h => `${40 + h.count * 20},${260 - h.price * 10}`).join(' ')}
+                                    fill="none"
+                                    stroke="#f97316"
+                                    strokeWidth="2"
+                                    strokeDasharray="4"
+                                />
+
+                                {sortedHistory.map((h, idx) => (
+                                    <g key={idx}>
+                                        <circle cx={40 + h.count * 20} cy={260 - h.price * 10} r="5" fill="#ea580c" />
+                                        <text x={40 + h.count * 20} y={260 - h.price * 10 - 10} fontSize="10" textAnchor="middle" fill="#666">
+                                            {h.count}个/{h.price}元
+                                        </text>
+                                    </g>
+                                ))}
+
+                                <circle 
+                                    cx={40 + apples * 20} 
+                                    cy={260 - (apples * PRICE_PER_APPLE) * 10} 
+                                    r="6" 
+                                    fill="none" 
+                                    stroke="red" 
+                                    strokeWidth="2" 
+                                    className="animate-pulse"
+                                />
+                                <line x1={40 + apples * 20} y1={260} x2={40 + apples * 20} y2={260 - (apples * PRICE_PER_APPLE) * 10} stroke="blue" strokeWidth="1" strokeDasharray="2" opacity="0.5"/>
+                                <line x1={40} y1={260 - (apples * PRICE_PER_APPLE) * 10} x2={40 + apples * 20} y2={260 - (apples * PRICE_PER_APPLE) * 10} stroke="red" strokeWidth="1" strokeDasharray="2" opacity="0.5"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div className="flex justify-center">
+                        <Button onClick={clearHistory} color="blue">清空记录</Button>
+                    </div>
+                </div>
+            );
+        };
+
+        // -----------------------------------------------------------------------------
+        // 主应用
+        // -----------------------------------------------------------------------------
+        const CoordinatePainter = () => {
+            const [activeTab, setActiveTab] = useState('dance');
+
+            return (
+                <div className="min-h-screen bg-gray-100 p-4 md:p-8 font-sans text-gray-800">
+                    <div className="max-w-4xl mx-auto space-y-6">
+                        
+                        <div className="text-center space-y-2">
+                            <h1 className="text-3xl md:text-4xl font-extrabold text-indigo-600 flex items-center justify-center gap-3">
+                                <span>✨</span> 魔法坐标画家 <span>✨</span>
+                            </h1>
+                            <p className="text-gray-600">
+                                学习如何把生活中的故事，变成纸上的“画”
+                            </p>
+                        </div>
+
+                        <div className="flex flex-wrap justify-center gap-2 mb-6">
+                            <button
+                                onClick={() => setActiveTab('dance')}
+                                className={`px-6 py-3 rounded-full font-bold transition-all flex items-center gap-2 ${
+                                    activeTab === 'dance' ? 'bg-indigo-600 text-white shadow-lg scale-105' : 'bg-white text-gray-600 hover:bg-gray-50'
+                                }`}
+                            >
+                                <Footprints size={18}/> 1. 跳舞的轨迹 (时间+高度)
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('violin')}
+                                className={`px-6 py-3 rounded-full font-bold transition-all flex items-center gap-2 ${
+                                    activeTab === 'violin' ? 'bg-purple-600 text-white shadow-lg scale-105' : 'bg-white text-gray-600 hover:bg-gray-50'
+                                }`}
+                            >
+                                <Music size={18}/> 2. 小提琴的声音 (时间+响度)
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('shop')}
+                                className={`px-6 py-3 rounded-full font-bold transition-all flex items-center gap-2 ${
+                                    activeTab === 'shop' ? 'bg-orange-600 text-white shadow-lg scale-105' : 'bg-white text-gray-600 hover:bg-gray-50'
+                                }`}
+                            >
+                                <ShoppingCart size={18}/> 3. 苹果小摊 (无时间)
+                            </button>
+                        </div>
+
+                        <Card className="min-h-[500px]">
+                            {activeTab === 'dance' && <DanceGraph />}
+                            {activeTab === 'violin' && <ViolinGraph />}
+                            {activeTab === 'shop' && <ShopGraph />}
+                        </Card>
+
+                        <div className="bg-yellow-50 p-4 rounded-xl text-sm text-yellow-800 border border-yellow-200 mt-8">
+                            <h4 className="font-bold flex items-center gap-2 mb-2">
+                                <Info size={16}/> 
+                                给家长的辅导小贴士
+                            </h4>
+                            <ul className="list-disc list-inside space-y-1 ml-2">
+                                <li>重点观察<strong>红色的虚线</strong>和<strong>蓝色的虚线</strong>，它们告诉我们点的位置是怎么来的。</li>
+                                <li>告诉孩子：“X轴（横线）就像一把尺子，量的是一个东西；Y轴（竖线）像另一把尺子，量的是完全不同的东西。”</li>
+                                <li>在第3个“苹果小摊”例子中，强调没有时间在流逝，我们只是把两个相关的数字（买了几个，花了多少钱）配对在一起。</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // 渲染应用
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<CoordinatePainter />);
+    </script>
+</body>
+</html>

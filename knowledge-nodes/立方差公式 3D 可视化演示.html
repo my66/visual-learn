@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>立方差公式 3D 可视化演示 (a³ - b³)</title>
+    <style>
+        /* 全局样式 - 专注于PC端展示 */
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: "Noto Sans SC", "Microsoft YaHei", sans-serif;
+            background-color: #f0f2f5;
+            overflow-y: auto; /* 允许垂直滚动 */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+        }
+
+        /* 主容器：包含控制面板和画布 */
+        #main-container {
+            display: flex;
+            flex-direction: row;
+            width: 95%;
+            max-width: 1600px;
+            height: 90vh; /* 留出页眉页脚空间 */
+            margin-top: 20px;
+            background: white;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        /* 左侧控制面板 */
+        #control-panel {
+            width: 320px;
+            min-width: 300px;
+            background: #f8f9fa;
+            border-right: 1px solid #e0e0e0;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        /* 右侧 3D 画布容器 */
+        #canvas-container {
+            flex-grow: 1;
+            position: relative;
+            background: #ffffff;
+            overflow: hidden;
+        }
+
+        /* 标题和数学公式样式 */
+        h1 {
+            font-size: 20px;
+            color: #333;
+            margin-bottom: 10px;
+            border-bottom: 2px solid #3b82f6;
+            padding-bottom: 8px;
+        }
+
+        .math-display {
+            font-family: "Times New Roman", serif;
+            font-size: 1.4rem;
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            margin-bottom: 20px;
+            text-align: center;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .math-term {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin: 0 2px;
+            font-weight: bold;
+        }
+        
+        /* 颜色对应 */
+        .color-a2 { color: #2563eb; background: #dbeafe; } /* 蓝色 */
+        .color-ab { color: #d97706; background: #fef3c7; } /* 橙色 */
+        .color-b2 { color: #059669; background: #d1fae5; } /* 绿色 */
+        .color-cut { color: #dc2626; background: #fee2e2; } /* 红色 */
+
+        /* 控件样式 */
+        .control-group {
+            margin-bottom: 24px;
+            background: #fff;
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid #eee;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+            font-size: 14px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+        }
+
+        .btn-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        button {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            background: #3b82f6;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        button:hover {
+            background: #2563eb;
+            transform: translateY(-1px);
+        }
+
+        button.active {
+            background: #1e40af;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+            border-left: 4px solid #93c5fd;
+        }
+
+        /* 说明文字 */
+        .description {
+            font-size: 13px;
+            color: #666;
+            line-height: 1.5;
+            margin-top: auto;
+            border-top: 1px solid #eee;
+            padding-top: 15px;
+        }
+
+        /* 3D 场景中的浮动标签 */
+        #overlay-ui {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 12px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            pointer-events: none;
+            max-width: 250px;
+        }
+        
+        .overlay-item {
+            font-size: 13px;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+        }
+
+        .color-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            display: inline-block;
+        }
+
+    </style>
+    <!-- 引入 Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+
+    <div id="main-container">
+        <!-- 左侧控制区 -->
+        <div id="control-panel">
+            <h1>立方差公式演示</h1>
+            
+            <div class="math-display">
+                a³ - b³ = (a-b)(<span class="math-term color-a2">a²</span> + <span class="math-term color-ab">ab</span> + <span class="math-term color-b2">b²</span>)
+            </div>
+
+            <div class="control-group">
+                <label>调整 b 的大小 (相对于 a)</label>
+                <input type="range" id="slider-b" min="0.1" max="0.9" step="0.01" value="0.5">
+                <div style="display: flex; justify-content: space-between; font-size: 12px; margin-top: 5px; color: #888;">
+                    <span>小 (0.1a)</span>
+                    <span id="val-b">0.5a</span>
+                    <span>大 (0.9a)</span>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label>演示步骤</label>
+                <div class="btn-group">
+                    <button id="btn-state-0" class="active" onclick="setAppState(0)">
+                        <span>1. 整体与部分</span>
+                        <span>📦</span>
+                    </button>
+                    <button id="btn-state-1" onclick="setAppState(1)">
+                        <span>2. 移除 b³</span>
+                        <span>✂️</span>
+                    </button>
+                    <button id="btn-state-2" onclick="setAppState(2)">
+                        <span>3. 几何分割</span>
+                        <span>🧩</span>
+                    </button>
+                    <button id="btn-state-3" onclick="setAppState(3)">
+                        <span>4. 拼接成长方体</span>
+                        <span>📏</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label>显示选项</label>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <input type="checkbox" id="chk-edges" checked onchange="updateVisibility()">
+                    <span style="font-size: 14px;">显示边框</span>
+                </div>
+                <div style="display: flex; gap: 10px; align-items: center; margin-top: 8px;">
+                    <input type="checkbox" id="chk-anim" checked>
+                    <span style="font-size: 14px;">启用过渡动画</span>
+                </div>
+            </div>
+
+            <div class="description">
+                <strong>图解原理：</strong><br>
+                从边长为 a 的大正方体中挖去边长为 b 的小正方体。剩余部分体积为 a³ - b³。<br><br>
+                我们将剩余部分切割为三块，它们都有相同的高度 (a-b)。拼接后底面积之和为 (a² + ab + b²)。
+            </div>
+        </div>
+
+        <!-- 右侧画布区 -->
+        <div id="canvas-container">
+            <div id="overlay-ui">
+                <div class="overlay-item"><span class="color-dot" style="background:#3b82f6"></span> 底座: a × a × (a-b)</div>
+                <div class="overlay-item"><span class="color-dot" style="background:#f59e0b"></span> 侧翼: b × a × (a-b)</div>
+                <div class="overlay-item"><span class="color-dot" style="background:#10b981"></span> 前角: b × b × (a-b)</div>
+                <div class="overlay-item" id="info-cut" style="display:none; color:#dc2626; border-top:1px solid #ddd; margin-top:4px; padding-top:4px;">
+                    <span class="color-dot" style="background:#ef4444"></span> 已移除: b³
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. 全局变量 ---
+        let scene, camera, renderer, controls;
+        let blocks = {}; // 存储所有几何体网格
+        let edges = {};  // 存储边框线
+        
+        // 参数配置
+        const config = {
+            a: 40,       // 大正方体边长 (单位)
+            bRatio: 0.5, // b/a 比例
+            gap: 2,      // 分割时的间隙
+            animSpeed: 0.1, // 动画插值速度
+            currentState: 0 // 0: 完整, 1: 挖去, 2: 分割, 3: 拼接
+        };
+
+        // 目标位置/旋转存储 (用于动画)
+        const targets = {
+            pos: {},
+            rot: {}
+        };
+
+        // 颜色定义
+        const COLORS = {
+            block1: 0x3b82f6, // 蓝色 (大底座) a^2
+            block2: 0xf59e0b, // 橙色 (长条) ab
+            block3: 0x10b981, // 绿色 (小块) b^2
+            cubeB:  0xef4444, // 红色 (被减去的块)
+            edge:   0x000000,
+            bg:     0xffffff
+        };
+
+        // --- 2. 初始化 Three.js ---
+        function init() {
+            const container = document.getElementById('canvas-container');
+            
+            // 场景
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(COLORS.bg);
+
+            // 相机 (透视投影)
+            const aspect = container.clientWidth / container.clientHeight;
+            camera = new THREE.PerspectiveCamera(45, aspect, 1, 1000);
+            camera.position.set(80, 70, 100); // 初始视角
+
+            // 渲染器
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.shadowMap.enabled = true;
+            container.appendChild(renderer.domElement);
+
+            // 控制器
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+
+            // 灯光
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.7);
+            dirLight.position.set(50, 100, 50);
+            dirLight.castShadow = true;
+            dirLight.shadow.mapSize.width = 2048;
+            dirLight.shadow.mapSize.height = 2048;
+            scene.add(dirLight);
+            
+            // 辅助网格 (地板)
+            const gridHelper = new THREE.GridHelper(200, 20, 0xdddddd, 0xeeeeee);
+            scene.add(gridHelper);
+
+            // 初始化几何体
+            createGeometry();
+
+            // 监听窗口大小变化
+            window.addEventListener('resize', onWindowResize);
+            
+            // 绑定滑块事件
+            document.getElementById('slider-b').addEventListener('input', (e) => {
+                config.bRatio = parseFloat(e.target.value);
+                document.getElementById('val-b').innerText = config.bRatio.toFixed(2) + "a";
+                rebuildGeometry(); // 改变大小时必须重建几何体
+            });
+
+            // 启动动画循环
+            animate();
+            
+            // 初始计算目标位置
+            calculateTargets();
+        }
+
+        // --- 3. 几何体构建 ---
+        // 这里的逻辑是核心：如何把 a^3 - b^3 切割成三块
+        // 切割方案：
+        // 1. 下层板 (Block 1): 高度 a-b，底面 a*a。 体积: a*a*(a-b)
+        // 2. 上层剩余部分是个 L 型，再切一刀：
+        //    - 侧条 (Block 2): 高度 b，宽度 a-b，长度 a。 体积: a*(a-b)*b
+        //    - 前角 (Block 3): 高度 b，宽度 b，长度 a-b。 体积: b*b*(a-b)
+        // 这个组合刚好填满除了 b^3 以外的空间。
+        
+        function createGeometry() {
+            // 清除旧物体
+            ['block1', 'block2', 'block3', 'cubeB'].forEach(key => {
+                if(blocks[key]) scene.remove(blocks[key]);
+                if(edges[key]) scene.remove(edges[key]);
+            });
+
+            const a = config.a;
+            const b = config.a * config.bRatio;
+            const h_diff = a - b; // 公共高度因子 (a-b)
+
+            // 材质
+            const matBase = { transparent: true, opacity: 0.9, shininess: 30 };
+            const mat1 = new THREE.MeshPhongMaterial({ ...matBase, color: COLORS.block1 });
+            const mat2 = new THREE.MeshPhongMaterial({ ...matBase, color: COLORS.block2 });
+            const mat3 = new THREE.MeshPhongMaterial({ ...matBase, color: COLORS.block3 });
+            const matB = new THREE.MeshPhongMaterial({ ...matBase, color: COLORS.cubeB, opacity: 0.4, transparent: true });
+
+            // --- Block 1: 底座 ---
+            // 尺寸: a * (a-b) * a
+            // 初始位置: 底部居中
+            const geo1 = new THREE.BoxGeometry(a, h_diff, a);
+            blocks.block1 = new THREE.Mesh(geo1, mat1);
+            // 坐标中心调整: Y轴从 0 到 a-b
+            // 初始位置设为原点附近
+            blocks.block1.userData = { 
+                size: {x: a, y: h_diff, z: a},
+                originPos: new THREE.Vector3(0, h_diff/2, 0) 
+            };
+            
+            // --- Block 2: 侧翼 ---
+            // 位于 Block 1 之上，侧面
+            // 尺寸: (a-b) * b * a
+            // 注意：这里我们让 Block 2 的长边沿 Z 轴，宽沿 X 轴，高沿 Y 轴
+            // 为了之后拼接方便，我们定义 Block 2 为: 宽(a-b), 高 b, 长 a
+            // 放置在 Block 1 上方的一侧
+            const geo2 = new THREE.BoxGeometry(h_diff, b, a);
+            blocks.block2 = new THREE.Mesh(geo2, mat2);
+            // 初始位置: X轴偏左
+            blocks.block2.userData = {
+                size: {x: h_diff, y: b, z: a},
+                originPos: new THREE.Vector3(-(a/2 - h_diff/2), h_diff + b/2, 0)
+            };
+
+            // --- Block 3: 前角小块 ---
+            // 位于 Block 1 之上，Block 2 旁边
+            // 尺寸: b * b * (a-b)
+            // 注意：被减去的 b^3 位于右上角后方，所以 Block 3 在右上角前方
+            const geo3 = new THREE.BoxGeometry(b, b, h_diff);
+            blocks.block3 = new THREE.Mesh(geo3, mat3);
+            blocks.block3.userData = {
+                size: {x: b, y: b, z: h_diff},
+                // 位置: X轴偏右, Z轴偏前
+                originPos: new THREE.Vector3((a/2 - b/2), h_diff + b/2, (a/2 - h_diff/2))
+            };
+
+            // --- Cube B: 被减去的部分 ---
+            // 尺寸: b * b * b
+            // 位置: 右上角后方
+            const geoB = new THREE.BoxGeometry(b, b, b);
+            blocks.cubeB = new THREE.Mesh(geoB, matB);
+            blocks.cubeB.userData = {
+                originPos: new THREE.Vector3((a/2 - b/2), h_diff + b/2, -(a/2 - b/2))
+            };
+
+            // 添加到场景并创建边框
+            ['block1', 'block2', 'block3', 'cubeB'].forEach(key => {
+                const mesh = blocks[key];
+                // 设置初始位置
+                mesh.position.copy(mesh.userData.originPos);
+                scene.add(mesh);
+
+                // 边框
+                const edgesGeo = new THREE.EdgesGeometry(mesh.geometry);
+                const edgesMat = new THREE.LineBasicMaterial({ color: COLORS.edge, transparent: true, opacity: 0.3 });
+                const edgeLines = new THREE.LineSegments(edgesGeo, edgesMat);
+                edges[key] = edgeLines;
+                mesh.add(edgeLines); // 将边框作为子对象，随父对象移动
+            });
+
+            // 立即更新到当前状态
+            calculateTargets();
+            snapToTargets();
+        }
+
+        function rebuildGeometry() {
+            createGeometry();
+            calculateTargets();
+        }
+
+        // --- 4. 状态与动画逻辑 ---
+
+        function setAppState(stateIndex) {
+            config.currentState = stateIndex;
+            
+            // 更新按钮UI
+            for(let i=0; i<=3; i++) {
+                const btn = document.getElementById(`btn-state-${i}`);
+                if(i === stateIndex) btn.classList.add('active');
+                else btn.classList.remove('active');
+            }
+
+            // 更新说明UI
+            const infoCut = document.getElementById('info-cut');
+            if(stateIndex === 0) infoCut.style.display = 'none';
+            else infoCut.style.display = 'block';
+
+            calculateTargets();
+            
+            // 如果不启用动画，直接跳转
+            if(!document.getElementById('chk-anim').checked) {
+                snapToTargets();
+            }
+        }
+
+        function calculateTargets() {
+            const a = config.a;
+            const b = config.a * config.bRatio;
+            const h_diff = a - b;
+            const gap = config.gap;
+            const s = config.currentState;
+
+            // 辅助：重置目标
+            // 目标格式: { pos: Vector3, rot: Vector3(Euler) }
+            const keys = ['block1', 'block2', 'block3', 'cubeB'];
+            keys.forEach(k => {
+                targets.pos[k] = blocks[k].userData.originPos.clone();
+                targets.rot[k] = new THREE.Euler(0, 0, 0);
+                
+                // 默认可见性处理（通过缩放实现消失动画，比 visible 属性更平滑）
+                targets.scale = targets.scale || {};
+                targets.scale[k] = new THREE.Vector3(1, 1, 1);
+            });
+
+            // --- 状态逻辑 ---
+
+            if (s === 0) {
+                // 状态 0: 完整立方体
+                // Cube B 稍微闪烁或高亮 (逻辑在 render 中处理)
+                targets.scale['cubeB'].set(1, 1, 1);
+            }
+            else if (s === 1) {
+                // 状态 1: 移除 b^3
+                // 将 b^3 向上向后移动并消失
+                targets.pos['cubeB'].add(new THREE.Vector3(20, 20, -20));
+                targets.scale['cubeB'].set(0, 0, 0); // 缩小至消失
+            }
+            else if (s === 2) {
+                // 状态 2: 爆炸分解
+                // b^3 保持消失
+                targets.pos['cubeB'].add(new THREE.Vector3(20, 20, -20));
+                targets.scale['cubeB'].set(0, 0, 0);
+
+                // Block 1 下移
+                targets.pos['block1'].y -= 10;
+                
+                // Block 2 左移
+                targets.pos['block2'].x -= 10;
+                targets.pos['block2'].y += 5; // 稍微错开
+
+                // Block 3 前移
+                targets.pos['block3'].z += 10;
+                targets.pos['block3'].y += 5;
+                targets.pos['block3'].x += 5;
+            }
+            else if (s === 3) {
+                // 状态 3: 线性拼接 (Factorization view)
+                // 目标: 将三个块排成一排，且高度方向都是 (a-b)
+                // 这需要旋转 Block 2 和 Block 3
+                
+                // b^3 消失
+                targets.scale['cubeB'].set(0, 0, 0);
+
+                // --- Block 1 (蓝色 a^2 * (a-b)) ---
+                // 保持原来的朝向，放在中间
+                targets.pos['block1'].set(0, h_diff/2, 0);
+
+                // --- Block 2 (橙色 ab * (a-b)) ---
+                // 原尺寸: (a-b) * b * a
+                // 我们希望高度是 (a-b)。
+                // 原来的高度是 b。我们需要旋转，让 (a-b) 边变竖直。
+                // 绕 Z 轴旋转 90度?
+                // 原 X: a-b, Y: b, Z: a.
+                // 旋转 -90度 around Z: 新 Y 轴方向是原来的 X (a-b)。
+                targets.rot['block2'].z = -Math.PI / 2;
+                
+                // 旋转后，中心位置需要重新计算以对齐地面
+                // 旋转后尺寸感官: 宽 b, 高 a-b, 深 a.
+                // 放置在 Block 1 左侧
+                // Block 1 宽度 a (X轴范围 -a/2 到 a/2)
+                // Block 2 宽度 b. 左侧位置 X = -a/2 - b/2 - gap
+                targets.pos['block2'].set(
+                    -(a/2 + b/2 + gap), 
+                    h_diff/2, 
+                    0
+                );
+
+                // --- Block 3 (绿色 b^2 * (a-b)) ---
+                // 原尺寸: b * b * (a-b)
+                // 我们希望高度是 (a-b)。
+                // 原 Z 轴是 (a-b)。绕 X 轴旋转 90度。
+                targets.rot['block3'].x = Math.PI / 2;
+
+                // 旋转后尺寸感官: 宽 b, 高 a-b, 深 b.
+                // 放置在 Block 1 右侧
+                // Block 1 右边缘 a/2.
+                // Block 3 宽度 b. 右侧位置 X = a/2 + b/2 + gap
+                // 深度对齐: Block 1 深度 a. Block 3 深度 b. 我们可以居中对齐 Z=0.
+                targets.pos['block3'].set(
+                    (a/2 + b/2 + gap),
+                    h_diff/2,
+                    0
+                );
+            }
+        }
+
+        // 瞬间跳转（不动画）
+        function snapToTargets() {
+            const keys = ['block1', 'block2', 'block3', 'cubeB'];
+            keys.forEach(k => {
+                if(blocks[k]) {
+                    blocks[k].position.copy(targets.pos[k]);
+                    blocks[k].rotation.copy(targets.rot[k]);
+                    blocks[k].scale.copy(targets.scale[k]);
+                }
+            });
+        }
+
+        function updateVisibility() {
+            const showEdges = document.getElementById('chk-edges').checked;
+            Object.values(edges).forEach(e => e.visible = showEdges);
+        }
+
+        // --- 5. 渲染循环 ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // 动画插值逻辑
+            if (document.getElementById('chk-anim').checked) {
+                const speed = config.animSpeed;
+                const keys = ['block1', 'block2', 'block3', 'cubeB'];
+                
+                keys.forEach(k => {
+                    const mesh = blocks[k];
+                    if(!mesh) return;
+
+                    // 位置插值
+                    mesh.position.lerp(targets.pos[k], speed);
+                    
+                    // 旋转插值 (简单四元数插值)
+                    const targetQuat = new THREE.Quaternion().setFromEuler(targets.rot[k]);
+                    mesh.quaternion.slerp(targetQuat, speed);
+
+                    // 缩放插值
+                    mesh.scale.lerp(targets.scale[k], speed);
+                });
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            const container = document.getElementById('canvas-container');
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        // 启动
+        init();
+
+    </script>
+</body>
+</html>

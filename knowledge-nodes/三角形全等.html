@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三角形全等深度演示 (几何标记 + 动态轨迹)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', 'Helvetica Neue', 'Helvetica', 'Arial', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .control-label {
+            @apply w-28 text-sm text-gray-600 text-right pr-3;
+        }
+        .control-value {
+            @apply w-20 text-sm font-semibold text-blue-700;
+        }
+        .control-slider {
+            @apply w-40 md:w-full cursor-pointer accent-blue-600;
+        }
+        .info-box {
+            @apply mt-6 p-5 bg-slate-50 border-l-4 border-blue-500 text-slate-700 shadow-sm;
+        }
+        .btn {
+            @apply px-4 py-2 text-sm font-medium rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-200 ease-in-out transform;
+        }
+        .btn-active {
+            @apply bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 shadow-md scale-105;
+        }
+        .btn-inactive {
+            @apply bg-white text-gray-600 hover:bg-gray-50 border border-gray-200 hover:border-blue-300;
+        }
+        .locked {
+            color: #9ca3af; /* text-gray-400 */
+            pointer-events: none;
+        }
+        canvas {
+            image-rendering: pixelated; /* For sharper lines on some displays */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 min-h-screen flex flex-col">
+
+    <div class="container mx-auto p-4 md:p-8 flex-grow">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-extrabold text-slate-800 tracking-tight">三角形全等条件可视化</h1>
+            <p class="mt-2 text-lg text-slate-600">深入理解几何约束与形状唯一性</p>
+        </header>
+
+        <div class="bg-white p-6 rounded-2xl shadow-xl border border-gray-100">
+            <!-- 模式选择 -->
+            <div class="mb-8 text-center">
+                <p class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">选择判定定理</p>
+                <div id="mode-selector" class="flex flex-wrap justify-center gap-3">
+                    <button data-mode="SAS" class="btn btn-active">边角边 (SAS)</button>
+                    <button data-mode="SSS" class="btn btn-inactive">边边边 (SSS)</button>
+                    <button data-mode="ASA" class="btn btn-inactive">角边角 (ASA)</button>
+                    <button data-mode="AAS" class="btn btn-inactive">角角边 (AAS)</button>
+                    <button data-mode="SSA" class="btn btn-inactive text-red-600 hover:text-red-700 border-red-100">边边角 (SSA - 歧义)</button>
+                </div>
+                
+                <div class="mt-6 flex justify-center items-center space-x-2 animate-fade-in">
+                    <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                    <h3 id="current-mode-display" class="text-xl font-bold text-blue-600">当前演示：边角边 (SAS)</h3>
+                </div>
+            </div>
+
+            <!-- 可视化区域 -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+                <!-- 三角形 1 -->
+                <div class="relative group">
+                    <div class="absolute top-0 left-0 bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-br-lg z-10 shadow-md">控制端</div>
+                    <div class="border-2 border-gray-100 p-1 rounded-2xl bg-white shadow-inner overflow-hidden">
+                        <canvas id="canvas1" width="500" height="350" class="w-full bg-slate-50 rounded-xl"></canvas>
+                    </div>
+                    <div id="controls1" class="mt-5 space-y-4 px-4"></div>
+                </div>
+
+                <!-- 三角形 2 -->
+                <div class="relative group">
+                    <div class="absolute top-0 left-0 bg-slate-600 text-white text-xs font-bold px-3 py-1 rounded-br-lg z-10 shadow-md">映射端</div>
+                    <div class="border-2 border-gray-100 p-1 rounded-2xl bg-white shadow-inner overflow-hidden">
+                        <canvas id="canvas2" width="500" height="350" class="w-full bg-slate-50 rounded-xl"></canvas>
+                    </div>
+                    <div id="controls2" class="mt-5 space-y-4 px-4 opacity-80 hover:opacity-100 transition-opacity"></div>
+                </div>
+            </div>
+
+            <!-- 解释区域 -->
+            <div id="explanation" class="info-box"></div>
+        </div>
+        
+        <footer class="text-center mt-10 text-sm text-gray-400">
+            <div class="flex justify-center gap-6 mb-2">
+                <div class="flex items-center gap-2"><span class="w-3 h-3 bg-blue-500 rounded-sm"></span> <span>给定条件 (决定因素)</span></div>
+                <div class="flex items-center gap-2"><span class="w-3 h-3 bg-slate-400 rounded-sm"></span> <span>推导结果 (唯一形状)</span></div>
+                <div class="flex items-center gap-2"><span class="w-3 h-3 border border-dashed border-red-500 bg-red-50 rounded-sm"></span> <span>歧义解 (SSA)</span></div>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- Config ---
+        const state = {
+            mode: 'SAS', 
+            tri: { a: 200, b: 160, c: 220, A: 60, B: 45, C: 75 },
+            tri2_alt: null, 
+        };
+
+        const elements = {
+            c1: document.getElementById('canvas1'),
+            ctx1: document.getElementById('canvas1').getContext('2d'),
+            c2: document.getElementById('canvas2'),
+            ctx2: document.getElementById('canvas2').getContext('2d'),
+            ctrl1: document.getElementById('controls1'),
+            ctrl2: document.getElementById('controls2'),
+            modeSel: document.getElementById('mode-selector'),
+            expl: document.getElementById('explanation'),
+            display: document.getElementById('current-mode-display')
+        };
+
+        const COLORS = {
+            given: '#2563eb', // blue-600
+            calc: '#94a3b8', // slate-400
+            ambiguous: '#ef4444', // red-500
+            grid: '#e2e8f0', // slate-200
+            label: '#334155' // slate-700
+        };
+
+        const MODES = {
+            SAS: {
+                given: ['b', 'A', 'c'],
+                name: '边角边 (SAS)',
+                explanation: `<strong>核心逻辑：</strong> 夹子原理。<br>想象两根固定长度的木棍（边 b 和 c），如果你把它们一端钉在一起，并固定它们张开的角度（角 A），那么另外两端的距离（边 a）就被这一角度唯一决定了。因此，整个三角形的形状被锁死。`
+            },
+            SSS: {
+                given: ['a', 'b', 'c'],
+                name: '边边边 (SSS)',
+                explanation: `<strong>核心逻辑：</strong> 刚性结构。<br>三角形具有稳定性。只要三根木棍的长度确定，它们首尾相接只能围成一种形状（翻转视为全等）。改变任何一个角都会迫使对边长度改变，但这违反了边长固定的前提。因此 SSS 能判定全等。`
+            },
+            ASA: {
+                given: ['B', 'c', 'A'],
+                name: '角边角 (ASA)',
+                explanation: `<strong>核心逻辑：</strong> 射线交点唯一。<br>固定一条底边（c），并在两端分别发射两条射线（由角 A 和 B 决定方向）。这两条射线只能在唯一的点相交（只要它们不平行）。这个交点决定了第三个顶点的位置，从而锁定了形状。`
+            },
+            AAS: {
+                given: ['A', 'B', 'a'],
+                name: '角角边 (AAS)',
+                explanation: `<strong>核心逻辑：</strong> 转化为 ASA。<br>虽然边 a 不在角 A、B 之间，但根据“内角和180°”，我们可以算出角 C = 180 - A - B。此时我们知道了角 B、角 C 和夹边 a，这就转化为了 ASA 情况，因此形状唯一。`
+            },
+            SSA: {
+                given: ['a', 'b', 'A'],
+                name: '边边角 (SSA - 歧义)',
+                explanation: `<strong>核心逻辑：</strong> 摆动圆弧。<br>我们固定了角 A 和边 b，确定了顶点 C。但是边 a（悬挂在 C 点）像一个钟摆。如果这个摆长（a）恰好比 C 到底边的垂直距离长，但又比边 b 短，它就会两次撞击到底边射线。这就产生了两个不同的三角形（实线和红色虚线），所以 SSA 不能保证全等。`
+            }
+        };
+
+        // --- Math Helpers ---
+        const toRad = deg => deg * Math.PI / 180;
+        const toDeg = rad => rad * 180 / Math.PI;
+
+        function calculateTriangle() {
+            let { a, b, c, A, B, C } = { ...state.tri };
+            const mode = state.mode;
+            state.tri2_alt = null;
+
+            try {
+                if (mode === 'SSS') {
+                    if (a + b <= c || a + c <= b || b + c <= a) throw new Error();
+                    A = toDeg(Math.acos((b * b + c * c - a * a) / (2 * b * c)));
+                    B = toDeg(Math.acos((a * a + c * c - b * b) / (2 * a * c)));
+                    C = 180 - A - B;
+                } else if (mode === 'SAS') {
+                    a = Math.sqrt(b * b + c * c - 2 * b * c * Math.cos(toRad(A)));
+                    B = toDeg(Math.acos((a * a + c * c - b * b) / (2 * a * c)));
+                    C = 180 - A - B;
+                } else if (mode === 'ASA') {
+                    if (A + B >= 180) throw new Error();
+                    C = 180 - A - B;
+                    a = (c / Math.sin(toRad(C))) * Math.sin(toRad(A));
+                    b = (c / Math.sin(toRad(C))) * Math.sin(toRad(B));
+                } else if (mode === 'AAS') {
+                    if (A + B >= 180) throw new Error();
+                    C = 180 - A - B;
+                    b = (a / Math.sin(toRad(A))) * Math.sin(toRad(B));
+                    c = (a / Math.sin(toRad(A))) * Math.sin(toRad(C));
+                } else if (mode === 'SSA') {
+                    const h = b * Math.sin(toRad(A)); // Height from C to AB
+                    if (a < h) throw new Error(); // Too short to reach
+                    
+                    const sinB = (b * Math.sin(toRad(A))) / a;
+                    B = toDeg(Math.asin(sinB)); // Acute solution
+                    C = 180 - A - B;
+                    c = (a / Math.sin(toRad(A))) * Math.sin(toRad(C));
+                    
+                    // Check for second solution (Obtuse B)
+                    // Condition: a > h (reached) AND a < b (can swing back inside A) AND A < 90
+                    if (a > h && a < b && A < 90) {
+                        const B2 = 180 - B;
+                        const C2 = 180 - A - B2;
+                        if (C2 > 0) {
+                            const c2 = (a / Math.sin(toRad(A))) * Math.sin(toRad(C2));
+                            state.tri2_alt = { a, b, c: c2, A, B: B2, C: C2 };
+                        }
+                    }
+                }
+                state.tri = { a, b, c, A, B, C };
+                return true;
+            } catch (e) { return false; }
+        }
+
+        // --- Drawing Helpers ---
+        function drawGrid(ctx, w, h) {
+            ctx.beginPath();
+            ctx.strokeStyle = COLORS.grid;
+            ctx.lineWidth = 1;
+            const gridSize = 25;
+            for(let x = 0; x <= w; x += gridSize) { ctx.moveTo(x, 0); ctx.lineTo(x, h); }
+            for(let y = 0; y <= h; y += gridSize) { ctx.moveTo(0, y); ctx.lineTo(w, y); }
+            ctx.stroke();
+        }
+
+        function drawTickMarks(ctx, p1, p2, count, color) {
+            const midX = (p1.x + p2.x) / 2;
+            const midY = (p1.y + p2.y) / 2;
+            const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+            const len = 10; 
+            const gap = 4;
+            
+            ctx.save();
+            ctx.translate(midX, midY);
+            ctx.rotate(angle);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            
+            const startOffset = -((count - 1) * gap) / 2;
+            for (let i = 0; i < count; i++) {
+                const x = startOffset + i * gap;
+                ctx.beginPath();
+                ctx.moveTo(x, -len/2);
+                ctx.lineTo(x, len/2);
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        function drawAngleArcs(ctx, p, startAngle, endAngle, count, radius, color) {
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            const gap = 4;
+            
+            for(let i=0; i<count; i++) {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, radius + i*gap, startAngle, endAngle);
+                ctx.stroke();
+            }
+        }
+
+        function drawSSASwing(ctx, center, radius, startAngle, endAngle) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.strokeStyle = COLORS.ambiguous; // Red
+            ctx.setLineDash([4, 4]);
+            ctx.lineWidth = 1;
+            // Draw a generous arc to show the path
+            ctx.arc(center.x, center.y, radius, 0, Math.PI, false); // simplified semi-circle for visualization
+            ctx.stroke();
+            
+            // Draw arrow head
+            // (Optional purely cosmetic)
+            ctx.restore();
+        }
+
+        function drawTriangle(ctx, canvas, tri, isAlt = false) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawGrid(ctx, canvas.width, canvas.height);
+
+            if (!tri || !isFinite(tri.a)) {
+                ctx.fillStyle = COLORS.ambiguous;
+                ctx.textAlign = 'center';
+                ctx.font = 'bold 16px sans-serif';
+                ctx.fillText('无法构成三角形 (违反几何约束)', canvas.width / 2, canvas.height / 2);
+                return;
+            }
+
+            const { a, b, c, A, B, C } = tri;
+            const given = new Set(MODES[state.mode].given);
+
+            // Layout Calc
+            const maxW = canvas.width * 0.6;
+            const maxH = canvas.height * 0.6;
+            // Roughly estimate bounds based on current rotation logic (c on x-axis)
+            // A at (0,0), B at (c,0), C at (b cosA, b sinA)
+            // To center properly, we need bbox.
+            const cx = b * Math.cos(toRad(A));
+            const cy = b * Math.sin(toRad(A));
+            const minX = Math.min(0, c, cx);
+            const maxX = Math.max(0, c, cx);
+            const minY = Math.min(0, 0, cy); // y is 0 or positive usually? standard y goes down in canvas
+            const maxY = Math.max(0, 0, cy);
+            
+            const width = maxX - minX;
+            const height = maxY - minY;
+            const scale = Math.min(maxW / Math.max(width, 100), maxH / Math.max(height, 100));
+
+            const offsetX = (canvas.width - width * scale) / 2 - minX * scale;
+            const offsetY = (canvas.height - height * scale) / 2 - minY * scale;
+
+            // Points (Standard orientation: c on horizontal)
+            const pA = { x: offsetX, y: offsetY + height*scale }; // Bottom-Leftish (if cy is neg) -> actually let's flip Y
+            // Let's do mathematical coords then flip Y for canvas
+            // Math: A(0,0), B(c,0), C(b cos A, b sin A)
+            // Canvas: Y grows down.
+            const baseY = canvas.height / 2 + (height * scale) / 2; 
+            const baseX = canvas.width / 2 - (width * scale) / 2;
+
+            // Recalculate points for centering
+            const pA_c = { x: baseX - minX*scale, y: baseY + minY*scale }; // A is anchor
+            const pB_c = { x: pA_c.x + c * scale, y: pA_c.y };
+            const pC_c = { 
+                x: pA_c.x + b * Math.cos(toRad(-A)) * scale, // Negative angle for math->canvas Y
+                y: pA_c.y + b * Math.sin(toRad(-A)) * scale 
+            };
+
+            // SSA Ambiguity Visualizer (Draw the arc BEFORE the triangle)
+            if (state.mode === 'SSA' && !isAlt && given.has('a') && given.has('b') && given.has('A')) {
+                // We know b, A are fixed. C is fixed relative to A.
+                // a swings from C.
+                // Draw Arc centered at C with radius a*scale
+                drawSSASwing(ctx, pC_c, a*scale);
+            }
+
+            // 1. Fill & Stroke Triangle
+            ctx.beginPath();
+            ctx.moveTo(pA_c.x, pA_c.y);
+            ctx.lineTo(pB_c.x, pB_c.y);
+            ctx.lineTo(pC_c.x, pC_c.y);
+            ctx.closePath();
+
+            if (isAlt) {
+                ctx.setLineDash([6, 4]);
+                ctx.strokeStyle = COLORS.ambiguous;
+                ctx.fillStyle = "rgba(239, 68, 68, 0.05)";
+            } else {
+                ctx.setLineDash([]);
+                ctx.strokeStyle = COLORS.label;
+                ctx.fillStyle = "rgba(37, 99, 235, 0.05)";
+            }
+            ctx.lineWidth = 1.5;
+            ctx.fill();
+            ctx.stroke();
+
+            // 2. Draw Sides (with Tick Marks)
+            const drawLine = (pStart, pEnd, prop, label, ticks) => {
+                const isGiven = given.has(prop);
+                const color = isGiven ? COLORS.given : (isAlt ? COLORS.ambiguous : COLORS.calc);
+                const lineWidth = isGiven ? 3 : 2;
+
+                ctx.beginPath();
+                ctx.moveTo(pStart.x, pStart.y);
+                ctx.lineTo(pEnd.x, pEnd.y);
+                ctx.lineWidth = lineWidth;
+                ctx.strokeStyle = color;
+                if (isAlt && prop === 'a') ctx.strokeStyle = COLORS.ambiguous; // Special case for swinging side
+                ctx.setLineDash(isAlt ? [6,4] : []);
+                ctx.stroke();
+
+                // Draw Ticks (Visualizing Equality)
+                if (!isAlt || prop !== 'a') { // Don't double draw ticks messily on alt
+                     drawTickMarks(ctx, pStart, pEnd, ticks, color);
+                }
+
+                // Label
+                const mx = (pStart.x + pEnd.x)/2;
+                const my = (pStart.y + pEnd.y)/2;
+                // Offset label slightly perpendicular
+                // ... simplified label placement
+                ctx.fillStyle = color;
+                ctx.font = isGiven ? 'bold 14px sans-serif' : '14px sans-serif';
+                // ctx.fillText(label, mx, my); // Simplified, better labels below in dedicated loop if needed
+            };
+
+            drawLine(pA_c, pC_c, 'b', 'b', 2); // b gets 2 ticks
+            drawLine(pC_c, pB_c, 'a', 'a', 1); // a gets 1 tick
+            drawLine(pA_c, pB_c, 'c', 'c', 3); // c gets 3 ticks
+
+            // 3. Draw Angles (with Arcs)
+            const drawAng = (center, p1, p2, prop, val, arcCount) => {
+                const isGiven = given.has(prop);
+                const color = isGiven ? COLORS.given : (isAlt ? COLORS.ambiguous : COLORS.calc);
+                
+                const a1 = Math.atan2(p1.y - center.y, p1.x - center.x);
+                const a2 = Math.atan2(p2.y - center.y, p2.x - center.x);
+                
+                drawAngleArcs(ctx, center, a1, a2, arcCount, 20, color);
+
+                // Label
+                const midAng = a1 + (a2 > a1 ? (a2-a1)/2 : (a2-a1 + Math.PI*2)/2); // simple avg often fails with wrap, assuming <180 triangles
+                // Better mid angle logic for triangle
+                // Calculate vector to p1, vector to p2, add normalized vectors
+                const dx = (p1.x-center.x)/100 + (p2.x-center.x)/100; // simple vector add
+                const dy = (p1.y-center.y)/100 + (p2.y-center.y)/100;
+                const textAng = Math.atan2(dy, dx);
+                
+                const dist = 35 + arcCount*4;
+                ctx.fillStyle = color;
+                ctx.font = isGiven ? 'bold 14px sans-serif' : '12px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(prop, center.x + Math.cos(textAng)*dist, center.y + Math.sin(textAng)*dist);
+            };
+
+            drawAng(pA_c, pB_c, pC_c, 'A', A, 1); // A gets 1 arc
+            drawAng(pB_c, pC_c, pA_c, 'B', B, 2); // B gets 2 arcs
+            drawAng(pC_c, pA_c, pB_c, 'C', C, 3); // C gets 3 arcs
+        }
+
+        // --- UI Logic ---
+        function updateSliders() {
+            const given = MODES[state.mode].given;
+            // Constraints logic for sliders
+            const sA = elements.ctrl1.querySelector('[data-param="A"]');
+            const sB = elements.ctrl1.querySelector('[data-param="B"]');
+            const sC = elements.ctrl1.querySelector('[data-param="C"]');
+            
+            // Safety checks
+            if(sA && sB && given.includes('A') && given.includes('B')) {
+                const maxA = 179 - parseFloat(sB.value);
+                if(parseFloat(sA.value) > maxA) sA.value = maxA;
+                sA.max = maxA;
+                
+                const maxB = 179 - parseFloat(sA.value);
+                if(parseFloat(sB.value) > maxB) sB.value = maxB;
+                sB.max = maxB;
+            }
+            // (Similar logic applies to AC and BC pairs but UI only exposes relevant ones usually)
+        }
+
+        function renderControls() {
+            const given = new Set(MODES[state.mode].given);
+            const defs = [
+                { id: 'a', name: '边 a (Ticks: 1)', type: 'side', min: 50, max: 300 },
+                { id: 'b', name: '边 b (Ticks: 2)', type: 'side', min: 50, max: 300 },
+                { id: 'c', name: '边 c (Ticks: 3)', type: 'side', min: 50, max: 300 },
+                { id: 'A', name: '角 A (Arcs: 1)', type: 'ang', min: 10, max: 170 },
+                { id: 'B', name: '角 B (Arcs: 2)', type: 'ang', min: 10, max: 170 },
+                { id: 'C', name: '角 C (Arcs: 3)', type: 'ang', min: 10, max: 170 },
+            ];
+
+            elements.ctrl1.innerHTML = '';
+            elements.ctrl2.innerHTML = '';
+
+            defs.forEach(d => {
+                const isGiven = given.has(d.id);
+                const val = state.tri[d.id];
+                
+                // Control Side (T1)
+                const div = document.createElement('div');
+                div.className = `flex items-center justify-between ${isGiven ? '' : 'locked opacity-50'}`;
+                div.innerHTML = `
+                    <label class="text-sm font-medium ${isGiven ? 'text-blue-700' : 'text-gray-400'} w-24">${d.name}</label>
+                    <input type="range" class="control-slider mx-2" data-param="${d.id}" 
+                        min="${d.min}" max="${d.max}" value="${val}" ${isGiven ? '' : 'disabled'}>
+                    <span class="control-value text-right w-12" data-val="${d.id}">${Math.round(val)}${d.type=='ang'?'°':''}</span>
+                `;
+                elements.ctrl1.appendChild(div);
+
+                if(isGiven) {
+                    div.querySelector('input').addEventListener('input', (e) => {
+                        state.tri[d.id] = parseFloat(e.target.value);
+                        update();
+                    });
+                }
+
+                // Readout Side (T2)
+                const div2 = document.createElement('div');
+                div2.className = `flex items-center justify-between border-b border-gray-100 pb-1 ${isGiven ? '' : ''}`; // Always visible but styled
+                div2.innerHTML = `
+                    <span class="text-sm ${isGiven ? 'font-bold text-blue-600' : 'text-gray-500'} w-24">${d.name}</span>
+                    <span class="font-mono text-sm ${isGiven ? 'text-blue-600' : 'text-gray-500'}" data-val2="${d.id}">--</span>
+                `;
+                elements.ctrl2.appendChild(div2);
+            });
+        }
+
+        function updateValues() {
+            // Update text displays
+            Object.keys(state.tri).forEach(k => {
+                const v = state.tri[k];
+                const txt = Math.round(v) + (k.toUpperCase()===k ? '°' : '');
+                
+                const s1 = elements.ctrl1.querySelector(`[data-val="${k}"]`);
+                if(s1) s1.innerText = txt;
+
+                const s2 = elements.ctrl2.querySelector(`[data-val2="${k}"]`);
+                if(s2) {
+                    if(state.mode === 'SSA' && state.tri2_alt && state.tri2_alt[k] !== v) {
+                        const v2 = Math.round(state.tri2_alt[k]);
+                         s2.innerHTML = `<span class="text-gray-800">${txt}</span> <span class="text-red-500 text-xs ml-1">(或 ${v2})</span>`;
+                    } else {
+                        s2.innerText = txt;
+                    }
+                }
+            });
+        }
+
+        function setMode(m) {
+            state.mode = m;
+            // Reset to safe defaults to avoid constraint bugs
+            state.tri = { a: 200, b: 180, c: 250, A: 50, B: 60, C: 70 }; 
+            // Specifically tune defaults for SSA to show ambiguity nicely
+            if(m === 'SSA') { state.tri = { a: 160, b: 200, c: 0, A: 40, B:0, C:0 }; } // c, B, C calc'd automatically
+
+            // UI Update
+            elements.display.innerText = `当前演示：${MODES[m].name}`;
+            elements.expl.innerHTML = MODES[m].explanation;
+            Array.from(elements.modeSel.children).forEach(b => {
+                const active = b.dataset.mode === m;
+                if(active) {
+                    b.className = 'btn btn-active';
+                } else {
+                    b.className = 'btn btn-inactive';
+                    if(b.dataset.mode === 'SSA') b.classList.add('text-red-600', 'border-red-100');
+                }
+            });
+
+            renderControls();
+            update();
+        }
+
+        function update() {
+            updateSliders(); // Apply limits before calc
+            const valid = calculateTriangle();
+            
+            drawTriangle(elements.ctx1, elements.c1, state.tri);
+            drawTriangle(elements.ctx2, elements.c2, state.tri);
+            
+            if(state.mode === 'SSA' && state.tri2_alt) {
+                drawTriangle(elements.ctx2, elements.c2, state.tri2_alt, true);
+            }
+            updateValues();
+        }
+
+        // Init
+        elements.modeSel.addEventListener('click', e => {
+            if(e.target.tagName === 'BUTTON') setMode(e.target.dataset.mode);
+        });
+        setMode('SAS');
+
+    });
+    </script>
+</body>
+</html>

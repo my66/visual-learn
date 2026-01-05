@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>物理教学：平面镜成像全功能演示</title>
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+        canvas { touch-action: none; user-select: none; -webkit-user-select: none; }
+        .select-none { user-select: none; -webkit-user-select: none; }
+        /* Custom scrollbar for controls if needed */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+    <div id="root" class="h-full w-full"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- Icons (Simple inline SVGs for stability) ---
+        const IconGrid = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>;
+        const IconEye = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>;
+        const IconRays = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>;
+        const IconZone = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22L22 2H2L12 22Z" /></svg>;
+        const IconSettings = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>;
+
+        const PlaneMirrorExperiment = () => {
+            // --- State ---
+            const [blockage, setBlockage] = useState(0.3); // 0.0 to 1.0
+            const [objectPos, setObjectPos] = useState({ x: 150, y: 350 });
+            const [eyePos, setEyePos] = useState({ x: 800, y: 500 });
+            
+            // Toggles
+            const [showSymmetry, setShowSymmetry] = useState(true); // 虚线
+            const [showFieldRays, setShowFieldRays] = useState(false); // 漫反射场 (Why image exists)
+            const [showSightRays, setShowSightRays] = useState(true); // 眼睛光路 (How I see it)
+            const [showZones, setShowZones] = useState(false); // 可视区域 (Where can I see)
+            
+            const [dragTarget, setDragTarget] = useState(null);
+            const [cursorStyle, setCursorStyle] = useState('default');
+
+            const canvasRef = useRef(null);
+            const containerRef = useRef(null);
+            const [canvasSize, setCanvasSize] = useState({ width: 1000, height: 650 });
+
+            // --- Geometry Constants ---
+            const mirrorStart = { x: 500, y: 450 }; // Bottom
+            const mirrorEnd = { x: 700, y: 250 };   // Top
+            const mirrorVec = { x: mirrorEnd.x - mirrorStart.x, y: mirrorEnd.y - mirrorStart.y };
+            const mirrorLenSq = mirrorVec.x * mirrorVec.x + mirrorVec.y * mirrorVec.y;
+
+            // --- Math Helpers ---
+            const reflectPoint = (p) => {
+                const x1 = mirrorStart.x, y1 = mirrorStart.y;
+                const x2 = mirrorEnd.x, y2 = mirrorEnd.y;
+                const A = y1 - y2, B = x2 - x1, C = x1 * y2 - x2 * y1;
+                const val = (A * p.x + B * p.y + C) / (A * A + B * B);
+                return { x: p.x - 2 * A * val, y: p.y - 2 * B * val };
+            };
+
+            const getClothEdgePos = () => ({
+                x: mirrorStart.x + mirrorVec.x * blockage,
+                y: mirrorStart.y + mirrorVec.y * blockage
+            });
+
+            // Intersection: Line(p1,p2) vs MirrorSegment
+            // Returns { x, y, tMirror (0-1 on mirror segment) }
+            const getMirrorIntersection = (p1, p2) => {
+                const x1 = p1.x, y1 = p1.y, x2 = p2.x, y2 = p2.y;
+                const x3 = mirrorStart.x, y3 = mirrorStart.y, x4 = mirrorEnd.x, y4 = mirrorEnd.y;
+                const den = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+                if (den === 0) return null;
+                const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / den;
+                const u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / den;
+                const px = x1 + t * (x2 - x1);
+                const py = y1 + t * (y2 - y1);
+                return { x: px, y: py, tMirror: u }; 
+            };
+
+            // Resize Logic
+            useEffect(() => {
+                const handleResize = () => {
+                    if (containerRef.current) {
+                        setCanvasSize({
+                            width: containerRef.current.clientWidth,
+                            height: containerRef.current.clientHeight
+                        });
+                    }
+                };
+                window.addEventListener('resize', handleResize);
+                handleResize();
+                return () => window.removeEventListener('resize', handleResize);
+            }, []);
+
+            // --- Interaction ---
+            const getMousePos = (e) => {
+                const rect = canvasRef.current.getBoundingClientRect();
+                return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+            };
+
+            const handleMouseDown = (e) => {
+                const pos = getMousePos(e);
+                const clothEdge = getClothEdgePos();
+                
+                // Hit testing
+                if (Math.hypot(pos.x - objectPos.x, pos.y - objectPos.y) < 50) { setDragTarget('object'); return; }
+                if (Math.hypot(pos.x - eyePos.x, pos.y - eyePos.y) < 40) { setDragTarget('eye'); return; }
+                if (Math.hypot(pos.x - clothEdge.x, pos.y - clothEdge.y) < 30) { setDragTarget('cloth'); return; }
+            };
+
+            const handleMouseMove = (e) => {
+                const pos = getMousePos(e);
+                const clothEdge = getClothEdgePos();
+
+                if (!dragTarget) {
+                    if (Math.hypot(pos.x - objectPos.x, pos.y - objectPos.y) < 50 || 
+                        Math.hypot(pos.x - eyePos.x, pos.y - eyePos.y) < 40) setCursorStyle('move');
+                    else if (Math.hypot(pos.x - clothEdge.x, pos.y - clothEdge.y) < 30) setCursorStyle('pointer');
+                    else setCursorStyle('default');
+                    return;
+                }
+
+                if (dragTarget === 'object') {
+                    // Limit object movement area
+                    if (pos.x < mirrorStart.x - 20) setObjectPos({ x: pos.x, y: pos.y });
+                } else if (dragTarget === 'eye') {
+                    // Limit eye movement area
+                    if (pos.x > 20) setEyePos({ x: pos.x, y: pos.y });
+                } else if (dragTarget === 'cloth') {
+                    const mouseVec = { x: pos.x - mirrorStart.x, y: pos.y - mirrorStart.y };
+                    let t = (mouseVec.x * mirrorVec.x + mouseVec.y * mirrorVec.y) / mirrorLenSq;
+                    setBlockage(Math.max(0, Math.min(1, t)));
+                }
+            };
+
+            const handleMouseUp = () => setDragTarget(null);
+
+            // --- Rendering ---
+            useEffect(() => {
+                const canvas = canvasRef.current;
+                const ctx = canvas.getContext('2d');
+                const { width, height } = canvasSize;
+                
+                ctx.clearRect(0, 0, width, height);
+
+                // --- Helper Draw Functions ---
+                const drawLine = (p1, p2, color, width=1, dash=[]) => {
+                    ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+                    ctx.strokeStyle = color; ctx.lineWidth = width; ctx.setLineDash(dash); ctx.stroke(); ctx.setLineDash([]);
+                };
+
+                const drawArrow = (from, to, color, label, isDashed=false) => {
+                    const headlen = 15;
+                    const angle = Math.atan2(to.y - from.y, to.x - from.x);
+                    ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y);
+                    
+                    // Arrow Head
+                    const arrowP1 = {x: to.x - headlen * Math.cos(angle - Math.PI/6), y: to.y - headlen * Math.sin(angle - Math.PI/6)};
+                    const arrowP2 = {x: to.x - headlen * Math.cos(angle + Math.PI/6), y: to.y - headlen * Math.sin(angle + Math.PI/6)};
+                    
+                    ctx.strokeStyle = color; ctx.lineWidth = 4; 
+                    if(isDashed) ctx.setLineDash([6, 4]);
+                    ctx.stroke(); 
+                    ctx.setLineDash([]);
+
+                    // Draw Head Solid
+                    ctx.beginPath(); ctx.moveTo(to.x, to.y); ctx.lineTo(arrowP1.x, arrowP1.y);
+                    ctx.moveTo(to.x, to.y); ctx.lineTo(arrowP2.x, arrowP2.y);
+                    ctx.strokeStyle = color; ctx.lineWidth = 4; ctx.stroke();
+
+                    if (label) {
+                        ctx.fillStyle = color; ctx.font = 'bold 20px Arial'; 
+                        ctx.fillText(label, to.x + 15, to.y);
+                    }
+                };
+
+                // --- 1. Scene Setup ---
+                const objectHeight = 80;
+                const pointA = { x: objectPos.x, y: objectPos.y - objectHeight }; // A (Top)
+                const pointB = { x: objectPos.x, y: objectPos.y }; // B (Bottom)
+                const imageA = reflectPoint(pointA);
+                const imageB = reflectPoint(pointB);
+                const clothEdge = getClothEdgePos();
+                
+                // Valid Mirror Segment (Not blocked)
+                const activeStart = clothEdge;
+                const activeEnd = mirrorEnd; 
+                // Note: If blockage is 1, activeStart == activeEnd (no mirror)
+
+                // --- 2. OPTION: Visibility Zones (Fans) ---
+                if (showZones && blockage < 1) {
+                    const drawZone = (imgPt, fill, stroke) => {
+                        // Project rays from Image through edges of Active Mirror to bounds
+                        const extend = 2000;
+                        const dir1 = {x: activeStart.x - imgPt.x, y: activeStart.y - imgPt.y};
+                        const len1 = Math.hypot(dir1.x, dir1.y);
+                        const p1 = {x: activeStart.x + (dir1.x/len1)*extend, y: activeStart.y + (dir1.y/len1)*extend};
+
+                        const dir2 = {x: activeEnd.x - imgPt.x, y: activeEnd.y - imgPt.y};
+                        const len2 = Math.hypot(dir2.x, dir2.y);
+                        const p2 = {x: activeEnd.x + (dir2.x/len2)*extend, y: activeEnd.y + (dir2.y/len2)*extend};
+
+                        ctx.beginPath();
+                        ctx.moveTo(activeStart.x, activeStart.y);
+                        ctx.lineTo(p1.x, p1.y);
+                        ctx.lineTo(p2.x, p2.y);
+                        ctx.lineTo(activeEnd.x, activeEnd.y);
+                        ctx.closePath();
+                        ctx.fillStyle = fill; ctx.fill();
+                        ctx.strokeStyle = stroke; ctx.lineWidth = 1; ctx.setLineDash([5,5]); ctx.stroke(); ctx.setLineDash([]);
+                    };
+                    drawZone(imageB, 'rgba(6, 182, 212, 0.15)', 'rgba(6, 182, 212, 0.5)'); // Blue Zone (B)
+                    drawZone(imageA, 'rgba(251, 191, 36, 0.15)', 'rgba(251, 191, 36, 0.5)'); // Yellow Zone (A)
+                }
+
+                // --- 3. OPTION: Field Rays (Generic emission) ---
+                // Shows why the image exists physically regardless of observer
+                if (showFieldRays) {
+                    const drawField = (src, img, color) => {
+                        const count = 20;
+                        for(let i=0; i<=count; i++) {
+                            const t = i/count;
+                            const mx = mirrorStart.x + mirrorVec.x * t;
+                            const my = mirrorStart.y + mirrorVec.y * t;
+                            
+                            // Check blockage
+                            const isBlocked = t < blockage;
+                            if (isBlocked) {
+                                drawLine(src, {x:mx, y:my}, 'rgba(0,0,0,0.05)', 1);
+                            } else {
+                                // Incident
+                                drawLine(src, {x:mx, y:my}, color, 1);
+                                // Reflected
+                                const dir = {x: mx - img.x, y: my - img.y};
+                                const len = Math.hypot(dir.x, dir.y);
+                                drawLine({x:mx, y:my}, {x:mx + dir.x/len*800, y:my + dir.y/len*800}, color, 1);
+                            }
+                        }
+                    };
+                    drawField(pointA, imageA, 'rgba(251, 191, 36, 0.2)');
+                    drawField(pointB, imageB, 'rgba(6, 182, 212, 0.2)');
+                }
+
+                // --- 4. Draw Mirror Base Layer ---
+                // Glass
+                drawLine(mirrorStart, mirrorEnd, '#93c5fd', 10);
+                // Hash marks
+                for(let i=0; i<=15; i++) {
+                    const t = i/15;
+                    const mx = mirrorStart.x + mirrorVec.x * t;
+                    const my = mirrorStart.y + mirrorVec.y * t;
+                    drawLine({x:mx, y:my}, {x:mx+10, y:my+5}, '#64748b', 1);
+                }
+                // Cloth
+                if (blockage > 0) {
+                    ctx.beginPath();
+                    ctx.moveTo(mirrorStart.x, mirrorStart.y);
+                    ctx.lineTo(clothEdge.x, clothEdge.y);
+                    ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 14; ctx.stroke();
+                }
+                // Cloth Handle
+                ctx.beginPath(); ctx.arc(clothEdge.x, clothEdge.y, 8, 0, Math.PI*2);
+                ctx.fillStyle = '#fff'; ctx.fill(); ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.stroke();
+
+
+                // --- 5. OPTION: Symmetry Lines (Construction) ---
+                if (showSymmetry) {
+                    drawLine(pointA, imageA, 'rgba(100,116,139, 0.5)', 1, [5,5]);
+                    drawLine(pointB, imageB, 'rgba(100,116,139, 0.5)', 1, [5,5]);
+                    
+                    // Add perpendicular symbols if space permits
+                    // (Simplified logic)
+                }
+
+                // --- 6. Draw Object and Image ---
+                drawArrow(pointB, pointA, '#ef4444', 'A'); // Object
+                ctx.fillStyle = '#ef4444'; ctx.font = 'bold 20px Arial'; ctx.fillText('B', pointB.x-20, pointB.y+10);
+
+                // Image (Always complete, visual style indicates virtual)
+                drawArrow(imageB, imageA, 'rgba(239, 68, 68, 0.6)', "A'", true);
+                ctx.fillStyle = 'rgba(239, 68, 68, 0.6)'; ctx.font = 'bold 20px Arial'; ctx.fillText("B'", imageB.x+15, imageB.y+10);
+
+
+                // --- 7. OPTION: Sight Rays (Observer) ---
+                // Only if eye is enabled/visible
+                const drawEyeAndRays = () => {
+                    // Draw Eye Icon
+                    ctx.save();
+                    ctx.translate(eyePos.x, eyePos.y);
+                    const center = {x:(activeStart.x+activeEnd.x)/2, y:(activeStart.y+activeEnd.y)/2};
+                    const angle = Math.atan2(center.y-eyePos.y, center.x-eyePos.x);
+                    ctx.rotate(angle);
+                    ctx.beginPath(); ctx.ellipse(0, 0, 20, 12, 0, 0, Math.PI*2);
+                    ctx.fillStyle = '#fff'; ctx.fill(); ctx.strokeStyle = '#0f172a'; ctx.lineWidth = 2; ctx.stroke();
+                    ctx.beginPath(); ctx.arc(6, 0, 6, 0, Math.PI*2); ctx.fillStyle = '#0f172a'; ctx.fill();
+                    ctx.restore();
+
+                    if (!showSightRays) return;
+
+                    const traceSight = (src, img, color) => {
+                        const hit = getMirrorIntersection(eyePos, img);
+                        if (!hit) return; // Parallel?
+
+                        // Check where hit landed relative to mirror start/end
+                        // tMirror is 0 at start, 1 at end. Blockage is e.g. 0.3
+                        if (hit.tMirror >= blockage && hit.tMirror <= 1) {
+                            // Visible!
+                            // Ray 1: Incident
+                            drawLine(src, {x:hit.x, y:hit.y}, color, 2);
+                            // Ray 2: Reflected
+                            drawLine({x:hit.x, y:hit.y}, eyePos, '#22c55e', 2); // Green for successful sight
+                            // Extension
+                            drawLine({x:hit.x, y:hit.y}, img, color, 1, [3,3]);
+                        } else if (hit.tMirror >= 0 && hit.tMirror < blockage) {
+                            // Blocked by cloth
+                            drawLine(src, {x:hit.x, y:hit.y}, 'rgba(0,0,0,0.1)', 1); // Faint incident
+                            drawLine({x:hit.x, y:hit.y}, eyePos, '#ef4444', 2, [5,5]); // Red dashed "blocked" line
+                        }
+                    };
+                    traceSight(pointA, imageA, '#f59e0b'); // A - Orange
+                    traceSight(pointB, imageB, '#06b6d4'); // B - Cyan
+                };
+                drawEyeAndRays();
+
+            }, [canvasSize, blockage, objectPos, eyePos, showSymmetry, showFieldRays, showSightRays, showZones, dragTarget]);
+
+            return (
+                <div className="flex flex-col h-full bg-slate-50">
+                    {/* Header */}
+                    <div className="bg-white shadow-sm border-b border-slate-200 px-6 py-4 flex justify-between items-center z-10 shrink-0">
+                        <div>
+                            <h1 className="text-2xl font-bold text-slate-800">平面镜成像：全功能演示</h1>
+                            <p className="text-sm text-slate-500">探究遮挡对成像完整性及可视范围的影响</p>
+                        </div>
+                        <div className="flex items-center space-x-4">
+                            <div className="bg-blue-50 px-4 py-2 rounded-lg border border-blue-100 text-sm text-blue-800">
+                                <strong>核心结论：</strong> 无论遮挡多少，只要有镜面，像就是完整的。遮挡只改变可视范围和亮度。
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Main Content: Canvas + Controls Overlay */}
+                    <div className="flex-1 relative overflow-hidden flex flex-col md:flex-row">
+                        
+                        {/* Canvas Container */}
+                        <div ref={containerRef} className="flex-1 bg-slate-100 relative cursor-crosshair">
+                            <canvas 
+                                ref={canvasRef}
+                                width={canvasSize.width}
+                                height={canvasSize.height}
+                                onMouseDown={handleMouseDown}
+                                onMouseMove={handleMouseMove}
+                                onMouseUp={handleMouseUp}
+                                onMouseLeave={handleMouseUp}
+                                style={{ cursor: cursorStyle }}
+                                className="block"
+                            />
+                            
+                            {/* Floating Instruction */}
+                            <div className="absolute top-4 left-4 bg-white/90 backdrop-blur p-3 rounded-lg shadow-sm border border-slate-200 text-sm text-slate-600 pointer-events-none select-none">
+                                <p className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-red-500"></span> 拖动物体 AB</p>
+                                <p className="flex items-center gap-2 mt-1"><span className="w-2 h-2 rounded-full bg-slate-800"></span> 拖动黑布边缘</p>
+                                <p className="flex items-center gap-2 mt-1"><span className="w-2 h-2 rounded-full bg-black border border-white"></span> 拖动眼睛观察</p>
+                            </div>
+                        </div>
+
+                        {/* Controls Sidebar (Big & Clear) */}
+                        <div className="w-full md:w-80 bg-white border-l border-slate-200 p-6 flex flex-col gap-6 shadow-xl z-20 overflow-y-auto custom-scrollbar">
+                            
+                            {/* Blockage Slider */}
+                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                <label className="flex justify-between font-bold text-slate-700 mb-2">
+                                    <span>黑布遮挡程度</span>
+                                    <span className="text-blue-600 font-mono">{Math.round(blockage*100)}%</span>
+                                </label>
+                                <input 
+                                    type="range" min="0" max="1" step="0.01" value={blockage}
+                                    onChange={(e)=>setBlockage(parseFloat(e.target.value))}
+                                    className="w-full h-3 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                                />
+                                <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+                                    尝试将黑布拉到 50% 以上，观察像 <span className="font-bold text-red-500">A'B'</span> 是否依然完整。
+                                </p>
+                            </div>
+
+                            {/* Toggles List */}
+                            <div className="space-y-3">
+                                <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                                    <IconSettings /> 辅助显示选项
+                                </h3>
+                                
+                                <ToggleBtn 
+                                    active={showSymmetry} 
+                                    onClick={()=>setShowSymmetry(!showSymmetry)}
+                                    title="对称辅助线"
+                                    desc="显示物体与像关于镜面的对称虚线"
+                                    icon={<IconGrid />}
+                                    color="slate"
+                                />
+                                
+                                <ToggleBtn 
+                                    active={showFieldRays} 
+                                    onClick={()=>setShowFieldRays(!showFieldRays)}
+                                    title="漫反射光场"
+                                    desc="显示物体发出的无数条光线（原理）"
+                                    icon={<IconRays />}
+                                    color="amber"
+                                />
+
+                                <div className="h-px bg-slate-200 my-2"></div>
+
+                                <ToggleBtn 
+                                    active={showSightRays} 
+                                    onClick={()=>setShowSightRays(!showSightRays)}
+                                    title="观察光路"
+                                    desc="显示进入人眼的那一条具体光线"
+                                    icon={<IconEye />}
+                                    color="green"
+                                />
+
+                                <ToggleBtn 
+                                    active={showZones} 
+                                    onClick={()=>setShowZones(!showZones)}
+                                    title="可视区域 (Zone)"
+                                    desc="用色块标记能看见像的所有位置"
+                                    icon={<IconZone />}
+                                    color="cyan"
+                                />
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- Reusable Toggle Button Component ---
+        const ToggleBtn = ({ active, onClick, title, desc, icon, color }) => {
+            const colorClasses = {
+                slate: active ? 'bg-slate-100 border-slate-400 text-slate-800' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50',
+                amber: active ? 'bg-amber-50 border-amber-400 text-amber-800' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50',
+                green: active ? 'bg-green-50 border-green-400 text-green-800' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50',
+                cyan:  active ? 'bg-cyan-50 border-cyan-400 text-cyan-800' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50',
+            };
+
+            return (
+                <button 
+                    onClick={onClick}
+                    className={`w-full text-left p-3 rounded-xl border-2 transition-all duration-200 group relative overflow-hidden ${colorClasses[color]}`}
+                >
+                    <div className="flex items-start gap-3 relative z-10">
+                        <div className={`mt-1 p-1 rounded-md transition-colors ${active ? 'bg-white/50' : 'bg-slate-100 group-hover:bg-slate-200'}`}>
+                            {icon}
+                        </div>
+                        <div>
+                            <div className="font-bold text-sm">{title}</div>
+                            <div className={`text-xs mt-0.5 ${active ? 'opacity-90' : 'opacity-60'}`}>{desc}</div>
+                        </div>
+                        {active && <div className="ml-auto text-lg font-bold">✓</div>}
+                    </div>
+                </button>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<PlaneMirrorExperiment />);
+    </script>
+</body>
+</html>

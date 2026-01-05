@@ -1,0 +1,173 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Pythagorean Theorem Proof (Garfield's Method)</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <style>
+    body { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; overflow: hidden; background: #f0f2f5; }
+    #canvas-container { flex: 2; position: relative; display: flex; justify-content: center; align-items: center; background: #fff; border-right: 1px solid #ddd; }
+    #controls { flex: 1; padding: 20px; background: #fafafa; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
+    h2 { margin-top: 0; color: #333; font-size: 1.2rem; }
+    .control-group { background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    label { display: block; margin-bottom: 8px; font-weight: 600; color: #555; }
+    input[type=range] { width: 100%; }
+    .value-display { float: right; color: #007bff; }
+    .math-box { background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-size: 0.9rem; line-height: 1.6; }
+    .highlight { color: #d9534f; font-weight: bold; }
+    .equation { text-align: center; margin: 10px 0; font-family: "Times New Roman", serif; font-style: italic; }
+  </style>
+</head>
+<body>
+
+<div id="canvas-container"></div>
+
+<div id="controls">
+  <h2>总统证法 (Garfield's Proof)</h2>
+  <div class="control-group">
+    <label>边长 a (AD = CE) <span id="val-a" class="value-display"></span></label>
+    <input type="range" id="slider-a" min="50" max="200" value="120" step="10">
+  </div>
+  <div class="control-group">
+    <label>边长 b (BE = CD) <span id="val-b" class="value-display"></span></label>
+    <input type="range" id="slider-b" min="50" max="200" value="80" step="10">
+  </div>
+  
+  <div class="math-box">
+    <strong>面积法推导：</strong>
+    <p>1. 梯形面积公式：<br>
+       \( S = \frac{1}{2}(a+b)(a+b) \)
+    </p>
+    <p>2. 三个三角形面积和：<br>
+       \( S = \frac{1}{2}ab + \frac{1}{2}ab + \frac{1}{2}c^2 \)
+    </p>
+    <hr style="border:0; border-top:1px dashed #ccc;">
+    <p>3. 联立化简：<br>
+       \( \frac{1}{2}(a+b)^2 = ab + \frac{1}{2}c^2 \)<br>
+       \( (a+b)^2 = 2ab + c^2 \)<br>
+       \( a^2 + 2ab + b^2 = 2ab + c^2 \)<br>
+       <span class="highlight">\( a^2 + b^2 = c^2 \)</span>
+    </p>
+  </div>
+</div>
+
+<script>
+let sliderA, sliderB;
+let valA, valB;
+
+function setup() {
+  let canvas = createCanvas(windowWidth * 0.6, windowHeight);
+  canvas.parent('canvas-container');
+  
+  sliderA = select('#slider-a');
+  sliderB = select('#slider-b');
+  valA = select('#val-a');
+  valB = select('#val-b');
+  
+  sliderA.input(redraw);
+  sliderB.input(redraw);
+  
+  noLoop();
+}
+
+function draw() {
+  background(255);
+  
+  let a = parseInt(sliderA.value());
+  let b = parseInt(sliderB.value());
+  
+  valA.html(a);
+  valB.html(b);
+  
+  // Center drawing
+  translate(width/2 - (a+b)/2, height/2 + (Math.max(a,b))/2);
+  scale(1, -1); // Flip Y to standard cartesian
+  
+  // Coordinates
+  // D is origin (0,0) relative to shape logic, but let's shift
+  // Structure: 
+  // D(0,0) --- C(b,0) --- E(a+b, 0) is the bottom line? No.
+  // The diagram shows D, C, E are collinear on line l?
+  // No, AD perp l, BE perp l. C is on l.
+  // So l is the horizontal line.
+  // D is at (-b, 0), C is at (0,0), E is at (a, 0)? No.
+  // From logic: CD=b, CE=AD=a.
+  // Let's place C at (0,0).
+  // Line l is y=0.
+  // D is (-b, 0). A is (-b, a). (Since AD=a)
+  // E is (a, 0). B is (a, b). (Since BE=b, CE=a)
+  // Wait, let's match diagram orientation.
+  // Diagram: Line l is hypotenuse? No, AD, BE perp to line l.
+  // So D, C, E are collinear.
+  // D--b--C--a--E.
+  
+  // Correct Coords based on diagram logic:
+  // Let D = (0, 0).
+  // C = (b, 0).
+  // E = (b + a, 0).
+  // A = (0, a).
+  // B = (b + a, b).
+  
+  // Draw Trapezoid ADEB
+  fill(240, 240, 250);
+  stroke(0);
+  strokeWeight(2);
+  beginShape();
+  vertex(0,0);       // D
+  vertex(a+b, 0);    // E
+  vertex(a+b, b);    // B
+  vertex(0, a);      // A
+  endShape(CLOSE);
+  
+  // Draw Triangle ADC
+  fill(255, 220, 220); // Reddish
+  triangle(0,0,  b,0,  0,a);
+  
+  // Draw Triangle BCE
+  fill(220, 220, 255); // Blueish
+  triangle(b,0,  a+b,0,  a+b,b);
+  
+  // Draw Triangle ABC
+  fill(220, 255, 220); // Greenish
+  triangle(0,a,  b,0,  a+b,b);
+  
+  // Labels (draw normally, so flip scale back)
+  scale(1, -1);
+  fill(0);
+  noStroke();
+  textSize(16);
+  textAlign(CENTER, CENTER);
+  
+  // Edges
+  text("a", -20, -a/2); // AD
+  text("b", b/2, 20);   // DC
+  text("a", b + a/2, 20); // CE
+  text("b", a+b+20, -b/2); // BE
+  
+  // Hypotenuses (c)
+  text("c", b/2 + 5, -a/2 - 5); // AC
+  text("c", b + a/2 - 5, -b/2 + 5); // BC
+  text("c", (a+b)/2, - (a+b)/2 + 20); // AB? No
+  
+  // Right Angle Markers
+  noFill();
+  stroke(0);
+  strokeWeight(1);
+  // D
+  rect(0, 0, 15, -15);
+  // E
+  rect(a+b, 0, -15, -15);
+  // C (ACB is 90) - visual check
+  // push();
+  // translate(b, 0);
+  // rotate(...);
+  // pop();
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth * 0.6, windowHeight);
+}
+</script>
+</body>
+</html>

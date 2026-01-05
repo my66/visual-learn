@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>平面镜成像深度探究演示</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Segoe UI', Roboto, 'Microsoft YaHei', sans-serif; overflow: hidden; }
+        .main-layout { display: flex; flex-direction: column; height: 100vh; }
+        .canvas-container { flex: 1; position: relative; background-color: #0f172a; overflow: hidden; }
+        .controls-container { height: auto; min-height: 220px; background-color: white; border-top: 1px solid #e2e8f0; z-index: 10; box-shadow: 0 -4px 6px -1px rgb(0 0 0 / 0.1); }
+        input[type=range] { accent-color: #3b82f6; }
+        
+        /* 简单的光晕动画 */
+        @keyframes pulse-glow {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 0.6; }
+        }
+        .glow-text { animation: pulse-glow 2s infinite; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+    <div class="main-layout">
+        <!-- 1. 核心演示区 -->
+        <div class="canvas-container" id="canvasContainer">
+            <canvas id="simCanvas" class="block w-full h-full"></canvas>
+            
+            <!-- 悬浮图例 -->
+            <div class="absolute top-4 left-4 flex flex-col gap-2 bg-slate-900/80 backdrop-blur-md p-4 rounded-xl text-white text-xs select-none border border-slate-700 shadow-xl ring-1 ring-white/10">
+                <div class="font-bold text-slate-400 mb-1 tracking-wider uppercase">Legend</div>
+                <div class="flex items-center"><span class="w-3 h-3 bg-red-500 rounded-full mr-2 shadow-[0_0_8px_rgba(239,68,68,0.6)]"></span>物体 AB</div>
+                <div class="flex items-center"><span class="w-8 h-0.5 bg-yellow-400 border-t border-dashed mr-2"></span>物像连线 (垂直)</div>
+                <div class="border-t border-white/10 my-1"></div>
+                <div class="flex items-center text-red-200"><span class="w-8 h-4 bg-gradient-to-r from-red-500/0 via-red-500/30 to-red-500/0 mr-2 rounded"></span>顶部光束 A (上镜)</div>
+                <div class="flex items-center text-purple-200"><span class="w-8 h-4 bg-gradient-to-r from-purple-500/0 via-purple-500/30 to-purple-500/0 mr-2 rounded"></span>底部光束 B (下镜)</div>
+            </div>
+
+            <!-- 状态提示 -->
+            <div id="statusTip" class="absolute top-4 right-4 bg-green-600/90 text-white px-5 py-2 rounded-full font-bold shadow-lg transition-all border border-white/20 backdrop-blur-sm transform hover:scale-105 cursor-default">
+                像的位置不变
+            </div>
+        </div>
+
+        <!-- 2. 控制与说明区 -->
+        <div class="controls-container flex flex-col md:flex-row">
+            
+            <!-- 左侧：选项菜单 -->
+            <div class="w-full md:w-1/3 p-6 bg-slate-50 border-r border-slate-200 flex flex-col gap-3">
+                <h2 class="text-lg font-bold text-slate-800 mb-2 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+                    实验场景选择
+                </h2>
+                
+                <label class="cursor-pointer group">
+                    <input type="radio" name="scenario" value="split" checked class="peer hidden">
+                    <div class="p-3 rounded-lg border border-slate-200 bg-white peer-checked:border-blue-500 peer-checked:bg-blue-50 peer-checked:text-blue-700 hover:bg-slate-100 transition-all flex items-center justify-between shadow-sm">
+                        <span class="font-semibold">① 上下平移 (题目原景)</span>
+                        <div class="w-4 h-4 rounded-full border border-slate-300 peer-checked:bg-blue-500 peer-checked:border-blue-500 flex items-center justify-center">
+                             <div class="w-1.5 h-1.5 bg-white rounded-full opacity-0 peer-checked:opacity-100"></div>
+                        </div>
+                    </div>
+                </label>
+
+                <label class="cursor-pointer group">
+                    <input type="radio" name="scenario" value="depth" class="peer hidden">
+                    <div class="p-3 rounded-lg border border-slate-200 bg-white peer-checked:border-amber-500 peer-checked:bg-amber-50 peer-checked:text-amber-700 hover:bg-slate-100 transition-all flex items-center justify-between shadow-sm">
+                        <span class="font-semibold">② 前后错位 (假设情况)</span>
+                        <div class="w-4 h-4 rounded-full border border-slate-300 peer-checked:bg-amber-500 peer-checked:border-amber-500 flex items-center justify-center">
+                             <div class="w-1.5 h-1.5 bg-white rounded-full opacity-0 peer-checked:opacity-100"></div>
+                        </div>
+                    </div>
+                </label>
+
+                <label class="cursor-pointer group">
+                    <input type="radio" name="scenario" value="tilt" class="peer hidden">
+                    <div class="p-3 rounded-lg border border-slate-200 bg-white peer-checked:border-purple-500 peer-checked:bg-purple-50 peer-checked:text-purple-700 hover:bg-slate-100 transition-all flex items-center justify-between shadow-sm">
+                        <span class="font-semibold">③ 角度倾斜 (高阶探究)</span>
+                         <div class="w-4 h-4 rounded-full border border-slate-300 peer-checked:bg-purple-500 peer-checked:border-purple-500 flex items-center justify-center">
+                             <div class="w-1.5 h-1.5 bg-white rounded-full opacity-0 peer-checked:opacity-100"></div>
+                        </div>
+                    </div>
+                </label>
+            </div>
+
+            <!-- 右侧：控制与讲解 -->
+            <div class="w-full md:w-2/3 p-6 relative bg-white">
+                
+                <!-- 场景 1 -->
+                <div id="panel-split" class="control-panel h-full flex flex-col justify-center">
+                    <div class="mb-6">
+                        <div class="flex justify-between mb-2 items-end">
+                            <label class="font-bold text-blue-800 text-lg">上下分离程度</label>
+                            <span id="val-split" class="font-mono text-blue-600 bg-blue-50 px-2 py-0.5 rounded">0 px</span>
+                        </div>
+                        <input type="range" id="slider-split" min="0" max="250" value="0" class="w-full h-3 bg-slate-200 rounded-lg appearance-none cursor-pointer hover:bg-slate-300 transition-colors">
+                        <p class="text-xs text-slate-400 mt-2">← 拖动滑块，将完整镜子分离</p>
+                    </div>
+                    <div class="bg-blue-50 p-4 rounded-xl border-l-4 border-blue-500 text-sm text-blue-900 leading-relaxed shadow-sm">
+                        <strong class="text-blue-700">物理现象：</strong> 
+                        无论上下两块镜子分开多远，只要它们在同一个平面内，<br>
+                        1. 红色光束（上）和紫色光束（下）的反向延长线依然汇聚在<b>同一个点</b>。<br>
+                        2. 像的位置没有发生任何改变。<br>
+                        👉 <b>结论：都成完整的像，且位置不变 (选 D)</b>
+                    </div>
+                </div>
+
+                <!-- 场景 2 -->
+                <div id="panel-depth" class="control-panel h-full flex flex-col justify-center hidden">
+                    <div class="mb-6">
+                        <div class="flex justify-between mb-2 items-end">
+                            <label class="font-bold text-amber-800 text-lg">下半镜后退距离</label>
+                            <span id="val-depth" class="font-mono text-amber-600 bg-amber-50 px-2 py-0.5 rounded">0 px</span>
+                        </div>
+                        <input type="range" id="slider-depth" min="0" max="150" value="0" class="w-full h-3 bg-slate-200 rounded-lg appearance-none cursor-pointer hover:bg-slate-300 transition-colors">
+                        <p class="text-xs text-slate-400 mt-2">← 拖动滑块，下半截镜子向后断裂平移</p>
+                    </div>
+                    <div class="bg-amber-50 p-4 rounded-xl border-l-4 border-amber-500 text-sm text-amber-900 leading-relaxed shadow-sm">
+                         <strong class="text-amber-700">对比实验：</strong> <br>
+                         观察紫色光束（下半部分）。当镜面向后移动时，光束的反射面后退了。<br>
+                         根据对称性，下半部分的像（紫色虚像）也随之后移。<br>
+                         此时像分裂成了两个，说明<b>“共面”</b>是像重合的必要条件。
+                    </div>
+                </div>
+
+                <!-- 场景 3 -->
+                <div id="panel-tilt" class="control-panel h-full flex flex-col justify-center hidden">
+                    <div class="mb-6">
+                        <div class="flex justify-between mb-2 items-end">
+                            <label class="font-bold text-purple-800 text-lg">下半镜倾斜角度</label>
+                            <span id="val-tilt" class="font-mono text-purple-600 bg-purple-50 px-2 py-0.5 rounded">0°</span>
+                        </div>
+                        <input type="range" id="slider-tilt" min="-45" max="45" value="0" class="w-full h-3 bg-slate-200 rounded-lg appearance-none cursor-pointer hover:bg-slate-300 transition-colors">
+                        <p class="text-xs text-slate-400 mt-2">← 拖动滑块，下半截镜子发生旋转</p>
+                    </div>
+                    <div class="bg-purple-50 p-4 rounded-xl border-l-4 border-purple-500 text-sm text-purple-900 leading-relaxed shadow-sm">
+                        <strong class="text-purple-700">高阶探究：</strong> <br>
+                        当镜子倾斜时，对称面发生了偏转。<br>
+                        仔细观察紫色光束和物像连线（黄色虚线），它们始终保持<b>关于镜面垂直对称</b>。<br>
+                        因此，像不仅位置变了，方向也歪了。
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 初始化 ---
+        const canvas = document.getElementById('simCanvas');
+        const container = document.getElementById('canvasContainer');
+        const ctx = canvas.getContext('2d');
+        
+        let currentMode = 'split'; 
+        let params = {
+            split: 0,
+            depth: 0,
+            tilt: 0
+        };
+
+        const config = {
+            objX: -260,    // 物体位置
+            objH: 100,     // 物体高度
+            mirrorX: 0,    // 镜子基准位置
+            mirrorH: 240   // 镜子高度
+        };
+
+        // --- DOM 元素绑定 ---
+        const radios = document.getElementsByName('scenario');
+        const panels = {
+            split: document.getElementById('panel-split'),
+            depth: document.getElementById('panel-depth'),
+            tilt: document.getElementById('panel-tilt')
+        };
+        const sliders = {
+            split: document.getElementById('slider-split'),
+            depth: document.getElementById('slider-depth'),
+            tilt: document.getElementById('slider-tilt')
+        };
+        const labels = {
+            split: document.getElementById('val-split'),
+            depth: document.getElementById('val-depth'),
+            tilt: document.getElementById('val-tilt')
+        };
+        const statusTip = document.getElementById('statusTip');
+
+        // --- 事件监听 ---
+        radios.forEach(r => {
+            r.addEventListener('change', (e) => {
+                currentMode = e.target.value;
+                switchMode(currentMode);
+            });
+        });
+
+        function switchMode(mode) {
+            Object.values(panels).forEach(p => p.classList.add('hidden'));
+            panels[mode].classList.remove('hidden');
+
+            // 关键逻辑：切换模式时，重置所有参数为0，保证“一开始是一整块”
+            // 用户必须手动拖动滑块才能看到效果
+            params.split = 0;
+            params.depth = 0;
+            params.tilt = 0;
+
+            // 重置滑块UI
+            sliders.split.value = 0;
+            sliders.depth.value = 0;
+            sliders.tilt.value = 0;
+
+            update();
+        }
+
+        sliders.split.addEventListener('input', (e) => { params.split = parseInt(e.target.value); update(); });
+        sliders.depth.addEventListener('input', (e) => { params.depth = parseInt(e.target.value); update(); });
+        sliders.tilt.addEventListener('input',  (e) => { params.tilt = parseInt(e.target.value); update(); });
+
+        // --- 核心绘图逻辑 ---
+
+        let cx, cy;
+        function resize() {
+            const rect = container.getBoundingClientRect();
+            // 考虑设备像素比，让画面更清晰
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            cx = canvas.width / 2;
+            cy = canvas.height / 2;
+            ctx.scale(dpr, dpr);
+            // 存储逻辑宽高用于计算
+            window.logicWidth = rect.width;
+            window.logicHeight = rect.height;
+            window.logicCX = rect.width / 2;
+            window.logicCY = rect.height / 2;
+            
+            draw();
+        }
+        window.addEventListener('resize', resize);
+
+        function update() {
+            labels.split.textContent = params.split + " px";
+            labels.depth.textContent = params.depth + " px";
+            labels.tilt.textContent = params.tilt + "°";
+
+            if (params.depth > 0) {
+                statusTip.textContent = "像分裂成两个";
+                statusTip.className = "absolute top-4 right-4 bg-amber-600/90 text-white px-5 py-2 rounded-full font-bold shadow-lg transition-all border border-white/20 backdrop-blur-sm";
+            } else if (params.tilt !== 0) {
+                statusTip.textContent = "像发生偏转";
+                statusTip.className = "absolute top-4 right-4 bg-purple-600/90 text-white px-5 py-2 rounded-full font-bold shadow-lg transition-all border border-white/20 backdrop-blur-sm";
+            } else if (params.split > 0) {
+                statusTip.textContent = "像位置不变 (重合)";
+                statusTip.className = "absolute top-4 right-4 bg-green-600/90 text-white px-5 py-2 rounded-full font-bold shadow-lg transition-all border border-white/20 backdrop-blur-sm";
+            } else {
+                statusTip.textContent = "完整平面镜成像";
+                statusTip.className = "absolute top-4 right-4 bg-blue-600/90 text-white px-5 py-2 rounded-full font-bold shadow-lg transition-all border border-white/20 backdrop-blur-sm";
+            }
+
+            draw();
+        }
+
+        // 坐标转换
+        const toScreen = (x, y) => ({ x: window.logicCX + x, y: window.logicCY - y });
+
+        // 对称点计算
+        function getReflection(px, py, x1, y1, x2, y2) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const a = (dx * dx - dy * dy) / (dx * dx + dy * dy);
+            const b = 2 * dx * dy / (dx * dx + dy * dy);
+            const x2_ = a * (px - x1) + b * (py - y1) + x1;
+            const y2_ = b * (px - x1) - a * (py - y1) + y1;
+            return { x: x2_, y: y2_ };
+        }
+
+        function draw() {
+            // 使用逻辑宽高清空
+            ctx.clearRect(0, 0, window.logicWidth, window.logicHeight);
+
+            // 1. 绘制地面/光轴
+            ctx.beginPath();
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 1;
+            ctx.moveTo(0, window.logicCY);
+            ctx.lineTo(window.logicWidth, window.logicCY);
+            ctx.stroke();
+
+            // --- 定义物理对象 ---
+            const objTop = { x: config.objX, y: config.objH };
+            const objBot = { x: config.objX, y: 0 };
+            const halfH = config.mirrorH / 2;
+            
+            // 镜子1 (上半部)
+            const m1X = config.mirrorX;
+            // 即使是Unified，我们也按两个部分计算，只要位置重合即可
+            const m1BotY = params.split / 2;
+            const m1TopY = m1BotY + halfH;
+            
+            // 镜子2 (下半部)
+            const m2CenterX = config.mirrorX + params.depth;
+            const m2CenterY = -params.split/2 - halfH/2;
+            const rad = params.tilt * Math.PI / 180;
+            const dx = -Math.sin(rad) * (halfH/2);
+            const dy = Math.cos(rad) * (halfH/2);
+            const m2TopPt = { x: m2CenterX + dx, y: m2CenterY + dy };
+            const m2BotPt = { x: m2CenterX - dx, y: m2CenterY - dy };
+
+            // 状态判断
+            const isUnified = (params.split === 0 && params.depth === 0 && params.tilt === 0);
+
+            // --- 像的计算 ---
+            const img1Top = { x: 2*m1X - objTop.x, y: objTop.y }; 
+            const img1Bot = { x: 2*m1X - objBot.x, y: objBot.y };
+            
+            const img2Top = getReflection(objTop.x, objTop.y, m2TopPt.x, m2TopPt.y, m2BotPt.x, m2BotPt.y);
+            const img2Bot = getReflection(objBot.x, objBot.y, m2TopPt.x, m2TopPt.y, m2BotPt.x, m2BotPt.y);
+
+            // --- 绘制辅助线 ---
+            ctx.save();
+            ctx.setLineDash([4, 4]);
+            ctx.lineWidth = 1;
+            
+            // 上镜面无限平面
+            ctx.strokeStyle = '#475569';
+            drawInfiniteLine(ctx, m1X, 0, m1X, 100); 
+            
+            // 下镜面无限平面 (仅当有差异时绘制)
+            if (params.depth !== 0 || params.tilt !== 0) {
+                ctx.strokeStyle = '#64748b';
+                drawInfiniteLine(ctx, m2BotPt.x, m2BotPt.y, m2TopPt.x, m2TopPt.y);
+            }
+            ctx.restore();
+
+            // 物像连线
+            drawAuxConnection(ctx, objTop, img1Top, '#ef4444');
+            if (!isUnified && (params.depth > 0 || params.tilt !== 0)) {
+                drawAuxConnection(ctx, objBot, img2Bot, '#a855f7');
+            } else if (isUnified) {
+                // Unified时，物体底部连线
+                drawAuxConnection(ctx, objBot, img1Bot, '#ef4444');
+            }
+
+
+            // --- 绘制实体 ---
+
+            // 像2 (紫色)
+            if (!isUnified && (params.depth !== 0 || params.tilt !== 0 || params.split > 0)) {
+                drawArrow(ctx, img2Bot, img2Top, '#c084fc', true);
+                if(params.depth > 0 || params.tilt !== 0) {
+                     ctx.fillStyle = '#c084fc'; 
+                     ctx.font = '12px sans-serif';
+                     ctx.fillText("像2", toScreen(img2Top.x, img2Top.y).x + 10, toScreen(img2Top.x, img2Top.y).y);
+                }
+            }
+
+            // 像1 (红色)
+            drawArrow(ctx, img1Bot, img1Top, '#fca5a5', true);
+            ctx.fillStyle = '#fca5a5'; 
+            ctx.font = '14px sans-serif';
+            ctx.fillText("像", toScreen(img1Top.x, img1Top.y).x + 10, toScreen(img1Top.x, img1Top.y).y);
+
+            // 物体 (实物)
+            drawArrow(ctx, objBot, objTop, '#ef4444', false);
+            ctx.fillStyle = '#ef4444'; 
+            ctx.fillText("物", toScreen(objTop.x, objTop.y).x - 20, toScreen(objTop.x, objTop.y).y);
+
+            // 镜子
+            if (isUnified) {
+                drawMirrorBar(ctx, m1X, -halfH, m1X, halfH); // 合体
+            } else {
+                drawMirrorBar(ctx, m1X, m1BotY, m1X, m1TopY);
+                drawMirrorBar(ctx, m2BotPt.x, m2BotPt.y, m2TopPt.x, m2TopPt.y);
+            }
+
+            // --- 绘制光束 (Ray Bundles) ---
+            
+            // 光束1: 物体顶部 A -> 上镜 -> 像 A'
+            // 使用光束，需要多个入射点。
+            // 上镜区间：m1BotY 到 m1TopY
+            const m1Start = {x: m1X, y: m1BotY};
+            const m1End = {x: m1X, y: m1TopY};
+            
+            // 光束2: 物体底部 B -> 下镜 -> 像 B'
+            // 下镜区间：m2BotPt 到 m2TopPt
+            
+            // 绘制逻辑
+            // A -> Top Mirror (Reddish)
+            drawLightBundle(ctx, objTop, m1Start, m1End, img1Top, '#fca5a5', '#ef4444');
+            
+            // B -> Bottom Mirror (Purplish)
+            // 如果Unified，其实Bottom Mirror就在Top Mirror下面。
+            // 我们依然分别画，展示上下两部分的光路。
+            drawLightBundle(ctx, objBot, m2BotPt, m2TopPt, img2Bot, '#d8b4fe', '#a855f7');
+
+        }
+
+        // --- 绘图辅助函数 ---
+
+        function drawLightBundle(ctx, pStart, mStart, mEnd, pImg, rayColor, coreColor) {
+            const steps = 6; // 光线数量
+            const startS = toScreen(pStart.x, pStart.y);
+            const imgS = toScreen(pImg.x, pImg.y);
+
+            for (let i = 1; i < steps; i++) {
+                const t = i / steps;
+                // 插值计算镜面上的入射点
+                const mx = mStart.x + (mEnd.x - mStart.x) * t;
+                const my = mStart.y + (mEnd.y - mStart.y) * t;
+                const hitS = toScreen(mx, my);
+
+                // 1. 入射光线 (变暗)
+                ctx.beginPath();
+                ctx.strokeStyle = rayColor;
+                ctx.lineWidth = 1; // 细线
+                ctx.globalAlpha = 0.3; // 调暗
+                ctx.moveTo(startS.x, startS.y);
+                ctx.lineTo(hitS.x, hitS.y);
+                ctx.stroke();
+
+                // 2. 反射光线
+                // 计算方向 (hit -> ext)
+                const dx = hitS.x - imgS.x;
+                const dy = hitS.y - imgS.y;
+                const len = Math.sqrt(dx*dx + dy*dy);
+                const scale = 200 / len; // 延长
+
+                ctx.beginPath();
+                ctx.moveTo(hitS.x, hitS.y);
+                ctx.lineTo(hitS.x + dx * scale, hitS.y + dy * scale);
+                ctx.stroke();
+
+                // 3. 反向延长线 (极淡)
+                ctx.beginPath();
+                ctx.setLineDash([2, 4]);
+                ctx.globalAlpha = 0.15;
+                ctx.moveTo(imgS.x, imgS.y);
+                ctx.lineTo(hitS.x, hitS.y);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+            ctx.globalAlpha = 1.0;
+
+            // 画一条中心主光线 (高亮)
+            const t = 0.5;
+            const mx = mStart.x + (mEnd.x - mStart.x) * t;
+            const my = mStart.y + (mEnd.y - mStart.y) * t;
+            const hitS = toScreen(mx, my);
+            
+            ctx.beginPath();
+            ctx.strokeStyle = coreColor;
+            ctx.lineWidth = 1.5;
+            ctx.globalAlpha = 0.8;
+            ctx.moveTo(startS.x, startS.y);
+            ctx.lineTo(hitS.x, hitS.y);
+            ctx.stroke();
+
+            const dx = hitS.x - imgS.x;
+            const dy = hitS.y - imgS.y;
+            const len = Math.sqrt(dx*dx + dy*dy);
+            const scale = 200 / len;
+            
+            ctx.beginPath();
+            ctx.moveTo(hitS.x, hitS.y);
+            ctx.lineTo(hitS.x + dx * scale, hitS.y + dy * scale);
+            ctx.stroke();
+            ctx.globalAlpha = 1.0;
+
+            // 画箭头
+            drawRayArrow(ctx, startS, hitS);
+            drawRayArrow(ctx, hitS, {x: hitS.x + dx * scale, y: hitS.y + dy * scale});
+        }
+
+        function drawAuxConnection(ctx, p1, p2, color) {
+            const s1 = toScreen(p1.x, p1.y);
+            const s2 = toScreen(p2.x, p2.y);
+            ctx.beginPath();
+            ctx.strokeStyle = '#fbbf24'; 
+            ctx.setLineDash([4, 4]);
+            ctx.lineWidth = 1;
+            ctx.moveTo(s1.x, s1.y);
+            ctx.lineTo(s2.x, s2.y);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            const midX = (s1.x + s2.x) / 2;
+            const midY = (s1.y + s2.y) / 2;
+            ctx.fillStyle = color;
+            ctx.fillRect(midX - 2, midY - 2, 4, 4);
+        }
+
+        function drawInfiniteLine(ctx, x1, y1, x2, y2) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const len = 3000;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            if (dist < 0.001) return;
+            const ux = dx/dist;
+            const uy = dy/dist;
+            const p1 = toScreen(x1 - ux*len, y1 - uy*len);
+            const p2 = toScreen(x1 + ux*len, y1 + uy*len);
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.stroke();
+        }
+
+        function drawMirrorBar(ctx, x1, y1, x2, y2) {
+            const p1 = toScreen(x1, y1);
+            const p2 = toScreen(x2, y2);
+            ctx.beginPath();
+            ctx.strokeStyle = '#06b6d4'; 
+            ctx.lineWidth = 8;
+            ctx.lineCap = 'butt'; 
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+            ctx.lineWidth = 2;
+            ctx.moveTo(p1.x + 2, p1.y); 
+            ctx.lineTo(p2.x + 2, p2.y);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.strokeStyle = '#64748b';
+            ctx.lineWidth = 1;
+            const dist = Math.sqrt((p2.x-p1.x)**2 + (p2.y-p1.y)**2);
+            const steps = Math.floor(dist / 8);
+            for(let i=0; i<=steps; i++) {
+                const t = i/steps;
+                const px = p1.x + (p2.x - p1.x)*t;
+                const py = p1.y + (p2.y - p1.y)*t;
+                ctx.moveTo(px, py);
+                ctx.lineTo(px + 6, py + 6);
+            }
+            ctx.stroke();
+        }
+
+        function drawArrow(ctx, p1World, p2World, color, dashed) {
+            const p1 = toScreen(p1World.x, p1World.y);
+            const p2 = toScreen(p2World.x, p2World.y);
+            
+            ctx.beginPath();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 4;
+            if (dashed) ctx.setLineDash([6, 4]);
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            const headLen = 14;
+            const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+            ctx.beginPath();
+            ctx.fillStyle = color;
+            ctx.moveTo(p2.x, p2.y);
+            ctx.lineTo(p2.x - headLen * Math.cos(angle - Math.PI / 6), p2.y - headLen * Math.sin(angle - Math.PI / 6));
+            ctx.lineTo(p2.x - headLen * Math.cos(angle + Math.PI / 6), p2.y - headLen * Math.sin(angle + Math.PI / 6));
+            ctx.fill();
+        }
+
+        function drawRayArrow(ctx, p1, p2) {
+            const t = 0.6; 
+            const mx = p1.x + (p2.x - p1.x) * t;
+            const my = p1.y + (p2.y - p1.y) * t;
+            const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+            const len = 6;
+            
+            ctx.beginPath();
+            ctx.strokeStyle = ctx.strokeStyle; 
+            ctx.lineWidth = 1.5;
+            ctx.moveTo(mx, my);
+            ctx.lineTo(mx - len * Math.cos(angle - Math.PI / 6), my - len * Math.sin(angle - Math.PI / 6));
+            ctx.moveTo(mx, my);
+            ctx.lineTo(mx - len * Math.cos(angle + Math.PI / 6), my - len * Math.sin(angle + Math.PI / 6));
+            ctx.stroke();
+        }
+
+        setTimeout(resize, 100); 
+        switchMode('split');
+    </script>
+</body>
+</html>

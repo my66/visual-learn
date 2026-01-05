@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>物理老师的光学实验室 - 景深与虚化特供版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
+        body { background-color: #f1f5f9; font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif; display: flex; flex-direction: column; }
+        #root { height: 100%; display: flex; flex-direction: column; }
+        .term-card { transition: all 0.2s; font-size: 11px; line-height: 1.4; }
+        .term-card:hover { transform: translateY(-2px); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); background-color: #fff; z-index: 10; }
+        input[type=range] { height: 6px; border-radius: 3px; background: #e2e8f0; appearance: none; cursor: pointer; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: currentColor; margin-top: -5px; box-shadow: 0 1px 2px rgba(0,0,0,0.3); transition: transform 0.1s; }
+        input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.1); }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 6px; background: transparent; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useMemo } = React;
+
+        const Icon = ({ d, className, color }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color || "currentColor"} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}><path d={d}></path></svg>
+        );
+        const Icons = {
+            Eye: (p) => <Icon d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" {...p} />,
+            Lock: (p) => <Icon d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a7 7 0 00-14 0v2" {...p} />,
+            Unlock: (p) => <Icon d="M8 11V9a4 4 0 118 0v2m-6 8h4" {...p} />,
+            Light: (p) => <Icon d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" {...p} />,
+        };
+
+        const CameraOpticsLab = () => {
+            const [lensMode, setLensMode] = useState('prime'); // 默认定焦，方便演示虚化
+            const [focalLength, setFocalLength] = useState(50); 
+            const [aperture, setAperture] = useState(2.8);
+            const [focusDistance, setFocusDistance] = useState(3.5);
+            const [objectDistance, setObjectDistance] = useState(3.5); // 绿树距离
+            const [showLabels, setShowLabels] = useState(true);
+
+            // 固定第二棵树（红树）的位置
+            const bgTreeDistance = 8.0;
+
+            const WIDTH = 800, HEIGHT = 380, AXIS_Y = HEIGHT / 2;
+            const SENSOR_X = WIDTH - 80; 
+            const canvasRef = useRef(null);
+
+            // --- 模糊度计算 ---
+            // 通用公式：根据物体距离、对焦距离、光圈、焦距计算模糊半径
+            const calculateBlur = (objDist) => {
+                const diff = Math.abs(focusDistance - objDist);
+                // 物理核心：光圈值(aperture)越大(孔越小)，分母越大，blur 越小
+                // 焦距(focalLength)越长，blur 越大
+                return Math.min((diff * 40 * (focalLength / 50)) / aperture, 20);
+            };
+
+            const blurGreen = calculateBlur(objectDistance);
+            const blurRed = calculateBlur(bgTreeDistance);
+
+            const getFOV = (dist) => {
+                const distFactor = 2 / Math.max(0.5, dist);
+                return (focalLength / 50) * distFactor;
+            };
+
+            const isInfinity = objectDistance > 20;
+
+            // --- 教学分析 ---
+            const analysisText = useMemo(() => {
+                const blurG = blurGreen.toFixed(1);
+                const blurR = blurRed.toFixed(1);
+                
+                let title = "当前状态：";
+                let physics = [];
+                let keyPoint = "";
+
+                // 判断对焦目标
+                if (Math.abs(focusDistance - objectDistance) < 0.5) {
+                    title += "对焦在前景 (绿树)";
+                } else if (Math.abs(focusDistance - bgTreeDistance) < 0.5) {
+                    title += "对焦在背景 (红树)";
+                } else {
+                    title += "失焦 (都不清楚)";
+                }
+
+                // 光圈影响分析
+                if (aperture < 4) {
+                    physics.push("光圈大 (孔径大)：光线入射锥角很大。");
+                    physics.push("结果：只要稍微没对准，光线就在传感器上散开成大光斑。");
+                    keyPoint = "背景虚化强，只有焦点处清晰";
+                } else if (aperture > 11) {
+                    physics.push("光圈小 (孔径小)：光束被收缩得很细 (像激光)。");
+                    physics.push("结果：即使没对准焦，散开的光斑也很小，人眼觉得它是清晰的。");
+                    keyPoint = "景深大，前后都清晰";
+                } else {
+                    physics.push("光圈适中：平衡了进光量和虚化程度。");
+                    keyPoint = "标准的景深表现";
+                }
+
+                return { title, physics, keyPoint, blurG, blurR };
+            }, [focusDistance, objectDistance, aperture, blurGreen, blurRed]);
+
+            // --- 绘图循环 ---
+            useEffect(() => {
+                const ctx = canvasRef.current.getContext('2d');
+                ctx.clearRect(0, 0, WIDTH, HEIGHT);
+
+                // 1. 坐标系
+                ctx.setLineDash([4, 4]); ctx.strokeStyle = '#cbd5e1';
+                ctx.beginPath(); ctx.moveTo(0, AXIS_Y); ctx.lineTo(WIDTH, AXIS_Y); ctx.stroke();
+                ctx.setLineDash([]);
+
+                ctx.fillStyle = '#3b82f6'; ctx.fillRect(SENSOR_X, AXIS_Y - 50, 4, 100);
+                ctx.font = '10px Arial'; ctx.fillText("传感器", SENSOR_X - 15, AXIS_Y + 65);
+
+                // 2. 几何计算 (两个物体)
+                const mapDistToX = (d) => (180 - ((Math.min(d, 12) - 0.5) / 11.5) * 150);
+                const objX_Green = mapDistToX(objectDistance);
+                const objX_Red = mapDistToX(bgTreeDistance);
+                
+                const frontLensX = 260 - (focalLength - 50); 
+                const rearLensX = 460 + (focusDistance - 3.5) * 12;
+                const safeRearX = Math.min(rearLensX, SENSOR_X - 50);
+                const midX = (frontLensX + safeRearX) / 2;
+
+                // 3. 绘制镜头
+                drawLens(ctx, frontLensX, 70, 18, '#bae6fd');
+                drawLens(ctx, midX - 15, 50, -8, '#e0f2fe');
+                drawLens(ctx, safeRearX, 60, 12, '#bae6fd');
+
+                // 4. 光圈
+                const gap = 35 / (aperture / 2);
+                ctx.fillStyle = '#1e293b';
+                ctx.fillRect(midX - 1, AXIS_Y - 45, 2, 45 - gap);
+                ctx.fillRect(midX - 1, AXIS_Y + gap, 2, 45 - gap);
+
+                // 5. 绘制光路 (两组光线)
+                // 绿光汇聚点
+                const v_Green = SENSOR_X + (focusDistance - objectDistance) * 35;
+                // 红光汇聚点 (因为红树远，像距短，所以在绿像的前面)
+                const v_Red = SENSOR_X + (focusDistance - bgTreeDistance) * 35;
+
+                ctx.globalCompositeOperation = 'multiply'; // 混合颜色
+                
+                // 绘制红树光路 (背景，先画)
+                drawRays(ctx, objX_Red, frontLensX, safeRearX, v_Red, aperture, '#f87171', false); // Red
+                // 绘制绿树光路 (前景，后画)
+                drawRays(ctx, objX_Green, frontLensX, safeRearX, v_Green, aperture, '#4ade80', true); // Green
+                
+                ctx.globalCompositeOperation = 'source-over';
+
+                // 6. 绘制物体
+                drawObject(ctx, objX_Red, bgTreeDistance, '#ef4444', '背景树');
+                drawObject(ctx, objX_Green, objectDistance, '#22c55e', '前景树');
+
+                // 7. 标注
+                if (showLabels) {
+                    drawBlurCircleExplanation(ctx, SENSOR_X, v_Red, aperture);
+                }
+
+            }, [focalLength, aperture, focusDistance, objectDistance, showLabels]);
+
+            const drawLens = (ctx, x, h, c, color) => {
+                ctx.beginPath(); ctx.fillStyle = color; ctx.strokeStyle = '#0ea5e9'; ctx.lineWidth = 1;
+                ctx.ellipse(x, AXIS_Y, Math.abs(c), h/2, 0, 0, 2 * Math.PI);
+                ctx.fill(); ctx.stroke();
+            };
+
+            const drawRays = (ctx, x1, x2, x3, xTarget, ap, color, isMain) => {
+                const rayOffsets = [0];
+                // 根据光圈决定光束宽度
+                const maxSpread = 32 / (ap / 2.8); // f/2.8时最宽(32)，光圈越小越窄
+                
+                // 画边界光线
+                if (maxSpread > 2) {
+                    rayOffsets.push(-maxSpread, maxSpread);
+                }
+                
+                ctx.lineWidth = isMain ? 1.5 : 1.0;
+                ctx.strokeStyle = color;
+                
+                rayOffsets.forEach(offset => {
+                    ctx.beginPath();
+                    // 虚线画背景光路，实线画前景
+                    if (!isMain) ctx.setLineDash([4, 4]); else ctx.setLineDash([]);
+                    
+                    ctx.moveTo(x1, AXIS_Y); // 从物体发出
+                    ctx.lineTo(x2, AXIS_Y + offset); // 到第一镜片
+                    ctx.lineTo(x3, AXIS_Y + offset * 0.7); // 到最后镜片
+                    ctx.lineTo(xTarget, AXIS_Y); // 汇聚
+                    
+                    // 穿过汇聚点后的散开 (关键：展示在传感器上的光斑)
+                    const extendX = SENSOR_X + 60;
+                    // 简单的相似三角形计算散开幅度
+                    const slope = (offset * 0.3) / (xTarget - x3); 
+                    // 这里为了视觉效果简化一下
+                    ctx.lineTo(extendX, AXIS_Y - (offset * 0.4) * ((extendX - xTarget)/100)); 
+                    
+                    ctx.stroke();
+                });
+                ctx.setLineDash([]);
+            };
+
+            const drawObject = (ctx, x, dist, color, label) => {
+                ctx.fillStyle = color;
+                ctx.beginPath(); ctx.moveTo(x, AXIS_Y - 35); ctx.lineTo(x-10, AXIS_Y); ctx.lineTo(x+10, AXIS_Y); ctx.fill();
+                ctx.fillStyle = '#78350f'; ctx.fillRect(x-2, AXIS_Y, 4, 10);
+                ctx.fillStyle = color; ctx.font = '10px Arial'; ctx.textAlign = 'center';
+                ctx.fillText(label, x, AXIS_Y + 25);
+                ctx.fillStyle = '#64748b';
+                ctx.fillText(`${dist.toFixed(1)}m`, x, AXIS_Y + 36);
+            };
+
+            // 专门画一个标注解释弥散圆
+            const drawBlurCircleExplanation = (ctx, sensorX, focusPointX, ap) => {
+                // 如果焦点没在传感器上
+                const diff = Math.abs(sensorX - focusPointX);
+                if (diff > 10) {
+                    const radius = Math.min(diff * 0.3 * (2.8/ap), 30); // 示意性半径
+                    
+                    // 在传感器位置画一个光斑示意
+                    ctx.fillStyle = 'rgba(239, 68, 68, 0.2)'; // 红色光斑
+                    ctx.beginPath();
+                    ctx.ellipse(sensorX, AXIS_Y, 4, radius, 0, 0, 2*Math.PI);
+                    ctx.fill();
+
+                    // 标注
+                    if (radius > 5) {
+                        ctx.fillStyle = '#ef4444';
+                        ctx.font = '10px Arial';
+                        ctx.fillText("光斑(弥散圆)", sensorX + 10, AXIS_Y - radius - 5);
+                    }
+                }
+            };
+
+            const toggleMode = (m) => { setLensMode(m); if(m === 'prime') setFocalLength(50); };
+            
+            // 预设场景功能
+            const setSceneLargeAperture = () => {
+                setAperture(1.4);
+                setFocusDistance(3.5); // 对焦绿树
+                setObjectDistance(3.5);
+            };
+            const setSceneSmallAperture = () => {
+                setAperture(16);
+                setFocusDistance(3.5);
+                setObjectDistance(3.5);
+            };
+
+            return (
+                <div className="h-full w-full max-w-7xl mx-auto flex flex-col p-2 box-border">
+                    <div className="flex-none flex items-center justify-between border-b border-gray-200 pb-2 mb-2 px-2">
+                        <div className="flex items-center gap-2">
+                            <div className="bg-indigo-600 text-white p-1.5 rounded-md"><Icons.Eye /></div>
+                            <h1 className="text-base font-bold text-gray-800">物理老师的光学实验室 <span className="text-xs font-normal text-gray-500 ml-2">v8.0 景深与光圈特供版</span></h1>
+                        </div>
+                        <div className="flex gap-2">
+                            <button onClick={setSceneLargeAperture} className="px-2 py-1 bg-pink-50 text-pink-700 rounded text-xs border border-pink-200 hover:bg-pink-100 transition font-bold">
+                                🌟 大光圈 (虚化)
+                            </button>
+                            <button onClick={setSceneSmallAperture} className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs border border-blue-200 hover:bg-blue-100 transition font-bold">
+                                🌄 小光圈 (清晰)
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="flex-1 flex gap-3 min-h-0 px-2 overflow-hidden">
+                        <div className="flex-[3] flex flex-col gap-2 min-w-0">
+                            <div className="flex-[2] bg-slate-900 rounded-lg relative border border-slate-700 overflow-hidden min-h-0">
+                                <canvas ref={canvasRef} width={WIDTH} height={HEIGHT} className="w-full h-full object-contain" />
+                                <div className="absolute top-2 left-2 text-slate-500 text-[10px] tracking-widest border border-slate-700 px-1 rounded">SIDE VIEW</div>
+                                {/* 侧视图内部的图例 */}
+                                <div className="absolute bottom-2 right-2 flex flex-col gap-1 text-[10px] bg-black/50 p-2 rounded">
+                                    <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500"></span> 前景光路 (实线)</div>
+                                    <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-400"></span> 背景光路 (虚线)</div>
+                                </div>
+                            </div>
+                            
+                            {/* 教学分析卡片 */}
+                            <div className="flex-1 bg-indigo-50/50 border border-indigo-100 rounded-lg p-3 min-h-0 overflow-hidden flex flex-col justify-center">
+                                <h3 className="text-xs font-bold text-indigo-900 flex items-center mb-1">
+                                    <Icons.Light className="mr-1" /> 原理分析：为什么光圈影响清晰度？
+                                </h3>
+                                <div className="text-xs text-gray-600 space-y-1">
+                                    <div className="font-semibold text-gray-800">{analysisText.title}</div>
+                                    <ul className="list-disc pl-4 space-y-0.5 opacity-90">
+                                        {analysisText.physics.map((t, i) => <li key={i}>{t}</li>)}
+                                    </ul>
+                                    <div className="mt-1 pt-1 border-t border-indigo-200 text-indigo-800 font-bold flex justify-between items-center">
+                                        <span>👉 {analysisText.keyPoint}</span>
+                                        <span className="text-[9px] bg-white px-1 rounded border border-indigo-200 text-gray-400">
+                                            模糊度: 绿{analysisText.blurG} / 红{analysisText.blurR}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex-1 flex flex-col gap-2 min-w-[240px]">
+                            {/* EVF 区域：显示两棵树 */}
+                            <div className="flex gap-2 h-32">
+                                <div className="w-32 bg-black rounded-lg border-2 border-slate-700 relative overflow-hidden flex-shrink-0 shadow-inner group">
+                                    <div className="absolute top-1 left-1 text-[9px] text-gray-400 z-10">EVF 取景</div>
+                                    <div className="w-full h-full flex items-center justify-center bg-slate-800 relative">
+                                        
+                                        {/* 红树 (背景，放右边，放小一点) */}
+                                        <div style={{
+                                            position: 'absolute', right: '15%', top: '40%',
+                                            filter: `blur(${blurRed}px)`,
+                                            transform: `scale(${getFOV(bgTreeDistance) * 0.7})`,
+                                            transition: 'all 0.2s'
+                                        }}>
+                                            <svg viewBox="0 0 100 100" width="40" height="40">
+                                                <path d="M50 10 L10 90 L90 90 Z" fill="#ef4444" />
+                                                <rect x="45" y="90" width="10" height="10" fill="#78350f" />
+                                            </svg>
+                                        </div>
+
+                                        {/* 绿树 (前景，放左边，放大一点) */}
+                                        <div style={{
+                                            position: 'absolute', left: '15%', top: '45%',
+                                            filter: `blur(${blurGreen}px)`,
+                                            transform: `scale(${getFOV(objectDistance) * 0.8})`,
+                                            transition: 'all 0.2s'
+                                        }}>
+                                            <svg viewBox="0 0 100 100" width="50" height="50">
+                                                <path d="M50 10 L10 90 L90 90 Z" fill="#22c55e" />
+                                                <rect x="45" y="90" width="10" height="10" fill="#78350f" />
+                                            </svg>
+                                        </div>
+
+                                    </div>
+                                    {/* 鼠标悬停提示 */}
+                                    <div className="absolute bottom-1 w-full text-center text-[9px] text-white/50 opacity-0 group-hover:opacity-100 transition">
+                                        左绿(近) 右红(远)
+                                    </div>
+                                </div>
+
+                                <div className="flex-1 flex flex-col justify-between py-1">
+                                    <div className="flex flex-col gap-1">
+                                        <button onClick={()=>toggleMode('zoom')} className={`text-[10px] py-1.5 px-2 rounded border text-left transition ${lensMode==='zoom'?'bg-blue-50 border-blue-200 text-blue-700 font-bold':'bg-white border-gray-200 text-gray-500'}`}>
+                                            <span className="mr-1">🔓</span> 变焦
+                                        </button>
+                                        <button onClick={()=>toggleMode('prime')} className={`text-[10px] py-1.5 px-2 rounded border text-left transition ${lensMode==='prime'?'bg-pink-50 border-pink-200 text-pink-700 font-bold':'bg-white border-gray-200 text-gray-500'}`}>
+                                            <span className="mr-1">🔒</span> 定焦
+                                        </button>
+                                    </div>
+                                    <div className="text-[10px] text-gray-500 px-1 leading-tight">
+                                        试试把光圈开大，然后分别对焦在绿树或红树上！
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* 控制滑块 */}
+                            <div className="flex-1 bg-white border border-gray-200 rounded-lg p-3 flex flex-col justify-evenly">
+                                {/* 光圈 - 核心控制 */}
+                                <div className="p-2 bg-slate-50 border border-slate-200 rounded relative">
+                                    <div className="absolute -top-2 right-2 bg-yellow-100 text-yellow-800 text-[9px] px-1 rounded border border-yellow-200">虚化核心</div>
+                                    <div className="flex justify-between text-[11px] mb-1">
+                                        <span className="font-bold text-gray-800">光圈 (Aperture)</span>
+                                        <span className="text-slate-800 font-mono font-bold">f/{aperture}</span>
+                                    </div>
+                                    <input type="range" min="1.4" max="22" step="0.1" value={aperture} onChange={e=>setAperture(Number(e.target.value))} className="w-full text-slate-600" />
+                                    <div className="flex justify-between text-[9px] text-gray-400 mt-1">
+                                        <span>f/1.4 (大光圈/强虚化)</span>
+                                        <span>f/22 (小光圈/全清晰)</span>
+                                    </div>
+                                </div>
+
+                                {/* 对焦 */}
+                                <div className="p-2">
+                                    <div className="flex justify-between text-[11px] mb-1">
+                                        <span className="font-bold text-gray-700">对焦距离 (Focus)</span>
+                                        <span className="text-purple-600 font-mono">{focusDistance.toFixed(1)}m</span>
+                                    </div>
+                                    <input type="range" min="1" max="10" step="0.1" value={focusDistance} onChange={e=>setFocusDistance(Number(e.target.value))} className="w-full text-purple-500" />
+                                    <div className="flex justify-between text-[9px] text-gray-400 mt-1">
+                                        <span onClick={()=>setFocusDistance(objectDistance)} className="cursor-pointer hover:text-green-600 underline">点此对焦绿树</span>
+                                        <span onClick={()=>setFocusDistance(bgTreeDistance)} className="cursor-pointer hover:text-red-600 underline">点此对焦红树</span>
+                                    </div>
+                                </div>
+
+                                {/* 绿树位置 */}
+                                <div className="p-2">
+                                    <div className="flex justify-between text-[11px] mb-1">
+                                        <span className="font-bold text-gray-700">绿树位置 (前景)</span>
+                                        <span className="text-green-600 font-mono">{objectDistance.toFixed(1)}m</span>
+                                    </div>
+                                    <input type="range" min="1" max="7" step="0.1" value={objectDistance} onChange={e=>setObjectDistance(Number(e.target.value))} className="w-full text-green-500" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex-none pt-2 px-2 mt-1 border-t border-gray-200 bg-gray-50/50">
+                        <div className="grid grid-cols-4 gap-2 pb-2">
+                            {[
+                                {t: "景深 (DOF)", c: "slate", d: "前后都清晰的范围。光圈越小(f/16)，景深越大。"},
+                                {t: "光圈与光束", c: "blue", d: "光圈像水龙头。关小了，出来的水流(光束)就细，不容易散开。"},
+                                {t: "弥散圆", c: "red", d: "看侧视图里红色的背景光路，在传感器上形成了一个宽宽的红斑，这就是虚化。"},
+                                {t: "前焦/后焦", c: "purple", d: "绿树对准了，红树的像就落在传感器前面(前焦)，反之亦然。"}
+                            ].map((item, i) => (
+                                <div key={i} className="term-card bg-white p-2 rounded border border-gray-200 text-gray-600 cursor-help" title={item.d}>
+                                    <div className={`text-[10px] font-bold text-${item.c}-600 mb-0.5`}>{item.t}</div>
+                                    <div className="text-[9px] leading-tight opacity-90">{item.d}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<CameraOpticsLab />);
+    </script>
+</body>
+</html>

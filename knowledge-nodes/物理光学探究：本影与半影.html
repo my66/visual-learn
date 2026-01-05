@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>物理光学探究：本影与半影 (Shadows and Penumbra)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #f5f7fa;
+            --panel-bg: #ffffff;
+            --text-main: #2c3e50;
+            --accent-color: #3498db;
+            --border-color: #dcdcdc;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            height: 100vh;
+            overflow: hidden; /* Main scroll handled by flex containers */
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            background-color: var(--panel-bg);
+            padding: 10px 20px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            flex-shrink: 0;
+            z-index: 10;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 1.2rem;
+            color: var(--text-main);
+        }
+
+        .mode-toggles {
+            display: flex;
+            gap: 10px;
+        }
+
+        button.mode-btn {
+            padding: 6px 15px;
+            border: 1px solid var(--accent-color);
+            background: transparent;
+            color: var(--accent-color);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+        }
+
+        button.mode-btn.active {
+            background: var(--accent-color);
+            color: white;
+        }
+
+        /* Main Layout */
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            height: 100%;
+        }
+
+        /* Canvas Area */
+        #canvas-container {
+            flex: 1;
+            position: relative;
+            background-color: #fff;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 380px;
+            background-color: var(--panel-bg);
+            border-left: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            flex-shrink: 0;
+            box-shadow: -2px 0 5px rgba(0,0,0,0.02);
+        }
+
+        .scroll-content {
+            padding: 20px;
+        }
+
+        /* Problem Text Box */
+        .problem-box {
+            background-color: #fff9e6;
+            border: 1px solid #ffeeba;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 20px;
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+
+        .problem-box h3 {
+            margin-top: 0;
+            font-size: 1rem;
+            color: #d35400;
+            border-bottom: 1px solid #ffeeba;
+            padding-bottom: 5px;
+        }
+
+        .problem-text p {
+            margin: 8px 0;
+        }
+
+        .keyword {
+            font-weight: bold;
+            color: #e74c3c;
+        }
+
+        /* Controls */
+        .control-group {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border: 1px solid #eee;
+        }
+
+        .control-group h4 {
+            margin: 0 0 10px 0;
+            font-size: 0.95rem;
+            color: #555;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .control-item {
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .control-item label {
+            font-size: 0.9rem;
+            min-width: 80px;
+        }
+
+        input[type="range"] {
+            flex: 1;
+            margin: 0 10px;
+            cursor: pointer;
+        }
+
+        .val-display {
+            width: 40px;
+            text-align: right;
+            font-family: monospace;
+            font-size: 0.9rem;
+            color: var(--accent-color);
+        }
+
+        .legend {
+            margin-top: 10px;
+            font-size: 0.85rem;
+            color: #666;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .color-box {
+            width: 12px;
+            height: 12px;
+            border: 1px solid #ccc;
+        }
+
+        /* Responsive */
+        @media (max-width: 1000px) {
+            .main-container { flex-direction: column; overflow-y: auto; }
+            #canvas-container { height: 50vh; min-height: 400px; }
+            .sidebar { width: 100%; height: auto; border-left: none; border-top: 1px solid var(--border-color); }
+        }
+        
+        /* Tooltip for interaction */
+        .interaction-hint {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            pointer-events: none;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>📐 物理实验：光的直线传播与本影/半影</h1>
+    <div class="mode-toggles">
+        <button id="btn-candles" class="mode-btn active" onclick="setMode('candles')">图甲：蜡烛与书 (实验)</button>
+        <button id="btn-eclipse" class="mode-btn" onclick="setMode('eclipse')">图乙：日食原理 (应用)</button>
+    </div>
+</header>
+
+<div class="main-container">
+    <div id="canvas-container">
+        <div class="interaction-hint" id="interaction-hint">提示：点击蜡烛可单独开关</div>
+        <!-- p5.js canvas will be injected here -->
+    </div>
+
+    <aside class="sidebar">
+        <div class="scroll-content">
+            
+            <div class="problem-box">
+                <h3>题目大意 (17题)</h3>
+                <div class="problem-text">
+                    <p><strong>背景：</strong>手术无影灯利用多点光源消除阴影。普通灯光下，影子中部特别黑叫<span class="keyword">本影</span>，四周稍浅叫<span class="keyword">半影</span>。</p>
+                    <p><strong>图甲实验：</strong>
+                        1. 点燃蜡烛A、B，立一本书。墙上出现本影和半影。<br>
+                        2. 增加蜡烛（如C）或用多支蜡烛，本影会逐渐缩小，半影层次更多。
+                    </p>
+                    <p><strong>图乙应用：</strong>日食现象。太阳（大光源）、月亮（遮挡物）、地球（屏幕）。</p>
+                    <hr>
+                    <p style="font-size: 0.85rem; color: #555;">
+                        <strong>思考 (1)：</strong>无影灯由多个光源组成。图甲中，蜡烛B的光照不到侧半影区域中。
+                        <br><strong>思考 (2)：</strong>在C处（A、B中间）再点燃一支蜡烛，本影会变<strong>小</strong>，半影更<strong>不明显</strong>。
+                    </p>
+                </div>
+            </div>
+
+            <!-- Candle Controls -->
+            <div id="controls-candles" class="control-group">
+                <h4>实验参数设置</h4>
+                
+                <div class="control-item">
+                    <label>光源数量</label>
+                    <input type="range" id="slider-count" min="1" max="15" value="2" step="1">
+                    <span id="val-count" class="val-display">2</span>
+                </div>
+                <p style="font-size: 0.8rem; color: #666; margin-top: -5px; margin-bottom: 10px;">
+                    (尝试拉到最大模拟“无影灯”)
+                </p>
+
+                <div class="control-item">
+                    <label>光源间距</label>
+                    <input type="range" id="slider-spacing" min="0" max="150" value="80">
+                    <span id="val-spacing" class="val-display">80</span>
+                </div>
+
+                <div class="control-item">
+                    <label>书本位置</label>
+                    <input type="range" id="slider-book-x" min="100" max="400" value="250">
+                    <span id="val-book-x" class="val-display">250</span>
+                </div>
+
+                <div class="control-item">
+                    <label>
+                        <input type="checkbox" id="check-rays" checked> 显示光路
+                    </label>
+                </div>
+                
+                <div class="legend">
+                    <div class="legend-item"><div class="color-box" style="background:black"></div>本影(全黑)</div>
+                    <div class="legend-item"><div class="color-box" style="background:gray"></div>半影(灰)</div>
+                    <div class="legend-item"><div class="color-box" style="background:#fff"></div>亮区</div>
+                </div>
+                <div style="font-size:0.8rem; color:#666; margin-top:10px;">
+                    * 不同的光线颜色对应不同的蜡烛，方便追踪光路。
+                </div>
+            </div>
+
+            <!-- Eclipse Controls -->
+            <div id="controls-eclipse" class="control-group" style="display:none;">
+                <h4>日食模型参数</h4>
+                
+                <div class="control-item">
+                    <label>月亮位置</label>
+                    <input type="range" id="slider-moon-x" min="200" max="600" value="400">
+                    <span id="val-moon-x" class="val-display">400</span>
+                </div>
+
+                <div class="legend">
+                    <div class="legend-item"><span style="font-weight:bold">I区</span>: 本影 (日全食)</div>
+                    <div class="legend-item"><span style="font-weight:bold">II/IV区</span>: 半影 (日偏食)</div>
+                    <div class="legend-item"><span style="font-weight:bold">III区</span>: 伪本影 (日环食)</div>
+                </div>
+            </div>
+
+        </div>
+    </aside>
+</div>
+
+<script>
+/**
+ * Physics Visualization: Shadows and Penumbra
+ * Engine: Pure p5.js
+ */
+
+let currentMode = 'candles'; // 'candles' or 'eclipse'
+
+// DOM Elements
+const sliderCount = document.getElementById('slider-count');
+const sliderSpacing = document.getElementById('slider-spacing');
+const sliderBookX = document.getElementById('slider-book-x');
+const checkRays = document.getElementById('check-rays');
+const valCount = document.getElementById('val-count');
+const valSpacing = document.getElementById('val-spacing');
+const valBookX = document.getElementById('val-book-x');
+const hintEl = document.getElementById('interaction-hint');
+
+const sliderMoonX = document.getElementById('slider-moon-x');
+const valMoonX = document.getElementById('val-moon-x');
+
+// Physics Data
+// Candles data will store: { pos: Vector, active: bool, color: Color }
+let candles = [];
+let obstacle = { x: 300, y: 0, h: 100, w: 10 }; // Book
+let screenX = 700; // Wall position
+
+// Colors for candles (Pastel palette for rays)
+let candlePalette = [];
+
+// Eclipse Data
+let sun = { x: 100, y: 0, r: 60 };
+let moon = { x: 400, y: 0, r: 15 };
+
+function setup() {
+    let canvas = createCanvas(windowWidth * 0.7, windowHeight);
+    canvas.parent('canvas-container');
+    windowResized();
+    rectMode(CENTER);
+    imageMode(CENTER);
+    textAlign(CENTER, CENTER);
+    
+    // Initialize color palette
+    candlePalette = [
+        color(255, 100, 100), // Red
+        color(100, 200, 100), // Green
+        color(100, 100, 255), // Blue
+        color(255, 150, 0),   // Orange
+        color(200, 100, 200), // Purple
+        color(0, 200, 200),   // Cyan
+        color(255, 100, 200), // Pink
+        color(150, 150, 0),   // Olive
+        color(100, 100, 100), // Grey
+        color(50, 50, 200)    // Navy
+    ];
+}
+
+function windowResized() {
+    let container = document.getElementById('canvas-container');
+    if (container) {
+        resizeCanvas(container.clientWidth, container.clientHeight);
+        screenX = width * 0.85; // Adapt screen position to width
+    }
+}
+
+function draw() {
+    background(255);
+    
+    // Translate origin to vertically center left for drawing logic
+    push();
+    translate(0, height / 2);
+
+    if (currentMode === 'candles') {
+        updateCandlesState(); // Sync slider with internal state
+        drawCandleExperiment();
+    } else {
+        drawEclipseModel();
+    }
+
+    pop();
+    
+    // Draw cursor feedback (not affected by translate)
+    if (currentMode === 'candles') {
+        checkMouseHover();
+    }
+
+    updateUI();
+}
+
+function updateUI() {
+    // Update label values
+    valCount.innerText = sliderCount.value;
+    valSpacing.innerText = sliderSpacing.value;
+    valBookX.innerText = sliderBookX.value;
+    valMoonX.innerText = sliderMoonX.value;
+    
+    // Update hint text based on mode
+    hintEl.style.display = currentMode === 'candles' ? 'block' : 'none';
+}
+
+function mousePressed() {
+    // Handle clicks on candles
+    if (currentMode === 'candles') {
+        // We need to account for the translation (0, height/2) in draw()
+        let localMouseY = mouseY - height / 2;
+        
+        for (let i = 0; i < candles.length; i++) {
+            let c = candles[i];
+            // Check collision with candle rect (approx 20x40 area)
+            if (abs(mouseX - c.pos.x) < 15 && abs(localMouseY - c.pos.y) < 25) {
+                c.active = !c.active; // Toggle
+                return;
+            }
+        }
+    }
+}
+
+function checkMouseHover() {
+    let hovering = false;
+    let localMouseY = mouseY - height / 2;
+    for (let c of candles) {
+        if (abs(mouseX - c.pos.x) < 15 && abs(localMouseY - c.pos.y) < 25) {
+            hovering = true;
+            break;
+        }
+    }
+    // Fix: Use HAND instead of POINTER which is not a standard p5.js constant
+    cursor(hovering ? HAND : ARROW);
+}
+
+// --------------------------------------------------------
+// MODE 1: Candles Experiment (Fig 甲)
+// --------------------------------------------------------
+
+function updateCandlesState() {
+    let n = parseInt(sliderCount.value);
+    let spacing = parseFloat(sliderSpacing.value);
+    let sourceX = 100;
+    
+    // 1. Resize array if needed
+    if (candles.length !== n) {
+        let oldLength = candles.length;
+        if (n > oldLength) {
+            // Add new candles (default active)
+            for (let i = oldLength; i < n; i++) {
+                let col = candlePalette[i % candlePalette.length];
+                candles.push({ 
+                    pos: createVector(sourceX, 0), 
+                    active: true,
+                    color: col,
+                    id: i 
+                });
+            }
+        } else {
+            // Remove candles
+            candles.splice(n);
+        }
+    }
+    
+    // 2. Update positions based on spacing
+    if (n === 1) {
+        candles[0].pos.set(sourceX, 0);
+    } else {
+        let totalH = spacing * (n - 1);
+        let startY = -totalH / 2;
+        for (let i = 0; i < n; i++) {
+            candles[i].pos.set(sourceX, startY + i * spacing);
+        }
+    }
+}
+
+function drawCandleExperiment() {
+    let bookX = parseFloat(sliderBookX.value);
+    let showRays = checkRays.checked;
+    let bookH = 120; // Height of book
+    
+    // 1. Draw Candles
+    for (let i = 0; i < candles.length; i++) {
+        drawCandle(candles[i], i);
+    }
+
+    // 2. Draw Book (Obstacle)
+    fill(50, 40, 30);
+    noStroke();
+    rect(bookX, 0, 10, bookH);
+    fill(255);
+    textSize(14);
+    noStroke();
+    text("书本", bookX, bookH/2 + 20);
+
+    // 3. Calculate Shadows
+    // Filter active sources
+    let activeSources = candles.filter(c => c.active);
+    let maxLight = activeSources.length;
+    
+    let screenTop = -height/2 + 20;
+    let screenBottom = height/2 - 20;
+    let resolution = 4;
+    
+    noStroke();
+    
+    if (maxLight === 0) {
+        // All dark
+        fill(0);
+        rect(screenX, 0, 20, height);
+    } else {
+        for (let y = screenTop; y <= screenBottom; y += resolution) {
+            let blockedCount = 0;
+            
+            for (let s of activeSources) {
+                // Check intersection
+                let m = (y - s.pos.y) / (screenX - s.pos.x);
+                let yAtBook = m * (bookX - s.pos.x) + s.pos.y;
+                
+                if (yAtBook >= -bookH/2 && yAtBook <= bookH/2) {
+                    blockedCount++;
+                }
+            }
+            
+            // Map blocked count to darkness
+            // 0 blocked => White (255)
+            // maxLight blocked => Black (0)
+            let darkness = map(blockedCount, 0, maxLight, 255, 0);
+            
+            fill(darkness);
+            rect(screenX, y, 20, resolution);
+        }
+    }
+    
+    // Draw Screen Border
+    stroke(0);
+    strokeWeight(2);
+    line(screenX - 10, screenTop, screenX - 10, screenBottom);
+    noStroke();
+    fill(0);
+    text("墙壁 (屏幕)", screenX + 40, 0);
+
+    // 4. Draw Rays (Only for active candles)
+    if (showRays && maxLight > 0) {
+        strokeWeight(1);
+        
+        for (let c of activeSources) {
+            // Set stroke color with transparency
+            let baseCol = c.color;
+            stroke(red(baseCol), green(baseCol), blue(baseCol), 80); // 80 alpha
+            
+            // Ray to top of book
+            // y = m(x - x1) + y1
+            // m = (y2 - y1) / (x2 - x1)
+            // Top point of book: (bookX, -bookH/2)
+            let mTop = (-bookH/2 - c.pos.y) / (bookX - c.pos.x);
+            let yScreenTop = mTop * (screenX - c.pos.x) + c.pos.y;
+            
+            // Bottom point of book: (bookX, bookH/2)
+            let mBot = (bookH/2 - c.pos.y) / (bookX - c.pos.x);
+            let yScreenBot = mBot * (screenX - c.pos.x) + c.pos.y;
+            
+            line(c.pos.x, c.pos.y, screenX, yScreenTop);
+            line(c.pos.x, c.pos.y, screenX, yScreenBot);
+        }
+    }
+    
+    // 5. Annotations
+    // Show total active count
+    fill(100);
+    noStroke();
+    text(`开启光源: ${maxLight}`, 100, -height/2 + 30);
+}
+
+
+function drawCandle(c, index) {
+    let x = c.pos.x;
+    let y = c.pos.y;
+    
+    // Body
+    if (c.active) {
+        fill(220); // White wax
+        stroke(150);
+    } else {
+        fill(100); // Dark grey wax (off)
+        stroke(50);
+    }
+    strokeWeight(1);
+    rect(x, y + 10, 10, 25); 
+    
+    // Label (Color coded background circle)
+    noStroke();
+    fill(c.color);
+    ellipse(x, y + 35, 16, 16);
+    fill(255);
+    textSize(10);
+    text(String.fromCharCode(65 + c.id), x, y + 35);
+
+    // Flame
+    if (c.active) {
+        noStroke();
+        fill(255, 150, 0, 200);
+        ellipse(x, y - 5, 10, 15); 
+        fill(255, 255, 0, 200);
+        ellipse(x, y - 3, 6, 10);
+        
+        // Glow effect
+        fill(red(c.color), green(c.color), blue(c.color), 30);
+        ellipse(x, y - 5, 40, 40);
+    } else {
+        // Wick
+        stroke(50);
+        line(x, y - 3, x, y - 8);
+        
+        // "X" mark to show it's off clearly
+        stroke(200, 0, 0);
+        line(x-5, y+5, x+5, y+15);
+        line(x+5, y+5, x-5, y+15);
+    }
+}
+
+// --------------------------------------------------------
+// MODE 2: Solar Eclipse (Fig 乙)
+// --------------------------------------------------------
+function drawEclipseModel() {
+    let mxSlider = parseFloat(sliderMoonX.value);
+    
+    // FIX 1: Set coordinate system correctly (Positive coordinates)
+    let sunX = 80; // Left side
+    let earthX = width - 50; // Right side
+    
+    sun.x = sunX;
+    
+    // FIX 2: Constrain moon between Sun and Earth
+    // Map slider (200-600) to actual available space roughly, or just clamp
+    // Let's assume the slider is intended to be an offset from sun or a position
+    // Simple approach: Use slider value but clamp it so it doesn't go off screen
+    let moonMaxX = earthX - 100;
+    let moonMinX = sunX + 100;
+    
+    // Map the slider's 200-600 range to the current canvas safe area
+    moon.x = map(mxSlider, 200, 600, moonMinX, moonMaxX, true);
+    
+    // Draw Sun
+    fill(255, 200, 50);
+    noStroke();
+    ellipse(sun.x, sun.y, sun.r * 2);
+    fill(0);
+    text("太阳", sun.x, sun.y + sun.r + 20);
+
+    // Draw Moon
+    fill(50);
+    ellipse(moon.x, moon.y, moon.r * 2);
+    fill(0);
+    text("月亮", moon.x, moon.y - moon.r - 20);
+    
+    // Draw Earth (Screen)
+    stroke(0, 0, 255);
+    strokeWeight(2);
+    line(earthX, -200, earthX, 200);
+    noStroke();
+    fill(0, 0, 255);
+    text("地球", earthX, -220);
+
+    // Calculations for shadows
+    let dx = moon.x - sun.x;
+    let dr = sun.r - moon.r; 
+    let thetaOut = Math.asin(dr / dx);
+    let apexDist = (moon.r * dx) / dr;
+    let apexX = moon.x + apexDist;
+    
+    // --- Draw Umbra (Zone I) ---
+    // Cone from Moon to Apex (or Earth if Apex is further)
+    noStroke();
+    fill(0, 0, 0, 200); 
+    
+    // We want to draw the cone but stop at EarthX if it goes past
+    let endX = Math.min(apexX, earthX);
+    // Height at endX
+    let hEnd = (apexX - endX) * Math.tan(thetaOut);
+    
+    beginShape();
+    vertex(moon.x, -moon.r);
+    vertex(moon.x, moon.r);
+    vertex(endX, hEnd);
+    vertex(endX, -hEnd);
+    endShape(CLOSE);
+    
+    // --- Draw Antumbra (Zone III - Pseudo Umbra) ---
+    // Starts from Apex, expands to Earth
+    if (apexX < earthX) {
+        fill(255, 100, 50, 100); 
+        
+        let antH = (earthX - apexX) * Math.tan(thetaOut);
+        
+        beginShape();
+        vertex(apexX, 0);
+        vertex(earthX, antH);
+        vertex(earthX, -antH);
+        endShape(CLOSE);
+    }
+    
+    // --- Draw Penumbra (Zone II & IV) ---
+    // Internal tangents
+    // Intersection point X between sun and moon centers
+    let crossDist = dx * sun.r / (sun.r + moon.r);
+    let crossX = sun.x + crossDist;
+    
+    // Slope of internal tangent
+    let slopeInt = (sun.r + moon.r) / dx; // approx tan
+    // Exact y at EarthX
+    // y = m(x - crossX)
+    let penumbraH = slopeInt * (earthX - crossX);
+    
+    fill(100, 100, 100, 50);
+    
+    // Top Penumbra
+    beginShape();
+    vertex(moon.x, -moon.r);
+    // External tangent line at Earth
+    let extH = sun.r - (earthX - sun.x) * Math.tan(thetaOut); 
+    // Wait, geometry for external tangent:
+    // Radius at x: r(x) = sun.r - (x - sun.x) * tan(thetaOut)
+    // Note: this goes to 0 at apexX.
+    // If apexX < earthX, this becomes negative (crossing over), which is handled by Antumbra logic.
+    // We need the "top edge" of the shadow volume.
+    
+    // Let's rely on simple line drawing for the "Rays" visualization to be precise
+    // and use the fill for the general area.
+    vertex(earthX, -Math.abs(extH)); // Outer edge
+    vertex(earthX, -penumbraH);      // Inner edge (boundary with light)
+    endShape(CLOSE);
+    
+    // Bottom Penumbra
+    beginShape();
+    vertex(moon.x, moon.r);
+    vertex(earthX, Math.abs(extH));
+    vertex(earthX, penumbraH);
+    endShape(CLOSE);
+
+    // --- Draw Lines (Rays) ---
+    stroke(0);
+    strokeWeight(1);
+    
+    // L1: Sun Top to Moon Top (Ext) -> Goes to Earth
+    // Y = sun.r - (x - sun.x) * (sun.r - moon.r)/dx
+    let y1 = -sun.r + (earthX - sun.x) * (sun.r - moon.r)/dx;
+    line(sun.x, -sun.r, earthX, y1); 
+    
+    // L2: Sun Bottom to Moon Bottom (Ext)
+    line(sun.x, sun.r, earthX, -y1);
+    
+    // L3: Sun Top to Moon Bottom (Int) -> Crosses axis
+    // Y = -sun.r + (x - sun.x) * (sun.r + moon.r)/dx
+    let y2 = -sun.r + (earthX - sun.x) * (sun.r + moon.r)/dx;
+    line(sun.x, -sun.r, earthX, y2);
+    
+    // L4: Sun Bottom to Moon Top (Int)
+    line(sun.x, sun.r, earthX, -y2);
+
+    // Labels
+    noStroke();
+    fill(0);
+    textSize(16);
+    textStyle(BOLD);
+    
+    // I: Inside Umbra (if exists before earth)
+    if (apexX < earthX) {
+        text("I", (moon.x + apexX)/2, 0);
+        // text("本影", (moon.x + apexX)/2, 20);
+    } else {
+        text("I", (moon.x + earthX)/2, 0);
+    }
+    
+    // III: Antumbra (after apex)
+    if (apexX < earthX) {
+        text("III", (apexX + earthX)/2, 0);
+        // text("伪本影", (apexX + earthX)/2, 20);
+    }
+    
+    // II: Top Penumbra
+    text("II", (moon.x + earthX)/2, -80);
+    // text("半影", (moon.x + earthX)/2, -60);
+    
+    // IV: Bottom Penumbra
+    text("IV", (moon.x + earthX)/2, 80);
+}
+
+
+// UI Logic
+window.setMode = function(mode) {
+    currentMode = mode;
+    
+    // Toggle Buttons
+    document.getElementById('btn-candles').classList.toggle('active', mode === 'candles');
+    document.getElementById('btn-eclipse').classList.toggle('active', mode === 'eclipse');
+    
+    // Toggle Controls
+    document.getElementById('controls-candles').style.display = mode === 'candles' ? 'block' : 'none';
+    document.getElementById('controls-eclipse').style.display = mode === 'eclipse' ? 'block' : 'none';
+    
+    // Update hint
+    updateUI();
+}
+
+</script>
+</body>
+</html>

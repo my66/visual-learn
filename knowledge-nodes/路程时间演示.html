@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>物理互动仿真：全景跑道版</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+
+    <style>
+        body { font-family: 'Noto Sans SC', sans-serif; background-color: #f1f5f9; padding-bottom: 140px; overflow-x: hidden; }
+        
+        .chart-container { position: relative; height: 150px; width: 100%; background: white; border-radius: 6px; }
+        
+        .stage-item { border-left: 3px solid transparent; transition: all 0.2s; font-size: 0.8rem; }
+        .stage-item:hover { background-color: #f8fafc; }
+        .stage-item.active { background-color: #eff6ff; border-left-color: #2563eb; }
+        
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 18px; width: 18px; border-radius: 50%; 
+            background: #2563eb; margin-top: -7px; cursor: pointer; box-shadow: 0 0 0 3px rgba(37,99,235,0.2);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px; cursor: pointer; background: #cbd5e1; border-radius: 2px;
+        }
+        
+        .digit { font-family: 'Menlo', 'Monaco', monospace; font-variant-numeric: tabular-nums; }
+
+        /* === 顶部全景跑道 === */
+        .full-road-section {
+            width: 100%;
+            height: 100px; /* 跑道高度 */
+            background: #1e293b; /* 深色沥青 */
+            position: relative;
+            border-bottom: 4px solid #475569;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+            z-index: 10;
+        }
+        .road-lane {
+            position: absolute;
+            top: 60%; /* 小车在路面偏下位置 */
+            left: 40px; /* 左右留白，防止车头出界 */
+            right: 40px;
+            height: 2px;
+            /* 虚线 */
+            background-image: linear-gradient(90deg, rgba(255,255,255,0.6) 50%, transparent 50%);
+            background-size: 60px 100%;
+        }
+        
+        .car-wrapper {
+            position: absolute;
+            top: 50%; /* 相对于 road-lane 的位置 */
+            transform: translate(-50%, -50%);
+            transition: left 0.1s linear;
+            will-change: left;
+            z-index: 20;
+        }
+        
+        .car-body {
+            font-size: 2.8rem;
+            line-height: 1;
+            filter: drop-shadow(0 4px 3px rgba(0,0,0,0.6));
+            transform: scaleX(-1); /* 车头朝右 */
+        }
+        
+        .driving .car-body {
+            animation: rumble 0.2s infinite alternate;
+        }
+        @keyframes rumble {
+            0%   { transform: translateY(0px) rotate(0deg) scaleX(-1); }
+            100% { transform: translateY(-2px) rotate(1deg) scaleX(-1); }
+        }
+
+        /* 里程碑 */
+        .mile-marker {
+            position: absolute;
+            bottom: 10px;
+            font-size: 0.7rem;
+            color: #94a3b8;
+            font-weight: bold;
+            transform: translateX(-50%);
+        }
+    </style>
+</head>
+<body class="text-slate-800">
+
+    <!-- 1. 顶部导航 -->
+    <nav class="bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between h-10">
+        <div class="flex items-center gap-2">
+            <span class="material-icons-round text-blue-600 text-xl">auto_graph</span>
+            <h1 class="text-sm font-bold text-slate-700">物理运动学仿真 <span class="text-xs font-normal text-slate-400">v7.0 Ultra-Wide Track</span></h1>
+        </div>
+    </nav>
+
+    <!-- 2. 全宽跑道 (放在最上面) -->
+    <section class="full-road-section">
+        <!-- 路面标线容器 -->
+        <div class="road-lane">
+            <!-- 小车 -->
+            <div id="car-wrapper" class="car-wrapper" style="left: 0%;">
+                <div id="car-body" class="car-body">🚗</div>
+                <!-- 气泡提示当前速度 (可选) -->
+                <div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-0.5 rounded opacity-80 whitespace-nowrap hidden sm:block">
+                    <span id="road-v-label">0</span> km/h
+                </div>
+            </div>
+        </div>
+        
+        <!-- 里程刻度 -->
+        <div class="mile-marker" style="left: 40px">0 km</div>
+        <div class="mile-marker" style="left: 25%">75 km</div>
+        <div class="mile-marker" style="left: 50%">150 km</div>
+        <div class="mile-marker" style="left: 75%">225 km</div>
+        <div class="mile-marker" style="right: 10px; transform: translateX(0);">300 km</div>
+    </section>
+
+    <!-- 3. 下方内容区 (三栏布局) -->
+    <div class="container mx-auto max-w-full px-4 py-4 grid grid-cols-1 lg:grid-cols-12 gap-4 h-[calc(100vh-250px)] min-h-[450px]">
+        
+        <!-- 左侧：列表 -->
+        <div class="lg:col-span-2 bg-white rounded-lg shadow-sm border border-slate-200 flex flex-col overflow-hidden h-full">
+            <div class="p-2 bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-500 uppercase">行程阶段</div>
+            <div id="stage-list" class="flex-1 overflow-y-auto"></div>
+        </div>
+
+        <!-- 中间：数据仪表盘 -->
+        <div class="lg:col-span-3 flex flex-col gap-3 h-full">
+            <div class="bg-white p-4 rounded-lg shadow-md border-t-4 border-blue-600 flex-shrink-0">
+                <h2 class="text-xs font-bold text-slate-400 uppercase mb-3 flex items-center gap-1">
+                    <span class="material-icons-round text-base text-blue-500">speed</span> 实时监控
+                </h2>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="col-span-2">
+                        <div class="text-[10px] text-slate-500 font-bold">时间 t (min)</div>
+                        <div class="text-3xl font-bold digit text-slate-800" id="val-t">0.00</div>
+                    </div>
+                    <div>
+                        <div class="text-[10px] text-red-500 font-bold">速度 v (km/h)</div>
+                        <div class="text-2xl font-bold text-red-600 digit" id="val-v">0.0</div>
+                    </div>
+                    <div>
+                        <div class="text-[10px] text-blue-500 font-bold">路程 s (km)</div>
+                        <div class="text-2xl font-bold text-blue-600 digit" id="val-s">0.00</div>
+                    </div>
+                </div>
+                <div class="w-full h-1.5 bg-slate-100 rounded-full mt-3 overflow-hidden">
+                    <div id="bar-v" class="h-full bg-red-500 w-0 transition-all duration-75"></div>
+                </div>
+                <div class="mt-2 text-[10px] flex justify-between text-slate-400">
+                    <span>加速度: <b id="val-a" class="text-slate-600">0</b></span>
+                    <span>总程: <span id="val-total-s">--</span> km</span>
+                </div>
+            </div>
+            
+            <!-- 描述框自动填充剩余高度 -->
+            <div class="bg-blue-50 p-3 rounded-lg border border-blue-100 text-xs text-blue-900 flex-1 overflow-y-auto">
+                <strong class="block mb-1 text-blue-700">当前状态：</strong>
+                <p id="val-desc" class="leading-relaxed">就绪。</p>
+            </div>
+        </div>
+
+        <!-- 右侧：图表组 -->
+        <div class="lg:col-span-7 flex flex-col justify-between h-full gap-2">
+            <!-- v-t -->
+            <div class="bg-white p-2 rounded border border-slate-200 relative flex-1 min-h-0 flex flex-col">
+                <span class="absolute top-1 right-2 text-[10px] font-bold bg-red-50 text-red-600 px-1 rounded z-10">v-t</span>
+                <div class="flex-1 relative w-full h-full"><canvas id="vtChart"></canvas></div>
+            </div>
+            <!-- s-t -->
+            <div class="bg-white p-2 rounded border border-slate-200 relative flex-1 min-h-0 flex flex-col">
+                <span class="absolute top-1 right-2 text-[10px] font-bold bg-blue-50 text-blue-600 px-1 rounded z-10">s-t</span>
+                <div class="flex-1 relative w-full h-full"><canvas id="stChart"></canvas></div>
+            </div>
+            <!-- s-v -->
+            <div class="bg-white p-2 rounded border border-slate-200 relative flex-1 min-h-0 flex flex-col">
+                <span class="absolute top-1 right-2 text-[10px] font-bold bg-emerald-50 text-emerald-600 px-1 rounded z-10">v-s</span>
+                <div class="flex-1 relative w-full h-full"><canvas id="svChart"></canvas></div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- 底部控制栏 -->
+    <div class="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-slate-200 px-4 py-2 z-50 shadow-[0_-4px_15px_rgba(0,0,0,0.05)]">
+        <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center gap-3">
+            <div class="flex items-center gap-2 shrink-0">
+                <button id="btn-play" class="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center shadow hover:bg-blue-700 transition active:scale-95">
+                    <span class="material-icons-round text-2xl">play_arrow</span>
+                </button>
+                <button id="btn-reset" class="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-slate-200 transition">
+                    <span class="material-icons-round text-lg">replay</span>
+                </button>
+            </div>
+            <div class="flex-1 w-full">
+                <div class="flex justify-between text-[10px] font-bold text-slate-400 mb-1">
+                    <span>0 min</span>
+                    <span id="lbl-total-time">-- min</span>
+                </div>
+                <input type="range" id="slider" min="0" max="100" value="0" step="0.1">
+            </div>
+            <div class="flex bg-slate-100 rounded-md p-1 gap-0.5 shrink-0">
+                <button onclick="setSpeed(0.1)" id="spd-0.1" class="px-2 py-0.5 text-[10px] font-bold rounded text-slate-500 hover:bg-white transition">0.1x</button>
+                <button onclick="setSpeed(0.5)" id="spd-0.5" class="px-2 py-0.5 text-[10px] font-bold rounded text-slate-500 hover:bg-white transition">0.5x</button>
+                <button onclick="setSpeed(1)" id="spd-1" class="px-2 py-0.5 text-[10px] font-bold rounded bg-white shadow text-blue-600 transition">1x</button>
+                <button onclick="setSpeed(2)" id="spd-2" class="px-2 py-0.5 text-[10px] font-bold rounded text-slate-500 hover:bg-white transition">2x</button>
+                <button onclick="setSpeed(5)" id="spd-5" class="px-2 py-0.5 text-[10px] font-bold rounded text-slate-500 hover:bg-white transition">5x</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. 物理引擎
+        // ==========================================
+        const script = [
+            { dur: 2,   endV: 30,  icon: "🚀", title: "起步加速", desc: "s-t图抛物线，v-t图斜线上升。" },
+            { dur: 30,  endV: 30,  icon: "🏘️", title: "市区匀速", desc: "速度恒定30km/h，加速度为0。" },
+            { dur: 5,   endV: 100, icon: "📈", title: "加速上桥", desc: "再次加速至100km/h。" },
+            { dur: 120, endV: 100, icon: "🛣️", title: "高速巡航", desc: "长距离匀速，路程飞速增加。" },
+            { dur: 3,   endV: 0,   icon: "🛑", title: "进站停车", desc: "匀减速至停止。" },
+            { dur: 20,  endV: 0,   icon: "☕", title: "休息区",   desc: "静止状态，v=0，s不变。" },
+            { dur: 5,   endV: 120, icon: "⚡", title: "急加速",   desc: "加速度最大，s-t图极陡。" },
+            { dur: 30,  endV: 120, icon: "🏎️", title: "极速巡航", desc: "最高速行驶。" },
+            { dur: 5,   endV: 40,  icon: "📉", title: "减速下桥", desc: "快速减速至40km/h。" },
+            { dur: 8,   endV: 40,  icon: "🏙️", title: "市区缓行", desc: "低速行驶。" },
+            { dur: 2,   endV: 0,   icon: "🏁", title: "停车熄火", desc: "平稳刹车至停止。" }
+        ];
+
+        let physicsData = [];
+        let stages = [];
+        let TOTAL_TIME = 0;
+        let TOTAL_DIST = 0; 
+
+        function initPhysics() {
+            let t = 0, s = 0, v = 0;
+            script.forEach((step, idx) => {
+                const t0 = t, s0 = s, v0 = v;
+                const dt = step.dur; 
+                const dt_h = dt / 60; 
+                const acc = dt_h === 0 ? 0 : (step.endV - v0) / dt_h;
+
+                for(let sub = 0; sub < dt; sub += 0.2) {
+                    const sub_h = sub / 60;
+                    const cur_v = v0 + acc * sub_h;
+                    const cur_s = s0 + v0 * sub_h + 0.5 * acc * sub_h * sub_h;
+                    physicsData.push({ t: Number((t+sub).toFixed(2)), v: cur_v, s: cur_s });
+                }
+
+                t += dt;
+                v = step.endV;
+                s = s0 + (v0 * dt_h + 0.5 * acc * dt_h * dt_h);
+                stages.push({ index: idx, ...step, startT: t0, endT: t, startS: s0, endS: s, acc: Math.round(acc) });
+                physicsData.push({ t: Number(t.toFixed(2)), v: v, s: s });
+            });
+            
+            TOTAL_TIME = t;
+            TOTAL_DIST = s;
+            
+            document.getElementById('lbl-total-time').innerText = TOTAL_TIME.toFixed(1) + " min";
+            document.getElementById('slider').max = TOTAL_TIME;
+            document.getElementById('val-total-s').innerText = TOTAL_DIST.toFixed(1);
+            
+            renderList();
+        }
+
+        // ==========================================
+        // 2. 图表初始化
+        // ==========================================
+        let vtChart, stChart, svChart;
+
+        function initCharts() {
+            const axisFont = { weight: 'bold', size: 9 }; 
+            const titlePadding = { top: 2, bottom: 2 }; 
+
+            const commonOpts = {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                interaction: { mode: 'nearest', axis: 'x', intersect: false },
+                plugins: { legend: { display: false } },
+                onClick: (e, el, chart) => {
+                    const canvasPos = Chart.helpers.getRelativePosition(e, chart);
+                    const val = chart.scales.x.getValueForPixel(canvasPos.x);
+                    if(chart.canvas.id === 'svChart') {
+                        const p = physicsData.find(d => d.s >= val);
+                        if(p) seekTo(p.t);
+                    } else { seekTo(val); }
+                }
+            };
+
+            vtChart = new Chart(document.getElementById('vtChart'), {
+                type: 'line',
+                data: {
+                    datasets: [{
+                        data: physicsData.map(p => ({x: p.t, y: p.v})),
+                        borderColor: '#dc2626', borderWidth: 1.5, pointRadius: 0, fill: true, backgroundColor: 'rgba(220, 38, 38, 0.1)'
+                    }]
+                },
+                options: {
+                    ...commonOpts,
+                    scales: {
+                        x: { 
+                            type: 'linear', max: TOTAL_TIME, grid: {display: false},
+                            title: { display: true, text: '时间 t (min)', color: '#64748b', font: axisFont, padding: titlePadding },
+                            ticks: { font: {size: 9} }
+                        },
+                        y: { 
+                            beginAtZero: true, suggestedMax: 130,
+                            title: { display: true, text: '速度 v (km/h)', color: '#dc2626', font: axisFont, padding: titlePadding },
+                            ticks: { font: {size: 9} }
+                        }
+                    }
+                }
+            });
+
+            stChart = new Chart(document.getElementById('stChart'), {
+                type: 'line',
+                data: {
+                    datasets: [{
+                        data: physicsData.map(p => ({x: p.t, y: p.s})),
+                        borderColor: '#2563eb', borderWidth: 1.5, pointRadius: 0
+                    }]
+                },
+                options: {
+                    ...commonOpts,
+                    scales: {
+                        x: { 
+                            type: 'linear', max: TOTAL_TIME, grid: {display: false},
+                            title: { display: true, text: '时间 t (min)', color: '#64748b', font: axisFont, padding: titlePadding },
+                            ticks: { font: {size: 9} }
+                        },
+                        y: { 
+                            beginAtZero: true,
+                            title: { display: true, text: '路程 s (km)', color: '#2563eb', font: axisFont, padding: titlePadding },
+                            ticks: { font: {size: 9} }
+                        }
+                    }
+                }
+            });
+
+            svChart = new Chart(document.getElementById('svChart'), {
+                type: 'line',
+                data: {
+                    datasets: [{
+                        data: physicsData.map(p => ({x: p.s, y: p.v})),
+                        borderColor: '#059669', borderWidth: 1.5, pointRadius: 0
+                    }]
+                },
+                options: {
+                    ...commonOpts,
+                    scales: {
+                        x: { 
+                            type: 'linear', grid: {display: false},
+                            title: { display: true, text: '路程 s (km)', color: '#2563eb', font: axisFont, padding: titlePadding },
+                            ticks: { font: {size: 9} }
+                        }, 
+                        y: { 
+                            beginAtZero: true, suggestedMax: 130,
+                            title: { display: true, text: '速度 v (km/h)', color: '#dc2626', font: axisFont, padding: titlePadding },
+                            ticks: { font: {size: 9} }
+                        }
+                    }
+                }
+            });
+        }
+
+        // ==========================================
+        // 3. 播放逻辑
+        // ==========================================
+        let isPlaying = false;
+        let currentTime = 0;
+        let speed = 1;
+        let animId;
+        let lastTime = 0;
+        let currentStageIdx = -1;
+
+        function togglePlay() {
+            isPlaying = !isPlaying;
+            document.querySelector('#btn-play span').innerText = isPlaying ? 'pause' : 'play_arrow';
+            if(isPlaying) { lastTime = performance.now(); loop(); } 
+            else { cancelAnimationFrame(animId); }
+        }
+
+        function loop() {
+            if(!isPlaying) return;
+            const now = performance.now();
+            const dt = (now - lastTime) / 1000;
+            lastTime = now;
+            
+            currentTime += 5 * speed * dt; 
+            if(currentTime >= TOTAL_TIME) {
+                currentTime = TOTAL_TIME;
+                isPlaying = false;
+                document.querySelector('#btn-play span').innerText = 'play_arrow';
+            }
+            updateUI(currentTime);
+            if(isPlaying) animId = requestAnimationFrame(loop);
+        }
+
+        function seekTo(t) {
+            currentTime = Math.max(0, Math.min(t, TOTAL_TIME));
+            updateUI(currentTime);
+        }
+
+        function updateUI(t) {
+            let p = physicsData.find(d => d.t >= t) || physicsData[physicsData.length-1];
+            const stage = stages.find(s => t >= s.startT && t <= s.endT) || stages[stages.length-1];
+
+            document.getElementById('val-t').innerText = t.toFixed(2);
+            document.getElementById('val-v').innerText = p.v.toFixed(1);
+            document.getElementById('val-s').innerText = p.s.toFixed(2);
+            document.getElementById('val-a').innerText = stage.acc;
+            document.getElementById('bar-v').style.width = (p.v/130*100) + "%";
+            document.getElementById('road-v-label').innerText = p.v.toFixed(0);
+            
+            const slider = document.getElementById('slider');
+            if(Math.abs(slider.value - t) > 0.5) slider.value = t;
+
+            if(stage.index !== currentStageIdx) {
+                currentStageIdx = stage.index;
+                document.querySelectorAll('.stage-item').forEach(el => el.classList.remove('active'));
+                const el = document.getElementById(`stage-${stage.index}`);
+                if(el) {
+                    el.classList.add('active');
+                    el.scrollIntoView({behavior:'smooth', block:'center'});
+                }
+                document.getElementById('val-desc').innerHTML = `<strong class="text-blue-700">${stage.title}</strong>: ${stage.desc}`;
+            }
+
+            updateAnnos(t, p.s, stage);
+            updateCar(p.s, p.v);
+        }
+
+        function updateCar(currentS, currentV) {
+            let pct = (currentS / TOTAL_DIST) * 100;
+            if (pct > 100) pct = 100;
+            if (pct < 0) pct = 0;
+
+            const carWrapper = document.getElementById('car-wrapper');
+            carWrapper.style.left = pct + '%';
+
+            if (currentV > 1) {
+                carWrapper.classList.add('driving');
+            } else {
+                carWrapper.classList.remove('driving');
+            }
+        }
+
+        function updateAnnos(t, s, stage) {
+            const tAnnos = {
+                line: { type:'line', scaleID:'x', value:t, borderColor:'rgba(220,38,38,0.8)', borderWidth:2, borderDash:[4,4] },
+                box: { type:'box', xMin:stage.startT, xMax:stage.endT, backgroundColor:'rgba(59,130,246,0.1)', borderWidth:0 }
+            };
+            const sAnnos = {
+                line: { type:'line', scaleID:'x', value:s, borderColor:'rgba(5,150,105,0.8)', borderWidth:2, borderDash:[4,4] },
+                box: { type:'box', xMin:stage.startS, xMax:stage.endS, backgroundColor:'rgba(5,150,105,0.1)', borderWidth:0 }
+            };
+            if(vtChart) { vtChart.options.plugins.annotation.annotations = tAnnos; vtChart.update('none'); }
+            if(stChart) { stChart.options.plugins.annotation.annotations = tAnnos; stChart.update('none'); }
+            if(svChart) { svChart.options.plugins.annotation.annotations = sAnnos; svChart.update('none'); }
+        }
+
+        function renderList() {
+            const list = document.getElementById('stage-list');
+            stages.forEach(s => {
+                const div = document.createElement('div');
+                div.className = "stage-item p-2 border-b border-slate-100 cursor-pointer flex items-center gap-2";
+                div.id = `stage-${s.index}`;
+                div.onclick = () => seekTo(s.startT);
+                div.innerHTML = `<div class="text-lg w-6 text-center">${s.icon}</div><div><div class="text-[9px] font-bold text-slate-400 uppercase">Phase ${s.index+1}</div><div class="text-xs text-slate-700 font-bold">${s.title}</div></div>`;
+                list.appendChild(div);
+            });
+        }
+        
+        function setSpeed(s) {
+            speed = s;
+            const speeds = [0.1, 0.5, 1, 2, 5];
+            speeds.forEach(val => {
+                const btn = document.getElementById(`spd-${val}`);
+                if(btn) btn.className = "px-2 py-0.5 text-[10px] font-bold rounded text-slate-500 hover:bg-white transition";
+            });
+            const activeBtn = document.getElementById(`spd-${s}`);
+            if(activeBtn) activeBtn.className = "px-2 py-0.5 text-[10px] font-bold rounded bg-white shadow text-blue-600 transition";
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initPhysics();
+            initCharts();
+            document.getElementById('btn-play').onclick = togglePlay;
+            document.getElementById('btn-reset').onclick = () => { reset(); };
+            document.getElementById('slider').oninput = (e) => seekTo(parseFloat(e.target.value));
+        });
+        function reset() { isPlaying=false; cancelAnimationFrame(animId); document.querySelector('#btn-play span').innerText='play_arrow'; seekTo(0); }
+
+    </script>
+</body>
+</html>

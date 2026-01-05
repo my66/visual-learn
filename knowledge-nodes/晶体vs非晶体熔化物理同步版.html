@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>晶体 vs 非晶体：熔化物理同步版</title>
+  
+  <!-- p5.js Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  
+  <!-- MathJax for Formula Rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  <style>
+    :root {
+      --primary-color: #2c3e50;
+      --accent-color: #3498db;
+      --amorphous-color: #d35400;
+      --liquid-color: #ff0000;
+      --bg-color: #f5f7fa;
+      --panel-bg: #ffffff;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+      background-color: var(--bg-color);
+      color: var(--primary-color);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Header Area */
+    header {
+      background: var(--panel-bg);
+      padding: 10px 20px;
+      border-bottom: 1px solid #ddd;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      flex-shrink: 0;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 1.2rem;
+      color: var(--primary-color);
+    }
+
+    .subtitle {
+      font-size: 0.9rem;
+      color: #666;
+      margin-top: 4px;
+    }
+
+    /* Main Content Area */
+    .main-container {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      flex-direction: row;
+    }
+
+    /* Left Control Panel */
+    .control-panel {
+      width: 320px;
+      background: var(--panel-bg);
+      padding: 20px;
+      border-right: 1px solid #ddd;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      flex-shrink: 0;
+    }
+
+    .panel-section {
+      background: #f8f9fa;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #eee;
+    }
+
+    .panel-title {
+      font-weight: bold;
+      margin-bottom: 8px;
+      font-size: 0.95rem;
+      color: var(--primary-color);
+      border-bottom: 2px solid var(--accent-color);
+      padding-bottom: 4px;
+      display: inline-block;
+    }
+
+    .control-group {
+      margin-bottom: 12px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.85rem;
+      margin-bottom: 4px;
+      color: #555;
+    }
+
+    .value-display {
+      float: right;
+      font-weight: bold;
+      color: var(--accent-color);
+    }
+
+    input[type="range"] {
+      width: 100%;
+      cursor: pointer;
+    }
+
+    button {
+      background-color: var(--accent-color);
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: background 0.2s;
+      width: 100%;
+      margin-bottom: 5px;
+    }
+
+    button:hover {
+      background-color: #2980b9;
+    }
+
+    button.secondary {
+      background-color: #95a5a6;
+    }
+    
+    button.secondary:hover {
+      background-color: #7f8c8d;
+    }
+
+    /* Legend Items */
+    .legend-item {
+      display: flex;
+      align-items: center;
+      font-size: 0.85rem;
+      margin-bottom: 5px;
+    }
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      margin-right: 8px;
+      display: inline-block;
+      border: 1px solid rgba(0,0,0,0.1);
+    }
+    .dot.crystal { background-color: #3498db; }
+    .dot.amorphous { background-color: #d35400; }
+    .dot.liquid { background-color: #ff0000; box-shadow: 0 0 5px #ff0000; }
+
+    /* Canvas Area */
+    .canvas-container {
+      flex: 1;
+      position: relative;
+      background: #fff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+    }
+
+    /* Status Bar */
+    .status-bar {
+      background: #34495e;
+      color: white;
+      padding: 8px 20px;
+      font-size: 0.9rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .status-highlight {
+      color: #f1c40f;
+      font-weight: bold;
+      margin-left: 5px;
+    }
+
+    /* Formula Box */
+    .formula-box {
+      font-size: 0.9rem;
+      background: #fff;
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 900px) {
+      .main-container {
+        flex-direction: column;
+      }
+      .control-panel {
+        width: 100%;
+        height: 250px;
+        order: 2;
+      }
+      .canvas-container {
+        order: 1;
+        height: 50vh;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>晶体 vs 非晶体：熔化物理同步版</h1>
+    <div class="subtitle">观测重点：晶体全变红的瞬间，正是温度开始上升的时刻</div>
+  </header>
+
+  <div class="main-container">
+    <div class="control-panel">
+      
+      <div class="panel-section">
+        <div class="panel-title">演示控制</div>
+        <div class="control-group">
+          <button id="btn-toggle">开始加热 (Play)</button>
+          <button id="btn-reset" class="secondary">重置 (Reset)</button>
+        </div>
+        <div class="control-group">
+          <label>加热速率 (Heat Rate): <span id="val-rate" class="value-display">1.0</span></label>
+          <input type="range" id="slider-rate" min="0.2" max="2.0" step="0.1" value="1.0">
+        </div>
+        <div class="control-group">
+          <label>
+            <input type="checkbox" id="chk-show-bonds" checked> 显示分子键连 (Show Bonds)
+          </label>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <div class="panel-title">物理机制修正</div>
+        <div class="formula-box" style="border-left: 3px solid #3498db;">
+          <strong>晶体 (左):</strong>
+          <br>吸热但温度不变（平台期）。
+          <br>此时能量用于破坏晶格。
+          <br><strong>现象：</strong>红点数量随时间增加。
+          <br><strong>关键点：</strong>一旦全部变红，温度立即上升。
+        </div>
+        <div style="height:10px"></div>
+        <div class="formula-box" style="border-left: 3px solid #d35400;">
+          <strong>非晶体 (右):</strong>
+          <br>吸热且温度一直升高。
+          <br>能量同时增加动能和破坏结构。
+          <br><strong>现象：</strong>红点随温度升高逐渐出现。
+        </div>
+      </div>
+
+    </div>
+
+    <div class="canvas-container" id="canvas-wrapper">
+      <!-- P5 Canvas will be injected here -->
+    </div>
+  </div>
+
+  <div class="status-bar">
+    <div>当前状态: <span id="status-phase" class="status-highlight">准备就绪</span></div>
+  </div>
+
+  <script>
+    // --- Configuration & Constants ---
+    const CONFIG = {
+      gridSize: 6, 
+      spacing: 45, 
+      particleSize: 18, 
+      crystalColor: [52, 152, 219], // Blue
+      amorphousColor: [211, 84, 0], // Dark Orange
+      liquidColor: [255, 0, 0],     // Pure Red
+      graphPad: 40,
+      graphHeightRatio: 0.35
+    };
+
+    // --- State Variables ---
+    let isPlaying = false;
+    let heatProgress = 0; // 0 to 100
+    let heatRate = 1.0;
+    
+    let particlesCrystal = [];
+    let particlesAmorphous = [];
+    
+    let showBonds = true;
+    let canvasW, canvasH;
+
+    // Simulation Phase Thresholds
+    // 0-30: Solid heating
+    // 30-70: Melting Plateau (Crystal)
+    // 70-100: Liquid heating
+    const PHASE_SOLID_END = 30;
+    const PHASE_MELT_END = 70;
+    const PHASE_MAX = 100;
+
+    // --- DOM Elements ---
+    let btnToggle, btnReset, sliderRate, valRate, chkBonds;
+    let statusPhase;
+
+    // --- Particle Class ---
+    class Particle {
+      constructor(type, col, row, startX, startY) {
+        this.type = type; // 'crystal' or 'amorphous'
+        this.col = col;
+        this.row = row;
+        
+        let baseX = startX + col * CONFIG.spacing;
+        let baseY = startY + row * CONFIG.spacing;
+        
+        if (this.type === 'amorphous') {
+            let offsetRange = CONFIG.spacing * 0.45; 
+            baseX += random(-offsetRange, offsetRange);
+            baseY += random(-offsetRange, offsetRange);
+        }
+
+        this.homeX = baseX;
+        this.homeY = baseY;
+        
+        this.x = this.homeX;
+        this.y = this.homeY;
+        this.vx = 0;
+        this.vy = 0;
+        
+        this.isFree = false; 
+        this.phaseOffset = random(TWO_PI); 
+        
+        this.neighbors = [];
+      }
+
+      findNeighbors(allParticles) {
+          this.neighbors = [];
+          for (let other of allParticles) {
+              if (other === this) continue;
+              let d = dist(this.homeX, this.homeY, other.homeX, other.homeY);
+              if (d < CONFIG.spacing * 1.6) {
+                  this.neighbors.push(other);
+              }
+          }
+      }
+
+      update(tempValue) {
+        // AMORPHOUS MELTING LOGIC (Temperature based)
+        // Probabilistic melting based on current Temp
+        if (this.type === 'amorphous' && !this.isFree) {
+            if (tempValue > 25) { 
+                // Probability scales with Temperature
+                let breakProb = map(tempValue, 25, 95, 0.002, 0.05); 
+                if (random(1) < breakProb) {
+                    this.breakFree(tempValue);
+                }
+            }
+        }
+
+        // MOVEMENT LOGIC
+        if (!this.isFree) {
+          // Vibrate
+          let amp = map(tempValue, 0, 80, 0.5, 3.0);
+          this.x = this.homeX + sin(millis() * 0.05 + this.phaseOffset) * amp;
+          this.y = this.homeY + cos(millis() * 0.05 + this.phaseOffset) * amp;
+        } else {
+          // Move Freely
+          let speedFactor = map(tempValue, 30, 100, 1.5, 4.0);
+          let currentSpeed = Math.sqrt(this.vx*this.vx + this.vy*this.vy);
+          if (currentSpeed < 0.1) currentSpeed = 0.5;
+          
+          this.vx = (this.vx / currentSpeed) * speedFactor;
+          this.vy = (this.vy / currentSpeed) * speedFactor;
+
+          this.x += this.vx;
+          this.y += this.vy;
+
+          // Boundaries
+          let boxWidth = canvasW / 2;
+          let minX = (this.type === 'crystal') ? 0 : boxWidth;
+          let maxX = (this.type === 'crystal') ? boxWidth : canvasW;
+          let topBoundary = 0;
+          let bottomBoundary = canvasH * (1 - CONFIG.graphHeightRatio) - 20;
+
+          if (this.x < minX + 10) { this.x = minX + 10; this.vx = abs(this.vx); }
+          if (this.x > maxX - 10) { this.x = maxX - 10; this.vx = -abs(this.vx); }
+          if (this.y < topBoundary + 10) { this.y = topBoundary + 10; this.vy = abs(this.vy); }
+          if (this.y > bottomBoundary - 10) { this.y = bottomBoundary - 10; this.vy = -abs(this.vy); }
+        }
+      }
+      
+      breakFree(temp) {
+          this.isFree = true;
+          let angle = random(TWO_PI);
+          let speed = 2.5;
+          this.vx = cos(angle) * speed;
+          this.vy = sin(angle) * speed;
+      }
+
+      display() {
+        noStroke();
+        
+        let c;
+        if (this.isFree) {
+            // Liquid Red
+            c = color(CONFIG.liquidColor); 
+            drawingContext.shadowBlur = 15;
+            drawingContext.shadowColor = 'rgba(255, 0, 0, 0.6)';
+        } else {
+            // Solid
+            if (this.type === 'crystal') {
+                c = color(CONFIG.crystalColor);
+            } else {
+                c = color(CONFIG.amorphousColor);
+            }
+            drawingContext.shadowBlur = 0;
+        }
+        
+        fill(c);
+        ellipse(this.x, this.y, CONFIG.particleSize);
+        drawingContext.shadowBlur = 0; 
+      }
+    }
+
+    // --- P5.js Standard Functions ---
+
+    function setup() {
+      const container = document.getElementById('canvas-wrapper');
+      canvasW = container.clientWidth;
+      canvasH = container.clientHeight;
+      let cvs = createCanvas(canvasW, canvasH);
+      cvs.parent('canvas-wrapper');
+
+      btnToggle = document.getElementById('btn-toggle');
+      btnReset = document.getElementById('btn-reset');
+      sliderRate = document.getElementById('slider-rate');
+      valRate = document.getElementById('val-rate');
+      chkBonds = document.getElementById('chk-show-bonds');
+      statusPhase = document.getElementById('status-phase');
+
+      btnToggle.addEventListener('click', togglePlay);
+      btnReset.addEventListener('click', resetSimulation);
+      sliderRate.addEventListener('input', () => {
+        heatRate = parseFloat(sliderRate.value);
+        valRate.textContent = heatRate.toFixed(1);
+      });
+      chkBonds.addEventListener('change', () => {
+        showBonds = chkBonds.checked;
+      });
+
+      initParticles();
+      MathJax.typesetPromise();
+    }
+
+    function windowResized() {
+      const container = document.getElementById('canvas-wrapper');
+      canvasW = container.clientWidth;
+      canvasH = container.clientHeight;
+      resizeCanvas(canvasW, canvasH);
+      initParticles();
+    }
+
+    function initParticles() {
+      particlesCrystal = [];
+      particlesAmorphous = [];
+      
+      let topAreaH = canvasH * (1 - CONFIG.graphHeightRatio);
+      let gridW = (CONFIG.gridSize - 1) * CONFIG.spacing;
+      
+      let leftCenterX = canvasW * 0.25;
+      let rightCenterX = canvasW * 0.75;
+      let startY = (topAreaH - gridW) / 2;
+
+      // Crystal
+      let startX_C = leftCenterX - gridW / 2;
+      for (let r = 0; r < CONFIG.gridSize; r++) {
+        for (let c = 0; c < CONFIG.gridSize; c++) {
+          let p = new Particle('crystal', c, r, startX_C, startY);
+          particlesCrystal.push(p);
+        }
+      }
+      for(let p of particlesCrystal) p.findNeighbors(particlesCrystal);
+
+      // Amorphous
+      let startX_A = rightCenterX - gridW / 2;
+      for (let r = 0; r < CONFIG.gridSize; r++) {
+        for (let c = 0; c < CONFIG.gridSize; c++) {
+          let p = new Particle('amorphous', c, r, startX_A, startY);
+          particlesAmorphous.push(p);
+        }
+      }
+      for(let p of particlesAmorphous) p.findNeighbors(particlesAmorphous);
+    }
+
+    function togglePlay() {
+      isPlaying = !isPlaying;
+      btnToggle.textContent = isPlaying ? "暂停 (Pause)" : "继续 (Play)";
+    }
+
+    function resetSimulation() {
+      isPlaying = false;
+      btnToggle.textContent = "开始加热 (Start)";
+      heatProgress = 0;
+      initParticles();
+      statusPhase.textContent = "准备就绪";
+    }
+
+    function draw() {
+      background(255);
+
+      if (isPlaying) {
+        heatProgress += 0.15 * heatRate; 
+        if (heatProgress > 105) {
+          isPlaying = false;
+          btnToggle.textContent = "演示结束 (Ended)";
+        }
+      }
+
+      // --- Calculate Temperatures & Crystal State ---
+      let tempCrystal = 0;
+      let meltingRatioCrystal = 0;
+      
+      if (heatProgress <= PHASE_SOLID_END) {
+        // Phase 1: Solid Heating
+        tempCrystal = map(heatProgress, 0, PHASE_SOLID_END, 0, 40);
+        statusPhase.textContent = "升温阶段：晶体尚未熔化";
+        statusPhase.style.color = "#2c3e50";
+      } else if (heatProgress <= PHASE_MELT_END) {
+        // Phase 2: Melting Plateau
+        tempCrystal = 40; // Constant Temp
+        // 0.0 to 1.0 progress through plateau
+        meltingRatioCrystal = map(heatProgress, PHASE_SOLID_END, PHASE_MELT_END, 0, 1);
+        
+        // --- SYNC LOGIC: Force Crystal Melting to match Time ---
+        // Total crystal particles = 36
+        // We want 'meltingRatioCrystal' % of them to be free.
+        let targetFreeCount = Math.floor(particlesCrystal.length * meltingRatioCrystal);
+        let currentFreeCount = particlesCrystal.filter(p => p.isFree).length;
+        
+        // If we need more free particles, pick random ones and free them
+        while (currentFreeCount < targetFreeCount) {
+             let candidates = particlesCrystal.filter(p => !p.isFree);
+             if (candidates.length > 0) {
+                 let pick = random(candidates);
+                 pick.breakFree(tempCrystal);
+                 currentFreeCount++;
+             } else {
+                 break;
+             }
+        }
+
+        statusPhase.textContent = `熔化中... (已熔化: ${Math.floor(meltingRatioCrystal*100)}%)`;
+        statusPhase.style.color = "#d35400";
+        
+      } else {
+        // Phase 3: Liquid Heating
+        tempCrystal = map(heatProgress, PHASE_MELT_END, PHASE_MAX, 40, 90);
+        meltingRatioCrystal = 1;
+        // Ensure all are free (safety catch)
+        particlesCrystal.forEach(p => { if(!p.isFree) p.breakFree(tempCrystal); });
+        
+        statusPhase.textContent = "熔化完毕，温度开始上升！";
+        statusPhase.style.color = "#e74c3c";
+      }
+
+      let tempAmorphous = map(heatProgress, 0, 100, 0, 90);
+
+      drawLabels();
+
+      // --- Draw Bonds ---
+      const drawBonds = (particles) => {
+          if (!showBonds) return;
+          strokeWeight(1.5); 
+          for (let p of particles) {
+              if (p.isFree) continue; 
+              for (let neighbor of p.neighbors) {
+                  if (neighbor.isFree) continue;
+                  if (particles.indexOf(p) < particles.indexOf(neighbor)) {
+                      let d = dist(p.x, p.y, neighbor.x, neighbor.y);
+                      if (d < CONFIG.spacing * 1.8) {
+                           stroke(200);
+                           line(p.x, p.y, neighbor.x, neighbor.y);
+                      }
+                  }
+              }
+          }
+      };
+
+      // 1. Crystal Area
+      push();
+      drawBonds(particlesCrystal);
+      for (let p of particlesCrystal) {
+        p.update(tempCrystal);
+        p.display();
+      }
+      pop();
+
+      // 2. Amorphous Area
+      push();
+      drawBonds(particlesAmorphous);
+      for (let p of particlesAmorphous) {
+        p.update(tempAmorphous);
+        p.display();
+      }
+      pop();
+
+      // --- Draw Graph ---
+      drawGraph(tempCrystal, tempAmorphous, meltingRatioCrystal);
+      
+      // Divider
+      stroke(220);
+      strokeWeight(2);
+      line(canvasW/2, 10, canvasW/2, canvasH * (1 - CONFIG.graphHeightRatio) - 10);
+    }
+    
+    function drawLabels() {
+        fill(60);
+        noStroke();
+        textSize(16);
+        textStyle(BOLD);
+        textAlign(CENTER, TOP);
+        
+        fill(CONFIG.crystalColor);
+        text("晶体 (吸热熔化中...)", canvasW * 0.25, 10);
+        
+        fill(CONFIG.amorphousColor);
+        text("非晶体 (软化中...)", canvasW * 0.75, 10);
+    }
+
+    function drawGraph(tempC, tempA, meltingRatio) {
+      let graphX = CONFIG.graphPad + 20;
+      let graphY = canvasH - CONFIG.graphPad;
+      let graphW = canvasW - (CONFIG.graphPad * 2) - 20;
+      let graphH = canvasH * CONFIG.graphHeightRatio - CONFIG.graphPad;
+      let originY = graphY;
+      let originX = graphX;
+      let topY = graphY - graphH;
+
+      fill(250);
+      noStroke();
+      rect(originX, topY, graphW, graphH);
+
+      stroke(0);
+      strokeWeight(2);
+      line(originX, originY, originX + graphW, originY);
+      line(originX, originY, originX, topY);
+
+      noStroke();
+      fill(0);
+      textSize(12);
+      textStyle(NORMAL);
+      textAlign(CENTER, TOP);
+      text("时间 t", originX + graphW / 2, originY + 8);
+      textAlign(RIGHT, CENTER);
+      text("温度 T", originX - 8, originY - graphH / 2);
+
+      // --- Crystal Curve (Blue) ---
+      stroke(CONFIG.crystalColor);
+      strokeWeight(3);
+      noFill();
+      beginShape();
+      let pSolidEnd = map(PHASE_SOLID_END, 0, 100, 0, graphW);
+      let pMeltEnd = map(PHASE_MELT_END, 0, 100, 0, graphW);
+      let h40 = map(40, 0, 100, 0, graphH);
+      let h90 = map(90, 0, 100, 0, graphH); 
+      
+      vertex(originX, originY);
+      vertex(originX + pSolidEnd, originY - h40);
+      vertex(originX + pMeltEnd, originY - h40); // Plateau
+      vertex(originX + graphW, originY - h90);
+      endShape();
+      
+      // --- Amorphous Curve (Orange) ---
+      stroke(CONFIG.amorphousColor);
+      beginShape();
+      vertex(originX, originY);
+      bezierVertex(
+          originX + graphW * 0.3, originY - h40 * 0.8,
+          originX + graphW * 0.6, originY - h40 * 1.5,
+          originX + graphW, originY - h90
+      );
+      endShape();
+
+      // --- Progress Dots ---
+      let currX = originX + map(Math.min(heatProgress, 100), 0, 100, 0, graphW);
+      let currY_C = originY - map(tempC, 0, 100, 0, graphH);
+      let currY_A = originY - map(tempA, 0, 100, 0, graphH);
+
+      // Liquid indicator in graph
+      if (tempC > 41) fill(CONFIG.liquidColor); else fill(CONFIG.crystalColor);
+      noStroke();
+      circle(currX, currY_C, 12);
+      
+      if (tempA > 60) fill(CONFIG.liquidColor); else fill(CONFIG.amorphousColor);
+      circle(currX, currY_A, 12);
+      
+      // Time Line
+      stroke(150, 150, 150, 150);
+      strokeWeight(1);
+      drawingContext.setLineDash([5, 5]);
+      line(currX, originY, currX, topY);
+      drawingContext.setLineDash([]);
+      
+      // Highlight the Melting Zone
+      if (heatProgress >= PHASE_SOLID_END && heatProgress <= PHASE_MELT_END) {
+          noStroke();
+          fill(52, 152, 219, 30);
+          rect(originX + pSolidEnd, topY, pMeltEnd - pSolidEnd, graphH);
+          
+          fill(50);
+          textAlign(CENTER);
+          text("固液共存 (温度不变)", (originX + pSolidEnd + originX + pMeltEnd)/2, originY - h40 - 20);
+      }
+    }
+  </script>
+</body>
+</html>

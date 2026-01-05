@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>十字相乘法完全互动训练器 - MathPhysics Ultimate</title>
+    <!-- Load p5.js from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --accent-color: #3498db;
+            --success-color: #27ae60;
+            --warning-color: #e67e22;
+            --danger-color: #c0392b;
+            --bg-color: #ecf0f1;
+            --panel-bg: #ffffff;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--primary-color);
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Top Bar */
+        header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 15px 30px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            flex-shrink: 0;
+        }
+        header h1 { margin: 0; font-size: 1.5rem; letter-spacing: 1px; }
+        header p { margin: 5px 0 0; font-size: 0.9rem; opacity: 0.8; }
+
+        /* Main Layout */
+        .main-container {
+            display: flex;
+            flex-direction: row;
+            flex: 1;
+            padding: 20px;
+            gap: 20px;
+            max-width: 1600px;
+            margin: 0 auto;
+            width: 100%;
+            box-sizing: border-box;
+            align-items: flex-start; 
+        }
+
+        /* Left Control Panel */
+        .controls {
+            flex: 0 0 320px; 
+            background: var(--panel-bg);
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+            max-height: calc(100vh - 100px);
+        }
+
+        .control-section {
+            border-bottom: 1px solid #eee;
+            padding-bottom: 15px;
+            margin-bottom: 5px;
+        }
+        .control-section:last-child { border-bottom: none; }
+
+        h2 { font-size: 1.1rem; margin-top: 0; margin-bottom: 15px; color: var(--accent-color); border-left: 4px solid var(--accent-color); padding-left: 10px; }
+
+        /* Math Display in HTML */
+        .math-display {
+            font-family: 'Times New Roman', serif;
+            font-size: 1.8rem;
+            text-align: center;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        /* Buttons */
+        .btn-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-hint { background-color: var(--warning-color); color: white; }
+        .btn-hint:hover { background-color: #d35400; transform: translateY(-1px); }
+
+        .btn-solve { background-color: #95a5a6; color: white; }
+        .btn-solve:hover { background-color: #7f8c8d; transform: translateY(-1px); }
+
+        .btn-reset { background-color: var(--success-color); color: white; margin-top: 10px; font-size: 1.1rem; padding: 15px;}
+        .btn-reset:hover { background-color: #219150; transform: translateY(-2px); box-shadow: 0 4px 10px rgba(39, 174, 96, 0.3); }
+
+        /* Checkbox style */
+        .checkbox-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+            font-size: 0.95rem;
+            cursor: pointer;
+            background: #f0f8ff;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #dbeafe;
+        }
+        .checkbox-wrapper input {
+            transform: scale(1.2);
+            cursor: pointer;
+        }
+
+        /* Instruction Text */
+        .instruction { font-size: 0.9rem; color: #666; line-height: 1.6; }
+        .instruction strong { color: var(--primary-color); }
+
+        /* Right Canvas Area */
+        #canvas-wrapper {
+            flex: 1;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 10px;
+            min-height: 700px; /* Increased height for bottom message */
+            position: relative;
+        }
+        
+        /* Stats Tag */
+        .stats {
+            font-size: 0.85rem;
+            color: #7f8c8d;
+            text-align: center;
+            margin-top: 10px;
+        }
+
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>十字相乘法完全互动训练器</h1>
+        <p>Interactive Cross Multiplication Factorization Trainer</p>
+    </header>
+
+    <div class="main-container">
+        <!-- Control Panel -->
+        <aside class="controls">
+            
+            <div class="control-section">
+                <h2>当前题目 (Current Problem)</h2>
+                <div id="equation-html" class="math-display">
+                    x² + 5x + 6
+                </div>
+                <div class="instruction">
+                    目标：将二次三项式分解因式。<br>
+                    <strong>x² + px + q = (x + a)(x + b)</strong>
+                </div>
+            </div>
+
+            <div class="control-section">
+                <h2>题目设置 (Settings)</h2>
+                <label class="checkbox-wrapper">
+                    <input type="checkbox" id="toggle-fraction" onchange="game.toggleFractionMode()">
+                    <span>启用分数题目 (Fraction Mode)</span>
+                </label>
+            </div>
+
+            <div class="control-section">
+                <h2>辅助功能 (Tools)</h2>
+                <div class="btn-group">
+                    <button class="btn-hint" onclick="game.nextHint()">
+                        💡 获取提示 (步骤 <span id="hint-step">0</span>/3)
+                    </button>
+                    <button class="btn-solve" onclick="game.solve()">
+                        🔑 直接显示答案
+                    </button>
+                </div>
+            </div>
+
+            <div class="control-section">
+                <h2>操作指引</h2>
+                <p class="instruction">
+                    1. 点击画布上的 <span style="color:#3498db">▲</span> 或 <span style="color:#3498db">▼</span> 调整数值。<br>
+                    2. <strong>左列积</strong>必须等于二次项系数。<br>
+                    3. <strong>右列积</strong>必须等于常数项。<br>
+                    4. <strong>交叉相乘之和</strong>必须等于一次项系数。
+                </p>
+                <button class="btn-reset" onclick="game.newProblem()">
+                    🎲 生成新题目
+                </button>
+                <div class="stats" id="status-text">
+                    状态: 正在进行...
+                </div>
+            </div>
+
+        </aside>
+
+        <!-- P5.js Canvas Container -->
+        <div id="canvas-wrapper"></div>
+    </div>
+
+    <script>
+        /**
+         * Cross Multiplication Trainer
+         * Updates: 
+         * 1. ALWAYS show cross product values visually.
+         * 2. Show full addition equation in sum box.
+         * 3. Success message at bottom.
+         */
+
+        const game = {
+            // Problem Data
+            problem: {
+                a: 1, b: 5, c: 6,
+                solA1: 1, solA2: 1,
+                solC1: 2, solC2: 3
+            },
+            // User Inputs
+            user: {
+                a1: 1, a2: 1,
+                c1: 1, c2: 1
+            },
+            // UI State
+            hintLevel: 0,
+            isCorrect: false,
+            fractionMode: false,
+
+            toggleFractionMode: function() {
+                const cb = document.getElementById('toggle-fraction');
+                this.fractionMode = cb.checked;
+                this.newProblem();
+            },
+            
+            newProblem: function() {
+                // Generate logic
+                let m, n, p, q;
+
+                if (this.fractionMode) {
+                    // Fraction Mode
+                    m = floor(random(1, 5)); 
+                    n = floor(random(1, 5));
+                    p = floor(random(-6, 7));
+                    q = floor(random(-6, 7));
+                    if (p === 0) p = 1; 
+                    if (q === 0) q = 1;
+                    if (p*n + q*m === 0) q += 1; 
+
+                    if (random() > 0.5) { m /= 2; } else { n /= 2; }
+                    if (random() > 0.5) { p /= 2; } else { q /= 2; }
+
+                } else {
+                    // Standard Integer Mode
+                    m = floor(random(1, 4));
+                    n = floor(random(1, 4));
+                    p = floor(random(-7, 8));
+                    q = floor(random(-7, 8));
+                    if (p === 0) p = 1; 
+                    if (q === 0) q = 1;
+                    if (p*n + q*m === 0) q += 1;
+                }
+
+                this.problem.solA1 = m;
+                this.problem.solA2 = n;
+                this.problem.solC1 = p;
+                this.problem.solC2 = q;
+
+                this.problem.a = parseFloat((m * n).toFixed(2));
+                this.problem.b = parseFloat((m * q + n * p).toFixed(2));
+                this.problem.c = parseFloat((p * q).toFixed(2));
+
+                this.user.a1 = this.fractionMode ? 0.5 : 1;
+                this.user.a2 = this.fractionMode ? 0.5 : 1;
+                this.user.c1 = this.fractionMode ? 0.5 : 1;
+                this.user.c2 = this.fractionMode ? 0.5 : 1;
+
+                this.hintLevel = 0;
+                this.isCorrect = false;
+                
+                this.updateHTML();
+                document.getElementById('hint-step').innerText = "0";
+                this.updateStatusText("状态: 请尝试解题", "#7f8c8d");
+            },
+
+            solve: function() {
+                this.user.a1 = this.problem.solA1;
+                this.user.a2 = this.problem.solA2;
+                this.user.c1 = this.problem.solC1;
+                this.user.c2 = this.problem.solC2;
+                this.isCorrect = true;
+                this.checkStatus();
+            },
+
+            nextHint: function() {
+                if(this.hintLevel < 3) {
+                    this.hintLevel++;
+                    document.getElementById('hint-step').innerText = this.hintLevel;
+                }
+            },
+
+            checkStatus: function() {
+                const col1 = parseFloat((this.user.a1 * this.user.a2).toFixed(2));
+                const col2 = parseFloat((this.user.c1 * this.user.c2).toFixed(2));
+                const cross = parseFloat((this.user.a1 * this.user.c2 + this.user.a2 * this.user.c1).toFixed(2));
+                
+                const col1OK = (col1 === this.problem.a);
+                const col2OK = (col2 === this.problem.c);
+                const sumOK = (cross === this.problem.b);
+
+                if (col1OK && col2OK && sumOK) {
+                    this.isCorrect = true;
+                    this.updateStatusText("状态: ✅ 回答正确！", "#27ae60");
+                } else {
+                    this.isCorrect = false;
+                    this.updateStatusText("状态: 计算中...", "#7f8c8d");
+                }
+            },
+
+            updateStatusText: function(text, color) {
+                const el = document.getElementById('status-text');
+                el.innerText = text;
+                el.style.color = color;
+            },
+
+            updateHTML: function() {
+                const fmt = (n) => {
+                    if (Number.isInteger(n)) return Math.abs(n);
+                    return this.toFractionString(Math.abs(n));
+                };
+
+                const bSign = this.problem.b >= 0 ? "+" : "-";
+                const cSign = this.problem.c >= 0 ? "+" : "-";
+                
+                let aText = this.problem.a === 1 ? "" : fmt(this.problem.a);
+                
+                const html = `${aText}x<sup>2</sup> ${bSign} ${fmt(this.problem.b)}x ${cSign} ${fmt(this.problem.c)}`;
+                document.getElementById('equation-html').innerHTML = html;
+            },
+
+            toFractionString: function(val) {
+                if (Number.isInteger(val)) return val.toString();
+                if (Math.abs(val % 1) === 0.5) {
+                    let num = val * 2;
+                    return `${num}/2`;
+                }
+                if (Math.abs(val % 1) === 0.25 || Math.abs(val % 1) === 0.75) {
+                    let num = val * 4;
+                    return `${num}/4`;
+                }
+                return val.toString();
+            }
+        };
+
+        // --- P5.js Implementation ---
+
+        let clickZones = []; 
+
+        function setup() {
+            const canvasWrapper = document.getElementById('canvas-wrapper');
+            const w = canvasWrapper.clientWidth;
+            const h = 720; 
+            const cnv = createCanvas(w, h);
+            cnv.parent('canvas-wrapper');
+            
+            textFont('Segoe UI');
+            game.newProblem();
+        }
+
+        function windowResized() {
+            const canvasWrapper = document.getElementById('canvas-wrapper');
+            resizeCanvas(canvasWrapper.clientWidth, 720);
+        }
+
+        function draw() {
+            background(255);
+            clickZones = []; 
+
+            drawGridBackground();
+            drawMainLayout();
+            
+            if(game.isCorrect) {
+                drawSuccessMessage();
+            }
+        }
+
+        function drawGridBackground() {
+            stroke(248);
+            strokeWeight(1);
+            for(let x=0; x<width; x+=40) line(x, 0, x, height);
+            for(let y=0; y<height; y+=40) line(0, y, width, y);
+        }
+
+        function drawMainLayout() {
+            const cx = width / 2;
+            const cy = height / 2 - 100; 
+            const colSpacing = 220; 
+            const rowSpacing = 160;
+
+            // --- 1. Inputs ---
+            drawInputNode(cx - colSpacing/2, cy - rowSpacing/2, game.user.a1, 'a1', true);
+            drawInputNode(cx - colSpacing/2, cy + rowSpacing/2, game.user.a2, 'a2', true);
+            drawInputNode(cx + colSpacing/2, cy - rowSpacing/2, game.user.c1, 'c1', false);
+            drawInputNode(cx + colSpacing/2, cy + rowSpacing/2, game.user.c2, 'c2', false);
+
+            // --- 2. Cross Lines ---
+            const x1 = cx - colSpacing/2 + 60;
+            const x2 = cx + colSpacing/2 - 60;
+            const y1 = cy - rowSpacing/2 + 20;
+            const y2 = cy + rowSpacing/2 - 20;
+
+            strokeWeight(4);
+            const crossProd1 = parseFloat((game.user.a1 * game.user.c2).toFixed(2));
+            const crossProd2 = parseFloat((game.user.a2 * game.user.c1).toFixed(2));
+            const sum = parseFloat((crossProd1 + crossProd2).toFixed(2));
+
+            // Line Color
+            stroke((game.hintLevel >= 3 || game.isCorrect) ? '#3498db' : '#e0e0e0');
+            line(x1, y1, x2, y2);
+            line(x1, y2, x2, y1);
+
+            // --- 3. Feedback Bubbles (Products of columns) ---
+            const bubbleY = cy + rowSpacing/2 + 85; 
+            
+            const prodA = parseFloat((game.user.a1 * game.user.a2).toFixed(2));
+            const isAOK = prodA === game.problem.a;
+            drawFeedbackBubble(cx - colSpacing/2, bubbleY, 
+                `${fmtVal(game.user.a1)}x · ${fmtVal(game.user.a2)}x = ${fmtVal(prodA)}x²`, 
+                isAOK, `目标: ${fmtVal(game.problem.a)}x²`);
+
+            const prodC = parseFloat((game.user.c1 * game.user.c2).toFixed(2));
+            const isCOK = prodC === game.problem.c;
+            drawFeedbackBubble(cx + colSpacing/2, bubbleY, 
+                `${fmtVal(game.user.c1)} · ${fmtVal(game.user.c2)} = ${fmtVal(prodC)}`, 
+                isCOK, `目标: ${fmtVal(game.problem.c)}`);
+
+            // --- 4. Cross Product Visualization (ALWAYS VISIBLE) ---
+            
+            fill(120); noStroke(); textAlign(LEFT, CENTER); textSize(20); textStyle(BOLD);
+            
+            // Format cross product terms with sign handling for display
+            // cp1 is a1 * c2 (Top-L * Bot-R) -> Result usually visualized near Bot-R or Side
+            // cp2 is a2 * c1 (Bot-L * Top-R) -> Result usually visualized near Top-R or Side
+            
+            // Draw result of Diagonal 1 (Down)
+            text(`↘ ${fmtVal(crossProd1)}x`, cx + colSpacing/2 + 80, cy + 40);
+            
+            // Draw result of Diagonal 2 (Up)
+            text(`↗ ${fmtVal(crossProd2)}x`, cx + colSpacing/2 + 80, cy - 40);
+
+
+            // --- 5. Cross Sum Equation ---
+            const sumBoxY = bubbleY + 90; 
+            const isSumOK = sum === game.problem.b;
+            
+            fill(isSumOK ? '#d4edda' : '#f8d7da');
+            stroke(isSumOK ? '#27ae60' : '#c0392b');
+            strokeWeight(2);
+            rectMode(CENTER);
+            rect(cx, sumBoxY, 350, 65, 10); // Made slightly wider for long equations
+
+            noStroke();
+            fill(isSumOK ? '#155724' : '#721c24');
+            textSize(22);
+            textStyle(BOLD);
+            textAlign(CENTER, CENTER);
+            
+            // Build intuitive equation: "2x + 3x = 5x"
+            let term1Str = (crossProd1 < 0 ? "-" : "") + fmtVal(crossProd1) + "x";
+            let signStr = crossProd2 >= 0 ? "+" : "-";
+            let term2Str = fmtVal(Math.abs(crossProd2)) + "x";
+            let resStr = (sum < 0 ? "-" : "") + fmtVal(Math.abs(sum)) + "x";
+            
+            // If first term is positive, no need for "+" sign, but if we want to align...
+            // Standard math notation:
+            text(`${term1Str} ${signStr} ${term2Str} = ${resStr}`, cx, sumBoxY);
+            
+            textStyle(NORMAL);
+            textSize(14);
+            fill(100);
+            text(`(目标: ${fmtVal(game.problem.b)}x)`, cx, sumBoxY + 50);
+
+            // --- Hints ---
+            drawHintPanels(cx, cy, colSpacing);
+        }
+
+        function drawSuccessMessage() {
+            const cx = width / 2;
+            const bottomY = height - 100; 
+
+            stroke(230);
+            strokeWeight(2);
+            line(cx - 200, bottomY - 60, cx + 200, bottomY - 60);
+
+            fill('#27ae60');
+            textSize(36);
+            textAlign(CENTER, CENTER);
+            textStyle(BOLD);
+            text("🎉 解题成功!", cx, bottomY - 20);
+            
+            fill(50);
+            textSize(24);
+            textStyle(NORMAL);
+            let term1 = `(${fmtVal(game.user.a1)}x ${game.user.c1 >= 0 ? '+' : ''} ${fmtVal(game.user.c1)})`;
+            let term2 = `(${fmtVal(game.user.a2)}x ${game.user.c2 >= 0 ? '+' : ''} ${fmtVal(game.user.c2)})`;
+            text(`答案: ${term1}${term2}`, cx, bottomY + 30);
+        }
+
+        function fmtVal(n) {
+            return game.toFractionString(n);
+        }
+
+        function drawInputNode(x, y, val, id, isXTerm) {
+            fill(255);
+            stroke(200);
+            strokeWeight(2);
+            rectMode(CENTER);
+            rect(x, y, 110, 60, 8); 
+
+            fill(50);
+            noStroke();
+            textSize(26);
+            textStyle(BOLD);
+            textAlign(CENTER, CENTER);
+            
+            let displayTxt = fmtVal(val);
+            if (val > 0 && !isXTerm) displayTxt = "+" + displayTxt;
+            if (val === 0 && !isXTerm) displayTxt = "0";
+            if (isXTerm) displayTxt += "x";
+            
+            text(displayTxt, x, y);
+
+            drawArrowBtn(x - 75, y, 'up', id);
+            drawArrowBtn(x + 75, y, 'down', id);
+        }
+
+        function drawArrowBtn(x, y, dir, id) {
+            const size = 30;
+            fill(245); stroke(210); strokeWeight(1);
+            if (dist(mouseX, mouseY, x, y) < size/2) {
+                fill(230); cursor('pointer');
+            }
+            circle(x, y, size);
+            fill(100); noStroke(); textSize(14); textAlign(CENTER, CENTER);
+            text(dir === 'up' ? '▲' : '▼', x, y + (dir === 'up' ? -1 : 1));
+            clickZones.push({x: x, y: y, r: size/2, action: {type: 'adjust', id: id, dir: dir}});
+        }
+
+        function drawFeedbackBubble(x, y, txt, isCorrect, targetTxt) {
+            fill(isCorrect ? '#eafaf1' : '#fdedec');
+            stroke(isCorrect ? '#2ecc71' : '#e74c3c');
+            strokeWeight(1);
+            rectMode(CENTER);
+            rect(x, y, 200, 50, 5);
+
+            noStroke();
+            fill(isCorrect ? '#27ae60' : '#c0392b');
+            textSize(15);
+            textAlign(CENTER, CENTER);
+            text(txt, x, y - 9);
+            
+            textSize(12);
+            fill(120);
+            text(targetTxt, x, y + 11);
+        }
+
+        function drawHintPanels(cx, cy, colSpacing) {
+            if (game.fractionMode) return; 
+
+            if (game.hintLevel >= 1) {
+                let factors = getFactorPairs(game.problem.a);
+                drawStickyNote(cx - colSpacing - 140, cy, "系数分解", factors);
+            }
+            if (game.hintLevel >= 2) {
+                let factors = getFactorPairs(game.problem.c);
+                drawStickyNote(cx + colSpacing + 140, cy, "常数分解", factors);
+            }
+        }
+
+        function getFactorPairs(n) {
+            let pairs = [];
+            let limit = Math.abs(n);
+            for(let i=1; i<=limit; i++) {
+                if (n % i === 0) {
+                    let f1 = i;
+                    let f2 = n / i;
+                    if (Math.abs(f1) <= Math.abs(f2)) {
+                        pairs.push(`${f1} × ${f2}`);
+                        if (n !== 0) pairs.push(`${-f1} × ${-f2}`);
+                    }
+                }
+            }
+            return pairs.slice(0, 6);
+        }
+
+        function drawStickyNote(x, y, title, lines) {
+            fill('#fef9e7');
+            stroke('#f1c40f');
+            strokeWeight(1);
+            rectMode(CENTER);
+            let h = 40 + lines.length * 20;
+            rect(x, y, 120, h, 2);
+            fill('#d35400'); noStroke(); textSize(14); textStyle(BOLD);
+            text(title, x, y - h/2 + 20);
+            fill(80); textStyle(NORMAL); textSize(13);
+            for(let i=0; i<lines.length; i++) text(lines[i], x, y - h/2 + 45 + i*20);
+        }
+
+        function mousePressed() {
+            for (let z of clickZones) {
+                if (dist(mouseX, mouseY, z.x, z.y) < z.r) {
+                    if (z.action.type === 'adjust') {
+                        let id = z.action.id;
+                        let step = game.fractionMode ? 0.5 : 1;
+                        let val = game.user[id];
+                        
+                        if (z.action.dir === 'up') val += step;
+                        else val -= step;
+
+                        val = parseFloat(val.toFixed(2));
+                        
+                        if (val === 0 && !game.fractionMode) {
+                            val = (z.action.dir === 'up' ? 1 : -1);
+                        }
+
+                        game.user[id] = val;
+                        game.checkStatus();
+                    }
+                    return;
+                }
+            }
+        }
+    </script>
+</body>
+</html>

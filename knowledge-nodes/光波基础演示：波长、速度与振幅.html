@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>光波基础演示：波长、速度与振幅</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #f5f7fa;
+            --panel-bg: #ffffff;
+            --text-color: #333333;
+            --accent-color: #3b82f6;
+            --border-color: #e5e7eb;
+        }
+
+        body {
+            font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            overflow-y: auto;
+        }
+
+        h1 {
+            color: #1e293b;
+            margin-bottom: 5px;
+            text-align: center;
+        }
+
+        .subtitle {
+            color: #64748b;
+            margin-bottom: 20px;
+            font-size: 0.9em;
+            max-width: 800px;
+            text-align: center;
+        }
+
+        /* 主容器：Flex布局，改为上下排列 (Column) */
+        .main-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            width: 100%;
+            max-width: 1200px; /* 稍微收窄一点，适合阅读 */
+            align-items: center;
+        }
+
+        /* 顶部：控制面板 - 改为横向排列内部元素 */
+        .controls {
+            background: var(--panel-bg);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            width: 100%; /* 占满宽度 */
+            box-sizing: border-box;
+            
+            display: flex;
+            flex-direction: row; /* 横向排列 */
+            flex-wrap: wrap;     /* 允许换行 */
+            justify-content: center;
+            gap: 20px;
+            
+            border: 1px solid var(--border-color);
+        }
+
+        /* 控制组模块 */
+        .control-group {
+            border-bottom: none; /* 移除原来的底边框 */
+            border-right: 1px solid #f1f5f9; /* 改为右边框分隔 */
+            padding-right: 20px;
+            padding-bottom: 0;
+            min-width: 200px;
+            flex: 1; /* 弹性宽度 */
+        }
+
+        .control-group:last-child {
+            border-right: none;
+            padding-right: 0;
+            flex: 1.5; /* 信息面板稍微宽一点 */
+        }
+        
+        /* 在小屏幕下取消右边框，恢复底边框 */
+        @media (max-width: 900px) {
+            .controls {
+                flex-direction: column;
+            }
+            .control-group {
+                border-right: none;
+                border-bottom: 1px solid #f1f5f9;
+                padding-right: 0;
+                padding-bottom: 15px;
+            }
+            .control-group:last-child {
+                border-bottom: none;
+            }
+        }
+
+        .control-header {
+            font-weight: bold;
+            font-size: 1.05em;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            color: #475569;
+            white-space: nowrap;
+        }
+
+        label {
+            display: block;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            margin-bottom: 8px;
+            cursor: pointer;
+        }
+
+        .value-display {
+            font-family: monospace;
+            color: var(--accent-color);
+            font-weight: bold;
+        }
+
+        /* 按钮样式 */
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 5px;
+        }
+
+        button {
+            flex: 1;
+            padding: 8px 12px;
+            background-color: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        button:hover {
+            background-color: #f8fafc;
+            border-color: var(--accent-color);
+            color: var(--accent-color);
+        }
+
+        button.active {
+            background-color: var(--accent-color);
+            color: white;
+            border-color: var(--accent-color);
+        }
+
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+            cursor: pointer;
+        }
+
+        /* 底部：画布容器 */
+        #canvas-container {
+            background: var(--panel-bg);
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            border: 1px solid var(--border-color);
+            padding: 10px;
+            
+            width: 100%; /* 占满宽度 */
+            height: 600px; /* 固定高度，或者 min-height */
+            box-sizing: border-box;
+            
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        /* 底部信息栏样式调整 */
+        .info-panel {
+            margin-top: 0;
+            padding: 10px;
+            background: #eff6ff;
+            border-radius: 8px;
+            font-size: 0.9em;
+            color: #1e3a8a;
+            line-height: 1.6;
+        }
+
+    </style>
+</head>
+<body>
+
+    <h1>光波实验室：波长、振幅与波速</h1>
+    <div class="subtitle">
+        通过调节参数，直观理解光的波动性。波长决定光的颜色，振幅决定光的强度（亮度）。
+    </div>
+
+    <div class="main-container">
+        
+        <!-- 上方：控制面板 -->
+        <div class="controls">
+            
+            <!-- 模块1：播放控制 -->
+            <div class="control-group" style="flex: 0.8;">
+                <div class="control-header">📺 播放控制</div>
+                <div class="btn-group">
+                    <button id="btn-play" class="active">播放</button>
+                    <button id="btn-pause">暂停</button>
+                    <button id="btn-reset">重置</button>
+                </div>
+            </div>
+
+            <!-- 模块2：物理参数 -->
+            <div class="control-group" style="flex: 1.5;">
+                <div class="control-header">🌈 物理参数</div>
+                
+                <label>
+                    <span>波长 (λ) [颜色]</span>
+                    <span id="val-wavelength" class="value-display">550 nm</span>
+                </label>
+                <input type="range" id="slider-wavelength" min="380" max="750" step="1" value="550">
+                
+                <label>
+                    <span>振幅 (A) [强度]</span>
+                    <span id="val-amplitude" class="value-display">80</span>
+                </label>
+                <input type="range" id="slider-amplitude" min="10" max="150" step="1" value="80">
+
+                <label>
+                    <span>模拟波速 (v)</span>
+                    <span id="val-speed" class="value-display">1.0x</span>
+                </label>
+                <input type="range" id="slider-speed" min="0" max="3" step="0.1" value="1.0">
+            </div>
+
+            <!-- 模块3：概念显示 -->
+            <div class="control-group">
+                <div class="control-header">👁️ 概念显示</div>
+                
+                <div class="toggle-row" id="toggle-measure-wl">
+                    <span>📏 显示波长标注</span>
+                    <input type="checkbox" checked>
+                </div>
+                <div class="toggle-row" id="toggle-measure-amp">
+                    <span>↕️ 显示振幅标注</span>
+                    <input type="checkbox" checked>
+                </div>
+                <div class="toggle-row" id="toggle-particle">
+                    <span>🔴 显示场强参考点</span>
+                    <input type="checkbox" checked>
+                </div>
+                <div class="toggle-row" id="toggle-grid">
+                    <span>🕸️ 显示网格</span>
+                    <input type="checkbox" checked>
+                </div>
+            </div>
+
+            <!-- 模块4：说明 -->
+            <div class="control-group info-panel">
+                <strong>物理小贴士：</strong><br>
+                1. <strong>波长 (λ)</strong>：两个波峰之间的距离。在真空中，不同颜色的光波长不同。<br>
+                2. <strong>振幅 (A)</strong>：波峰偏离平衡位置的距离。振幅越大，光越亮。<br>
+                3. <strong>颜色</strong>：本演示根据波长自动计算对应的光谱颜色。
+            </div>
+
+        </div>
+
+        <!-- 下方：画布 -->
+        <div id="canvas-container"></div>
+
+    </div>
+
+    <script>
+        // --- 全局变量 ---
+        let wavelength = 550; // nm
+        let amplitude = 80;   // pixels (mapped from intensity)
+        let speedMult = 1.0;  // multiplier
+        let phase = 0;
+        
+        let isPlaying = true;
+        
+        // 标记开关
+        let showWavelength = true;
+        let showAmplitude = true;
+        let showParticle = true;
+        let showGrid = true;
+
+        // 画布尺寸
+        let cWidth, cHeight;
+
+        // p5.js 实例
+        function setup() {
+            // 根据容器动态计算大小
+            const container = document.getElementById('canvas-container');
+            cWidth = container.clientWidth;
+            cHeight = container.clientHeight; // 至少500px
+
+            const canvas = createCanvas(cWidth, cHeight);
+            canvas.parent('canvas-container');
+            
+            frameRate(60);
+            rectMode(CENTER);
+            textAlign(CENTER, CENTER);
+            textSize(14);
+            
+            // 初始化DOM监听器
+            initControls();
+        }
+
+        function windowResized() {
+            const container = document.getElementById('canvas-container');
+            if (container) {
+                cWidth = container.clientWidth;
+                cHeight = container.clientHeight;
+                resizeCanvas(cWidth, cHeight);
+            }
+        }
+
+        function draw() {
+            background(255); // 白色背景
+
+            if (showGrid) drawGrid();
+            drawAxes();
+
+            // 计算当前波的颜色
+            let waveColor = wavelengthToColor(wavelength);
+            
+            // 物理计算
+            // 这里的 scalingFactor 是为了将nm映射到屏幕像素
+            // 假设屏幕宽度对应约 2000nm 的视野（仅为演示比例）
+            let displayWavelength = map(wavelength, 380, 750, 150, 400); 
+            
+            // 更新相位
+            if (isPlaying) {
+                // 速度 = 频率 * 波长
+                phase -= (0.05 * speedMult); 
+            }
+
+            // 绘制波形
+            noFill();
+            stroke(waveColor);
+            strokeWeight(4);
+            
+            beginShape();
+            for (let x = 0; x <= width; x += 2) {
+                // 核心波方程: y = A * sin(kx - ωt)
+                let k = TWO_PI / displayWavelength; // 波数
+                // x 对应屏幕坐标，width/2 为原点
+                let xRel = x - 50; // 从左侧开始一点
+                let y = height / 2 + amplitude * sin(k * xRel + phase);
+                vertex(x, y);
+            }
+            endShape();
+
+            // 绘制视觉辅助 (标注)
+            drawAnnotations(displayWavelength, waveColor);
+
+            // 绘制参考点 (粒子/场强点)
+            if (showParticle) {
+                drawReferenceParticle(displayWavelength, waveColor);
+            }
+            
+            // 左上角显示当前光色块
+            drawColorIndicator(waveColor);
+        }
+
+        // --- 辅助绘图函数 ---
+
+        function drawGrid() {
+            stroke(240);
+            strokeWeight(1);
+            // 竖线
+            for (let x = 0; x < width; x += 50) {
+                line(x, 0, x, height);
+            }
+            // 横线
+            for (let y = 0; y < height; y += 50) {
+                line(0, y, width, y);
+            }
+        }
+
+        function drawAxes() {
+            stroke(100);
+            strokeWeight(1);
+            // X轴 (传播方向)
+            line(20, height / 2, width - 20, height / 2);
+            fill(100);
+            noStroke();
+            triangle(width - 20, height / 2 - 5, width - 20, height / 2 + 5, width - 10, height / 2);
+            text("传播方向 (x)", width - 60, height / 2 + 20);
+
+            // Y轴 (电场强度 E)
+            stroke(100);
+            line(50, height - 50, 50, 50);
+            triangle(45, 50, 55, 50, 50, 40);
+            noStroke();
+            text("电场强度 (E)", 90, 40);
+        }
+
+        function drawAnnotations(displayWl, color) {
+            let k = TWO_PI / displayWl;
+            
+            let startPhase = phase % TWO_PI; // Normalize
+            // 寻找第一个完整的波峰
+            let firstPeakX = (HALF_PI - startPhase) / k;
+            while(firstPeakX < 100) firstPeakX += displayWl; 
+            
+            let secondPeakX = firstPeakX + displayWl;
+
+            // 1. 绘制波长标注 (λ)
+            if (showWavelength && secondPeakX < width - 20) {
+                let peakY = height / 2 - amplitude - 20;
+                
+                stroke(50);
+                strokeWeight(1);
+                // 辅助竖线
+                drawingContext.setLineDash([5, 5]); // 虚线
+                line(firstPeakX, height/2 - amplitude, firstPeakX, peakY - 10);
+                line(secondPeakX, height/2 - amplitude, secondPeakX, peakY - 10);
+                drawingContext.setLineDash([]); // 实线
+
+                // 箭头线
+                fill(50);
+                stroke(50);
+                line(firstPeakX + 10, peakY, secondPeakX - 10, peakY);
+                // 箭头
+                triangle(firstPeakX, peakY, firstPeakX + 10, peakY - 4, firstPeakX + 10, peakY + 4);
+                triangle(secondPeakX, peakY, secondPeakX - 10, peakY - 4, secondPeakX - 10, peakY + 4);
+
+                noStroke();
+                fill(0);
+                rectMode(CENTER);
+                // 背景白块防止字看不清
+                fill(255, 200); 
+                rect((firstPeakX + secondPeakX)/2, peakY, 80, 20);
+                fill(0);
+                text(`波长 λ = ${wavelength} nm`, (firstPeakX + secondPeakX)/2, peakY);
+            }
+
+            // 2. 绘制振幅标注 (A)
+            if (showAmplitude && firstPeakX < width) {
+                let baseX = firstPeakX; 
+                let topY = height / 2 - amplitude;
+                let midY = height / 2;
+
+                stroke(50);
+                strokeWeight(1);
+                
+                // 箭头线
+                line(baseX, midY - 5, baseX, topY + 5);
+                fill(50);
+                // 上箭头
+                triangle(baseX, topY, baseX - 4, topY + 5, baseX + 4, topY + 5);
+                // 下箭头
+                triangle(baseX, midY, baseX - 4, midY - 5, baseX + 4, midY - 5);
+
+                noStroke();
+                fill(0);
+                text("振幅 A", baseX + 40, (topY + midY)/2);
+            }
+        }
+
+        function drawReferenceParticle(displayWl, color) {
+            // 在固定的 x 位置显示一个点
+            let particleX = width / 2;
+            let k = TWO_PI / displayWl;
+            let particleY = height / 2 + amplitude * sin(k * (particleX - 50) + phase);
+
+            // 虚线轨迹
+            stroke(color);
+            strokeWeight(1);
+            drawingContext.setLineDash([2, 4]);
+            line(particleX, height/2 - amplitude, particleX, height/2 + amplitude);
+            drawingContext.setLineDash([]);
+
+            // 粒子本体
+            fill(color);
+            stroke(0);
+            strokeWeight(1);
+            circle(particleX, particleY, 15);
+
+            // 标签
+            fill(100);
+            noStroke();
+            textAlign(LEFT);
+            text("场强变化点", particleX + 15, particleY);
+            textAlign(CENTER);
+        }
+        
+        function drawColorIndicator(col) {
+            push();
+            resetMatrix();
+            fill(col);
+            stroke(200);
+            strokeWeight(1);
+            rectMode(CORNER);
+            rect(10, 10, 30, 30, 5);
+            fill(50);
+            noStroke();
+            textAlign(LEFT, CENTER);
+            textSize(12);
+            text("当前光色", 45, 25);
+            pop();
+        }
+
+        // --- 逻辑控制函数 ---
+
+        function initControls() {
+            // 播放按钮
+            document.getElementById('btn-play').onclick = () => {
+                isPlaying = true;
+                setActiveBtn('btn-play');
+                loop();
+            };
+            document.getElementById('btn-pause').onclick = () => {
+                isPlaying = false;
+                setActiveBtn('btn-pause');
+                noLoop();
+            };
+            document.getElementById('btn-reset').onclick = () => {
+                resetSim();
+            };
+
+            // 滑块监听
+            const sWavelength = document.getElementById('slider-wavelength');
+            const vWavelength = document.getElementById('val-wavelength');
+            sWavelength.oninput = (e) => {
+                wavelength = parseInt(e.target.value);
+                vWavelength.innerText = wavelength + " nm";
+                if(!isPlaying) redraw();
+            };
+
+            const sAmplitude = document.getElementById('slider-amplitude');
+            const vAmplitude = document.getElementById('val-amplitude');
+            sAmplitude.oninput = (e) => {
+                amplitude = parseInt(e.target.value);
+                vAmplitude.innerText = amplitude;
+                if(!isPlaying) redraw();
+            };
+
+            const sSpeed = document.getElementById('slider-speed');
+            const vSpeed = document.getElementById('val-speed');
+            sSpeed.oninput = (e) => {
+                speedMult = parseFloat(e.target.value);
+                vSpeed.innerText = speedMult.toFixed(1) + "x";
+            };
+
+            // Toggle监听
+            bindToggle('toggle-measure-wl', (v) => { showWavelength = v; if(!isPlaying) redraw(); });
+            bindToggle('toggle-measure-amp', (v) => { showAmplitude = v; if(!isPlaying) redraw(); });
+            bindToggle('toggle-particle', (v) => { showParticle = v; if(!isPlaying) redraw(); });
+            bindToggle('toggle-grid', (v) => { showGrid = v; if(!isPlaying) redraw(); });
+        }
+
+        function bindToggle(id, callback) {
+            const div = document.getElementById(id);
+            const checkbox = div.querySelector('input');
+            div.onclick = (e) => {
+                if (e.target !== checkbox) checkbox.checked = !checkbox.checked;
+                callback(checkbox.checked);
+            };
+            checkbox.onchange = () => callback(checkbox.checked);
+        }
+
+        function setActiveBtn(id) {
+            ['btn-play', 'btn-pause'].forEach(btnId => {
+                document.getElementById(btnId).classList.remove('active');
+            });
+            document.getElementById(id).classList.add('active');
+        }
+
+        function resetSim() {
+            wavelength = 550;
+            amplitude = 80;
+            speedMult = 1.0;
+            phase = 0;
+            
+            document.getElementById('slider-wavelength').value = 550;
+            document.getElementById('val-wavelength').innerText = "550 nm";
+            
+            document.getElementById('slider-amplitude').value = 80;
+            document.getElementById('val-amplitude').innerText = "80";
+            
+            document.getElementById('slider-speed').value = 1.0;
+            document.getElementById('val-speed').innerText = "1.0x";
+            
+            isPlaying = true;
+            setActiveBtn('btn-play');
+            loop();
+        }
+
+        // --- 核心算法：波长转RGB颜色 ---
+        function wavelengthToColor(wl) {
+            let r, g, b, alpha;
+            if (wl >= 380 && wl < 440) { r = -1 * (wl - 440) / (440 - 380); g = 0; b = 1; } 
+            else if (wl >= 440 && wl < 490) { r = 0; g = (wl - 440) / (490 - 440); b = 1; } 
+            else if (wl >= 490 && wl < 510) { r = 0; g = 1; b = -1 * (wl - 510) / (510 - 490); } 
+            else if (wl >= 510 && wl < 580) { r = (wl - 510) / (580 - 510); g = 1; b = 0; } 
+            else if (wl >= 580 && wl < 645) { r = 1; g = -1 * (wl - 645) / (645 - 580); b = 0; } 
+            else if (wl >= 645 && wl <= 750) { r = 1; g = 0; b = 0; } 
+            else { r = 0; g = 0; b = 0; }
+
+            if (wl > 700) { alpha = 0.3 + 0.7 * (750 - wl) / (750 - 700); } 
+            else if (wl < 420) { alpha = 0.3 + 0.7 * (wl - 380) / (420 - 380); } 
+            else { alpha = 1; }
+
+            return color(r * 255, g * 255, b * 255, alpha * 255);
+        }
+
+    </script>
+</body>
+</html>

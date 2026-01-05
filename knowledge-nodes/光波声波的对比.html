@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>声光波谱对比实验室 (高性能版)</title>
+    
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 引入 React 和 ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- 引入 Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        body { font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; }
+        
+        /* 自定义滑块样式 - 更加现代和易于拖动 */
+        input[type=range] {
+            -webkit-appearance: none; 
+            background: transparent; 
+        }
+        
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #ffffff;
+            border: 2px solid #475569;
+            cursor: pointer;
+            margin-top: -8px; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            transition: transform 0.1s;
+        }
+
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.1);
+        }
+
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: rgba(0,0,0,0.1);
+            border-radius: 2px;
+        }
+
+        /* 动画淡入 */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fadeIn {
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useMemo } = React;
+
+        // --- 辅助函数：颜色计算 ---
+        const wavelengthToColor = (wavelength, intensity = 1.0) => {
+            let R, G, B, alpha;
+            if (wavelength >= 380 && wavelength < 440) {
+                R = -(wavelength - 440) / (440 - 380); G = 0; B = 1;
+            } else if (wavelength >= 440 && wavelength < 490) {
+                R = 0; G = (wavelength - 440) / (490 - 440); B = 1;
+            } else if (wavelength >= 490 && wavelength < 510) {
+                R = 0; G = 1; B = -(wavelength - 510) / (510 - 490);
+            } else if (wavelength >= 510 && wavelength < 580) {
+                R = (wavelength - 510) / (580 - 510); G = 1; B = 0;
+            } else if (wavelength >= 580 && wavelength < 645) {
+                R = 1; G = -(wavelength - 645) / (645 - 580); B = 0;
+            } else if (wavelength >= 645 && wavelength <= 750) {
+                R = 1; G = 0; B = 0;
+            } else {
+                R = 0; G = 0; B = 0;
+            }
+
+            // 边缘透明度
+            if (wavelength > 700) alpha = 0.3 + 0.7 * (750 - wavelength) / (750 - 700);
+            else if (wavelength < 420) alpha = 0.3 + 0.7 * (wavelength - 380) / (420 - 380);
+            else alpha = 1;
+
+            // 强度影响
+            alpha = alpha * (0.3 + 0.7 * intensity);
+
+            // 不可见光区域
+            if (wavelength < 380) return `rgba(100, 0, 200, ${alpha})`; 
+            if (wavelength > 750) return `rgba(150, 0, 0, ${alpha})`;
+
+            return `rgba(${Math.round(R * 255)},${Math.round(G * 255)},${Math.round(B * 255)},${alpha})`;
+        };
+
+        // --- 图标组件 ---
+        const Icon = ({ path, size = 24, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                {path}
+            </svg>
+        );
+
+        const Icons = {
+            Volume: <path d="M11 5L6 9H2v6h4l5 4V5zM19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>,
+            Sun: <g><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></g>,
+            Activity: <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>,
+            Eye: <g><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></g>,
+            Rotate: <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>,
+            Maximize: <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+        };
+
+        // --- 核心可视化组件 (使用 Ref 优化性能) ---
+
+        // 1. 声波粒子组件
+        const SoundParticleWave = ({ frequency, amplitude }) => {
+            const canvasRef = useRef(null);
+            const requestRef = useRef();
+            const paramsRef = useRef({ frequency, amplitude }); // 存储最新参数
+
+            // 同步参数到 Ref
+            useEffect(() => {
+                paramsRef.current = { frequency, amplitude };
+            }, [frequency, amplitude]);
+
+            useEffect(() => {
+                const canvas = canvasRef.current;
+                const ctx = canvas.getContext('2d', { alpha: false }); // 优化：关闭透明通道
+                
+                // 处理高清屏
+                const dpr = window.devicePixelRatio || 1;
+                const rect = canvas.getBoundingClientRect();
+                canvas.width = rect.width * dpr;
+                canvas.height = rect.height * dpr;
+                ctx.scale(dpr, dpr);
+
+                // 初始化粒子
+                const particles = [];
+                const rows = 10;
+                const cols = 50;
+                const width = rect.width;
+                const height = rect.height;
+                
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        particles.push({
+                            baseX: (c / cols) * width + (width/cols)/2,
+                            baseY: (r / rows) * (height * 0.8) + (height * 0.1),
+                            col: c
+                        });
+                    }
+                }
+
+                const animate = (time) => {
+                    const { frequency, amplitude } = paramsRef.current;
+                    
+                    // 清除画布
+                    ctx.fillStyle = '#f8fafc'; // bg-slate-50
+                    ctx.fillRect(0, 0, width, height);
+
+                    // 物理参数
+                    const speed = Math.log10(frequency) * 0.008; 
+                    const k = 0.2; // 波数
+                    
+                    // 将幅度 (0-100) 映射到 像素位移
+                    const maxDisplacement = (width / cols) * 1.5; // 允许粒子稍微重叠以显示"密"
+                    const currentDisplacement = (amplitude / 100) * maxDisplacement;
+
+                    ctx.fillStyle = '#3b82f6'; // blue-500
+
+                    particles.forEach(p => {
+                        // 纵波方程：x = x0 + A * sin(kx - wt)
+                        // 注意：这里粒子是左右振动
+                        const phase = p.col * k - time * speed;
+                        const displacement = Math.sin(phase) * currentDisplacement;
+                        
+                        const x = p.baseX + displacement;
+                        const y = p.baseY;
+
+                        ctx.beginPath();
+                        ctx.arc(x, y, 3, 0, Math.PI * 2);
+                        ctx.fill();
+                    });
+
+                    requestRef.current = requestAnimationFrame(animate);
+                };
+
+                requestRef.current = requestAnimationFrame(animate);
+                return () => cancelAnimationFrame(requestRef.current);
+            }, []); // 仅挂载时运行一次
+
+            return (
+                <div className="relative w-full h-64 bg-slate-50 border border-slate-200 rounded-xl overflow-hidden shadow-inner">
+                    <canvas ref={canvasRef} className="w-full h-full block"/>
+                    <div className="absolute top-3 left-3 bg-white/90 backdrop-blur px-3 py-1 rounded-md text-xs font-mono text-slate-500 border border-slate-200 shadow-sm pointer-events-none">
+                        粒子视图：空气分子左右振动
+                    </div>
+                </div>
+            );
+        };
+
+        // 2. 光波横波组件 (极致优化)
+        const LightTransverseWave = ({ wavelength, amplitude }) => {
+            const canvasRef = useRef(null);
+            const requestRef = useRef();
+            const paramsRef = useRef({ wavelength, amplitude });
+
+            useEffect(() => {
+                paramsRef.current = { wavelength, amplitude };
+            }, [wavelength, amplitude]);
+
+            useEffect(() => {
+                const canvas = canvasRef.current;
+                const ctx = canvas.getContext('2d');
+                
+                const dpr = window.devicePixelRatio || 1;
+                const rect = canvas.getBoundingClientRect();
+                canvas.width = rect.width * dpr;
+                canvas.height = rect.height * dpr;
+                ctx.scale(dpr, dpr);
+                
+                const width = rect.width;
+                const height = rect.height;
+
+                const animate = (time) => {
+                    const { wavelength, amplitude } = paramsRef.current;
+                    
+                    // 背景清除
+                    ctx.clearRect(0, 0, width, height);
+                    
+                    // 物理计算
+                    // 屏幕宽度对应的物理长度假设为固定，波长改变 -> k 改变
+                    // v = c (光速恒定). phase = kx - wt.
+                    // 为了视觉效果，我们让波峰移动速度大致恒定
+                    const visualK = 3000 / wavelength; // 波长越大，k越小，波越宽
+                    const waveSpeed = 0.005; // 视觉上的光速
+                    const phaseOffset = time * waveSpeed;
+                    
+                    const ampPx = 10 + (amplitude / 100) * (height * 0.35);
+                    const intensity = amplitude / 100;
+                    const color = wavelengthToColor(wavelength, intensity);
+                    
+                    // 主波形
+                    ctx.beginPath();
+                    ctx.lineCap = 'round';
+                    ctx.lineJoin = 'round';
+                    ctx.lineWidth = 3 + intensity * 3;
+                    ctx.strokeStyle = color;
+
+                    // 优化：不画所有像素，步长为2
+                    for (let x = 0; x <= width; x += 2) {
+                        const angle = (x * 0.01 * visualK) - phaseOffset;
+                        const y = height / 2 + Math.sin(angle) * ampPx;
+                        if (x === 0) ctx.moveTo(x, y);
+                        else ctx.lineTo(x, y);
+                    }
+                    ctx.stroke();
+
+                    // 发光效果 (简单的双重描边代替昂贵的 shadowBlur)
+                    if (intensity > 0.2) {
+                        ctx.lineWidth = 10 + intensity * 10;
+                        ctx.strokeStyle = color.replace(/[\d\.]+\)$/, (intensity * 0.2) + ')');
+                        ctx.stroke();
+                    }
+
+                    // 电场矢量箭头 (E-field vectors)
+                    ctx.lineWidth = 1;
+                    const arrowColor = color.replace(/[\d\.]+\)$/, '0.6)');
+                    ctx.strokeStyle = arrowColor;
+                    ctx.fillStyle = color;
+                    
+                    const arrowStep = Math.max(30, wavelength / 5); // 根据波长调整箭头密度
+
+                    for (let x = 20; x < width; x += arrowStep) {
+                        const angle = (x * 0.01 * visualK) - phaseOffset;
+                        const y = height / 2 + Math.sin(angle) * ampPx;
+                        
+                        ctx.beginPath();
+                        ctx.moveTo(x, height / 2);
+                        ctx.lineTo(x, y);
+                        ctx.stroke();
+                        
+                        // 箭头点
+                        ctx.beginPath();
+                        ctx.arc(x, y, 2, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+
+                    // 中轴线
+                    ctx.beginPath();
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                    ctx.lineWidth = 1;
+                    ctx.moveTo(0, height / 2);
+                    ctx.lineTo(width, height / 2);
+                    ctx.stroke();
+
+                    requestRef.current = requestAnimationFrame(animate);
+                };
+
+                requestRef.current = requestAnimationFrame(animate);
+                return () => cancelAnimationFrame(requestRef.current);
+            }, []);
+
+            return (
+                <div className="relative w-full h-64 bg-slate-900 border border-slate-700 rounded-xl overflow-hidden shadow-lg">
+                    <canvas ref={canvasRef} className="w-full h-full block"/>
+                    <div className="absolute top-3 left-3 bg-black/60 backdrop-blur px-3 py-1 rounded-md text-xs font-mono text-slate-300 border border-slate-600 pointer-events-none">
+                        电场视图：电磁场强度变化 (正弦波)
+                    </div>
+                </div>
+            );
+        };
+
+        // 3. 核心对比演示 (波形 vs 粒子)
+        const WaveMechanicsDemo = ({ showMapping, amplitude }) => {
+            const canvasRef = useRef(null);
+            const requestRef = useRef();
+            const paramsRef = useRef({ showMapping, amplitude });
+
+            useEffect(() => {
+                paramsRef.current = { showMapping, amplitude };
+            }, [showMapping, amplitude]);
+
+            useEffect(() => {
+                const canvas = canvasRef.current;
+                const ctx = canvas.getContext('2d');
+                
+                const dpr = window.devicePixelRatio || 1;
+                const rect = canvas.getBoundingClientRect();
+                canvas.width = rect.width * dpr;
+                canvas.height = rect.height * dpr;
+                ctx.scale(dpr, dpr);
+                const w = rect.width;
+                const h = rect.height;
+
+                const animate = (time) => {
+                    const { showMapping, amplitude } = paramsRef.current;
+                    ctx.clearRect(0, 0, w, h);
+
+                    const k = 0.04; 
+                    const omega = 0.004; 
+                    const phase = time * omega;
+                    const amp = (amplitude / 100) * 30; // Scale amplitude
+
+                    // 1. 横波 (顶部)
+                    const topY = h * 0.2;
+                    ctx.fillStyle = '#6366f1'; 
+                    ctx.font = 'bold 14px sans-serif';
+                    ctx.textAlign = 'left';
+                    ctx.fillText("横波 (Light/Rope)", 20, 30);
+                    
+                    ctx.beginPath(); ctx.strokeStyle = '#e2e8f0'; ctx.moveTo(0, topY); ctx.lineTo(w, topY); ctx.stroke();
+
+                    // 绘制横波粒子串
+                    for (let x = 50; x < w - 50; x += 12) {
+                        // 横波：粒子 x 不变，y 变化
+                        const y = topY + Math.sin(x * k - phase) * amp;
+                        ctx.beginPath();
+                        // 标记中心粒子
+                        if (Math.abs(x - w/2) < 6) { 
+                            ctx.fillStyle = '#ef4444'; 
+                            ctx.arc(x, y, 5, 0, Math.PI * 2); 
+                        } else { 
+                            ctx.fillStyle = '#818cf8'; 
+                            ctx.arc(x, y, 2.5, 0, Math.PI * 2); 
+                        }
+                        ctx.fill();
+                    }
+
+                    // 2. 纵波 (中间)
+                    const midY = h * 0.5;
+                    ctx.fillStyle = '#0ea5e9'; ctx.fillText("纵波 (Sound/Spring)", 20, midY - 30);
+
+                    // 绘制纵波粒子串
+                    for (let i = 0; i < (w - 100) / 12; i++) {
+                        const baseX = 50 + i * 12;
+                        // 纵波：粒子 y 不变，x 变化
+                        // displacement = cos(kx - wt) 对应压力波的 sin
+                        // 物理上：位移落后压力 pi/2。如果压力是 sin，位移是 -cos。
+                        // 为了视觉对应下面的正弦图（压力图），我们设定：
+                        // 当 Graph 处于 Peak (高压/密) 时，粒子应该聚集。
+                        // 聚集意味着左边的粒子向右移，右边的粒子向左移。
+                        // 即 displacement 随 x 的导数为负。
+                        // 让我们直接用 displacement = A * cos(kx - wt)。
+                        // dx/dx = -k A sin. 密度 ~ -dx/dx ~ sin.
+                        // 所以当 sin > 0 (Graph Up), 密度大。符合！
+                        
+                        const displacement = Math.cos(baseX * k - phase) * amp; 
+                        const x = baseX + displacement;
+                        
+                        ctx.beginPath();
+                        if (Math.abs(baseX - w/2) < 6) { 
+                            ctx.fillStyle = '#ef4444'; 
+                            ctx.arc(x, midY, 5, 0, Math.PI * 2); 
+                        } else { 
+                            ctx.fillStyle = '#38bdf8'; 
+                            ctx.arc(x, midY, 2.5, 0, Math.PI * 2); 
+                        }
+                        ctx.fill();
+
+                        // 辅助连线
+                        if (showMapping && i % 5 === 0) {
+                            ctx.beginPath(); 
+                            ctx.strokeStyle = 'rgba(200, 200, 200, 0.4)'; 
+                            ctx.setLineDash([2, 4]);
+                            ctx.moveTo(x, midY + 10);
+                            
+                            // 连到底部的波形图上的对应点
+                            const graphY = h * 0.8 - Math.sin(baseX * k - phase) * amp; 
+                            ctx.lineTo(baseX, graphY); 
+                            ctx.stroke(); 
+                            ctx.setLineDash([]);
+                        }
+                    }
+
+                    // 3. 书本图像 (底部)
+                    if (showMapping) {
+                        const botY = h * 0.8;
+                        ctx.fillStyle = '#64748b'; 
+                        ctx.fillText("书本上的图像 (代表压强/密度)", 20, botY - 40);
+                        
+                        // 绘制正弦曲线
+                        ctx.beginPath(); 
+                        ctx.strokeStyle = '#94a3b8'; 
+                        ctx.lineWidth = 2;
+                        for (let x = 0; x < w; x+=2) {
+                            const y = botY - Math.sin(x * k - phase) * amp; 
+                            if (x===0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                        }
+                        ctx.stroke();
+                        
+                        // 中轴
+                        ctx.beginPath(); ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1; ctx.moveTo(0, botY); ctx.lineTo(w, botY); ctx.stroke();
+                        
+                        // 标记密部和疏部
+                        const wavelength = 2 * Math.PI / k;
+                        // 密部 (Peak of Sine)
+                        let peakX = ((phase + Math.PI/2) / k) % wavelength;
+                        while(peakX < w) {
+                            if (peakX > 20) {
+                                ctx.fillStyle = '#ef4444'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
+                                ctx.fillText("密 (高压)", peakX, botY - amp - 10); 
+                            }
+                            peakX += wavelength;
+                        }
+
+                        // 疏部 (Trough of Sine)
+                        let troughX = ((phase + 3*Math.PI/2) / k) % wavelength;
+                        while(troughX < w) {
+                            if (troughX > 20) {
+                                ctx.fillStyle = '#3b82f6'; ctx.font = '12px sans-serif'; ctx.textAlign = 'center';
+                                ctx.fillText("疏 (低压)", troughX, botY + amp + 20); 
+                            }
+                            troughX += wavelength;
+                        }
+                        ctx.textAlign = 'left'; 
+                    }
+                    requestRef.current = requestAnimationFrame(animate);
+                };
+
+                requestRef.current = requestAnimationFrame(animate);
+                return () => cancelAnimationFrame(requestRef.current);
+            }, []);
+
+            return (
+                <div className="relative w-full h-96 bg-white border border-slate-200 rounded-xl overflow-hidden shadow-md">
+                    <canvas ref={canvasRef} className="w-full h-full block"/>
+                    <div className="absolute top-4 right-4 bg-white/95 p-3 rounded-lg border border-slate-200 shadow-sm text-xs space-y-2 pointer-events-none">
+                        <div className="flex items-center"><span className="w-3 h-3 rounded-full bg-red-500 mr-2"></span><span className="font-semibold text-slate-700">红色粒子：追踪单个粒子的运动</span></div>
+                        <div className="text-slate-500 pl-5 leading-tight">横波：粒子仅上下动<br/>纵波：粒子仅左右动<br/>波向右传播，粒子不随波逐流</div>
+                    </div>
+                </div>
+            );
+        };
+
+        // 4. 视角演示组件 (3D透视)
+        const PerspectiveDemo = ({ angle, amplitude }) => {
+            const canvasRef = useRef(null);
+            const requestRef = useRef();
+            const paramsRef = useRef({ angle, amplitude });
+
+            useEffect(() => { paramsRef.current = { angle, amplitude }; }, [angle, amplitude]);
+
+            useEffect(() => {
+                const canvas = canvasRef.current;
+                const ctx = canvas.getContext('2d');
+                const dpr = window.devicePixelRatio || 1;
+                const rect = canvas.getBoundingClientRect();
+                canvas.width = rect.width * dpr;
+                canvas.height = rect.height * dpr;
+                ctx.scale(dpr, dpr);
+                const w = rect.width;
+                const h = rect.height;
+
+                const animate = (time) => {
+                    const { angle, amplitude } = paramsRef.current;
+                    ctx.clearRect(0, 0, w, h);
+
+                    const k = 0.05; 
+                    const omega = 0.005; 
+                    const phase = time * omega;
+                    const isTopView = angle === 'top';
+                    const amp = amplitude;
+
+                    // LEFT: Sound (Spring Analogy)
+                    const leftX = w * 0.25;
+                    ctx.textAlign = 'center';
+                    
+                    // 标题
+                    ctx.fillStyle = '#0ea5e9'; ctx.font = 'bold 16px sans-serif';
+                    ctx.fillText("纵波 (弹簧/声波)", leftX, 40);
+                    ctx.fillStyle = '#64748b'; ctx.font = '13px sans-serif';
+                    ctx.fillText(isTopView ? "视角：俯视 (Top View)" : "视角：侧视 (Side View)", leftX, 65);
+
+                    // 绘制弹簧圈
+                    ctx.strokeStyle = '#0ea5e9';
+                    ctx.lineWidth = 2;
+                    for (let i = 0; i < 25; i++) {
+                        const baseY = 100 + i * 10;
+                        const displacement = Math.cos(i * 0.5 - phase) * (amp * 0.6);
+                        const y = baseY + displacement;
+                        
+                        ctx.beginPath();
+                        // 侧视时看到弹簧侧面(扁椭圆)，俯视时看到弹簧圆圈(正圆)
+                        // 但纵波的疏密变化在两个视角下都是可见的，只是圆的形态不同
+                        const radiusX = 25;
+                        const radiusY = isTopView ? 25 : 6; 
+                        
+                        ctx.ellipse(leftX, y, radiusX, radiusY, 0, 0, Math.PI * 2); 
+                        ctx.stroke();
+                    }
+                    
+                    // RIGHT: Light (Rope Analogy)
+                    const rightX = w * 0.75;
+                    ctx.fillStyle = '#6366f1'; ctx.font = 'bold 16px sans-serif';
+                    ctx.fillText("横波 (绳子/光波)", rightX, 40);
+                    ctx.fillStyle = '#64748b'; ctx.font = '13px sans-serif';
+                    ctx.fillText(isTopView ? "视角：俯视 (Top View)" : "视角：侧视 (Side View)", rightX, 65);
+
+                    ctx.strokeStyle = '#6366f1';
+                    ctx.lineWidth = 4;
+                    ctx.lineCap = 'round';
+                    ctx.beginPath();
+
+                    if (isTopView) {
+                        // 横波俯视：变成直线
+                        ctx.moveTo(rightX, 100);
+                        ctx.lineTo(rightX, 350);
+                        ctx.stroke();
+                        
+                        // 注解
+                        ctx.fillStyle = '#94a3b8'; ctx.font = 'italic 14px serif';
+                        ctx.fillText("(是一条直线)", rightX, 225);
+                    } else {
+                        // 横波侧视：波浪线
+                        for (let y = 100; y < 350; y++) {
+                            const x = rightX + Math.sin((y-100) * k - phase) * amp;
+                            if (y === 100) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                        }
+                        ctx.stroke();
+                    }
+
+                    requestRef.current = requestAnimationFrame(animate);
+                };
+
+                requestRef.current = requestAnimationFrame(animate);
+                return () => cancelAnimationFrame(requestRef.current);
+            }, []);
+
+            return (
+                <div className="w-full h-96 bg-slate-50 border border-slate-200 rounded-xl overflow-hidden shadow-inner">
+                    <canvas ref={canvasRef} className="w-full h-full block"/>
+                </div>
+            );
+        };
+
+        // --- 主程序 ---
+
+        function SoundLightLab() {
+            const [activeTab, setActiveTab] = useState('compare'); 
+            
+            // Sound State
+            const [soundSlider, setSoundSlider] = useState(60); 
+            const [soundAmp, setSoundAmp] = useState(50); 
+            const freq = useMemo(() => Math.round(Math.pow(10, soundSlider / 20)), [soundSlider]);
+            
+            // Light State
+            const [lightWavelength, setLightWavelength] = useState(550); 
+            const [lightAmp, setLightAmp] = useState(50); 
+
+            // Compare State
+            const [showMapping, setShowMapping] = useState(true);
+            const [viewAngle, setViewAngle] = useState('side'); 
+            const [demoAmplitude, setDemoAmplitude] = useState(30); 
+            const [perspectiveAmp, setPerspectiveAmp] = useState(20);
+
+            // 数据计算
+            const soundInfo = useMemo(() => {
+                if (freq < 20) return { type: '次声波', color: 'text-gray-500', bg:'bg-gray-100', desc: '频率 < 20Hz (大象、地震波)' };
+                if (freq > 20000) return { type: '超声波', color: 'text-purple-600', bg:'bg-purple-100', desc: '频率 > 20000Hz (蝙蝠、B超)' };
+                return { type: '可听声', color: 'text-green-600', bg:'bg-green-100', desc: '20Hz - 20000Hz (人类听觉范围)' };
+            }, [freq]);
+
+            const lightInfo = useMemo(() => {
+                if (lightWavelength < 380) return { type: '紫外线 (UV)', color: 'text-purple-400', desc: '< 380nm (杀菌、验钞)' };
+                if (lightWavelength > 750) return { type: '红外线 (IR)', color: 'text-red-400', desc: '> 750nm (热效应、遥控器)' };
+                return { type: '可见光', color: 'text-yellow-400', desc: '380nm - 750nm (五彩缤纷的世界)' };
+            }, [lightWavelength]);
+
+            return (
+                <div className="min-h-screen bg-slate-100 text-slate-800 pb-12">
+                    <div className="bg-white shadow-sm border-b border-slate-200">
+                        <div className="max-w-6xl mx-auto px-4 md:px-8 py-4">
+                            <div className="flex flex-col md:flex-row justify-between items-center">
+                                <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                                    <span className="bg-slate-800 text-white p-1 rounded-lg"><Icon path={Icons.Activity} size={20}/></span>
+                                    声光波谱实验室
+                                </h1>
+                                <p className="text-sm text-slate-500 mt-2 md:mt-0">初中物理：动态探索声波与光波的本质</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="max-w-6xl mx-auto px-4 md:px-8 py-8">
+                        {/* 导航栏 */}
+                        <div className="flex justify-center mb-8">
+                            <div className="bg-white p-1 rounded-full shadow-sm border border-slate-200 flex space-x-1">
+                                {[
+                                    { id: 'sound', label: '声波探索', icon: Icons.Volume, color: 'blue' },
+                                    { id: 'light', label: '光波探索', icon: Icons.Sun, color: 'indigo' },
+                                    { id: 'compare', label: '核心原理对比', icon: Icons.Activity, color: 'teal' }
+                                ].map(tab => (
+                                    <button 
+                                        key={tab.id}
+                                        onClick={() => setActiveTab(tab.id)}
+                                        className={`flex items-center space-x-2 px-6 py-2 rounded-full transition-all font-medium text-sm ${
+                                            activeTab === tab.id 
+                                            ? `bg-${tab.color}-600 text-white shadow-md` 
+                                            : 'text-slate-600 hover:bg-slate-50'
+                                        }`}
+                                    >
+                                        <Icon path={tab.icon} size={18} />
+                                        <span>{tab.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* 内容区域 */}
+                        <main className="bg-white rounded-2xl shadow-xl overflow-hidden min-h-[600px] border border-slate-200">
+                            
+                            {/* --- 声波模块 --- */}
+                            {activeTab === 'sound' && (
+                                <div className="p-6 md:p-8 animate-fadeIn flex flex-col lg:flex-row gap-8">
+                                    <div className="flex-1 space-y-6">
+                                        <div className="flex justify-between items-end pb-4 border-b border-slate-100">
+                                            <div>
+                                                <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                                                    <span className="text-blue-600"><Icon path={Icons.Volume}/></span> 声波 (Sound Waves)
+                                                </h2>
+                                                <p className="text-slate-500 text-sm mt-1">机械波 · 纵波 · 需要介质</p>
+                                            </div>
+                                            <div className={`px-3 py-1 rounded-full text-sm font-bold ${soundInfo.bg} ${soundInfo.color}`}>
+                                                {soundInfo.type}
+                                            </div>
+                                        </div>
+                                        
+                                        <SoundParticleWave frequency={freq} amplitude={soundAmp} />
+                                        
+                                        <div className="bg-blue-50 p-4 rounded-xl text-sm text-blue-800 border border-blue-100">
+                                            <strong>观察要点：</strong> 声波是纵波，空气分子在平衡位置附近做<strong>左右往复运动</strong>，形成疏密相间的波形向外传播。
+                                        </div>
+                                    </div>
+
+                                    <div className="w-full lg:w-80 bg-slate-50 p-6 rounded-xl border border-slate-200 h-fit">
+                                        <h3 className="font-bold text-slate-700 mb-6 border-b pb-2">实验控制台</h3>
+                                        
+                                        <div className="mb-8">
+                                            <div className="flex justify-between text-sm font-bold text-slate-600 mb-3">
+                                                <span>频率 (音调)</span>
+                                                <span className="font-mono text-blue-600 bg-blue-50 px-2 rounded">{freq} Hz</span>
+                                            </div>
+                                            <input 
+                                                type="range" min="20" max="100" step="1"
+                                                value={soundSlider} 
+                                                onChange={(e) => setSoundSlider(parseInt(e.target.value))} 
+                                                className="w-full h-2 bg-gradient-to-r from-slate-300 via-blue-400 to-purple-400 rounded-lg"
+                                            />
+                                            <div className="flex justify-between text-xs text-slate-400 mt-2 font-medium">
+                                                <span>低沉 (20Hz)</span>
+                                                <span>尖锐 (100kHz)</span>
+                                            </div>
+                                            <p className="text-xs text-slate-500 mt-2 italic">{soundInfo.desc}</p>
+                                        </div>
+
+                                        <div className="mb-4">
+                                            <div className="flex justify-between text-sm font-bold text-slate-600 mb-3">
+                                                <span>振幅 (响度)</span>
+                                                <span className="font-mono text-slate-600 bg-slate-200 px-2 rounded">{soundAmp}%</span>
+                                            </div>
+                                            <input 
+                                                type="range" min="1" max="100" 
+                                                value={soundAmp} 
+                                                onChange={(e) => setSoundAmp(parseInt(e.target.value))} 
+                                                className="w-full h-2 bg-slate-300 rounded-lg"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* --- 光波模块 --- */}
+                            {activeTab === 'light' && (
+                                <div className="p-0 animate-fadeIn flex flex-col lg:flex-row bg-slate-900 min-h-[600px]">
+                                    <div className="flex-1 p-6 md:p-8 space-y-6">
+                                        <div className="flex justify-between items-end pb-4 border-b border-slate-700">
+                                            <div>
+                                                <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                                                    <span className="text-yellow-400"><Icon path={Icons.Sun}/></span> 光波 (Light Waves)
+                                                </h2>
+                                                <p className="text-slate-400 text-sm mt-1">电磁波 · 横波 · 不需要介质</p>
+                                            </div>
+                                            <div className={`text-xl font-bold ${lightInfo.color}`}>
+                                                {lightInfo.type}
+                                            </div>
+                                        </div>
+
+                                        <LightTransverseWave wavelength={lightWavelength} amplitude={lightAmp} />
+
+                                        <div className="bg-slate-800 p-4 rounded-xl text-sm text-slate-300 border border-slate-700">
+                                            <strong>观察要点：</strong> 光是电磁波，电场和磁场方向与传播方向垂直（横波）。不同波长对应不同颜色。
+                                        </div>
+                                    </div>
+
+                                    <div className="w-full lg:w-80 bg-slate-800 p-6 border-l border-slate-700 text-slate-300">
+                                        <h3 className="font-bold text-white mb-6 border-b border-slate-700 pb-2">光谱控制器</h3>
+                                        
+                                        <div className="mb-8">
+                                            <div className="flex justify-between text-sm font-bold text-slate-400 mb-3">
+                                                <span>波长 (颜色)</span>
+                                                <span className="font-mono text-white bg-slate-700 px-2 rounded border border-slate-600">{lightWavelength} nm</span>
+                                            </div>
+                                            
+                                            {/* 光谱条滑块 */}
+                                            <div className="relative h-6 w-full rounded-full cursor-pointer group mb-2">
+                                                <div className="absolute inset-0 rounded-full border border-slate-600" style={{background: 'linear-gradient(to right, #4b0082 0%, #0000ff 25%, #00ff00 50%, #ffff00 75%, #ff0000 100%)', opacity: 0.8}}></div>
+                                                <input 
+                                                    type="range" min="300" max="850" step="1"
+                                                    value={lightWavelength} 
+                                                    onChange={(e) => setLightWavelength(parseInt(e.target.value))} 
+                                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                                />
+                                                <div 
+                                                    className="absolute top-0 bottom-0 w-1 bg-white shadow-[0_0_10px_white] pointer-events-none transition-all duration-75" 
+                                                    style={{ left: `${((lightWavelength - 300) / (850 - 300)) * 100}%` }}
+                                                ></div>
+                                            </div>
+                                            
+                                            <div className="flex justify-between text-xs text-slate-500 font-medium">
+                                                <span>紫外线</span>
+                                                <span>红外线</span>
+                                            </div>
+                                            <p className={`text-xs mt-2 ${lightInfo.color}`}>{lightInfo.desc}</p>
+                                        </div>
+
+                                        <div className="mb-4">
+                                            <div className="flex justify-between text-sm font-bold text-slate-400 mb-3">
+                                                <span>振幅 (光强)</span>
+                                                <span className="font-mono bg-slate-700 px-2 rounded">{lightAmp}%</span>
+                                            </div>
+                                            <input 
+                                                type="range" min="1" max="100" 
+                                                value={lightAmp} 
+                                                onChange={(e) => setLightAmp(parseInt(e.target.value))} 
+                                                className="w-full h-2 bg-slate-600 rounded-lg accent-white"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* --- 核心对比模块 --- */}
+                            {activeTab === 'compare' && (
+                                <div className="p-6 md:p-8 animate-fadeIn bg-slate-50">
+                                    {/* 顶部控制栏 */}
+                                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                                        <div>
+                                            <h2 className="text-2xl font-bold text-teal-900 flex items-center gap-2">
+                                                <Icon path={Icons.Activity} className="text-teal-600"/> 深度解析：横波 vs 纵波
+                                            </h2>
+                                            <p className="text-slate-500 text-sm mt-1">为什么物理书上的声波也画成曲线？</p>
+                                        </div>
+                                        <div className="flex gap-3">
+                                            <button 
+                                                onClick={() => setDemoAmplitude(demoAmplitude === 30 ? 60 : 30)}
+                                                className={`flex items-center text-sm px-4 py-2 rounded-lg border transition-all shadow-sm ${demoAmplitude === 60 ? 'bg-orange-100 text-orange-700 border-orange-200' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}
+                                            >
+                                                <Icon path={Icons.Maximize} size={16} className="mr-2"/> 
+                                                {demoAmplitude === 30 ? "增强振幅" : "恢复默认"}
+                                            </button>
+                                            <button 
+                                                onClick={() => setShowMapping(!showMapping)} 
+                                                className={`flex items-center text-sm px-4 py-2 rounded-lg border transition-all shadow-sm ${showMapping ? 'bg-teal-100 text-teal-800 border-teal-200' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}
+                                            >
+                                                <Icon path={Icons.Eye} size={16} className="mr-2"/> 
+                                                {showMapping ? "隐藏教材对比" : "显示教材对比"}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* 主演示区 */}
+                                    <div className="mb-8">
+                                        <WaveMechanicsDemo showMapping={showMapping} amplitude={demoAmplitude} />
+                                        
+                                        {/* 知识点卡片 */}
+                                        <div className="mt-4 bg-yellow-50 border border-yellow-200 p-4 rounded-xl flex items-start gap-3">
+                                            <div className="bg-yellow-100 p-2 rounded-full text-yellow-600 shrink-0">
+                                                <Icon path={Icons.Rotate} size={20}/>
+                                            </div>
+                                            <div>
+                                                <h4 className="font-bold text-yellow-900">核心难点突破</h4>
+                                                <p className="text-yellow-800 text-sm mt-1 leading-relaxed">
+                                                    课本上的声波图像<strong>不是</strong>声波的真实形状！它是一个数学统计图。
+                                                    它把空气的<strong>“疏密程度”</strong>（压强）映射到了纵坐标上。
+                                                    波峰代表<strong>高压(密)</strong>，波谷代表<strong>低压(疏)</strong>。
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* 两个并排的对比卡片 */}
+                                    <div className="grid md:grid-cols-2 gap-8 mt-12 pt-8 border-t border-slate-200">
+                                        {/* 左侧：振幅对比 */}
+                                        <div>
+                                            <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                                <Icon path={Icons.Maximize} className="text-orange-500"/> 振幅 (Amplitude) 的意义
+                                            </h3>
+                                            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                                                <div className="flex items-center gap-3">
+                                                    <span className="p-2 bg-blue-100 text-blue-600 rounded-lg"><Icon path={Icons.Volume} size={18}/></span>
+                                                    <div>
+                                                        <div className="font-bold text-slate-700">声波振幅 = 响度</div>
+                                                        <div className="text-xs text-slate-500">粒子振动幅度越大，声音越响</div>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    <span className="p-2 bg-purple-100 text-purple-600 rounded-lg"><Icon path={Icons.Sun} size={18}/></span>
+                                                    <div>
+                                                        <div className="font-bold text-slate-700">光波振幅 = 亮度</div>
+                                                        <div className="text-xs text-slate-500">电磁场越强，光越亮</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* 右侧：视角思想实验 */}
+                                        <div>
+                                            <div className="flex justify-between items-center mb-4">
+                                                <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                                    <Icon path={Icons.Rotate} className="text-indigo-500"/> 思想实验：换个角度看
+                                                </h3>
+                                                <button 
+                                                    onClick={() => setViewAngle(viewAngle === 'side' ? 'top' : 'side')} 
+                                                    className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-md border border-indigo-100 hover:bg-indigo-100 transition"
+                                                >
+                                                    切换至{viewAngle === 'side' ? "俯视" : "侧视"}
+                                                </button>
+                                            </div>
+                                            <div className="bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
+                                                <PerspectiveDemo angle={viewAngle} amplitude={perspectiveAmp} />
+                                            </div>
+                                            <p className="text-xs text-slate-500 mt-2 text-center">
+                                                {viewAngle === 'side' ? "当前视图：侧面观察 (Side View)" : "当前视图：顶部俯视 (Top View)"}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </main>
+                        
+                        <footer className="text-center text-slate-400 text-sm mt-12 pb-4">
+                            Designed for Science Education · HTML5/React/Canvas
+                        </footer>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<SoundLightLab />);
+    </script>
+</body>
+</html>

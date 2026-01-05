@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>分式方程行程问题演示合集</title>
+  
+  <!-- p5.js CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <!-- MathJax CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  <style>
+    :root {
+      --bg-color: #f0f2f5;
+      --card-bg: #ffffff;
+      --primary: #2196F3;   /* Basic Mode Blue */
+      --accent: #E91E63;    /* Basic Mode Pink */
+      --accent-var: #FF9800; /* Basic Mode Variable B Highlight */
+      --plan: #3F51B5;      /* Variable Mode Plan */
+      --seg1: #009688;      /* Variable Mode Seg1 */
+      --seg2: #FF5722;      /* Variable Mode Seg2 */
+      --text-main: #333;
+      --border: #e0e0e0;
+      --active-tab: #e3f2fd;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Header / Nav */
+    header {
+      background: #fff;
+      padding: 10px 20px;
+      border-bottom: 1px solid #ddd;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      flex-shrink: 0;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 200px;
+    }
+
+    .nav-tabs {
+      display: flex;
+      background: #f1f1f1;
+      border-radius: 8px;
+      padding: 4px;
+      gap: 5px;
+    }
+
+    .nav-btn {
+      padding: 8px 20px;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      color: #666;
+      transition: all 0.2s;
+    }
+
+    .nav-btn:hover { background: #e0e0e0; }
+    
+    .nav-btn.active {
+      background: #fff;
+      color: var(--primary);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    /* Main Layout */
+    .main-layout {
+      display: flex;
+      flex: 1;
+      padding: 20px;
+      gap: 20px;
+      overflow: hidden;
+    }
+
+    /* Controls */
+    .panel-controls {
+      width: 360px;
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+
+    .control-group {
+      margin-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 15px;
+    }
+    
+    .control-group h3 {
+      font-size: 15px;
+      margin: 0 0 10px 0;
+      color: #555;
+      border-left: 4px solid #ccc;
+      padding-left: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .mode-basic h3 { border-color: var(--primary); }
+    .mode-variable h3 { border-color: var(--plan); }
+
+    label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      margin-bottom: 5px;
+      font-weight: 500;
+      align-items: center;
+    }
+
+    .val-display { font-family: Monaco, monospace; color: #666; }
+
+    input[type="range"] {
+      width: 100%;
+      margin-bottom: 10px;
+      cursor: pointer;
+    }
+    
+    .sub-controls {
+      background: #fff8e1;
+      padding: 10px;
+      border-radius: 8px;
+      margin-top: 5px;
+    }
+
+    .hidden { display: none !important; }
+
+    /* Visual Area */
+    .panel-visual {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      overflow: hidden;
+    }
+
+    .canvas-container {
+      flex: 2;
+      background: var(--card-bg);
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .math-panel {
+      flex: 1;
+      min-height: 150px;
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .math-box {
+      font-size: 18px;
+      background: #fafafa;
+      padding: 15px;
+      border-radius: 8px;
+      border-left: 5px solid #ccc;
+      visibility: hidden;
+      overflow-x: auto;
+    }
+
+    .legend {
+      display: flex;
+      gap: 15px;
+      margin-bottom: 10px;
+      font-size: 12px;
+    }
+    .legend-item { display: flex; align-items: center; gap: 5px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; }
+
+    /* Buttons */
+    .btn-row { display: flex; gap: 10px; margin-top: auto; }
+    button {
+      flex: 1; padding: 10px; border: none; border-radius: 6px;
+      font-size: 14px; font-weight: bold; cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .btn-play { background: var(--primary); color: white; }
+    .btn-reset { background: #E0E0E0; color: #333; }
+    button:disabled { background: #ccc; cursor: not-allowed; }
+    
+    .status-bar { margin-top: 10px; font-size: 12px; color: #666; display: flex; align-items: center; gap: 5px; }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      .main-layout { flex-direction: column; overflow-y: auto; }
+      .panel-controls { width: 100%; }
+      .canvas-container { height: 350px; flex: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>🚗 行程演示合集</h1>
+    <div class="nav-tabs">
+      <button class="nav-btn active" id="tab-basic" onclick="switchMode('basic')">基础模式 (双车对比)</button>
+      <button class="nav-btn" id="tab-variable" onclick="switchMode('variable')">变速专题 (分段讲解)</button>
+    </div>
+  </header>
+
+  <div class="main-layout">
+    
+    <!-- Controls -->
+    <div class="panel-controls" id="control-panel">
+      
+      <!-- Shared: Total Distance -->
+      <div class="control-group">
+        <h3>题目总参数</h3>
+        <label>总路程 \(S\) <span class="val-display" id="val-S">120 km</span></label>
+        <input type="range" id="inp-S" min="60" max="500" step="10" value="120">
+      </div>
+
+      <!-- Mode Basic Controls -->
+      <div id="controls-basic" class="mode-basic">
+        
+        <!-- Plan A -->
+        <div class="control-group">
+          <h3 style="border-color:var(--primary)">方案 A (慢/原计划)</h3>
+          <label>全程速度 \(v_A\) <span class="val-display" id="val-vA">60 km/h</span></label>
+          <input type="range" id="inp-vA" min="30" max="150" step="5" value="60">
+        </div>
+
+        <!-- Plan B -->
+        <div class="control-group">
+          <h3 style="border-color:var(--accent)">
+            方案 B (快/实际)
+            <label style="font-size:12px; font-weight:normal; margin:0; cursor:pointer; color:var(--accent);">
+              <input type="checkbox" id="check-basic-var" style="width:auto; margin:0 4px 0 0;">开启变速
+            </label>
+          </h3>
+          
+          <!-- Constant B -->
+          <div id="basic-b-constant">
+            <label>全程速度 \(v_B\) <span class="val-display" id="val-vB">90 km/h</span></label>
+            <input type="range" id="inp-vB" min="30" max="150" step="5" value="90">
+          </div>
+
+          <!-- Variable B Sub-controls -->
+          <div id="basic-b-variable" class="sub-controls hidden">
+            <label>
+              <span>初始速度 \(v_{B1}\)</span>
+              <span class="val-display" id="val-basic-vB1">60 km/h</span>
+            </label>
+            <input type="range" id="inp-basic-vB1" min="30" max="120" step="5" value="60">
+
+            <label>
+              <span>变速点 \(S_{change}\)</span>
+              <span class="val-display" id="val-basic-dist">60 km</span>
+            </label>
+            <input type="range" id="inp-basic-dist" min="10" max="110" step="10" value="60">
+
+            <label>
+              <span>后段速度 \(v_{B2}\)</span>
+              <span class="val-display" id="val-basic-vB2">90 km/h</span>
+            </label>
+            <input type="range" id="inp-basic-vB2" min="30" max="150" step="5" value="90">
+          </div>
+        </div>
+      </div>
+
+      <!-- Mode Variable Controls (Dedicated Tab) -->
+      <div id="controls-variable" class="mode-variable hidden">
+        <div class="control-group">
+          <h3 style="border-color:var(--plan)">原计划 (匀速)</h3>
+          <label>计划速度 \(v_0\) <span class="val-display" id="val-v0">60 km/h</span></label>
+          <input type="range" id="inp-v0" min="30" max="150" step="5" value="60">
+        </div>
+        <div class="control-group">
+          <h3 style="border-color:var(--seg2)">实际 (分段变速)</h3>
+          <label>
+            <span style="color:var(--seg1)">● 第一段路程 \(S_1\)</span>
+            <span class="val-display" id="val-S1">60 km</span>
+          </label>
+          <input type="range" id="inp-S1" min="10" max="110" step="10" value="60">
+          
+          <label>
+            <span style="color:var(--seg1)">● 第一段速度 \(v_1\)</span>
+            <span class="val-display" id="val-v1">60 km/h</span>
+          </label>
+          <input type="range" id="inp-v1" min="30" max="150" step="5" value="60">
+
+          <label style="margin-top:10px;">
+            <span style="color:var(--seg2)">● 第二段速度 \(v_2\)</span>
+            <span class="val-display" id="val-v2">90 km/h</span>
+          </label>
+          <input type="range" id="inp-v2" min="30" max="150" step="5" value="90">
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn-play" id="btn-play">开始演示</button>
+        <button class="btn-reset" id="btn-reset">重置</button>
+      </div>
+      <div class="status-bar" id="status-bar"><span>ℹ️ 准备就绪</span></div>
+    </div>
+
+    <!-- Visualization -->
+    <div class="panel-visual">
+      <div class="canvas-container" id="p5-container"></div>
+
+      <div class="math-panel">
+        <div class="legend" id="legend-container"></div>
+        <div style="font-weight:bold; margin-bottom:10px; color:#444;">等量关系方程：</div>
+        <div id="math-box" class="math-box"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+/**
+ * Configuration & Colors
+ */
+const STYLE = {
+  basic: {
+    slow: '#2196F3', // Blue
+    fast: '#E91E63', // Pink
+    varB: '#FF9800'  // Orange (Basic Mode Variable B Highlight)
+  },
+  variable: {
+    plan: '#3F51B5', // Indigo
+    seg1: '#009688', // Teal
+    seg2: '#FF5722'  // Deep Orange
+  },
+  grid: '#EEEEEE',
+  flag: '#D32F2F',
+  text: '#444'
+};
+
+/**
+ * App State
+ */
+let appMode = 'basic'; // 'basic' or 'variable'
+
+let state = {
+  S: 120,
+  
+  // Basic Mode
+  vA: 60,
+  vB: 90, // Constant B
+  // Basic Mode Variable B
+  basicIsVar: false,
+  basicVB1: 60,
+  basicDist: 60,
+  basicVB2: 90,
+  
+  // Variable Mode (Separate Tab)
+  v0: 60,
+  S1: 60,
+  v1: 60,
+  v2: 90,
+
+  // Animation
+  isPlaying: false,
+  isFinished: false,
+  progress1: 0, 
+  progress2: 0, 
+  
+  timeScale: 0.02
+};
+
+// DOM Refs
+const dom = {};
+
+function setup() {
+  const container = document.getElementById('p5-container');
+  const canvas = createCanvas(container.clientWidth, container.clientHeight);
+  canvas.parent('p5-container');
+  
+  // Map Inputs (Common)
+  dom.inpS = document.getElementById('inp-S');
+  
+  // Map Inputs (Basic)
+  dom.inpvA = document.getElementById('inp-vA');
+  dom.inpvB = document.getElementById('inp-vB');
+  dom.checkBasicVar = document.getElementById('check-basic-var');
+  dom.boxBasicConst = document.getElementById('basic-b-constant');
+  dom.boxBasicVar = document.getElementById('basic-b-variable');
+  
+  dom.inpBasicVB1 = document.getElementById('inp-basic-vB1');
+  dom.inpBasicDist = document.getElementById('inp-basic-dist');
+  dom.inpBasicVB2 = document.getElementById('inp-basic-vB2');
+  
+  // Map Inputs (Variable Tab)
+  dom.inpv0 = document.getElementById('inp-v0');
+  dom.inpS1 = document.getElementById('inp-S1');
+  dom.inpv1 = document.getElementById('inp-v1');
+  dom.inpv2 = document.getElementById('inp-v2');
+
+  // Value Displays
+  dom.valS = document.getElementById('val-S');
+  dom.valvA = document.getElementById('val-vA');
+  dom.valvB = document.getElementById('val-vB');
+  dom.valBasicVB1 = document.getElementById('val-basic-vB1');
+  dom.valBasicDist = document.getElementById('val-basic-dist');
+  dom.valBasicVB2 = document.getElementById('val-basic-vB2');
+  
+  dom.valv0 = document.getElementById('val-v0');
+  dom.valS1 = document.getElementById('val-S1');
+  dom.valv1 = document.getElementById('val-v1');
+  dom.valv2 = document.getElementById('val-v2');
+
+  // Logic
+  dom.btnPlay = document.getElementById('btn-play');
+  dom.btnReset = document.getElementById('btn-reset');
+  dom.status = document.getElementById('status-bar');
+  dom.mathBox = document.getElementById('math-box');
+  dom.legend = document.getElementById('legend-container');
+  dom.controlsBasic = document.getElementById('controls-basic');
+  dom.controlsVariable = document.getElementById('controls-variable');
+  
+  // Events
+  [dom.inpS, dom.inpvA, dom.inpvB, dom.inpv0, dom.inpS1, dom.inpv1, dom.inpv2,
+   dom.inpBasicVB1, dom.inpBasicDist, dom.inpBasicVB2].forEach(el => {
+    el.addEventListener('input', updateParams);
+  });
+  
+  dom.checkBasicVar.addEventListener('change', () => {
+    state.basicIsVar = dom.checkBasicVar.checked;
+    toggleBasicVarUI();
+    updateParams();
+  });
+  
+  dom.btnPlay.addEventListener('click', togglePlay);
+  dom.btnReset.addEventListener('click', resetSim);
+
+  window.addEventListener('resize', () => {
+    resizeCanvas(container.clientWidth, container.clientHeight);
+    redraw();
+  });
+
+  // Init
+  toggleBasicVarUI();
+  switchMode('basic'); 
+}
+
+function toggleBasicVarUI() {
+  if (state.basicIsVar) {
+    dom.boxBasicConst.classList.add('hidden');
+    dom.boxBasicVar.classList.remove('hidden');
+  } else {
+    dom.boxBasicConst.classList.remove('hidden');
+    dom.boxBasicVar.classList.add('hidden');
+  }
+  updateLegend();
+}
+
+/**
+ * Switching Logic
+ */
+window.switchMode = function(mode) {
+  appMode = mode;
+  resetSim();
+  
+  document.getElementById('tab-basic').className = mode === 'basic' ? 'nav-btn active' : 'nav-btn';
+  document.getElementById('tab-variable').className = mode === 'variable' ? 'nav-btn active' : 'nav-btn';
+  
+  if (mode === 'basic') {
+    dom.controlsBasic.classList.remove('hidden');
+    dom.controlsVariable.classList.add('hidden');
+    if(state.S > 300) { dom.inpS.value = 120; }
+  } else {
+    dom.controlsBasic.classList.add('hidden');
+    dom.controlsVariable.classList.remove('hidden');
+  }
+  
+  updateParams();
+  updateLegend();
+};
+
+function updateLegend() {
+  if (appMode === 'basic') {
+    let bLabel = state.basicIsVar ? "方案B (变速)" : "方案B (快)";
+    let bColor = state.basicIsVar ? STYLE.basic.varB : STYLE.basic.fast;
+    dom.legend.innerHTML = `
+      <div class="legend-item"><div class="dot" style="background:${STYLE.basic.slow}"></div>方案A</div>
+      <div class="legend-item"><div class="dot" style="background:${bColor}"></div>${bLabel}</div>
+    `;
+  } else {
+    dom.legend.innerHTML = `
+      <div class="legend-item"><div class="dot" style="background:${STYLE.variable.plan}"></div>原计划</div>
+      <div class="legend-item"><div class="dot" style="background:${STYLE.variable.seg1}"></div>第一段</div>
+      <div class="legend-item"><div class="dot" style="background:${STYLE.variable.seg2}"></div>第二段</div>
+    `;
+  }
+}
+
+function updateParams() {
+  // Common
+  state.S = parseInt(dom.inpS.value);
+  dom.valS.innerText = state.S + " km";
+
+  if (appMode === 'basic') {
+    // Basic Mode Logic
+    state.vA = parseInt(dom.inpvA.value);
+    dom.valvA.innerText = state.vA + " km/h";
+    
+    if (state.basicIsVar) {
+      // Basic Variable B
+      let maxDist = state.S - 10;
+      if (parseInt(dom.inpBasicDist.value) > maxDist) dom.inpBasicDist.value = maxDist;
+      dom.inpBasicDist.max = maxDist;
+
+      state.basicVB1 = parseInt(dom.inpBasicVB1.value);
+      state.basicDist = parseInt(dom.inpBasicDist.value);
+      state.basicVB2 = parseInt(dom.inpBasicVB2.value);
+      
+      dom.valBasicVB1.innerText = state.basicVB1 + " km/h";
+      dom.valBasicDist.innerText = state.basicDist + " km";
+      dom.valBasicVB2.innerText = state.basicVB2 + " km/h";
+    } else {
+      // Basic Constant B
+      state.vB = parseInt(dom.inpvB.value);
+      dom.valvB.innerText = state.vB + " km/h";
+    }
+  } else {
+    // Variable Tab Logic
+    state.v0 = parseInt(dom.inpv0.value);
+    state.v1 = parseInt(dom.inpv1.value);
+    state.v2 = parseInt(dom.inpv2.value);
+    
+    let maxS1 = state.S - 10;
+    if (parseInt(dom.inpS1.value) > maxS1) dom.inpS1.value = maxS1;
+    dom.inpS1.max = maxS1;
+    state.S1 = parseInt(dom.inpS1.value);
+    
+    dom.valv0.innerText = state.v0 + " km/h";
+    dom.valS1.innerText = state.S1 + " km";
+    dom.valv1.innerText = state.v1 + " km/h";
+    dom.valv2.innerText = state.v2 + " km/h";
+  }
+  
+  updateMath();
+  if (!state.isPlaying) redraw();
+}
+
+function draw() {
+  background(255);
+  drawGrid();
+
+  if (appMode === 'basic') {
+    drawBasicMode();
+  } else {
+    drawVariableMode();
+  }
+}
+
+function drawBasicMode() {
+  const marginX = 60;
+  const trackW = width - marginX * 2;
+  const y1 = height * 0.35;
+  const y2 = height * 0.65;
+  
+  // Track 1 (A)
+  drawTrack(y1, "方案 A", STYLE.basic.slow);
+  
+  // Track 2 (B)
+  let bColor = state.basicIsVar ? STYLE.basic.varB : STYLE.basic.fast;
+  drawTrack(y2, "方案 B", bColor);
+  
+  // Basic Var B Visualization (Segments)
+  if (state.basicIsVar) {
+     const xStart = marginX;
+     const xChange = marginX + (state.basicDist / state.S) * trackW;
+     const xEnd = marginX + trackW;
+     
+     // Highlight separate segments lightly
+     stroke(bColor); strokeWeight(2);
+     line(xStart, y2+2, xChange, y2+2);
+     stroke(STYLE.basic.fast); 
+     line(xChange, y2+2, xEnd, y2+2);
+     
+     drawFlag(xChange, y2, `${state.basicDist}km`);
+  }
+  
+  // Physics
+  if (state.isPlaying && !state.isFinished) {
+    const dt = 1/60 * state.timeScale * 25; 
+    
+    // Car A
+    if (state.progress1 < 1) state.progress1 += (state.vA / state.S) * dt;
+    
+    // Car B
+    if (state.progress2 < 1) {
+      if (state.basicIsVar) {
+        const currDist = state.progress2 * state.S;
+        const currV = (currDist < state.basicDist) ? state.basicVB1 : state.basicVB2;
+        state.progress2 += (currV / state.S) * dt;
+      } else {
+        state.progress2 += (state.vB / state.S) * dt;
+      }
+    }
+    checkFinish();
+  }
+  
+  // Draw Car A
+  drawCar(marginX + state.progress1 * trackW, y1, STYLE.basic.slow, `v=${state.vA}`);
+  
+  // Draw Car B
+  let labelB = "";
+  let colorB = bColor;
+  if (state.basicIsVar) {
+    const d = state.progress2 * state.S;
+    if (d < state.basicDist) {
+      labelB = `v=${state.basicVB1}`;
+    } else {
+      labelB = `v=${state.basicVB2}`;
+      colorB = STYLE.basic.fast; // Change color after flag to show change
+    }
+  } else {
+    labelB = `v=${state.vB}`;
+  }
+  drawCar(marginX + state.progress2 * trackW, y2, colorB, labelB);
+  
+  // Time Diff Calc
+  let tA = state.S / state.vA;
+  let tB = 0;
+  if (state.basicIsVar) {
+    tB = (state.basicDist / state.basicVB1) + ((state.S - state.basicDist)/state.basicVB2);
+  } else {
+    tB = state.S / state.vB;
+  }
+  const dt = Math.abs(tA - tB);
+  
+  drawTimeDiff(trackW, y1, y2, state.progress1, state.progress2, dt);
+}
+
+function drawVariableMode() {
+  const marginX = 60;
+  const trackW = width - marginX * 2;
+  const y1 = height * 0.35;
+  const y2 = height * 0.65;
+  
+  drawTrack(y1, "原计划", STYLE.variable.plan);
+  drawTrack(y2, "实际", "#999");
+  
+  const xStart = marginX;
+  const xChange = marginX + (state.S1 / state.S) * trackW;
+  const xEnd = marginX + trackW;
+  
+  stroke(STYLE.variable.seg1); strokeWeight(4); line(xStart, y2, xChange, y2);
+  stroke(STYLE.variable.seg2); strokeWeight(4); line(xChange, y2, xEnd, y2);
+  drawFlag(xChange, y2, `${state.S1}km`);
+
+  if (state.isPlaying && !state.isFinished) {
+    const dt = 1/60 * state.timeScale * 25; 
+    if (state.progress1 < 1) state.progress1 += (state.v0 / state.S) * dt;
+    if (state.progress2 < 1) {
+      const currentDist = state.progress2 * state.S;
+      const currentV = (currentDist < state.S1) ? state.v1 : state.v2;
+      state.progress2 += (currentV / state.S) * dt;
+    }
+    checkFinish();
+  }
+  
+  drawCar(marginX + state.progress1 * trackW, y1, STYLE.variable.plan, `v=${state.v0}`);
+  
+  const distAct = state.progress2 * state.S;
+  const isSeg1 = distAct < state.S1;
+  const cVar = isSeg1 ? STYLE.variable.seg1 : STYLE.variable.seg2;
+  const vVar = isSeg1 ? state.v1 : state.v2;
+  drawCar(marginX + state.progress2 * trackW, y2, cVar, `v=${vVar}`);
+
+  const t0 = state.S / state.v0;
+  const tAct = (state.S1/state.v1) + ((state.S - state.S1)/state.v2);
+  const dt = Math.abs(t0 - tAct);
+  drawTimeDiff(trackW, y1, y2, state.progress1, state.progress2, dt);
+}
+
+// Helpers
+function checkFinish() {
+  if (state.progress1 >= 1) state.progress1 = 1;
+  if (state.progress2 >= 1) state.progress2 = 1;
+  if (state.progress1 >= 1 && state.progress2 >= 1) {
+    state.isFinished = true;
+    state.isPlaying = false;
+    dom.btnPlay.innerText = "演示结束";
+    dom.btnPlay.disabled = true;
+    dom.status.innerHTML = "<span>✅ 演示完成</span>";
+  }
+}
+
+function drawGrid() {
+  stroke(STYLE.grid); strokeWeight(1);
+  for(let x=0; x<width; x+=40) line(x,0,x,height);
+}
+
+function drawTrack(y, label, color) {
+  const marginX = 60;
+  const xEnd = width - marginX;
+  stroke('#ddd'); strokeWeight(4);
+  line(marginX, y, xEnd, y);
+  noStroke(); fill(color); textSize(14); textAlign(RIGHT, CENTER);
+  text(label, marginX - 15, y);
+  stroke(150); strokeWeight(2);
+  line(xEnd, y-20, xEnd, y+20);
+  noStroke(); fill(150); textAlign(CENTER, TOP);
+  text("终点", xEnd, y+25);
+}
+
+function drawCar(x, y, color, label) {
+  rectMode(CENTER);
+  fill(0,0,0,15); noStroke(); rect(x+2, y+5, 40, 20, 4); 
+  fill(color); stroke(255); strokeWeight(1); rect(x, y, 40, 20, 5); 
+  fill(255); noStroke(); textSize(10); textAlign(CENTER, CENTER); text(label, x, y);
+}
+
+function drawFlag(x, y, label) {
+  stroke(STYLE.flag); strokeWeight(2); line(x, y, x, y-30);
+  fill(STYLE.flag); noStroke(); triangle(x, y-30, x, y-20, x+10, y-25);
+  fill(100); textSize(10); textAlign(CENTER, BOTTOM); text(label, x, y-35);
+}
+
+function drawTimeDiff(trackW, y1, y2, p1, p2, dt) {
+  const marginX = 60;
+  const xEnd = width - marginX;
+  if ((p1 >= 1 || p2 >= 1) && !(p1>=0.99 && p2>=0.99)) {
+    const leaderY = p1 > p2 ? y1 : y2;
+    const lagY = p1 > p2 ? y2 : y1;
+    const lagP = Math.min(p1, p2);
+    const lagX = marginX + lagP * trackW;
+    stroke(255, 150, 0); strokeWeight(2);
+    drawingContext.setLineDash([5,5]); line(xEnd, leaderY, xEnd, lagY); drawingContext.setLineDash([]);
+    line(lagX, lagY, xEnd, lagY); line(lagX, lagY-5, lagX, lagY+5);
+    noStroke(); fill(255, 100, 0); textSize(14); textAlign(CENTER, BOTTOM);
+    text(`相差 ${dt.toFixed(2)}h`, (lagX+xEnd)/2, lagY - 8);
+  }
+}
+
+async function updateMath() {
+  let tex = "";
+  if (appMode === 'basic') {
+    // Basic Mode Math
+    let termA = String.raw`\frac{${state.S}}{${state.vA}}`;
+    let termB = "";
+    let tA = state.S / state.vA;
+    let tB = 0;
+    
+    if (state.basicIsVar) {
+      let dist2 = state.S - state.basicDist;
+      termB = String.raw`\left(\frac{${state.basicDist}}{${state.basicVB1}} + \frac{${dist2}}{${state.basicVB2}}\right)`;
+      tB = (state.basicDist/state.basicVB1) + (dist2/state.basicVB2);
+    } else {
+      termB = String.raw`\frac{${state.S}}{${state.vB}}`;
+      tB = state.S / state.vB;
+    }
+    
+    let dt = Math.abs(tA - tB);
+    if (tA > tB) {
+      // A is slower
+      tex = `${termA} - ${termB} = ${dt.toFixed(2)}`;
+    } else {
+      tex = `${termB} - ${termA} = ${dt.toFixed(2)}`;
+    }
+    
+  } else {
+    // Variable Tab Math
+    const t0 = state.S / state.v0;
+    const tAct = (state.S1/state.v1) + ((state.S - state.S1)/state.v2);
+    const dt = Math.abs(t0 - tAct);
+    const part2 = state.S - state.S1;
+    const termAct = String.raw`\left( \frac{${state.S1}}{${state.v1}} + \frac{${part2}}{${state.v2}} \right)`;
+    const termPlan = String.raw`\frac{${state.S}}{${state.v0}}`;
+    
+    if (tAct > t0) tex = `${termAct} - ${termPlan} = ${dt.toFixed(2)}`;
+    else tex = `${termPlan} - ${termAct} = ${dt.toFixed(2)}`;
+  }
+  
+  dom.mathBox.style.visibility = 'hidden';
+  dom.mathBox.innerHTML = `\\[ ${tex} \\]`;
+  await MathJax.typesetPromise([dom.mathBox]);
+  dom.mathBox.style.visibility = 'visible';
+}
+
+function togglePlay() {
+  if (state.isFinished) return;
+  state.isPlaying = !state.isPlaying;
+  dom.btnPlay.innerText = state.isPlaying ? "暂停" : "继续";
+  dom.status.innerHTML = state.isPlaying ? "🚗 模拟进行中..." : "⏸️ 已暂停";
+}
+
+function resetSim() {
+  state.isPlaying = false;
+  state.isFinished = false;
+  state.progress1 = 0;
+  state.progress2 = 0;
+  dom.btnPlay.innerText = "开始演示";
+  dom.btnPlay.disabled = false;
+  dom.status.innerText = "ℹ️ 准备就绪";
+  redraw();
+}
+</script>
+</body>
+</html>

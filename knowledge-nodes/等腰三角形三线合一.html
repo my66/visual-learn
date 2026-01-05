@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>几何直观：等腰三角形“三线合一”</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f0f4f8;
+            color: #333;
+            user-select: none; /* 防止拖动时选中文字 */
+        }
+        .canvas-container {
+            position: relative;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            overflow: hidden;
+            cursor: crosshair;
+        }
+        .control-panel {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        .line-preview {
+            width: 30px;
+            height: 0;
+            border-bottom-width: 2px;
+            margin-right: 10px;
+            display: inline-block;
+        }
+        /* 自定义滑块和复选框样式简化 */
+        input[type="checkbox"] {
+            accent-color: #3b82f6;
+            width: 16px;
+            height: 16px;
+            margin-right: 8px;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status-iso { background-color: #d1fae5; color: #065f46; }
+        .status-scalene { background-color: #fee2e2; color: #991b1b; }
+    </style>
+</head>
+<body class="h-screen flex flex-col md:flex-row p-4 gap-4">
+
+    <!-- 左侧控制面板 -->
+    <aside class="w-full md:w-80 flex-shrink-0 flex flex-col gap-4 overflow-y-auto">
+        
+        <!-- 题目/概念描述 -->
+        <div class="control-panel">
+            <h1 class="text-xl font-bold text-gray-800 mb-2">三线合一互动演示</h1>
+            <p class="text-sm text-gray-600 mb-2">
+                拖动顶点 <strong class="text-blue-600">A</strong>, <strong class="text-blue-600">B</strong>, 或 <strong class="text-blue-600">C</strong> 改变三角形形状。观察底边 BC 上的三条线如何变化。
+            </p>
+            <div class="bg-blue-50 p-2 rounded text-xs text-blue-800 border-l-4 border-blue-500">
+                <strong>核心口诀：</strong><br>
+                等腰三角形，性质真奇妙。<br>
+                顶上画一笔，三线全报到。<br>
+                是高也是中，角分跑不掉。
+            </div>
+        </div>
+
+        <!-- 模式控制 -->
+        <div class="control-panel">
+            <h2 class="font-bold text-gray-700 mb-3 border-b pb-1">操作模式</h2>
+            <div class="flex items-center justify-between mb-4">
+                <label class="flex items-center cursor-pointer">
+                    <input type="checkbox" id="toggleIso" onchange="toggleIsoscelesMode()">
+                    <span class="font-medium">🔒 锁定为等腰三角形</span>
+                </label>
+            </div>
+            <div class="text-xs text-gray-500">
+                勾选后，顶点 A 将只能在 BC 的中垂线上移动，三线强制合一。
+            </div>
+        </div>
+
+        <!-- 显隐开关 -->
+        <div class="control-panel">
+            <h2 class="font-bold text-gray-700 mb-3 border-b pb-1">显示图层</h2>
+            
+            <label class="legend-item cursor-pointer">
+                <input type="checkbox" id="showAltitude" checked onchange="updateView()">
+                <div class="line-preview" style="border-color: #ef4444; border-style: solid;"></div>
+                <span>底边上的高 (AD⊥BC)</span>
+            </label>
+            
+            <label class="legend-item cursor-pointer">
+                <input type="checkbox" id="showMedian" checked onchange="updateView()">
+                <div class="line-preview" style="border-color: #3b82f6; border-style: dashed;"></div>
+                <span>底边上的中线 (BD=DC)</span>
+            </label>
+
+            <label class="legend-item cursor-pointer">
+                <input type="checkbox" id="showBisector" checked onchange="updateView()">
+                <div class="line-preview" style="border-color: #10b981; border-style: dotted;"></div>
+                <span>顶角平分线 (∠1=∠2)</span>
+            </label>
+
+            <div class="mt-4 border-t pt-2">
+                <label class="legend-item cursor-pointer">
+                    <input type="checkbox" id="showAngleMarks" checked onchange="updateView()">
+                    <span>显示角度标注</span>
+                </label>
+                <label class="legend-item cursor-pointer">
+                    <input type="checkbox" id="showLengthMarks" checked onchange="updateView()">
+                    <span>显示长度/垂直标注</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- 数据状态 -->
+        <div class="control-panel">
+            <h2 class="font-bold text-gray-700 mb-2 border-b pb-1">当前状态</h2>
+            <div id="statusText" class="mb-2"></div>
+            <div class="grid grid-cols-2 gap-2 text-sm font-mono">
+                <div>AB = <span id="valAB"></span></div>
+                <div>AC = <span id="valAC"></span></div>
+                <div>∠B = <span id="valAngB"></span>°</div>
+                <div>∠C = <span id="valAngC"></span>°</div>
+            </div>
+        </div>
+
+    </aside>
+
+    <!-- 右侧可视化区域 -->
+    <main class="flex-grow h-full flex flex-col">
+        <div class="canvas-container flex-grow h-full w-full" id="canvasWrapper">
+            <canvas id="geometryCanvas"></canvas>
+            <!-- 悬浮提示 -->
+            <div class="absolute top-2 right-2 bg-white/80 px-2 py-1 rounded text-xs text-gray-500 pointer-events-none">
+                滚轮缩放 / 拖动空白处平移 / 拖动红点修改顶点
+            </div>
+        </div>
+    </main>
+
+<script>
+/**
+ * 几何计算与绘图逻辑
+ */
+
+const canvas = document.getElementById('geometryCanvas');
+const ctx = canvas.getContext('2d');
+const wrapper = document.getElementById('canvasWrapper');
+
+// 状态变量
+let points = {
+    A: { x: 0, y: -150 },
+    B: { x: -120, y: 100 },
+    C: { x: 120, y: 100 }
+};
+
+// 视口变换
+let offset = { x: 0, y: 0 };
+let scale = 1;
+let isDraggingPoint = null;
+let isPanning = false;
+let lastMouse = { x: 0, y: 0 };
+let isIsoscelesLocked = false;
+
+// 颜色配置
+const COLORS = {
+    triangle: '#1f2937',
+    altitude: '#ef4444',
+    median: '#3b82f6',
+    bisector: '#10b981',
+    point: '#dc2626',
+    text: '#374151'
+};
+
+// 初始化
+function init() {
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    
+    // 事件监听
+    canvas.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    canvas.addEventListener('wheel', onWheel);
+    
+    // 初始居中
+    offset.x = canvas.width / 2;
+    offset.y = canvas.height / 2;
+    
+    updateView();
+}
+
+function resizeCanvas() {
+    canvas.width = wrapper.clientWidth;
+    canvas.height = wrapper.clientHeight;
+    // 如果是第一次加载，居中
+    if (offset.x === 0 && offset.y === 0) {
+        offset.x = canvas.width / 2;
+        offset.y = canvas.height / 2;
+    }
+    updateView();
+}
+
+// 核心更新函数
+function updateView() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    ctx.save();
+    ctx.translate(offset.x, offset.y);
+    ctx.scale(scale, scale);
+
+    // 1. 计算辅助点（垂足、中点、角平分线交点）
+    const feet = calculateFeet();
+
+    // 2. 绘制三条特殊线 (根据开关)
+    const showAlt = document.getElementById('showAltitude').checked;
+    const showMed = document.getElementById('showMedian').checked;
+    const showBis = document.getElementById('showBisector').checked;
+
+    // 为了避免重合时看不清，如果它们位置非常接近，稍微做一点偏移或者混合
+    // 但在数学软件中，直接重叠是表达"合一"最直接的方式。
+    // 为了美观，我们采用线宽和虚实结合
+    
+    // 中线 (蓝色虚线) - 最底层
+    if (showMed) {
+        drawLine(points.A, feet.median, COLORS.median, 3, [5, 5]);
+    }
+    // 角平分线 (绿色点线) - 中层
+    if (showBis) {
+        drawLine(points.A, feet.bisector, COLORS.bisector, 2, [2, 4]);
+    }
+    // 高 (红色实线) - 最上层
+    if (showAlt) {
+        drawLine(points.A, feet.altitude, COLORS.altitude, 1.5, []);
+    }
+
+    // 3. 绘制三角形主体
+    drawTriangle();
+
+    // 4. 绘制标注 (根据开关)
+    if (document.getElementById('showLengthMarks').checked) {
+        drawLengthMarks(feet);
+        drawRightAngleMark(feet.altitude, points.B, points.A);
+    }
+    if (document.getElementById('showAngleMarks').checked) {
+        drawAngleMarks(feet);
+    }
+
+    // 5. 绘制顶点
+    drawPoint(points.A, 'A');
+    drawPoint(points.B, 'B');
+    drawPoint(points.C, 'C');
+
+    // 6. 绘制底边上的点标签 (D, E, F 等，如果分开的话)
+    drawFeetLabels(feet, showAlt, showMed, showBis);
+
+    ctx.restore();
+
+    // 更新面板数据
+    updateInfoPanel();
+}
+
+// --- 几何计算 ---
+
+function dist(p1, p2) {
+    return Math.sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2);
+}
+
+function calculateFeet() {
+    // 向量 BC
+    const dx = points.C.x - points.B.x;
+    const dy = points.C.y - points.B.y;
+    const lenBC = Math.sqrt(dx*dx + dy*dy);
+    
+    // 1. 中点 (Median Foot)
+    const M = {
+        x: (points.B.x + points.C.x) / 2,
+        y: (points.B.y + points.C.y) / 2
+    };
+
+    // 2. 垂足 (Altitude Foot) - 投影
+    // 向量 BA
+    const bax = points.A.x - points.B.x;
+    const bay = points.A.y - points.B.y;
+    // 投影长度 t = (BA · BC) / |BC|^2
+    const t = (bax * dx + bay * dy) / (lenBC * lenBC);
+    const H = {
+        x: points.B.x + t * dx,
+        y: points.B.y + t * dy
+    };
+
+    // 3. 角平分线交点 (Bisector Foot)
+    // 根据角平分线定理： BD/DC = AB/AC
+    const c = dist(points.A, points.B); // AB
+    const b = dist(points.A, points.C); // AC
+    const ratio = c / (b + c);
+    const T = {
+        x: points.B.x + ratio * dx,
+        y: points.B.y + ratio * dy
+    };
+
+    return { median: M, altitude: H, bisector: T };
+}
+
+// --- 绘图辅助 ---
+
+function drawLine(p1, p2, color, width, dash) {
+    ctx.beginPath();
+    ctx.moveTo(p1.x, p1.y);
+    ctx.lineTo(p2.x, p2.y);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.setLineDash(dash);
+    ctx.stroke();
+    ctx.setLineDash([]);
+}
+
+function drawTriangle() {
+    ctx.beginPath();
+    ctx.moveTo(points.A.x, points.A.y);
+    ctx.lineTo(points.B.x, points.B.y);
+    ctx.lineTo(points.C.x, points.C.y);
+    ctx.closePath();
+    ctx.strokeStyle = COLORS.triangle;
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+}
+
+function drawPoint(p, label) {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
+    ctx.fillStyle = 'white';
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = COLORS.point;
+    ctx.stroke();
+
+    ctx.fillStyle = COLORS.text;
+    ctx.font = 'bold 16px Arial';
+    // 简单的标签避让逻辑
+    let dx = 0, dy = 0;
+    if (label === 'A') { dy = -15; }
+    else if (label === 'B') { dx = -15; dy = 15; }
+    else if (label === 'C') { dx = 15; dy = 15; }
+    ctx.fillText(label, p.x + dx, p.y + dy);
+}
+
+function drawFeetLabels(feet, showAlt, showMed, showBis) {
+    ctx.font = '12px Arial';
+    ctx.fillStyle = '#555';
+    
+    // 简单的去重逻辑，如果点很近，就不重复画
+    const threshold = 10;
+    
+    let drawnPoints = [];
+
+    const drawLabel = (p, text, color) => {
+        // 检查是否重合
+        let isCoincided = false;
+        for (let dp of drawnPoints) {
+            if (dist(p, dp) < threshold) {
+                isCoincided = true;
+                break;
+            }
+        }
+        
+        ctx.fillStyle = color;
+        if (!isCoincided) {
+            ctx.fillText(text, p.x, p.y + 20);
+            drawnPoints.push(p);
+        } else {
+            // 如果重合，在已画位置追加文本会很乱，这里简化处理：
+            // 只要三线合一，我们就不专门标D,E,F了，因为它们就是一个点
+        }
+    };
+
+    // 优先画高（通常高最重要）
+    if (showAlt) drawLabel(feet.altitude, 'H(垂足)', COLORS.altitude);
+    if (showMed) drawLabel(feet.median, 'M(中点)', COLORS.median);
+    if (showBis) drawLabel(feet.bisector, 'T(交点)', COLORS.bisector);
+}
+
+function drawRightAngleMark(H, B, A) {
+    // 向量 HB
+    let vHB = { x: B.x - H.x, y: B.y - H.y };
+    const len = Math.sqrt(vHB.x**2 + vHB.y**2);
+    if (len < 1) return; // 防止除以0
+    vHB.x /= len; vHB.y /= len;
+
+    // 向量 HA (指向三角形内部大概方向，其实只要垂直于BC即可)
+    // 简单起见，我们计算 BC 的法向量
+    let vPerp = { x: -vHB.y, y: vHB.x };
+    // 确保指向 A 所在的一侧
+    const vHA = { x: A.x - H.x, y: A.y - H.y };
+    if (vPerp.x * vHA.x + vPerp.y * vHA.y < 0) {
+        vPerp.x = -vPerp.x;
+        vPerp.y = -vPerp.y;
+    }
+
+    const size = 10;
+    ctx.beginPath();
+    ctx.moveTo(H.x + vHB.x * size, H.y + vHB.y * size);
+    ctx.lineTo(H.x + vHB.x * size + vPerp.x * size, H.y + vHB.y * size + vPerp.y * size);
+    ctx.lineTo(H.x + vPerp.x * size, H.y + vPerp.y * size);
+    ctx.strokeStyle = COLORS.altitude;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+}
+
+function drawLengthMarks(feet) {
+    // 中线标记：在 BM 和 MC 上画两道杠
+    const M = feet.median;
+    if (document.getElementById('showMedian').checked) {
+        drawTick(points.B, M, 2);
+        drawTick(M, points.C, 2);
+    }
+}
+
+function drawTick(p1, p2, count) {
+    const mid = { x: (p1.x + p2.x)/2, y: (p1.y + p2.y)/2 };
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
+    const len = Math.sqrt(dx*dx + dy*dy);
+    const nx = -dy / len * 5; // 法向量，长度5
+    const ny = dx / len * 5;
+    
+    ctx.beginPath();
+    ctx.strokeStyle = COLORS.median;
+    ctx.lineWidth = 1;
+    
+    for(let i=0; i<count; i++) {
+        const offset = (i - (count-1)/2) * 4;
+        const cx = mid.x + dx/len * offset;
+        const cy = mid.y + dy/len * offset;
+        ctx.moveTo(cx - nx, cy - ny);
+        ctx.lineTo(cx + nx, cy + ny);
+    }
+    ctx.stroke();
+}
+
+function drawAngleMarks(feet) {
+    // 角平分线标记
+    if (!document.getElementById('showBisector').checked) return;
+
+    // 向量 AB, AC
+    const angleA_B = Math.atan2(points.B.y - points.A.y, points.B.x - points.A.x);
+    const angleA_C = Math.atan2(points.C.y - points.A.y, points.C.x - points.A.x);
+    const angleA_T = Math.atan2(feet.bisector.y - points.A.y, feet.bisector.x - points.A.x);
+
+    const r = 30;
+    
+    ctx.beginPath();
+    ctx.arc(points.A.x, points.A.y, r, angleA_B, angleA_T, false); // 第一半角
+    ctx.strokeStyle = COLORS.bisector;
+    ctx.stroke();
+    // 标记点 1
+    // ...略去复杂计算，简单示意即可
+    
+    ctx.beginPath();
+    ctx.arc(points.A.x, points.A.y, r, angleA_T, angleA_C, false); // 第二半角
+    ctx.stroke();
+    
+    // 文字 1, 2
+    ctx.fillStyle = COLORS.bisector;
+    ctx.font = '10px Arial';
+    // 粗略位置
+    ctx.fillText("1", points.A.x + Math.cos((angleA_B + angleA_T)/2)*r*1.2, points.A.y + Math.sin((angleA_B + angleA_T)/2)*r*1.2);
+    ctx.fillText("2", points.A.x + Math.cos((angleA_C + angleA_T)/2)*r*1.2, points.A.y + Math.sin((angleA_C + angleA_T)/2)*r*1.2);
+}
+
+// --- 交互逻辑 ---
+
+function screenToWorld(x, y) {
+    return {
+        x: (x - offset.x) / scale,
+        y: (y - offset.y) / scale
+    };
+}
+
+function checkHit(x, y) {
+    const mouseP = screenToWorld(x, y);
+    const threshold = 15 / scale;
+    
+    if (dist(mouseP, points.A) < threshold) return 'A';
+    if (dist(mouseP, points.B) < threshold) return 'B';
+    if (dist(mouseP, points.C) < threshold) return 'C';
+    return null;
+}
+
+function onMouseDown(e) {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    lastMouse = { x, y };
+    isDraggingPoint = checkHit(x, y);
+    
+    if (!isDraggingPoint) {
+        isPanning = true;
+        canvas.style.cursor = 'move';
+    } else {
+        canvas.style.cursor = 'none'; // 拖动时隐藏鼠标，防止遮挡
+    }
+}
+
+function onMouseMove(e) {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    const dx = x - lastMouse.x;
+    const dy = y - lastMouse.y;
+    lastMouse = { x, y };
+
+    if (isDraggingPoint) {
+        let p = points[isDraggingPoint];
+        
+        // 拖动逻辑
+        p.x += dx / scale;
+        p.y += dy / scale;
+
+        // 如果锁定了等腰模式
+        if (isIsoscelesLocked) {
+            applyIsoscelesConstraint(isDraggingPoint);
+        }
+
+        updateView();
+    } else if (isPanning) {
+        offset.x += dx;
+        offset.y += dy;
+        updateView();
+    } else {
+        // hover effect
+        const hit = checkHit(x, y);
+        canvas.style.cursor = hit ? 'pointer' : 'crosshair';
+    }
+}
+
+function onMouseUp() {
+    isDraggingPoint = null;
+    isPanning = false;
+    canvas.style.cursor = 'crosshair';
+}
+
+function onWheel(e) {
+    e.preventDefault();
+    const zoomIntensity = 0.1;
+    const wheel = e.deltaY < 0 ? 1 : -1;
+    const zoom = Math.exp(wheel * zoomIntensity);
+    
+    scale *= zoom;
+    updateView();
+}
+
+// --- 业务逻辑 ---
+
+function toggleIsoscelesMode() {
+    const cb = document.getElementById('toggleIso');
+    isIsoscelesLocked = cb.checked;
+    
+    if (isIsoscelesLocked) {
+        // 立即吸附
+        applyIsoscelesConstraint('FORCE');
+        updateView();
+    }
+}
+
+function applyIsoscelesConstraint(movedPointLabel) {
+    // 目标：保持 AB = AC
+    // 约束：A 必须在 BC 的中垂线上
+    
+    const midBC = { x: (points.B.x + points.C.x)/2, y: (points.B.y + points.C.y)/2 };
+    
+    // BC向量
+    const vBC = { x: points.C.x - points.B.x, y: points.C.y - points.B.y };
+    // 中垂线方向向量 (旋转90度)
+    const vPerp = { x: -vBC.y, y: vBC.x };
+    
+    // 如果移动的是 A
+    if (movedPointLabel === 'A' || movedPointLabel === 'FORCE') {
+        // 将 A 投影到 BC 的中垂线上
+        // 线 P = midBC + t * vPerp
+        // 向量 MA
+        const vMA = { x: points.A.x - midBC.x, y: points.A.y - midBC.y };
+        // 投影长度
+        const lenSq = vPerp.x*vPerp.x + vPerp.y*vPerp.y;
+        if (lenSq === 0) return; // 重合了
+        const t = (vMA.x * vPerp.x + vMA.y * vPerp.y) / lenSq;
+        
+        points.A.x = midBC.x + t * vPerp.x;
+        points.A.y = midBC.y + t * vPerp.y;
+    } 
+    // 如果移动的是 B 或 C，A 不动，我们需要让 A 保持在中垂线上？
+    // 或者，移动 B 时，对称移动 C？ 这样更符合直觉
+    else if (movedPointLabel === 'B') {
+        // 保持 A 不动，让 C 对称过去
+        // 重新计算 C，使得 A 在 BC 中垂线上 => dist(A,B) = dist(A,C)
+        // 简单的做法：以 A-midBC 为轴，做 B 的镜像。
+        // 但这样交互太跳跃。
+        // 更自然的交互：当锁定等腰时，移动 B，C 会自动镜像移动（相对于过 A 的竖直线，如果三角形是竖直放的）
+        
+        // 为了简化交互体验，我们假设 A 始终在 BC 中垂线上。
+        // 当移动 B 时，我们保持 A 不动，重新定位 C，使得 C 关于 A-H 对称？
+        // 不，最简单的策略：
+        // 1. 计算 A 到 B 的距离 R
+        // 2. 保持 A 不动
+        // 3. 计算向量 AB 的角度，镜像算出 AC 的角度?
+        
+        // 采用最稳健的策略：镜像 B 关于 A 的垂线？不。
+        // 策略：移动 B 时，同时移动 C，使它们关于 A 的竖直线对称（假设底边水平）？
+        // 不，最通用的：
+        // 移动 B 后，保持 A 不动，移动 C 使得 AC = AB 且 BC 垂直于 AH？这也太复杂。
+        
+        // 简化策略：移动 B 时，C 对称移动（相对于 A 的垂直线，这隐含了假设底边水平，不太好）。
+        // 更好策略：移动 B 时，A 自动跳到新的 BC 中垂线上。
+        applyIsoscelesConstraint('FORCE'); // 复用 A 的逻辑，把 A 拽过来
+    }
+    else if (movedPointLabel === 'C') {
+        applyIsoscelesConstraint('FORCE');
+    }
+}
+
+function updateInfoPanel() {
+    const lenAB = dist(points.A, points.B).toFixed(0);
+    const lenAC = dist(points.A, points.C).toFixed(0);
+    
+    // 计算角度 (使用余弦定理)
+    const c = dist(points.A, points.B);
+    const b = dist(points.A, points.C);
+    const a = dist(points.B, points.C);
+    
+    const radB = Math.acos((a*a + c*c - b*b) / (2*a*c));
+    const radC = Math.acos((a*a + b*b - c*c) / (2*a*b));
+    
+    const degB = (radB * 180 / Math.PI).toFixed(1);
+    const degC = (radC * 180 / Math.PI).toFixed(1);
+    
+    document.getElementById('valAB').textContent = lenAB;
+    document.getElementById('valAC').textContent = lenAC;
+    document.getElementById('valAngB').textContent = degB;
+    document.getElementById('valAngC').textContent = degC;
+
+    const statusDiv = document.getElementById('statusText');
+    const diff = Math.abs(lenAB - lenAC);
+    
+    if (diff < 1) {
+        statusDiv.innerHTML = '<span class="status-badge status-iso">✓ 等腰三角形 (三线合一)</span>';
+        if (!isIsoscelesLocked) {
+           // 自动吸附提示效果? 算了，保持简单
+        }
+    } else {
+        statusDiv.innerHTML = '<span class="status-badge status-scalene">✕ 一般三角形 (三线分离)</span>';
+    }
+}
+
+// 启动
+init();
+
+</script>
+</body>
+</html>

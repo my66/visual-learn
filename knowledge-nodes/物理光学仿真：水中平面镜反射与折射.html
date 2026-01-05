@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>物理光学仿真：水中平面镜反射与折射</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <style>
+    :root {
+      --bg-color: #f0f2f5;
+      --panel-bg: #ffffff;
+      --text-color: #333333;
+      --accent-color: #2196F3;
+      --border-color: #e0e0e0;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: var(--bg-color);
+      font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+      color: var(--text-color);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden; /* Prevent body scroll, handle inside containers */
+    }
+
+    /* Layout for PC: Horizontal Split */
+    .main-container {
+      display: flex;
+      flex: 1;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    /* Left Control Panel */
+    .control-panel {
+      width: 340px;
+      min-width: 340px;
+      background: var(--panel-bg);
+      border-right: 1px solid var(--border-color);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto; /* Independent scroll */
+      box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+      z-index: 10;
+    }
+
+    .panel-header {
+      border-bottom: 2px solid var(--accent-color);
+      padding-bottom: 10px;
+      margin-bottom: 20px;
+    }
+
+    .panel-header h2 {
+      margin: 0;
+      font-size: 1.2rem;
+      color: var(--accent-color);
+    }
+
+    .problem-desc {
+      background: #e3f2fd;
+      padding: 12px;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      margin-bottom: 20px;
+      border-left: 4px solid var(--accent-color);
+    }
+
+    .control-group {
+      margin-bottom: 20px;
+    }
+
+    .control-group label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 8px;
+      font-size: 0.95rem;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .value-display {
+      color: var(--accent-color);
+      font-weight: normal;
+    }
+
+    input[type=range] {
+      width: 100%;
+      cursor: pointer;
+    }
+
+    .checkbox-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      font-size: 0.95rem;
+    }
+
+    .legend {
+      margin-top: auto;
+      padding-top: 20px;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+      font-size: 0.85rem;
+    }
+
+    .dot { width: 10px; height: 10px; border-radius: 50%; }
+    .line-sw { width: 20px; height: 3px; }
+
+    /* Right Canvas Area */
+    .canvas-container {
+      flex: 1;
+      position: relative;
+      background-color: #ffffff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+    }
+
+    /* Scrollbar styling */
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: #f1f1f1; }
+    ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #bbb; }
+
+  </style>
+</head>
+<body>
+
+  <div class="main-container">
+    <!-- Control Panel -->
+    <aside class="control-panel">
+      <div class="panel-header">
+        <h2>光学问题可视化</h2>
+      </div>
+
+      <div class="problem-desc">
+        <strong>题目大意：</strong><br>
+        如图所示，平面镜斜放在水槽中，一束光竖直向下射到水中的镜面上。<br>
+        请观察光经平面镜的<strong>反射</strong>及从水中到空气中的<strong>折射</strong>情况。
+      </div>
+
+      <div class="control-group">
+        <label>
+          平面镜倾角 (θ)
+          <span id="val-angle" class="value-display">30°</span>
+        </label>
+        <input type="range" id="slider-angle" min="0" max="60" step="1" value="30">
+      </div>
+
+      <div class="control-group">
+        <label>
+          入射光位置 (x)
+          <span id="val-pos" class="value-display"></span>
+        </label>
+        <input type="range" id="slider-pos" min="-100" max="100" step="1" value="30">
+      </div>
+
+      <div class="control-group">
+        <label>
+          水的折射率 (n)
+          <span id="val-refract" class="value-display">1.33</span>
+        </label>
+        <input type="range" id="slider-n" min="1.0" max="2.0" step="0.01" value="1.33">
+      </div>
+
+      <div class="control-group">
+        <label>辅助显示</label>
+        <div class="checkbox-group">
+          <label class="checkbox-item">
+            <input type="checkbox" id="check-normal" checked>
+            显示法线
+          </label>
+          <label class="checkbox-item">
+            <input type="checkbox" id="check-angles" checked>
+            显示角度数值
+          </label>
+          <label class="checkbox-item">
+            <input type="checkbox" id="check-extend">
+            显示反向延长线 (虚像原理)
+          </label>
+        </div>
+      </div>
+
+      <div class="legend">
+        <strong>图例说明：</strong>
+        <div class="legend-item"><div class="line-sw" style="background:red"></div> 入射光线</div>
+        <div class="legend-item"><div class="line-sw" style="background:#2196F3"></div> 反射光线</div>
+        <div class="legend-item"><div class="line-sw" style="background:#4CAF50"></div> 折射光线</div>
+        <div class="legend-item"><div class="line-sw" style="border-top: 2px dashed #999; height:0;"></div> 法线 (辅助线)</div>
+      </div>
+    </aside>
+
+    <!-- Canvas -->
+    <main class="canvas-container" id="canvas-wrapper">
+      <!-- p5.js canvas will be injected here -->
+    </main>
+  </div>
+
+<script>
+/**
+ * P5.js Visualization Logic
+ * Pure Geometric Optics implementation (No physics engine needed)
+ */
+
+let canvas;
+let wrapper;
+
+// State variables
+let mirrorAngle = 30; // Degrees relative to horizontal
+let lightOffset = 30; // Offset from center
+let refractiveIndex = 1.33;
+let showNormals = true;
+let showAngles = true;
+let showExtend = false;
+
+// Physics constants
+const AIR_INDEX = 1.00;
+
+function setup() {
+  wrapper = document.getElementById('canvas-wrapper');
+  let w = wrapper.clientWidth;
+  let h = wrapper.clientHeight;
+  canvas = createCanvas(w, h);
+  canvas.parent('canvas-wrapper');
+  
+  textFont('Microsoft YaHei');
+  rectMode(CORNER); // Default
+  
+  // Attach listeners
+  document.getElementById('slider-angle').addEventListener('input', (e) => {
+    mirrorAngle = parseInt(e.target.value);
+    document.getElementById('val-angle').innerText = mirrorAngle + "°";
+  });
+  
+  document.getElementById('slider-pos').addEventListener('input', (e) => {
+    lightOffset = parseInt(e.target.value);
+    // document.getElementById('val-pos').innerText = lightOffset;
+  });
+
+  document.getElementById('slider-n').addEventListener('input', (e) => {
+    refractiveIndex = parseFloat(e.target.value);
+    document.getElementById('val-refract').innerText = refractiveIndex.toFixed(2);
+  });
+
+  document.getElementById('check-normal').addEventListener('change', (e) => showNormals = e.target.checked);
+  document.getElementById('check-angles').addEventListener('change', (e) => showAngles = e.target.checked);
+  document.getElementById('check-extend').addEventListener('change', (e) => showExtend = e.target.checked);
+}
+
+function windowResized() {
+  let w = wrapper.clientWidth;
+  let h = wrapper.clientHeight;
+  resizeCanvas(w, h);
+}
+
+function draw() {
+  background(255);
+  
+  // Center coordinates roughly
+  let cx = width / 2;
+  let cy = height / 2 + 50; 
+  
+  // Scene Geometry
+  let tankWidth = 600;
+  let tankHeight = 350;
+  let waterLevelY = cy - tankHeight + 50; // Y coordinate of water surface (global)
+  let tankBottomY = cy;
+  let tankLeft = cx - tankWidth/2;
+  let tankRight = cx + tankWidth/2;
+
+  // 1. Draw Water
+  noStroke();
+  fill(225, 245, 254); // Light Blue
+  rect(tankLeft, waterLevelY, tankWidth, tankBottomY - waterLevelY);
+  
+  // Draw Water Surface Line
+  stroke(33, 150, 243);
+  strokeWeight(2);
+  line(tankLeft, waterLevelY, tankRight, waterLevelY);
+  
+  // Label: Water/Air
+  fill(33, 150, 243);
+  noStroke();
+  textSize(16);
+  text("空气 (Air)", tankLeft + 20, waterLevelY - 15);
+  text("水 (Water)", tankLeft + 20, waterLevelY + 25);
+
+  // 2. Draw Mirror
+  // Mirror is pivoted at the bottom center or slightly offset? 
+  // Based on image, it rests on the bottom. Let's place it rooted at bottom-left-ish area or center.
+  // To make reflection hit the surface, let's place mirror center somewhat deep.
+  
+  let mirrorLen = 250;
+  let mirrorPivotX = cx - 50; 
+  let mirrorPivotY = tankBottomY - 10;
+  
+  // Calculate Mirror Vector
+  // Angle is relative to horizontal.
+  // Start point (pivot), End point
+  let rad = radians(mirrorAngle);
+  // Let's define the mirror line segment. 
+  // It looks like it leans against the right wall in diagram, but let's just make it free standing for clarity.
+  let mx1 = mirrorPivotX - (mirrorLen/2) * cos(rad);
+  let my1 = mirrorPivotY + (mirrorLen/2) * sin(rad); // p5 y increases down, but we want slope up?
+  // Actually, standard slope / in p5:
+  // If angle is 30 deg up from horizontal:
+  // x goes right, y goes up (negative in p5)
+  // Let's fix center of mirror.
+  let mCenterX = cx;
+  let mCenterY = tankBottomY - 80;
+  
+  mx1 = mCenterX - (mirrorLen/2) * cos(-rad);
+  my1 = mCenterY - (mirrorLen/2) * sin(-rad);
+  let mx2 = mCenterX + (mirrorLen/2) * cos(-rad);
+  let my2 = mCenterY + (mirrorLen/2) * sin(-rad);
+
+  // Draw Mirror
+  stroke(100);
+  strokeWeight(8);
+  line(mx1, my1, mx2, my2);
+  stroke(200);
+  strokeWeight(4); // Inner shine
+  line(mx1, my1, mx2, my2);
+  
+  // Draw hatching on back of mirror to indicate non-reflective side
+  drawMirrorHatching(mx1, my1, mx2, my2, -rad);
+
+  // 3. Ray Tracing Logic
+  
+  // Ray 1: Incident from top
+  // Source X
+  let sourceX = cx + lightOffset; 
+  let sourceY = waterLevelY - 100; // Start in air
+  
+  // The problem states light shoots vertically downwards.
+  // Direction: (0, 1)
+  
+  // Check intersection with Mirror
+  let hit = intersectLineLine(sourceX, -1000, sourceX, 1000, mx1, my1, mx2, my2);
+  
+  if (hit) {
+    let p1 = createVector(hit.x, hit.y);
+    
+    // Validate: Is hit point actually inside the water?
+    // And is hit point below the water surface?
+    if (p1.y > waterLevelY) {
+      
+      // --- SEGMENT 1: Air to Mirror ---
+      drawRay(sourceX, sourceY, p1.x, p1.y, color(255, 50, 50), "入射光线");
+      drawArrow(sourceX, sourceY, p1.x, p1.y, color(255, 50, 50));
+
+      // --- REFLECTION at Mirror ---
+      // Mirror Normal
+      // Vector of mirror: V = (mx2-mx1, my2-my1)
+      let mirrorVec = createVector(mx2-mx1, my2-my1);
+      // Normal is perpendicular. (-y, x) or (y, -x)
+      let normalM = createVector(-mirrorVec.y, mirrorVec.x).normalize();
+      
+      // Incident Vector I = (0, 1)
+      let incidentV = createVector(0, 1);
+      
+      // Ensure normal points against incidence (upwards-ish)
+      if (incidentV.dot(normalM) > 0) {
+        normalM.mult(-1);
+      }
+      
+      // Calculate Reflection Vector: R = I - 2(I.N)N
+      let dotProd = incidentV.dot(normalM);
+      let reflectV = p5.Vector.sub(incidentV, p5.Vector.mult(normalM, 2 * dotProd));
+      
+      // Draw Normal at Mirror
+      if (showNormals) {
+        drawDashedLine(p1.x, p1.y, p1.x + normalM.x * 60, p1.y + normalM.y * 60, color(100));
+      }
+      
+      // Show Angle of Incidence/Reflection
+      if (showAngles) {
+        // Angle between -Incident and Normal
+        // Since Incident is vertical, and Normal is perpendicular to mirror...
+        // The angle is simply theta (mirror angle) if strictly vertical.
+        let angleVal = mirrorAngle; // Mathematical property
+        drawAngleArc(p1, normalM, p5.Vector.mult(incidentV, -1), angleVal.toFixed(0)+"°", color(255, 50, 50));
+        drawAngleArc(p1, reflectV, normalM, angleVal.toFixed(0)+"°", color(33, 150, 243));
+      }
+
+      // --- SEGMENT 2: Mirror to Water Surface ---
+      // We need to find where the ray (p1 + t*reflectV) hits the line y = waterLevelY
+      // reflectV.y should be negative (going up). If positive, it goes down (error state or weird angle)
+      
+      if (reflectV.y < 0) {
+        // t = (targetY - startY) / dirY
+        let t = (waterLevelY - p1.y) / reflectV.y;
+        let p2 = p5.Vector.add(p1, p5.Vector.mult(reflectV, t));
+        
+        drawRay(p1.x, p1.y, p2.x, p2.y, color(33, 150, 243), "反射光线");
+        drawArrow(p1.x, p1.y, p2.x, p2.y, color(33, 150, 243));
+
+        // --- REFRACTION at Water Surface ---
+        // Normal at surface is (0, -1) [pointing up into air]
+        let normalS = createVector(0, -1);
+        
+        if (showNormals) {
+          drawDashedLine(p2.x, p2.y + 30, p2.x, p2.y - 60, color(100));
+        }
+
+        // Calculate Angles
+        // Incoming vector: reflectV
+        // Angle with Normal (incidence from water side)
+        // Cos(theta1) = ( -reflectV dot normalS ) / mag
+        // reflectV is normalized? No, let's normalize.
+        reflectV.normalize();
+        let cosTheta1 = p5.Vector.dot(p5.Vector.mult(reflectV, -1), normalS);
+        // Clamp for safety
+        cosTheta1 = constrain(cosTheta1, -1, 1);
+        let theta1 = acos(cosTheta1);
+        
+        // Snell's Law: n1 * sin(theta1) = n2 * sin(theta2)
+        // n1 = refractiveIndex (water), n2 = 1.0 (air)
+        let n1 = refractiveIndex;
+        let n2 = AIR_INDEX;
+        let sinTheta1 = sin(theta1);
+        let sinTheta2 = (n1 / n2) * sinTheta1;
+
+        // Check Critical Angle (Total Internal Reflection)
+        if (abs(sinTheta2) > 1.0) {
+          // TIR
+          fill(255, 0, 0);
+          noStroke();
+          textSize(14);
+          text("发生全反射 (TIR)", p2.x + 10, p2.y - 20);
+          
+          // Draw reflection back into water
+          let reflectV2 = p5.Vector.sub(reflectV, p5.Vector.mult(normalS, 2 * reflectV.dot(normalS)));
+          let p3 = p5.Vector.add(p2, p5.Vector.mult(reflectV2, 100)); // Just draw a bit
+          drawRay(p2.x, p2.y, p3.x, p3.y, color(33, 150, 243, 150), "全反射光");
+
+        } else {
+          // Refraction
+          let theta2 = asin(sinTheta2);
+          
+          // Geometry: The ray bends AWAY from normal.
+          // We need to determine the sign/direction.
+          // ReflectV.x tells us if it's going left or right.
+          // If ReflectV.x > 0 (right), Refracted ray x > 0.
+          // The angle theta2 is with the vertical Normal.
+          
+          // Construct refracted vector
+          // Angle of vector = -90 (normal) + theta2 (if right) or - theta2 (if left)?
+          // Let's use rotation.
+          // Normal is (0, -1). 
+          // If reflectV is to the right, we rotate Normal by +theta2.
+          // If reflectV is to the left, we rotate Normal by -theta2.
+          
+          let refractV = normalS.copy();
+          if (reflectV.x >= 0) {
+            refractV.rotate(theta2);
+          } else {
+            refractV.rotate(-theta2);
+          }
+          
+          let p3 = p5.Vector.add(p2, p5.Vector.mult(refractV, 150));
+          drawRay(p2.x, p2.y, p3.x, p3.y, color(76, 175, 80), "折射光线");
+          drawArrow(p2.x, p2.y, p3.x, p3.y, color(76, 175, 80));
+
+          // Backward Extension (Virtual Image logic)
+          if (showExtend) {
+             let pExtend = p5.Vector.sub(p2, p5.Vector.mult(refractV, 300));
+             stroke(76, 175, 80, 100);
+             strokeWeight(1);
+             drawingContext.setLineDash([5, 5]);
+             line(p2.x, p2.y, pExtend.x, pExtend.y);
+             drawingContext.setLineDash([]);
+          }
+          
+          if (showAngles) {
+            let deg1 = degrees(theta1).toFixed(1);
+            let deg2 = degrees(theta2).toFixed(1);
+            
+            // Draw Incident Arc (Water side)
+            drawAngleArc(p2, p5.Vector.mult(reflectV, -1), normalS, deg1 + "°", color(33, 150, 243));
+            
+            // Draw Refracted Arc (Air side)
+            drawAngleArc(p2, normalS, refractV, deg2 + "°", color(76, 175, 80));
+          }
+        }
+
+      }
+    } else {
+       // Ray hit mirror but outside of water? Unlikely with this setup but safe to ignore
+    }
+  } else {
+    // Ray missed mirror
+    drawRay(sourceX, sourceY, sourceX, tankBottomY, color(255, 50, 50), "");
+  }
+}
+
+// --- Helpers ---
+
+function drawRay(x1, y1, x2, y2, col, label) {
+  stroke(col);
+  strokeWeight(3);
+  line(x1, y1, x2, y2);
+  
+  if (label) {
+    noStroke();
+    fill(col);
+    textSize(14);
+    // Position text at midpoint
+    text(label, (x1+x2)/2 + 10, (y1+y2)/2);
+  }
+}
+
+function drawArrow(x1, y1, x2, y2, col) {
+  push();
+  translate((x1 + x2) / 2, (y1 + y2) / 2);
+  let v = createVector(x2 - x1, y2 - y1);
+  rotate(v.heading());
+  fill(col);
+  noStroke();
+  triangle(-5, -5, 5, 0, -5, 5);
+  pop();
+}
+
+function drawDashedLine(x1, y1, x2, y2, col) {
+  stroke(col);
+  strokeWeight(1);
+  drawingContext.setLineDash([5, 5]);
+  line(x1, y1, x2, y2);
+  drawingContext.setLineDash([]);
+}
+
+function drawMirrorHatching(x1, y1, x2, y2, angle) {
+  // Draw little perpendicular lines on the "bottom" side
+  let len = dist(x1, y1, x2, y2);
+  let steps = 20;
+  let dx = (x2 - x1) / steps;
+  let dy = (y2 - y1) / steps;
+  
+  stroke(150);
+  strokeWeight(1);
+  
+  // Normal vector for hatching
+  // Angle is angle of mirror. Hatching goes -90 deg from that.
+  let hatchLen = 8;
+  let hx = 8 * cos(angle + HALF_PI);
+  let hy = 8 * sin(angle + HALF_PI);
+
+  for (let i = 0; i <= steps; i++) {
+    let px = x1 + dx * i;
+    let py = y1 + dy * i;
+    line(px, py, px + hx, py + hy);
+  }
+}
+
+function drawAngleArc(origin, v1, v2, label, col) {
+  // Draw arc between two vectors
+  let r = 40;
+  let a1 = v1.heading();
+  let a2 = v2.heading();
+  
+  noFill();
+  stroke(col);
+  strokeWeight(1);
+  
+  // Ensure we draw the smaller arc
+  if (abs(a1 - a2) > PI) {
+    if (a1 < a2) a1 += TWO_PI;
+    else a2 += TWO_PI;
+  }
+  
+  arc(origin.x, origin.y, r, r, min(a1, a2), max(a1, a2));
+  
+  // Label
+  noStroke();
+  fill(col);
+  textSize(12);
+  let midA = (a1 + a2) / 2;
+  let tx = origin.x + (r/2 + 15) * cos(midA);
+  let ty = origin.y + (r/2 + 15) * sin(midA);
+  text(label, tx, ty);
+}
+
+// Line-Line Intersection Helper
+function intersectLineLine(x1, y1, x2, y2, x3, y3, x4, y4) {
+  let uA = ((x4-x3)*(y1-y3) - (y4-y3)*(x1-x3)) / ((y4-y3)*(x2-x1) - (x4-x3)*(y2-y1));
+  let uB = ((x2-x1)*(y1-y3) - (y2-y1)*(x1-x3)) / ((y4-y3)*(x2-x1) - (x4-x3)*(y2-y1));
+  if (uA >= 0 && uA <= 1 && uB >= 0 && uB <= 1) {
+    return {
+      x: x1 + (uA * (x2-x1)),
+      y: y1 + (uA * (y2-y1))
+    };
+  }
+  return null;
+}
+</script>
+</body>
+</html>

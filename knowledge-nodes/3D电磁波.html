@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>电磁波 3D 模拟 (Electromagnetic Wave)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="static/OrbitControls.js"></script>
+    <!-- Tailwind CSS for UI -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        #canvas-container { width: 100vw; height: 100vh; }
+        .label {
+            position: absolute;
+            font-weight: bold;
+            text-shadow: 0 0 5px #000;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- UI Overlay -->
+    <div class="absolute top-4 left-4 z-10 pointer-events-none">
+        <h1 class="text-2xl font-bold text-white mb-2">电磁波可视化 (Electromagnetic Wave)</h1>
+        <div class="bg-gray-900 bg-opacity-80 p-4 rounded-lg border border-gray-700 pointer-events-auto max-w-sm">
+            <div class="flex items-center mb-2">
+                <div class="w-4 h-4 bg-red-500 mr-2 rounded-sm"></div>
+                <span class="text-sm text-gray-200">电场 (Electric Field, E) - 垂直振动</span>
+            </div>
+            <div class="flex items-center mb-2">
+                <div class="w-4 h-4 bg-blue-500 mr-2 rounded-sm"></div>
+                <span class="text-sm text-gray-200">磁场 (Magnetic Field, B) - 水平振动</span>
+            </div>
+            <div class="flex items-center mb-4">
+                <div class="w-4 h-1 bg-yellow-400 mr-2"></div>
+                <span class="text-sm text-gray-200">传播方向 (Propagation, c)</span>
+            </div>
+            <p class="text-xs text-gray-400 mb-2">
+                解释：变化的电场产生磁场，变化的磁场产生电场。两者相互垂直，携手向前传播。这就是光！
+            </p>
+            <div class="mt-2 pt-2 border-t border-gray-700">
+                <label class="text-xs text-gray-300 block mb-1">波速 (Speed)</label>
+                <input type="range" id="speedControl" min="0" max="0.2" step="0.01" value="0.05" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+            </div>
+            <div class="mt-2 text-xs text-gray-500 text-center">
+                鼠标左键旋转 · 滚轮缩放 · 右键平移
+            </div>
+        </div>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <script>
+        // --- 1. 初始化场景 ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x050505); // 深灰/黑背景
+        scene.fog = new THREE.FogExp2(0x050505, 0.02);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        // 设置相机位置，以斜角观察，可以同时看到两个平面
+        camera.position.set(15, 10, 20);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        container.appendChild(renderer.domElement);
+
+        // 轨道控制器
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        // --- 2. 辅助元素 ---
+        // 添加坐标轴辅助器 (X:红, Y:绿, Z:蓝)
+        // 为了不混淆，我们会自定义画一条长的传播轴
+        // const axesHelper = new THREE.AxesHelper(5);
+        // scene.add(axesHelper);
+
+        // 网格地面 (作为参考面)
+        const gridHelper = new THREE.GridHelper(50, 50, 0x333333, 0x111111);
+        gridHelper.position.y = -5;
+        scene.add(gridHelper);
+
+        // --- 3. 创建波的对象 ---
+        const waveGroup = new THREE.Group();
+        scene.add(waveGroup);
+
+        // 参数配置
+        const params = {
+            count: 60,          // 采样点数量 (箭头的数量)
+            spacing: 0.8,       // 点之间的间距
+            amplitude: 4,       // 振幅
+            wavelength: 0.3,    // 波长系数 (k)
+            speed: 0.05         // 动画速度 (omega)
+        };
+
+        // 存储引用以便在动画循环中更新
+        const eArrows = []; // 电场箭头数组
+        const bArrows = []; // 磁场箭头数组
+        let eLine, bLine;   // 连线
+        const originX = - (params.count * params.spacing) / 2; // 起始X位置，让波居中
+
+        // 材质
+        const matRed = new THREE.LineBasicMaterial({ color: 0xff2222, linewidth: 2 });
+        const matBlue = new THREE.LineBasicMaterial({ color: 0x2222ff, linewidth: 2 });
+
+        // --- 初始化箭头和线条 ---
+        function initWave() {
+            // 1. 传播轴 (X轴)
+            const axisGeo = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(originX - 2, 0, 0),
+                new THREE.Vector3(originX + params.count * params.spacing + 5, 0, 0)
+            ]);
+            const axisMat = new THREE.LineBasicMaterial({ color: 0xffff00 });
+            const axis = new THREE.Line(axisGeo, axisMat);
+            waveGroup.add(axis);
+            
+            // 添加轴末端的箭头头
+            const arrowHead = new THREE.ArrowHelper(
+                new THREE.Vector3(1, 0, 0), 
+                new THREE.Vector3(originX + params.count * params.spacing + 5, 0, 0), 
+                1, 
+                0xffff00
+            );
+            waveGroup.add(arrowHead);
+
+            // 2. 创建 E场 和 B场 的箭头池
+            // 我们使用 ArrowHelper，但在循环中只更新它们的方向和长度
+            for (let i = 0; i < params.count; i++) {
+                const x = originX + i * params.spacing;
+                
+                // E场箭头 (Y轴方向)
+                const dirE = new THREE.Vector3(0, 1, 0);
+                const arrowE = new THREE.ArrowHelper(dirE, new THREE.Vector3(x, 0, 0), 0, 0xff0000, 0.5, 0.3);
+                waveGroup.add(arrowE);
+                eArrows.push(arrowE);
+
+                // B场箭头 (Z轴方向)
+                const dirB = new THREE.Vector3(0, 0, 1);
+                const arrowB = new THREE.ArrowHelper(dirB, new THREE.Vector3(x, 0, 0), 0, 0x0000ff, 0.5, 0.3);
+                waveGroup.add(arrowB);
+                bArrows.push(arrowB);
+            }
+
+            // 3. 创建连接箭头顶端的平滑曲线 (Line)
+            // 初始几何体
+            const geometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(params.count * 3);
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            
+            eLine = new THREE.Line(geometry.clone(), matRed);
+            bLine = new THREE.Line(geometry.clone(), matBlue);
+            
+            waveGroup.add(eLine);
+            waveGroup.add(bLine);
+        }
+
+        initWave();
+
+        // --- 4. 动画循环 ---
+        let time = 0;
+
+        // 监听滑块
+        const speedInput = document.getElementById('speedControl');
+        speedInput.addEventListener('input', (e) => {
+            params.speed = parseFloat(e.target.value);
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            time += params.speed;
+
+            // 获取线条的顶点位置数组
+            const ePositions = eLine.geometry.attributes.position.array;
+            const bPositions = bLine.geometry.attributes.position.array;
+
+            for (let i = 0; i < params.count; i++) {
+                const xBase = originX + i * params.spacing;
+                
+                // 计算正弦波值
+                // y = A * sin(kx - wt)
+                const angle = i * params.wavelength - time;
+                const value = Math.sin(angle) * params.amplitude;
+
+                // --- 更新 E场 (红色, Y轴) ---
+                // 确定方向：如果是正值朝上，负值朝下
+                const dirE = value >= 0 ? 1 : -1;
+                const lenE = Math.abs(value);
+                
+                // 更新箭头
+                // 注意：ArrowHelper(dir, origin, length)
+                // 如果长度太小，Threejs会报警告，所以做个微小的限制
+                const displayLenE = Math.max(0.01, lenE);
+                eArrows[i].setLength(displayLenE, 0.5, 0.3); // length, headLength, headWidth
+                eArrows[i].setDirection(new THREE.Vector3(0, dirE, 0));
+                
+                // 更新连线顶点
+                ePositions[i * 3] = xBase;
+                ePositions[i * 3 + 1] = value; // Y
+                ePositions[i * 3 + 2] = 0;
+
+                // --- 更新 B场 (蓝色, Z轴) ---
+                // 电磁波中，E和B是同相位的 (in phase)，所以使用相同的 'value' 幅度，只是方向不同
+                const dirB = value >= 0 ? 1 : -1;
+                const lenB = Math.abs(value);
+
+                const displayLenB = Math.max(0.01, lenB);
+                bArrows[i].setLength(displayLenB, 0.5, 0.3);
+                bArrows[i].setDirection(new THREE.Vector3(0, 0, dirB));
+
+                // 更新连线顶点
+                bPositions[i * 3] = xBase;
+                bPositions[i * 3 + 1] = 0;
+                bPositions[i * 3 + 2] = value; // Z
+            }
+
+            // 告诉 Three.js 几何体数据已更新
+            eLine.geometry.attributes.position.needsUpdate = true;
+            bLine.geometry.attributes.position.needsUpdate = true;
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // --- 5. 窗口自适应 ---
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // 开始动画
+        animate();
+
+    </script>
+</body>
+</html>

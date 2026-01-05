@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>小孔成像实验可视化 (Pinhole Camera)</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #f0f2f5;
+      font-family: "Noto Sans SC", "Microsoft YaHei", sans-serif;
+      color: #333;
+      overflow-y: auto; /* 允许垂直滚动 */
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* 顶部标题栏 */
+    header {
+      background-color: #fff;
+      padding: 15px 30px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+      flex-shrink: 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 24px;
+      color: #2c3e50;
+    }
+
+    .problem-statement {
+      font-size: 14px;
+      color: #666;
+      max-width: 600px;
+      line-height: 1.5;
+    }
+
+    /* 主布局容器 */
+    #main-container {
+      flex: 1;
+      display: flex;
+      flex-direction: row; /* PC端横向排列 */
+      padding: 20px;
+      gap: 20px;
+      max-width: 1600px;
+      margin: 0 auto;
+      width: 100%;
+      box-sizing: border-box;
+      min-height: 600px; /* 保证最小高度 */
+    }
+
+    /* 左侧控制面板 */
+    #sidebar {
+      width: 320px;
+      background: #fff;
+      border-radius: 12px;
+      padding: 25px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+      display: flex;
+      flex-direction: column;
+      gap: 25px;
+      flex-shrink: 0;
+      overflow-y: auto;
+      max-height: calc(100vh - 100px); /* 防止面板过长溢出 */
+    }
+
+    /* 右侧画布区域 */
+    #canvas-wrapper {
+      flex: 1;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-width: 600px; /* 保证画布最小宽度 */
+    }
+
+    /* 控件样式 */
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .control-label {
+      font-weight: 600;
+      font-size: 15px;
+      color: #34495e;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .value-display {
+      color: #3498db;
+      font-family: monospace;
+      font-weight: bold;
+    }
+
+    input[type=range] {
+      width: 100%;
+      cursor: pointer;
+    }
+
+    .radio-group {
+      display: flex;
+      gap: 15px;
+      flex-wrap: wrap;
+    }
+
+    .radio-label {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    .info-panel {
+      background: #e8f4fc;
+      border-left: 4px solid #3498db;
+      padding: 15px;
+      border-radius: 4px;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .info-panel strong {
+      color: #2980b9;
+    }
+    
+    .legend {
+      display: flex;
+      gap: 15px;
+      font-size: 12px;
+      margin-top: 5px;
+    }
+    .legend-item { display: flex; align-items: center; gap: 5px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  </style>
+</head>
+<body>
+
+  <header>
+    <div>
+      <h1>小孔成像实验可视化</h1>
+      <div style="font-size: 12px; color: #7f8c8d; margin-top: 5px;">对应题目：第14题 - 探究像的倒正、大小与形状</div>
+    </div>
+    <div class="problem-statement">
+      <strong>题目重述：</strong> 
+      在空罐底部打一个小孔（三角形），蒙上塑料膜。对着蜡烛，观察膜上像的形状与倒正。
+      当蜡烛靠近小孔时，观察像的大小变化。
+    </div>
+  </header>
+
+  <div id="main-container">
+    <!-- 控制面板 -->
+    <div id="sidebar">
+      
+      <div class="control-group">
+        <label class="control-label">
+          蜡烛位置 (物距 u)
+          <span id="val-u" class="value-display">20 cm</span>
+        </label>
+        <input type="range" id="slider-u" min="5" max="40" step="0.5" value="20">
+        <div style="font-size: 12px; color: #95a5a6;">向左拖动使蜡烛靠近小孔</div>
+      </div>
+
+      <div class="control-group">
+        <label class="control-label">
+          易拉罐长度 (像距 v)
+          <span id="val-v" class="value-display">15 cm</span>
+        </label>
+        <input type="range" id="slider-v" min="5" max="25" step="0.5" value="15">
+      </div>
+
+      <div class="control-group">
+        <label class="control-label">小孔形状</label>
+        <div class="radio-group">
+          <label class="radio-label">
+            <input type="radio" name="shape" value="triangle" checked>
+            <span>三角形</span>
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="shape" value="circle">
+            <span>圆形</span>
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="shape" value="square">
+            <span>方形</span>
+          </label>
+        </div>
+        <div style="font-size: 12px; color: #e74c3c; margin-top: 5px;">
+          * 注意观察右侧成像形状是否随之改变
+        </div>
+      </div>
+
+      <div class="control-group">
+        <label class="control-label">辅助选项</label>
+        <label class="radio-label">
+          <input type="checkbox" id="check-rays" checked>
+          <span>显示光路辅助线</span>
+        </label>
+        <label class="radio-label">
+          <input type="checkbox" id="check-labels" checked>
+          <span>显示标注 (u, v)</span>
+        </label>
+      </div>
+
+      <div class="info-panel">
+        <strong>实时数据分析：</strong><br>
+        放大倍率 (M) = v / u = <span id="val-mag">0.75</span><br>
+        像的状态：<span style="color: #c0392b; font-weight: bold;">倒立 实像</span><br>
+        <br>
+        <strong>结论验证：</strong><br>
+        1. 物距变小，像 <span id="res-size" style="font-weight:bold">变大</span>。<br>
+        2. 像的形状与小孔形状 <span style="font-weight:bold">无关</span>。
+      </div>
+
+    </div>
+
+    <!-- p5.js 画布容器 -->
+    <div id="canvas-wrapper">
+      <div id="p5-canvas"></div>
+    </div>
+  </div>
+
+  <script>
+    // 变量定义
+    // 使用 var 避免 redeclaration 错误，并重命名变量以避免与系统属性冲突
+    var objectDistance = 20; // 物距 (cm) - 原 u
+    var imageDistance = 15;  // 像距 (cm) - 原 v
+    var holeShape = 'triangle';
+    var showRays = true;
+    var showLabels = true;
+    
+    // 视觉比例尺：1cm = 多少像素
+    const SCALE = 12; 
+    
+    // 物体（蜡烛）高度
+    const OBJ_HEIGHT_CM = 8;
+    
+    var canvasWidth, canvasHeight;
+
+    function setup() {
+      // 初始化画布大小，适应容器
+      const container = document.getElementById('canvas-wrapper');
+      canvasWidth = container.clientWidth;
+      canvasHeight = container.clientHeight || 600;
+      
+      const canvas = createCanvas(canvasWidth, canvasHeight);
+      canvas.parent('p5-canvas');
+      
+      textFont("Noto Sans SC");
+      
+      // 绑定UI事件
+      document.getElementById('slider-u').addEventListener('input', (e) => {
+        objectDistance = parseFloat(e.target.value);
+        updateUI();
+      });
+      document.getElementById('slider-v').addEventListener('input', (e) => {
+        imageDistance = parseFloat(e.target.value);
+        updateUI();
+      });
+      
+      const shapes = document.getElementsByName('shape');
+      shapes.forEach(r => {
+        r.addEventListener('change', (e) => {
+          if(e.target.checked) holeShape = e.target.value;
+        });
+      });
+
+      document.getElementById('check-rays').addEventListener('change', (e) => showRays = e.target.checked);
+      document.getElementById('check-labels').addEventListener('change', (e) => showLabels = e.target.checked);
+      
+      updateUI();
+    }
+
+    function windowResized() {
+      const container = document.getElementById('canvas-wrapper');
+      canvasWidth = container.clientWidth;
+      canvasHeight = container.clientHeight;
+      resizeCanvas(canvasWidth, canvasHeight);
+    }
+
+    function updateUI() {
+      document.getElementById('val-u').innerText = objectDistance.toFixed(1) + " cm";
+      document.getElementById('val-v').innerText = imageDistance.toFixed(1) + " cm";
+      
+      const m = imageDistance / objectDistance;
+      document.getElementById('val-mag').innerText = m.toFixed(2);
+      
+      // 更新结论文字
+      const sizeText = document.getElementById('res-size');
+    }
+
+    function draw() {
+      background(255);
+      
+      // 我们将画布分为两部分：左边是侧视光路图，右边是"薄膜视角"
+      // 分割线
+      stroke(220);
+      strokeWeight(2);
+      line(canvasWidth * 0.6, 20, canvasWidth * 0.6, canvasHeight - 20);
+      
+      // === 左侧：侧视光路图 (Side View) ===
+      drawSideView();
+      
+      // === 右侧：薄膜视角 (Film View) ===
+      drawFilmView();
+    }
+
+    function drawSideView() {
+      push();
+      // 设置原点在左侧区域的中间靠右位置（小孔位置）
+      // 左侧区域宽度约为 canvasWidth * 0.6
+      const centerX = (canvasWidth * 0.6) * 0.65; 
+      const centerY = canvasHeight / 2;
+      
+      translate(centerX, centerY);
+      
+      // 坐标转换：像素 = cm * SCALE
+      const px_u = objectDistance * SCALE;
+      const px_v = imageDistance * SCALE;
+      const px_h_o = OBJ_HEIGHT_CM * SCALE;
+      const px_h_i = px_h_o * (imageDistance / objectDistance); // 计算像高
+      
+      // 1. 绘制光轴
+      stroke(150);
+      strokeWeight(1);
+      drawingContext.setLineDash([5, 5]);
+      line(-canvasWidth/2, 0, canvasWidth/2, 0);
+      drawingContext.setLineDash([]);
+      
+      // 2. 绘制小孔挡板 (Barrier)
+      stroke(50);
+      strokeWeight(4);
+      line(0, -100, 0, -5); // 上半部分
+      line(0, 5, 0, 100);   // 下半部分
+      // 小孔位置标记
+      noStroke();
+      fill(50);
+      circle(0, 0, 4);
+      
+      // 绘制小孔形状示意图 (Label)
+      fill(100);
+      textAlign(CENTER);
+      textSize(12);
+      text("小孔", 0, -110);
+      // 画一个小图标表示当前选择的形状
+      push();
+      translate(0, -130);
+      stroke(0);
+      strokeWeight(1);
+      noFill();
+      if (holeShape === 'triangle') {
+        triangle(0, -6, -6, 4, 6, 4);
+      } else if (holeShape === 'circle') {
+        circle(0, 0, 12);
+      } else if (holeShape === 'square') {
+        rectMode(CENTER);
+        rect(0, 0, 10, 10);
+      }
+      pop();
+
+      // 3. 绘制物体（蜡烛）
+      // 蜡烛在 x = -px_u
+      push();
+      translate(-px_u, 0);
+      drawCandle(px_h_o, true); // true = 正立
+      pop();
+
+      // 4. 绘制成像屏（薄膜）
+      // 屏在 x = px_v
+      stroke(100, 100, 255);
+      strokeWeight(3);
+      line(px_v, -120, px_v, 120);
+      noStroke();
+      fill(100, 100, 255);
+      text("塑料膜", px_v, -130);
+
+      // 5. 绘制像（蜡烛倒立）
+      push();
+      translate(px_v, 0);
+      // 像半透明显示在屏上
+      drawingContext.globalAlpha = 0.8; 
+      drawCandle(px_h_i, false); // false = 倒立
+      pop();
+
+      // 6. 绘制光线 (Rays)
+      if (showRays) {
+        stroke(231, 76, 60, 150); // 红色半透明
+        strokeWeight(1.5);
+        
+        // 顶部光线：物体顶端 -> 小孔 -> 像底端
+        line(-px_u, -px_h_o/2, px_v, px_h_i/2); // 注意坐标系y向下为正，所以顶端是负，底端是正
+        
+        // 底部光线：物体底端 -> 小孔 -> 像顶端
+        line(-px_u, px_h_o/2 + 10, px_v, -px_h_i/2 - (10 * (imageDistance/objectDistance))); 
+        
+        // 箭头
+        drawArrow(-px_u * 0.5, -px_h_o/2 * 0.5, px_u, px_h_o/2, 231, 76, 60);
+      }
+      
+      // 7. 标注
+      if (showLabels) {
+        fill(0);
+        noStroke();
+        textSize(14);
+        
+        // 物距 u
+        text(`u = ${objectDistance} cm`, -px_u / 2, 140);
+        stroke(0); strokeWeight(1);
+        line(-px_u, 120, 0, 120);
+        line(-px_u, 115, -px_u, 125);
+        line(0, 115, 0, 125);
+        
+        // 像距 v
+        noStroke();
+        text(`v = ${imageDistance} cm`, px_v / 2, 140);
+        stroke(0);
+        line(0, 120, px_v, 120);
+        line(px_v, 115, px_v, 125);
+      }
+      
+      // 标题
+      fill(50);
+      noStroke();
+      textSize(18);
+      textAlign(LEFT);
+      text("侧视图 (光路原理)", -centerX + 20, -canvasHeight/2 + 40);
+
+      pop();
+    }
+
+    function drawFilmView() {
+      push();
+      // 右侧区域中心
+      const leftBoundary = canvasWidth * 0.6;
+      const viewWidth = canvasWidth - leftBoundary;
+      const centerX = leftBoundary + viewWidth / 2;
+      const centerY = canvasHeight / 2;
+      
+      translate(centerX, centerY);
+      
+      // 绘制"视界" (易拉罐底部)
+      fill(30);
+      stroke(100);
+      strokeWeight(5);
+      circle(0, 0, 240);
+      
+      // 绘制薄膜区域
+      fill(250, 250, 250, 200); // 半透明白
+      noStroke();
+      circle(0, 0, 230);
+      
+      // 计算像的大小
+      const px_h_o = OBJ_HEIGHT_CM * SCALE;
+      const px_h_i = px_h_o * (imageDistance / objectDistance);
+      
+      // 绘制像 (倒立)
+      drawCandle(px_h_i, false); 
+      
+      // 文字说明
+      fill(50);
+      textAlign(CENTER);
+      textSize(18);
+      text("薄膜上的像 (后视图)", 0, -150);
+      
+      textSize(14);
+      fill(100);
+      text("观察到的现象：", 0, 150);
+      
+      fill(192, 57, 43);
+      text("倒立 实像", 0, 175);
+      
+      if (holeShape !== 'circle') {
+        fill(44, 62, 80);
+        text(`(小孔是${holeShape === 'triangle' ? '三角形' : '方形'}，但像是蜡烛形)`, 0, 200);
+      }
+
+      pop();
+    }
+
+    // 辅助函数：画蜡烛
+    function drawCandle(h, isUpright) {
+      push();
+      const w = h * 0.15; // 宽度比例
+      const flameH = h * 0.3; // 火焰高度
+      const bodyH = h * 0.7;  // 蜡身高度
+      
+      // 如果倒立，旋转180度
+      if (!isUpright) {
+        rotate(PI);
+      }
+      
+      // 居中绘制
+      // 1. 蜡身
+      fill(230, 126, 34); // 橙色蜡身
+      noStroke();
+      rectMode(CENTER);
+      rect(0, (h/2) - (bodyH/2), w, bodyH);
+      
+      // 2. 烛芯
+      stroke(0);
+      strokeWeight(2);
+      line(0, (h/2) - bodyH, 0, (h/2) - bodyH - (flameH*0.1));
+      
+      // 3. 火焰 (简单画法)
+      noStroke();
+      fill(241, 196, 15); // 黄色外焰
+      beginShape();
+      vertex(0, -h/2); // 尖端
+      bezierVertex(w, -h/2 + flameH*0.5, w/2, -h/2 + flameH, 0, -h/2 + flameH);
+      bezierVertex(-w/2, -h/2 + flameH, -w, -h/2 + flameH*0.5, 0, -h/2);
+      endShape(CLOSE);
+      
+      fill(231, 76, 60); // 红色内焰
+      beginShape();
+      vertex(0, -h/2 + flameH*0.3); 
+      bezierVertex(w*0.5, -h/2 + flameH*0.6, w*0.3, -h/2 + flameH*0.9, 0, -h/2 + flameH*0.9);
+      bezierVertex(-w*0.3, -h/2 + flameH*0.9, -w*0.5, -h/2 + flameH*0.6, 0, -h/2 + flameH*0.3);
+      endShape(CLOSE);
+      
+      pop();
+    }
+    
+    function drawArrow(x1, y1, x2, y2, r, g, b) {
+       // 保留函数结构
+    }
+
+  </script>
+</body>
+</html>

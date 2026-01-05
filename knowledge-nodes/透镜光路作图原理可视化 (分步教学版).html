@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>透镜光路作图原理可视化 (分步教学版)</title>
+  
+  <!-- 引入 p5.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+
+  <style>
+    /* 全局重置与基础样式 */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: "Microsoft YaHei", "Heiti SC", sans-serif;
+      background-color: #f0f2f5;
+      color: #333;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden; 
+    }
+
+    /* 顶部标题栏 */
+    header {
+      background-color: #2c3e50;
+      color: white;
+      padding: 10px 20px;
+      flex-shrink: 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      height: 50px;
+    }
+
+    header h1 {
+      font-size: 18px;
+      font-weight: normal;
+    }
+
+    header .subtitle {
+      font-size: 12px;
+      opacity: 0.8;
+    }
+
+    /* 主布局容器 */
+    .main-container {
+      display: flex;
+      flex: 1;
+      height: calc(100vh - 50px); 
+      overflow: hidden;
+    }
+
+    /* 左侧控制面板 */
+    .sidebar {
+      width: 360px;
+      background: white;
+      padding: 15px; 
+      border-right: 1px solid #ddd;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px; 
+      box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+      z-index: 10;
+    }
+
+    /* 右侧画布区域 */
+    .canvas-container {
+      flex: 1;
+      background-color: #ffffff;
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+    }
+
+    /* UI 组件样式 */
+    .panel-section {
+      background: #f8f9fa;
+      padding: 12px; 
+      border-radius: 6px;
+      border: 1px solid #e9ecef;
+    }
+
+    .panel-section h3 {
+      font-size: 15px;
+      margin-bottom: 8px; 
+      color: #2c3e50;
+      border-bottom: 2px solid #e9ecef;
+      padding-bottom: 4px;
+    }
+
+    .control-group {
+      margin-bottom: 10px; 
+    }
+
+    .control-group label {
+      display: block;
+      margin-bottom: 4px;
+      font-weight: bold;
+      font-size: 13px;
+      color: #555;
+    }
+    
+    .checkbox-label {
+      display: flex !important;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-weight: normal !important;
+      color: #333 !important;
+      font-size: 13px;
+    }
+    .checkbox-label input {
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+    }
+
+    .value-display {
+      float: right;
+      font-weight: normal;
+      color: #007bff;
+      font-size: 13px;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      cursor: pointer;
+      margin: 5px 0;
+    }
+
+    /* 按钮组 */
+    .btn-group {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    button {
+      flex: 1;
+      padding: 8px 12px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s;
+      font-weight: bold;
+    }
+
+    .btn-primary {
+      background-color: #3498db;
+      color: white;
+    }
+    .btn-primary:hover { background-color: #2980b9; }
+    .btn-primary:disabled { background-color: #bdc3c7; cursor: not-allowed; }
+
+    .btn-secondary {
+      background-color: #95a5a6;
+      color: white;
+    }
+    .btn-secondary:hover { background-color: #7f8c8d; }
+
+    .btn-toggle {
+      background-color: #ecf0f1;
+      color: #2c3e50;
+      border: 1px solid #bdc3c7;
+    }
+    .btn-toggle.active {
+      background-color: #2c3e50;
+      color: white;
+      border-color: #2c3e50;
+    }
+
+    /* 步骤指示器 */
+    .step-indicator {
+      margin-top: 5px;
+      padding: 10px;
+      background-color: #e8f4fd;
+      border-left: 4px solid #3498db;
+      border-radius: 4px;
+    }
+
+    .step-title {
+      font-weight: bold;
+      font-size: 14px;
+      color: #2980b9;
+      margin-bottom: 4px;
+    }
+
+    .step-desc {
+      font-size: 13px;
+      line-height: 1.4;
+      color: #444;
+    }
+
+    /* 图例 */
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      font-size: 12px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .color-box {
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+    }
+
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>透镜光路作图原理可视化</h1>
+    <span class="subtitle">法线-切线法 | 几何结构拆解</span>
+  </header>
+
+  <div class="main-container">
+    <aside class="sidebar">
+      
+      <!-- 题目大意 -->
+      <div class="panel-section">
+        <h3>学习目标</h3>
+        <p style="font-size: 13px; color: #555; line-height: 1.5;">
+          本工具通过“还原几何结构”，展示透镜是如何由两个球体构成的。
+          <br>
+          尝试将<b>“入射高度”设为0</b>，观察光线经过光心时的特殊现象。
+        </p>
+      </div>
+
+      <!-- 控制面板 -->
+      <div class="panel-section">
+        <h3>实验设置</h3>
+        
+        <div class="control-group">
+          <label>透镜类型</label>
+          <div class="btn-group">
+            <button id="btn-convex" class="btn-toggle active" onclick="setLensType('convex')">凸透镜</button>
+            <button id="btn-concave" class="btn-toggle" onclick="setLensType('concave')">凹透镜</button>
+          </div>
+        </div>
+
+        <div class="control-group" style="background: #eef2f5; padding: 8px; border-radius: 4px;">
+          <label class="checkbox-label">
+            <input type="checkbox" id="chk-aux" onchange="toggleAux()" checked>
+            <span>显示辅助几何 (圆心/焦点/光心)</span>
+          </label>
+        </div>
+
+        <div class="control-group">
+          <label>入射位置 (高度) <span id="val-height" class="value-display">50</span></label>
+          <input type="range" id="slider-height" min="0" max="90" value="50" step="5">
+        </div>
+
+        <div class="control-group">
+          <label>入射角度 (偏折) <span id="val-angle" class="value-display">0°</span></label>
+          <input type="range" id="slider-angle" min="-30" max="30" value="0" step="1">
+        </div>
+      </div>
+
+      <!-- 分步教学 -->
+      <div class="panel-section">
+        <h3>作图步骤导航</h3>
+        
+        <div class="btn-group">
+          <button id="btn-prev" class="btn-secondary" onclick="prevStep()">上一步</button>
+          <button id="btn-next" class="btn-primary" onclick="nextStep()">下一步</button>
+        </div>
+        <button class="btn-secondary" style="width: 100%; margin-top: 5px;" onclick="resetSteps()">重置演示</button>
+
+        <div class="step-indicator">
+          <div id="step-title" class="step-title">准备开始</div>
+          <div id="step-desc" class="step-desc">请点击“下一步”开始学习如何画光路图。</div>
+        </div>
+      </div>
+
+      <!-- 图例 -->
+      <div class="panel-section">
+        <h3>图例</h3>
+        <div class="legend">
+          <div class="legend-item"><div class="color-box" style="background: red;"></div> 光线</div>
+          <div class="legend-item"><div class="color-box" style="background: #3498db;"></div> 法线</div>
+          <div class="legend-item"><div class="color-box" style="border: 1px dashed #ffa500; background:none; width:14px;"></div> 辅助圆</div>
+          <div class="legend-item"><div class="color-box" style="background: black; border-radius:50%;"></div> 关键点</div>
+        </div>
+      </div>
+
+    </aside>
+
+    <div class="canvas-container" id="canvas-wrapper">
+      <!-- p5.js canvas will be injected here -->
+    </div>
+  </div>
+
+<script>
+// --- 全局变量 ---
+let canvas;
+let wrapper;
+let currentStep = 0;
+const TOTAL_STEPS = 7;
+let lensType = 'convex'; // 'convex' or 'concave'
+let rayHeightPct = 0.5; // 0.1 to 0.9
+let rayAngleDeg = 0; // 入射角度
+let showAux = true; // 辅助几何开关
+
+// 透镜几何参数
+const LENS_R = 200; // 曲率半径
+const LENS_H = 90;  // 透镜半高
+
+// 物理参数
+const N_AIR = 1.0;
+const N_GLASS = 1.5;
+
+// UI 元素
+let sliderHeight, sliderAngle;
+let stepTitleEl, stepDescEl;
+let btnPrev, btnNext;
+
+// 步骤描述数据
+const STEPS_DATA = {
+  convex: [
+    { title: "步骤 0: 全局观察", desc: "观察桌面上的辅助线。**凸透镜**其实是两个球体（橙色虚线）重叠的部分。光心 O 在正中间。调整【入射位置】为0，可观察光线过光心的情况。" },
+    { title: "步骤 1: 确定第一入射点", desc: "光线射向透镜左表面，交于点 P1。" },
+    { title: "步骤 2: 寻找法线 (连接圆心)", desc: "左表面属于右边的球体（圆心 C1）。**连接 C1 与 P1**，这就是法线。无论光线角度如何，法线只由入射点和球心决定。" },
+    { title: "步骤 3: 辅助理解 (切线)", desc: "过 P1 做半径的垂线即为切线。法线垂直于界面。" },
+    { title: "步骤 4: 第一次折射 (空气→玻璃)", desc: "光进入玻璃，**偏向法线**。注意：如果光线沿着法线入射（如过光心时），则方向不变。" },
+    { title: "步骤 5: 到达第二表面", desc: "光线在透镜内直线传播，打在右表面 P2 上。" },
+    { title: "步骤 6: 第二表面的法线", desc: "右表面属于左边的球体（圆心 C2）。**连接 C2 与 P2** 得到法线。" },
+    { title: "步骤 7: 第二次折射 (玻璃→空气)", desc: "光射出玻璃，**偏离法线**。观察：当入射位置为0时，出射光线是否与入射光线平行？" }
+  ],
+  concave: [
+    { title: "步骤 0: 全局观察", desc: "观察桌面上的辅助线。**凹透镜**是两个球体之间的空间被“挖”出来的形状。光心 O 在正中间。调整【入射位置】为0，可观察光线过光心的情况。" },
+    { title: "步骤 1: 确定第一入射点", desc: "光线射向透镜左表面，交于点 P1。" },
+    { title: "步骤 2: 寻找法线 (连接圆心)", desc: "凹透镜左表面属于左边的球体（圆心 C1）。**连接 C1 与 P1** 并延长，这就是法线。" },
+    { title: "步骤 3: 辅助理解 (切线)", desc: "作半径的垂线即为切线。" },
+    { title: "步骤 4: 第一次折射 (空气→玻璃)", desc: "光进入玻璃，**偏向法线**。" },
+    { title: "步骤 5: 到达第二表面", desc: "光线在透镜内直线传播，打在右表面 P2 上。" },
+    { title: "步骤 6: 第二表面的法线", desc: "右表面属于右边的球体（圆心 C2）。**连接 C2 与 P2** 得到法线。" },
+    { title: "步骤 7: 第二次折射 (玻璃→空气)", desc: "光射出玻璃，**偏离法线**。通过光心的光线几乎不改变方向（仅有微小平移）。" }
+  ]
+};
+
+// --- p5.js 生命周期 ---
+
+function setup() {
+  wrapper = document.getElementById('canvas-wrapper');
+  let w = wrapper.clientWidth;
+  let h = wrapper.clientHeight;
+  canvas = createCanvas(w, h);
+  canvas.parent(wrapper);
+  
+  sliderHeight = document.getElementById('slider-height');
+  sliderAngle = document.getElementById('slider-angle');
+  stepTitleEl = document.getElementById('step-title');
+  stepDescEl = document.getElementById('step-desc');
+  btnPrev = document.getElementById('btn-prev');
+  btnNext = document.getElementById('btn-next');
+  
+  sliderHeight.addEventListener('input', (e) => {
+    // 0-90 的范围，直接对应高度
+    rayHeightPct = parseInt(e.target.value) / 100; // 0.0 to 0.9
+    document.getElementById('val-height').innerText = e.target.value;
+  });
+
+  sliderAngle.addEventListener('input', (e) => {
+    rayAngleDeg = parseInt(e.target.value);
+    document.getElementById('val-angle').innerText = rayAngleDeg + "°";
+  });
+
+  updateUI();
+}
+
+function windowResized() {
+  let w = wrapper.clientWidth;
+  let h = wrapper.clientHeight;
+  resizeCanvas(w, h);
+}
+
+function draw() {
+  background(255);
+  translate(width / 2, height / 2);
+  
+  // 绘制光学主轴
+  stroke(150);
+  strokeWeight(1);
+  drawingContext.setLineDash([10, 5]);
+  line(-width/2, 0, width/2, 0);
+  drawingContext.setLineDash([]);
+  
+  // 1. 绘制辅助几何
+  drawAuxiliaryGeometry();
+
+  // 2. 绘制透镜实体
+  drawLens();
+
+  // 3. 绘制光路
+  drawRayTracingStep();
+}
+
+// --- 辅助几何绘制 ---
+function drawAuxiliaryGeometry() {
+  if (!showAux) return;
+
+  let d = Math.sqrt(LENS_R*LENS_R - LENS_H*LENS_H);
+  let cx1, cx2; 
+  
+  if (lensType === 'convex') {
+    cx1 = d;  
+    cx2 = -d; 
+  } else {
+    let offset = 20; 
+    let cx_val = LENS_R + offset;
+    cx1 = -cx_val; 
+    cx2 = cx_val;  
+  }
+
+  noFill();
+  strokeWeight(1);
+  drawingContext.setLineDash([8, 8]); 
+
+  stroke(255, 165, 0, 150); 
+  circle(cx1, 0, LENS_R * 2);
+  
+  stroke(0, 150, 255, 100); 
+  circle(cx2, 0, LENS_R * 2);
+
+  drawingContext.setLineDash([]); 
+
+  drawPoint(0, 0, "O");
+  drawPoint(cx1, 0, "C1");
+  drawPoint(cx2, 0, "C2");
+
+  let f_dist = LENS_R; // n=1.5时 f=R
+  fill(0);
+  drawPoint(-f_dist, 0, "F");
+  drawPoint(f_dist, 0, "F");
+}
+
+function drawPoint(x, y, label) {
+  fill(0); noStroke();
+  circle(x, y, 4);
+  textSize(12);
+  textAlign(CENTER, TOP);
+  text(label, x, y + 6);
+}
+
+// --- 透镜绘制 ---
+function drawLens() {
+  noFill();
+  stroke(50);
+  strokeWeight(2);
+
+  if (lensType === 'convex') {
+    let d = Math.sqrt(LENS_R*LENS_R - LENS_H*LENS_H);
+    let cx1 = d; let cx2 = -d;
+    let angle = Math.asin(LENS_H / LENS_R);
+
+    drawingContext.save();
+    drawingContext.beginPath();
+    drawingContext.arc(cx1, 0, LENS_R, Math.PI - angle, Math.PI + angle);
+    drawingContext.arc(cx2, 0, LENS_R, -angle, angle);
+    drawingContext.closePath();
+    drawingContext.fillStyle = "rgba(200, 230, 255, 0.6)";
+    drawingContext.fill();
+    drawingContext.stroke();
+    drawingContext.restore();
+  } else {
+    let offset = 20;
+    let cx_val = LENS_R + offset;
+    let cx1 = -cx_val;
+    let cx2 = cx_val;
+    let angle = Math.asin(LENS_H / LENS_R);
+
+    drawingContext.save();
+    drawingContext.beginPath();
+    
+    let tl_x = cx1 + LENS_R * Math.cos(-angle);
+    let tl_y = LENS_R * Math.sin(-angle);
+    let tr_x = cx2 + LENS_R * Math.cos(Math.PI + angle);
+    let tr_y = LENS_R * Math.sin(Math.PI + angle);
+
+    drawingContext.moveTo(tl_x, tl_y);
+    drawingContext.lineTo(tr_x, tr_y);
+    drawingContext.arc(cx2, 0, LENS_R, Math.PI + angle, Math.PI - angle, true);
+    
+    let bl_x = cx1 + LENS_R * Math.cos(angle);
+    let bl_y = LENS_R * Math.sin(angle);
+    drawingContext.lineTo(bl_x, bl_y);
+    drawingContext.arc(cx1, 0, LENS_R, angle, -angle, true);
+
+    drawingContext.closePath();
+    drawingContext.fillStyle = "rgba(200, 230, 255, 0.6)";
+    drawingContext.fill();
+    drawingContext.stroke();
+    drawingContext.restore();
+  }
+}
+
+// --- 光路计算 (逻辑修复：强制选择正确的几何表面) ---
+function drawRayTracingStep() {
+  let targetY = -1 * map(rayHeightPct, 0, 1, 0, LENS_H); 
+  
+  let angleRad = radians(rayAngleDeg);
+  let I = createVector(Math.cos(angleRad), -Math.sin(angleRad));
+
+  let startX = -width/2 + 20;
+  let t_start = startX / I.x;
+  let startY = targetY + t_start * I.y;
+  let P_Start = createVector(startX, startY);
+
+  // 定义表面及其几何属性
+  let surf1_Center, surf1_R, surf1_Sign; 
+  let surf2_Center, surf2_R, surf2_Sign;
+  
+  if (lensType === 'convex') {
+    // 凸透镜：
+    // 左表面是【右侧圆】的左半边 (P.x < C.x) => sign = -1
+    // 右表面是【左侧圆】的右半边 (P.x > C.x) => sign = 1
+    let d = Math.sqrt(LENS_R*LENS_R - LENS_H*LENS_H);
+    surf1_Center = createVector(d, 0); 
+    surf1_R = LENS_R;
+    surf1_Sign = -1; 
+    
+    surf2_Center = createVector(-d, 0); 
+    surf2_R = LENS_R;
+    surf2_Sign = 1;
+  } else {
+    // 凹透镜：
+    // 左表面是【左侧圆】的右半边 (内凹) (P.x > C.x) => sign = 1
+    // 右表面是【右侧圆】的左半边 (内凹) (P.x < C.x) => sign = -1
+    let offset = 20;
+    let cx_val = LENS_R + offset;
+    surf1_Center = createVector(-cx_val, 0); 
+    surf1_R = LENS_R;
+    surf1_Sign = 1; // 关键修复：指定寻找圆心右侧的交点
+    
+    surf2_Center = createVector(cx_val, 0); 
+    surf2_R = LENS_R;
+    surf2_Sign = -1; 
+  }
+
+  // 计算 P1：传入 surf1_Sign 以确保选对半球面
+  let P1 = intersectRayCircle(P_Start, I, surf1_Center, surf1_R, surf1_Sign);
+  if (!P1) return;
+
+  stroke(255, 0, 0);
+  strokeWeight(3);
+
+  // Step 0: 入射光线
+  if (currentStep === 0) {
+    drawArrow(P_Start, p5.Vector.add(P1, p5.Vector.mult(I, -10)), "入射光线");
+    return;
+  }
+
+  // Step 1: 到达 P1
+  drawArrow(P_Start, P1, "");
+  fill(255, 0, 0); noStroke(); circle(P1.x, P1.y, 6);
+  if (currentStep === 1) { drawLabel(P1.x, P1.y - 15, "P1", "red"); return; }
+
+  // Step 2: Normal 1
+  let normal1 = p5.Vector.sub(P1, surf1_Center).normalize();
+  stroke(52, 152, 219); strokeWeight(1.5); drawingContext.setLineDash([5, 5]);
+  
+  if (currentStep >= 2) {
+    // 连接圆心
+    line(surf1_Center.x, surf1_Center.y, P1.x, P1.y);
+    // 延长线
+    let extA = p5.Vector.add(P1, p5.Vector.mult(normal1, 80));
+    let extB = p5.Vector.add(P1, p5.Vector.mult(normal1, -80));
+    line(extA.x, extA.y, extB.x, extB.y);
+
+    if(currentStep === 2) {
+      fill(52, 152, 219); noStroke();
+      text("连接圆心即法线", (surf1_Center.x + P1.x)/2, (surf1_Center.y + P1.y)/2);
+      return;
+    }
+  }
+
+  // Step 3: Tangent
+  if (currentStep >= 3) {
+    let tangentDir = createVector(-normal1.y, normal1.x);
+    let tLen = 40;
+    let tStart = p5.Vector.sub(P1, p5.Vector.mult(tangentDir, tLen));
+    let tEnd = p5.Vector.add(P1, p5.Vector.mult(tangentDir, tLen));
+    stroke(39, 174, 96); strokeWeight(2); drawingContext.setLineDash([2, 2]);
+    line(tStart.x, tStart.y, tEnd.x, tEnd.y);
+    if (currentStep === 3) {
+      fill(39, 174, 96); noStroke(); text("切线", tEnd.x, tEnd.y);
+      drawRightAngle(P1, normal1, tangentDir); return;
+    }
+  }
+
+  // Step 4: Refract 1
+  let N_geo = p5.Vector.sub(P1, surf1_Center).normalize();
+  let R1 = refract(I, N_geo, N_AIR, N_GLASS);
+  
+  // 计算 P2：传入 surf2_Sign
+  let P2 = intersectRayCircle(P1, R1, surf2_Center, surf2_R, surf2_Sign);
+  if (!P2) P2 = p5.Vector.add(P1, p5.Vector.mult(R1, 50));
+
+  if (currentStep >= 4) {
+    stroke(255, 0, 0); strokeWeight(3); drawingContext.setLineDash([]);
+    if (currentStep === 4) {
+      let pDemo = p5.Vector.add(P1, p5.Vector.mult(R1, 40));
+      drawArrow(P1, pDemo, "");
+      fill(0); noStroke(); text("折射", pDemo.x+10, pDemo.y); return;
+    }
+    line(P1.x, P1.y, P2.x, P2.y);
+  }
+
+  // Step 5
+  if (currentStep >= 5) {
+     fill(255, 0, 0); noStroke(); circle(P2.x, P2.y, 6);
+     if (currentStep === 5) { text("P2", P2.x, P2.y - 15); return; }
+  }
+
+  // Step 6: Normal 2
+  let normal2Line = p5.Vector.sub(P2, surf2_Center).normalize();
+  if (currentStep >= 6) {
+    stroke(52, 152, 219); strokeWeight(1.5); drawingContext.setLineDash([5, 5]);
+    line(surf2_Center.x, surf2_Center.y, P2.x, P2.y);
+    let extA = p5.Vector.add(P2, p5.Vector.mult(normal2Line, 80));
+    let extB = p5.Vector.add(P2, p5.Vector.mult(normal2Line, -80));
+    line(extA.x, extA.y, extB.x, extB.y);
+    
+    let tangentDir2 = createVector(-normal2Line.y, normal2Line.x);
+    let tStart = p5.Vector.sub(P2, p5.Vector.mult(tangentDir2, 40));
+    let tEnd = p5.Vector.add(P2, p5.Vector.mult(tangentDir2, 40));
+    stroke(39, 174, 96); strokeWeight(2); drawingContext.setLineDash([2, 2]);
+    line(tStart.x, tStart.y, tEnd.x, tEnd.y);
+
+    if (currentStep === 6) { drawRightAngle(P2, normal2Line, tangentDir2); return; }
+  }
+
+  // Step 7: Refract 2
+  let NormalForCalc = p5.Vector.sub(P2, surf2_Center).normalize();
+  let R2 = refract(R1, NormalForCalc, N_GLASS, N_AIR); 
+  
+  if (currentStep === 7) {
+    stroke(255, 0, 0); strokeWeight(3); drawingContext.setLineDash([]);
+    let pFinal = p5.Vector.add(P2, p5.Vector.mult(R2, 400));
+    drawArrow(P2, pFinal, "出射");
+    
+    // 如果是凹透镜，画虚延长线
+    if (lensType === 'concave') {
+      stroke(255, 0, 0, 100); drawingContext.setLineDash([5, 5]);
+      let backRay = p5.Vector.mult(R2, -800);
+      let pBack = p5.Vector.add(P2, backRay);
+      line(P2.x, P2.y, pBack.x, pBack.y);
+    }
+  }
+}
+
+// --- 辅助数学函数 ---
+function toggleAux() {
+  showAux = document.getElementById('chk-aux').checked;
+}
+
+function setLensType(type) {
+  lensType = type;
+  document.getElementById('btn-convex').className = type === 'convex' ? 'btn-toggle active' : 'btn-toggle';
+  document.getElementById('btn-concave').className = type === 'concave' ? 'btn-toggle active' : 'btn-toggle';
+  currentStep = 0;
+  updateUI();
+}
+
+function nextStep() {
+  if (currentStep < TOTAL_STEPS) { currentStep++; updateUI(); }
+}
+function prevStep() {
+  if (currentStep > 0) { currentStep--; updateUI(); }
+}
+function resetSteps() { currentStep = 0; updateUI(); }
+function updateUI() {
+  if (!btnPrev || !btnNext) return;
+  btnPrev.disabled = (currentStep === 0);
+  btnNext.innerText = (currentStep === TOTAL_STEPS) ? "完成" : "下一步";
+  btnNext.disabled = (currentStep === TOTAL_STEPS);
+  let data = STEPS_DATA[lensType][currentStep];
+  if (data) {
+    stepTitleEl.innerText = data.title;
+    stepDescEl.innerHTML = data.desc;
+  }
+}
+
+function drawLabel(x, y, textStr, colorStr) {
+  fill(colorStr || 0); noStroke(); textSize(14); textAlign(CENTER, BOTTOM); text(textStr, x, y);
+}
+function drawArrow(p1, p2, label) {
+  line(p1.x, p1.y, p2.x, p2.y);
+  let v = p5.Vector.sub(p2, p1);
+  let angle = v.heading();
+  let arrowSize = 8;
+  push(); translate(p2.x, p2.y); rotate(angle); fill(255, 0, 0); noStroke();
+  triangle(0, 0, -arrowSize, arrowSize/2, -arrowSize, -arrowSize/2); pop();
+  if (label) { fill(0); noStroke(); textSize(14); textAlign(LEFT, BOTTOM); text(label, p1.x + 10, p1.y - 5); }
+}
+function drawRightAngle(origin, v1, v2) {
+  let size = 15;
+  let d1 = v1.copy().normalize().mult(size);
+  let d2 = v2.copy().normalize().mult(size);
+  let p1 = p5.Vector.add(origin, d1);
+  let p2 = p5.Vector.add(origin, d2);
+  let p3 = p5.Vector.add(p1, d2);
+  noFill(); stroke(100); strokeWeight(1); drawingContext.setLineDash([]);
+  beginShape(); vertex(p1.x, p1.y); vertex(p3.x, p3.y); vertex(p2.x, p2.y); endShape();
+}
+
+// 射线与圆的交点 (逻辑增强：增加 signX 参数，强制选择特定半球面)
+function intersectRayCircle(P, D, C, R, signX) {
+  let L = p5.Vector.sub(P, C);
+  let a = 1; 
+  let b = 2 * p5.Vector.dot(D, L); 
+  let c = p5.Vector.dot(L, L) - R*R;
+  
+  let delta = b*b - 4*a*c;
+  if (delta < 0) return null;
+  
+  let t1 = (-b - Math.sqrt(delta)) / (2*a);
+  let t2 = (-b + Math.sqrt(delta)) / (2*a);
+  
+  // 找出所有正的 t 值
+  let validTs = [];
+  if (t1 > 0.1) validTs.push(t1);
+  if (t2 > 0.1) validTs.push(t2);
+  
+  if (validTs.length === 0) return null;
+
+  // 如果指定了 signX，过滤结果
+  if (typeof signX !== 'undefined') {
+    let bestT = null;
+    let minT = Infinity;
+    
+    for (let t of validTs) {
+      let HitP = p5.Vector.add(P, p5.Vector.mult(D, t));
+      // 检查交点在圆心的哪一侧
+      // 使用小容差避免计算误差
+      let actualSign = Math.sign(HitP.x - C.x);
+      
+      // 如果符号匹配，且距离更近，则选中
+      if (actualSign === signX || Math.abs(HitP.x - C.x) < 0.1) {
+        if (t < minT) {
+          minT = t;
+          bestT = t;
+        }
+      }
+    }
+    
+    if (bestT !== null) {
+      return p5.Vector.add(P, p5.Vector.mult(D, bestT));
+    }
+    // 如果没有符合几何约束的解，回退到最近点（极端情况）
+  }
+
+  // 默认逻辑：返回最近的交点
+  let t = Math.min(...validTs);
+  return p5.Vector.add(P, p5.Vector.mult(D, t));
+}
+
+function refract(I, N, n1, n2) {
+  let eta = n1 / n2;
+  let N_in = N.copy();
+  // N_in 必须指向入射介质 (即与 I 点积为负)
+  if (p5.Vector.dot(I, N) > 0) N_in.mult(-1); 
+  
+  let cos_theta1 = -p5.Vector.dot(I, N_in);
+  let sin2_theta1 = 1 - cos_theta1*cos_theta1;
+  let term = 1 - eta*eta * sin2_theta1;
+  if (term < 0) return createVector(0,0);
+  let coeff = eta * cos_theta1 - Math.sqrt(term);
+  return p5.Vector.add(p5.Vector.mult(I, eta), p5.Vector.mult(N_in, coeff));
+}
+
+</script>
+</body>
+</html>

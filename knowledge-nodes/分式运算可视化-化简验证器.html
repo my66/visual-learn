@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>分式运算可视化：化简验证器</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #f4f6f9;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      overflow-y: auto;
+    }
+    .container {
+      display: flex;
+      flex-direction: row;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 20px;
+      gap: 20px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    .controls {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      width: 320px;
+      flex-shrink: 0;
+    }
+    .canvas-container {
+      position: relative;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      background: white;
+    }
+    h1 { font-size: 1.2rem; color: #333; margin-bottom: 10px; }
+    h2 { font-size: 1rem; color: #666; margin-top: 20px; border-bottom: 2px solid #eee; padding-bottom: 5px; }
+    .status { margin-top: 15px; font-size: 0.9rem; color: #444; background: #eef; padding: 10px; border-radius: 6px; }
+    .slider-group { margin-top: 15px; }
+    label { display: block; font-size: 0.9rem; margin-bottom: 5px; color: #555; }
+    input[type=range] { width: 100%; }
+    .legend { margin-top: 10px; font-size: 0.85rem; line-height: 1.8; }
+    .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="controls">
+    <h1>分式化简验证器</h1>
+    <p style="font-size: 0.9rem; color: #666;">
+      针对作业 Q7：<br>
+      2x/(x+2) - x/(x-2) + 4x/(x²-4)
+    </p>
+
+    <div class="slider-group">
+      <label for="xVal">输入 x 的值：<span id="xDisplay">1.00</span></label>
+      <input type="range" id="xVal" min="-5" max="5" step="0.1" value="1">
+    </div>
+
+    <div class="status" id="calcStatus">
+      计算中...
+    </div>
+
+    <h2>图示说明</h2>
+    <div class="legend">
+      <div><span class="dot" style="background:#007AFF;"></span>蓝色曲线：原题算式 y = f(x)</div>
+      <div><span class="dot" style="background:#FF3B30;"></span>红色虚线：标准答案 y = x/(x+2)</div>
+      <div><span class="dot" style="background:#34C759;"></span>绿色点：当前 x 对应的点</div>
+    </div>
+    
+    <p style="font-size:0.8rem; color:#888; margin-top:20px;">
+      * 如果红色虚线完全覆盖蓝色曲线，说明化简正确。<br>
+      * 注意观察 x = 2 和 x = -2 处的断开（分母为0）。
+    </p>
+  </div>
+
+  <div class="canvas-container" id="canvas-target">
+    </div>
+</div>
+
+<script>
+let xSlider;
+let xVal = 1;
+let originX, originY;
+let scaleUnit = 60; // 60px = 1 unit
+
+function setup() {
+  let canvas = createCanvas(800, 600);
+  canvas.parent('canvas-target');
+  
+  xSlider = select('#xVal');
+  xSlider.input(updateVal);
+  
+  rectMode(CENTER);
+  updateVal();
+}
+
+function updateVal() {
+  xVal = parseFloat(xSlider.value());
+  select('#xDisplay').html(xVal.toFixed(2));
+}
+
+function draw() {
+  background(255);
+  
+  originX = width / 2;
+  originY = height / 2;
+  
+  drawGrid();
+  drawFunctions();
+  drawCurrentPoint();
+  updateTextStatus();
+}
+
+function drawGrid() {
+  stroke(240);
+  strokeWeight(1);
+  
+  // Grid lines
+  for (let x = 0; x < width; x += scaleUnit) {
+    line(x, 0, x, height);
+  }
+  for (let y = 0; y < height; y += scaleUnit) {
+    line(0, y, width, y);
+  }
+  
+  // Axes
+  stroke(50);
+  strokeWeight(2);
+  line(0, originY, width, originY); // X axis
+  line(originX, 0, originX, height); // Y axis
+  
+  fill(0);
+  noStroke();
+  textSize(12);
+  text("x", width - 20, originY + 20);
+  text("y", originX + 10, 20);
+  text("0", originX - 15, originY + 20);
+}
+
+// Function 1: Original Expression
+function funcOriginal(x) {
+  if (abs(x - 2) < 0.01 || abs(x + 2) < 0.01) return null; // Singularity
+  let t1 = (2 * x) / (x + 2);
+  let t2 = x / (x - 2);
+  let t3 = (4 * x) / (x * x - 4);
+  return t1 - t2 + t3;
+}
+
+// Function 2: Simplified Result
+function funcSimplified(x) {
+  if (abs(x + 2) < 0.01) return null;
+  // Technically x=2 is also a hole in the original domain, 
+  // but for the simplified graph y = x/(x+2), x=2 is valid algebraically 
+  // unless we respect the original domain constraint. 
+  // We will plot the algebraic curve.
+  return x / (x + 2);
+}
+
+function drawFunctions() {
+  // 1. Draw Original (Blue Line)
+  noFill();
+  stroke(0, 122, 255);
+  strokeWeight(3);
+  beginShape();
+  for (let px = 0; px < width; px += 2) {
+    let mathX = (px - originX) / scaleUnit;
+    let mathY = funcOriginal(mathX);
+    
+    if (mathY !== null && abs(mathY) < 10) { // Limit y range to avoid drawing infinity lines
+      vertex(px, originY - mathY * scaleUnit);
+    } else {
+      endShape();
+      beginShape();
+    }
+  }
+  endShape();
+  
+  // 2. Draw Simplified Answer (Red Dashed Line)
+  stroke(255, 59, 48, 180); // Red with transparency
+  strokeWeight(2);
+  drawingContext.setLineDash([5, 5]); // Dashed
+  beginShape();
+  for (let px = 0; px < width; px += 2) {
+    let mathX = (px - originX) / scaleUnit;
+    let mathY = funcSimplified(mathX);
+    
+    if (mathY !== null && abs(mathY) < 10) {
+      vertex(px, originY - mathY * scaleUnit);
+    } else {
+      endShape();
+      beginShape();
+    }
+  }
+  endShape();
+  drawingContext.setLineDash([]); // Reset
+}
+
+function drawCurrentPoint() {
+  // Highlight current X position
+  stroke(200);
+  strokeWeight(1);
+  let px = originX + xVal * scaleUnit;
+  line(px, 0, px, height);
+  
+  // Calculate values
+  let valOrg = funcOriginal(xVal);
+  
+  if (valOrg !== null) {
+    let py = originY - valOrg * scaleUnit;
+    
+    // Draw Point
+    noStroke();
+    fill(52, 199, 89);
+    circle(px, py, 12);
+    
+    // Draw Label
+    fill(0);
+    textAlign(LEFT, BOTTOM);
+    text(`y = ${valOrg.toFixed(2)}`, px + 10, py - 10);
+  } else {
+    fill(255, 59, 48);
+    text("无意义 (分母为0)", px + 10, originY - 10);
+  }
+}
+
+function updateTextStatus() {
+  let valOrg = funcOriginal(xVal);
+  let valSim = funcSimplified(xVal);
+  
+  let statusDiv = select('#calcStatus');
+  
+  if (valOrg === null) {
+    statusDiv.html(`当 x = ${xVal} 时：<br>原式无意义（分母为0）`);
+    statusDiv.style('background', '#ffebee');
+  } else {
+    let match = abs(valOrg - valSim) < 0.0001;
+    statusDiv.html(`
+      当 x = ${xVal} 时：<br>
+      原式计算值：${valOrg.toFixed(4)}<br>
+      化简式计算值：${valSim.toFixed(4)}<br>
+      <strong style="color:${match ? 'green' : 'red'}">${match ? '✓ 两者一致' : '✗ 两者不符'}</strong>
+    `);
+    statusDiv.style('background', '#e8f5e9');
+  }
+}
+
+function windowResized() {
+  // Keep strict layout logic
+}
+</script>
+</body>
+</html>

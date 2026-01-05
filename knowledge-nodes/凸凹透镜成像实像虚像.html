@@ -1,0 +1,1385 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>高清物理实验室：透镜成像原理 (全考点覆盖版)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <!-- MathJax for high-quality formula rendering if needed -->
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        /* 页面基础样式 */
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #f0f2f5;
+            font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+            color: #333;
+        }
+
+        /* 布局容器 */
+        #app-container {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* 左侧控制面板 - 舒适版 */
+        #sidebar {
+            width: 380px;
+            background: #ffffff;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            padding: 20px; 
+            display: flex;
+            flex-direction: column;
+            gap: 15px; 
+            overflow-y: auto;
+            z-index: 10;
+        }
+
+        /* 右侧画布区域 */
+        #canvas-container {
+            flex-grow: 1;
+            position: relative;
+            background-color: #ffffff;
+            background-image: 
+                linear-gradient(#e5e7eb 1px, transparent 1px),
+                linear-gradient(90deg, #e5e7eb 1px, transparent 1px);
+            background-size: 20px 20px;
+            overflow: hidden; 
+        }
+
+        /* 控件组 */
+        .control-group {
+            border-bottom: 1px solid #f1f5f9;
+            padding-bottom: 12px;
+            margin-bottom: 2px;
+        }
+
+        h1 { 
+            font-size: 18px; 
+            color: #1e293b; 
+            margin: 0 0 5px 0; 
+            font-weight: 700; 
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        h2 { 
+            font-size: 13px; 
+            color: #64748b; 
+            margin: 0 0 10px 0; 
+            font-weight: 600; 
+            text-transform: uppercase; 
+            letter-spacing: 0.5px; 
+        }
+        
+        /* 按钮组 */
+        .toggle-btn-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+        
+        .toggle-btn {
+            flex: 1;
+            padding: 10px 8px;
+            border: 1px solid #cbd5e1;
+            background: #f8fafc;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+            text-align: center;
+        }
+        
+        .toggle-btn.active {
+            background: #3b82f6;
+            color: white;
+            border-color: #3b82f6;
+            font-weight: bold;
+        }
+
+        /* 复位按钮 */
+        .action-btn {
+            width: 100%;
+            padding: 8px;
+            background: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            color: #475569;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        .action-btn:hover {
+            background: #e2e8f0;
+            color: #334155;
+        }
+        .action-btn.active-laser {
+            background: #dcfce7;
+            color: #166534;
+            border-color: #86efac;
+        }
+
+        /* 场景网格 */
+        .scenario-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        
+        .scenario-btn {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 10px 12px;
+            text-align: left;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .scenario-btn:hover {
+            border-color: #3b82f6;
+            background: #eff6ff;
+        }
+
+        .scenario-btn .btn-title {
+            font-weight: bold;
+            font-size: 13px;
+            color: #334155;
+            font-family: 'Consolas', monospace;
+            margin-bottom: 2px;
+        }
+        
+        .scenario-btn .desc {
+            font-size: 11px;
+            color: #64748b;
+            line-height: 1.3;
+        }
+
+        /* 实验框 */
+        .experiment-box {
+            background: #fff7ed;
+            border: 1px solid #fdba74;
+            border-radius: 8px;
+            padding: 10px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .experiment-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .experiment-title {
+            color: #c2410c;
+            font-weight: bold;
+            font-size: 13px;
+        }
+
+        /* 勾选框 */
+        label {
+            display: inline-flex;
+            align-items: center;
+            font-size: 13px;
+            margin-right: 12px;
+            margin-bottom: 5px;
+            cursor: pointer;
+            color: #475569;
+        }
+        .checkbox-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+        
+        input[type="checkbox"] {
+            margin-right: 6px;
+            accent-color: #3b82f6;
+            transform: scale(1.0);
+        }
+        
+        /* 滑块 */
+        input[type="range"] {
+            width: 100%;
+            height: 6px; 
+            margin: 12px 0;
+            background: #e2e8f0;
+            border-radius: 3px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #3b82f6;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+
+        /* 数据面板 */
+        .data-panel {
+            background: #f1f5f9;
+            border-radius: 8px;
+            padding: 12px 14px;
+            font-family: 'Consolas', monospace;
+            font-size: 12px;
+        }
+        .data-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px 15px;
+        }
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+        }
+        .data-val { font-weight: bold; color: #0f172a; }
+
+        /* 图例 */
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px 15px;
+            font-size: 12px;
+            color: #64748b;
+        }
+        .legend-item { display: flex; align-items: center; gap: 6px; }
+        .line-sample { width: 18px; height: 3px; }
+
+        #toast {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(15, 23, 42, 0.9);
+            color: white;
+            padding: 10px 24px;
+            border-radius: 24px;
+            font-size: 14px;
+            font-weight: 500;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s, transform 0.3s;
+            z-index: 100;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            text-align: center;
+            white-space: pre-line;
+        }
+    </style>
+</head>
+<body>
+
+<div id="app-container">
+    <!-- 侧边栏 -->
+    <div id="sidebar">
+        <div>
+            <h1>透镜成像实验室 <span style="font-size:0.7em; color:#f59e0b; background:#fff7ed; padding:2px 6px; border-radius:4px;">PRO</span></h1>
+        </div>
+
+        <!-- 模式选择 -->
+        <div class="control-group">
+            <div class="toggle-btn-group">
+                <button class="toggle-btn active" id="btn-convex" onclick="setMode('convex')">凸透镜 (会聚)</button>
+                <button class="toggle-btn" id="btn-concave" onclick="setMode('concave')">凹透镜 (发散)</button>
+            </div>
+            
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:5px;">
+                <h2 style="margin:0;">透镜焦距/厚度</h2>
+                <span style="font-size:11px; color:#64748b;">拖动滑块或红点F</span>
+            </div>
+            <input type="range" id="slider-thickness" min="0" max="100" step="1" title="调节透镜厚度以改变焦距">
+            <div style="display:flex; justify-content:space-between; font-size:11px; color:#94a3b8; margin-top:-8px;">
+                <span>薄 (f大)</span>
+                <span>厚 (f小)</span>
+            </div>
+        </div>
+
+        <!-- 视图控制 -->
+        <div class="control-group">
+            <button class="action-btn" onclick="resetView()">
+                <span>🔄</span> 复原视图 (Reset Zoom)
+            </button>
+        </div>
+
+        <!-- 经典场景快捷键 -->
+        <div class="control-group">
+            <h2>一键演示 (经典考点)</h2>
+            <div class="scenario-grid">
+                <button class="scenario-btn" onclick="setScenario(1)">
+                    <span class="btn-title">u > 2f</span>
+                    <span class="desc">照相机 (缩小实像)</span>
+                </button>
+                <button class="scenario-btn" onclick="setScenario(2)">
+                    <span class="btn-title">u = 2f</span>
+                    <span class="desc">测焦距 (等大实像)</span>
+                </button>
+                <button class="scenario-btn" onclick="setScenario(3)">
+                    <span class="btn-title">f < u < 2f</span>
+                    <span class="desc">投影仪 (放大实像)</span>
+                </button>
+                <button class="scenario-btn" onclick="setScenario(4)">
+                    <span class="btn-title">u = f</span>
+                    <span class="desc">探照灯 (不成像)</span>
+                </button>
+                <button class="scenario-btn" onclick="setScenario(5)">
+                    <span class="btn-title">u < f</span>
+                    <span class="desc">放大镜 (放大虚像)</span>
+                </button>
+                <button class="scenario-btn" onclick="setScenario(6)">
+                    <span class="btn-title">凹透镜</span>
+                    <span class="desc">近视镜 (缩小虚像)</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 高频易错点实验 -->
+        <div class="control-group">
+            <div class="experiment-box">
+                <div class="experiment-top">
+                    <span class="experiment-title">🔥 压轴题：遮挡实验</span>
+                    <label style="margin:0; color:#c2410c; font-weight:bold;">
+                        <input type="checkbox" id="chk-block"> 遮住上半部
+                    </label>
+                </div>
+                <p style="font-size:11px; color:#ea580c; margin:0; line-height:1.4;">
+                    现象：像依然完整，但亮度变暗。
+                </p>
+            </div>
+        </div>
+        
+        <!-- 新增功能：自由探索 -->
+        <div class="control-group">
+            <h2>自由探索 (Free Exploration)</h2>
+            <button class="action-btn" id="btn-laser" onclick="toggleLaser()">
+                <span id="laser-icon">🔦</span> <span id="laser-text">开启激光笔 (Custom Laser)</span>
+            </button>
+            <p style="font-size:11px; color:#64748b; margin:5px 0 0 0; line-height:1.3;">
+                点击开启后，拖动激光笔身移动，拖动前端红点改变角度。
+            </p>
+        </div>
+
+        <!-- 认知增强选项 -->
+        <div class="control-group">
+            <h2>辅助认知 (隐含知识点)</h2>
+            <div class="checkbox-row">
+                <label style="color:#2563eb; font-weight:500;"><input type="checkbox" id="chk-dimensions"> u/v/f 标记</label>
+                <label style="color:#7c3aed; font-weight:500;"><input type="checkbox" id="chk-eye" checked> 人眼位置</label>
+                <label style="color:#dc2626; font-weight:700;"><input type="checkbox" id="chk-thick-center"> 显示光心侧移(真实)</label>
+            </div>
+        </div>
+
+        <!-- 显示选项 -->
+        <div class="control-group">
+            <h2>基础显示</h2>
+            <div class="checkbox-row">
+                <label><input type="checkbox" id="chk-rays" checked>光路</label>
+                <label><input type="checkbox" id="chk-grid" checked>网格</label>
+                <label><input type="checkbox" id="chk-values" checked>标签/数值</label>
+                <label><input type="checkbox" id="chk-focal-planes">焦平面</label>
+            </div>
+        </div>
+
+        <!-- 实时数据 -->
+        <div class="control-group">
+            <div class="data-panel">
+                <div class="data-grid">
+                    <div class="data-row"><span>u:</span> <span class="data-val" id="val-u">--</span></div>
+                    <div class="data-row"><span>v:</span> <span class="data-val" id="val-v">--</span></div>
+                    <div class="data-row"><span>f:</span> <span class="data-val" id="val-f">--</span></div>
+                    <div class="data-row"><span>m:</span> <span class="data-val" id="val-m">--</span></div>
+                </div>
+                <div style="margin-top:8px; border-top:1px solid #cbd5e1; paddingTop:4px; display:flex; justify-content:space-between;">
+                    <span>性质:</span> <span class="data-val" style="color:#ef4444;" id="val-nature">--</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 画布 -->
+    <div id="canvas-container">
+        <div id="toast">已切换模式</div>
+    </div>
+</div>
+
+<script>
+    // --- Global Physics State ---
+    let state = {
+        lensType: 'convex',
+        focalLength: 160,
+        objectPos: 350,
+        objectHeight: 120,
+        
+        // Interaction flags
+        draggingObj: false,
+        draggingF: false,
+        panning: false, 
+        
+        // Custom Ray / Laser State (NEW)
+        laser: {
+            active: false,
+            x: -250,
+            y: -80,
+            angle: 0.15, // radians
+            draggingBody: false,
+            rotating: false
+        },
+        
+        // View Transform State
+        view: {
+            zoom: 1.0,
+            panX: 0,
+            panY: 0
+        },
+        
+        // Show flags
+        showRays: true,
+        showGrid: true,
+        showFocalPlanes: false,
+        showValues: true,
+        showDimensions: false, 
+        showEye: true,
+        showRealCenter: false, 
+        
+        // New features
+        isBlocked: false 
+    };
+
+    let sketch = (p) => {
+        let cvs;
+        let centerX, centerY; 
+        
+        p.setup = () => {
+            let container = document.getElementById('canvas-container');
+            let w = container.offsetWidth;
+            let h = container.offsetHeight;
+            cvs = p.createCanvas(w, h);
+            cvs.parent('canvas-container');
+            p.textFont('Segoe UI');
+            updateUI(); 
+        };
+
+        p.windowResized = () => {
+            let container = document.getElementById('canvas-container');
+            p.resizeCanvas(container.offsetWidth, container.offsetHeight);
+        };
+
+        // Screen -> World coordinate transform
+        const screenToWorld = (sx, sy) => {
+            let cx = p.width / 2;
+            let cy = p.height / 2;
+            // Reverse transform: (Screen - Pan - Center) / Zoom + Center = World
+            return {
+                x: (sx - state.view.panX - cx) / state.view.zoom + cx,
+                y: (sy - state.view.panY - cy) / state.view.zoom + cy
+            };
+        };
+
+        p.draw = () => {
+            p.clear();
+            
+            centerX = p.width / 2;
+            centerY = p.height / 2;
+
+            // Apply View Transform
+            p.push();
+            p.translate(state.view.panX, state.view.panY);
+            p.translate(centerX, centerY);
+            p.scale(state.view.zoom);
+            p.translate(-centerX, -centerY);
+
+            drawAxisExtended(p); 
+            if (state.showGrid) drawRulerExtended(p);
+
+            let thicknessFactor = p.map(state.focalLength, 50, 400, 100, 20, true);
+            drawLens(p, thicknessFactor);
+            
+            drawFocalPoints(p);
+
+            let physics = calculatePhysics();
+
+            if (state.showRays) {
+                drawRays(p, physics, thicknessFactor);
+            }
+
+            // Draw Object
+            drawObject(p);
+
+            if (physics.v !== Infinity) {
+                drawImage(p, physics);
+            }
+
+            if (state.isBlocked) {
+                drawBlocker(p);
+            }
+            
+            // Draw Custom Laser (NEW)
+            if (state.laser.active) {
+                drawLaserSystem(p);
+            }
+            
+            drawCoreLabels(p); 
+            
+            if (state.showDimensions) {
+                drawDimensions(p, physics);
+            }
+            
+            if (state.showEye && !physics.isReal && physics.v !== Infinity) {
+                drawObserverEye(p);
+            }
+
+            p.pop(); // Restore Transform
+
+            updateDataPanel(physics);
+            handleHoverCursor(p);
+        };
+
+        p.mouseWheel = (e) => {
+            let s = e.delta > 0 ? 0.9 : 1.1;
+            let newZoom = state.view.zoom * s;
+            if (newZoom < 0.2) newZoom = 0.2;
+            if (newZoom > 10) newZoom = 10;
+            s = newZoom / state.view.zoom; 
+
+            let mx = p.mouseX;
+            let my = p.mouseY;
+            
+            state.view.panX = mx - (mx - state.view.panX) * s;
+            state.view.panY = my - (my - state.view.panY) * s;
+            state.view.zoom = newZoom;
+            return false;
+        };
+
+        // --- Core Drawing Logic ---
+
+        function calculatePhysics() {
+            let u = state.objectPos;
+            let f = state.lensType === 'convex' ? state.focalLength : -state.focalLength;
+            let v, m, isReal;
+            
+            if (Math.abs(u - Math.abs(f)) < 1.0 && state.lensType === 'convex') {
+                v = Infinity; m = Infinity; isReal = false;
+            } else {
+                v = (u * f) / (u - f);
+                m = -v / u;
+                isReal = v > 0;
+            }
+            return { u, f, v, m, isReal };
+        }
+
+        function drawAxisExtended(p) {
+            p.push();
+            p.stroke(100);
+            p.strokeWeight(1.5); 
+            p.line(-10000, centerY, 10000, centerY);
+            
+            p.fill(120);
+            p.noStroke();
+            p.textSize(12);
+            p.textAlign(p.RIGHT, p.BOTTOM);
+            p.text("主光轴", centerX + 400, centerY - 5);
+            
+            p.stroke(200);
+            p.drawingContext.setLineDash([5, 5]);
+            p.line(centerX, -10000, centerX, 10000); 
+            p.drawingContext.setLineDash([]);
+            p.pop();
+        }
+
+        function drawRulerExtended(p) {
+            p.push();
+            p.fill(150);
+            p.noStroke();
+            p.textSize(10);
+            p.textAlign(p.CENTER, p.TOP);
+            for (let x = -2000; x < 2000; x += 100) {
+                let drawX = centerX + x;
+                p.rect(drawX - 1, centerY - 5, 2, 10);
+                if (x !== 0) p.text(Math.abs(x), drawX, centerY + 10);
+            }
+            p.pop();
+        }
+
+        function drawCoreLabels(p) {
+            p.push();
+            p.fill(80);
+            p.noStroke();
+            p.textSize(14);
+            p.textStyle(p.BOLD);
+            
+            p.textAlign(p.LEFT, p.TOP);
+            p.text("O", centerX + 5, centerY + 5);
+            
+            if (state.showValues) {
+                let objX = centerX - state.objectPos;
+                p.fill(220, 38, 38);
+                p.textAlign(p.CENTER, p.BOTTOM);
+                p.text("物体", objX, centerY - state.objectHeight - 5);
+                
+                let f = state.lensType === 'convex' ? state.focalLength : -state.focalLength;
+                let u = state.objectPos;
+                if (Math.abs(u - Math.abs(f)) >= 1.0) {
+                    let v = (u * f) / (u - f);
+                    if (v !== Infinity) {
+                        let m = -v / u;
+                        let imgX = centerX + v;
+                        let imgH = state.objectHeight * m;
+                        let imgYTop = centerY - imgH;
+                        
+                        let isReal = v > 0;
+                        p.fill(isReal ? "#10b981" : "#8b5cf6");
+                        
+                        if (imgH > 0) { 
+                            p.textAlign(p.CENTER, p.BOTTOM);
+                            p.text(isReal ? "实像" : "虚像", imgX, imgYTop - 5);
+                        } else { 
+                            p.textAlign(p.CENTER, p.TOP);
+                            p.text(isReal ? "实像" : "虚像", imgX, imgYTop + 5);
+                        }
+                    }
+                }
+            }
+            p.pop();
+        }
+
+        function drawDimensions(p, physics) {
+            p.push();
+            let yLevel = centerY + 140; 
+            
+            p.strokeWeight(1);
+            p.textSize(12);
+            p.textAlign(p.CENTER, p.BOTTOM);
+            
+            let fVal = state.focalLength;
+            let fY = yLevel;
+            p.stroke(100, 100, 255);
+            p.fill(100, 100, 255);
+            let fLabel = state.showValues ? `f=${Math.round(fVal)}` : "f";
+            drawDimLine(p, centerX, centerX + fVal, fY, fLabel);
+            
+            let uVal = state.objectPos;
+            let uY = yLevel + 25; 
+            p.stroke(220, 38, 38);
+            p.fill(220, 38, 38);
+            let uLabel = state.showValues ? `u=${Math.round(uVal)}` : "u";
+            drawDimLine(p, centerX, centerX - uVal, uY, uLabel);
+            
+            let vVal = physics.v;
+            if (Math.abs(vVal) !== Infinity) {
+                let vY = yLevel + 50; 
+                let color = physics.isReal ? "#10b981" : "#8b5cf6";
+                p.stroke(color);
+                p.fill(color);
+                let vLabel = state.showValues ? `v=${Math.round(Math.abs(vVal))}` : "v";
+                drawDimLine(p, centerX, centerX + vVal, vY, vLabel);
+            }
+            
+            p.pop();
+        }
+        
+        function drawDimLine(p, x1, x2, y, label) {
+            p.line(x1, y, x2, y);
+            p.line(x1, y-3, x1, y+3);
+            p.line(x2, y-3, x2, y+3);
+            let mid = (x1 + x2) / 2;
+            p.noStroke();
+            p.text(label, mid, y - 2);
+            p.strokeWeight(1); 
+        }
+        
+        function drawObserverEye(p) {
+            p.push();
+            let eyeX = centerX + 500;
+            let eyeY = centerY;
+            p.translate(eyeX, eyeY);
+            p.scale(0.8);
+            
+            p.stroke(50);
+            p.strokeWeight(2);
+            p.fill(255);
+            p.beginShape();
+            p.vertex(20, -15);
+            p.quadraticVertex(-20, 0, 20, 15);
+            p.quadraticVertex(10, 0, 20, -15); 
+            p.endShape(p.CLOSE);
+            
+            p.fill(50);
+            p.noStroke();
+            p.circle(0, 0, 12);
+            p.fill(0);
+            p.circle(0, 0, 6);
+            
+            p.fill(80);
+            p.textAlign(p.CENTER, p.TOP);
+            p.textSize(14);
+            p.text("人眼", 10, 20);
+            p.text("在此观察", 10, 35);
+            p.pop();
+        }
+
+        function drawLens(p, w) {
+            p.push();
+            p.stroke(50, 100, 255);
+            p.strokeWeight(2);
+            p.fill(200, 220, 255, 100);
+            
+            let h = 300; 
+            
+            if (state.lensType === 'convex') {
+                p.ellipse(centerX, centerY, w, h);
+                p.strokeWeight(3);
+                p.stroke(30, 60, 200);
+                p.line(centerX, centerY - h/2 - 10, centerX, centerY + h/2 + 10);
+                p.noFill();
+                p.beginShape();
+                p.vertex(centerX - 10, centerY - h/2);
+                p.vertex(centerX, centerY - h/2 - 15);
+                p.vertex(centerX + 10, centerY - h/2);
+                p.endShape();
+                p.beginShape();
+                p.vertex(centerX - 10, centerY + h/2);
+                p.vertex(centerX, centerY + h/2 + 15);
+                p.vertex(centerX + 10, centerY + h/2);
+                p.endShape();
+            } else {
+                p.beginShape();
+                p.vertex(centerX - w/2, centerY - h/2);
+                p.vertex(centerX + w/2, centerY - h/2);
+                p.quadraticVertex(centerX + 10, centerY, centerX + w/2, centerY + h/2);
+                p.vertex(centerX - w/2, centerY + h/2);
+                p.quadraticVertex(centerX - 10, centerY, centerX - w/2, centerY - h/2);
+                p.endShape(p.CLOSE);
+                p.strokeWeight(3);
+                p.stroke(30, 60, 200);
+                p.line(centerX, centerY - h/2, centerX, centerY + h/2);
+                p.noFill();
+                p.beginShape();
+                p.vertex(centerX - 10, centerY - h/2 - 15);
+                p.vertex(centerX, centerY - h/2);
+                p.vertex(centerX + 10, centerY - h/2 - 15);
+                p.endShape();
+                p.beginShape();
+                p.vertex(centerX - 10, centerY + h/2 + 15);
+                p.vertex(centerX, centerY + h/2);
+                p.vertex(centerX + 10, centerY + h/2 + 15);
+                p.endShape();
+            }
+            p.pop();
+        }
+
+        function drawFocalPoints(p) {
+            p.push();
+            let f = state.focalLength;
+            let f1x = centerX - f;
+            p.fill(255, 100, 100); 
+            p.noStroke();
+            p.circle(f1x, centerY, 12);
+            p.fill(200, 50, 50);
+            p.textAlign(p.CENTER, p.BOTTOM);
+            p.textSize(14);
+            p.text("F", f1x, centerY - 10);
+            
+            let f2x = centerX + f;
+            p.fill(255, 100, 100); 
+            p.circle(f2x, centerY, 8);
+            p.fill(200, 50, 50);
+            p.text("F'", f2x, centerY - 10);
+            
+            p.fill(59, 130, 246); 
+            let f2L = centerX - 2*f;
+            p.circle(f2L, centerY, 8); 
+            p.fill(30, 64, 175); 
+            p.text("2F", f2L, centerY - 10);
+            
+            p.fill(59, 130, 246); 
+            let f2R = centerX + 2*f;
+            p.circle(f2R, centerY, 8);
+            p.fill(30, 64, 175);
+            p.text("2F'", f2R, centerY - 10);
+
+            if (state.showFocalPlanes) {
+                p.stroke(255, 100, 100, 100);
+                p.drawingContext.setLineDash([4, 4]);
+                p.line(f1x, 0, f1x, p.height);
+                p.line(f2x, 0, f2x, p.height);
+                p.drawingContext.setLineDash([]);
+            }
+            p.pop();
+        }
+
+        function drawObject(p) {
+            let x = centerX - state.objectPos;
+            let yBase = centerY;
+            let h = state.objectHeight;
+            let yTop = centerY - h;
+
+            p.push();
+            p.stroke(220, 38, 38);
+            p.strokeWeight(4);
+            p.line(x, yBase, x, yTop);
+            p.fill(220, 38, 38);
+            p.noStroke();
+            p.triangle(x - 6, yTop + 15, x + 6, yTop + 15, x, yTop);
+            p.fill(255);
+            p.stroke(220, 38, 38);
+            p.strokeWeight(2);
+            p.circle(x, yBase, 14);
+            p.pop();
+        }
+
+        function drawImage(p, physics) {
+            let imgX = centerX + physics.v;
+            let imgH = state.objectHeight * physics.m;
+            let yBase = centerY;
+            let yTop = centerY - imgH; 
+
+            p.push();
+            if (physics.isReal) {
+                if (state.isBlocked && state.lensType === 'convex') {
+                    p.stroke(16, 185, 129, 100); 
+                    p.fill(16, 185, 129, 100);
+                } else {
+                    p.stroke(16, 185, 129); 
+                    p.fill(16, 185, 129);
+                }
+            } else {
+                p.stroke(139, 92, 246);
+                p.fill(139, 92, 246);
+                p.drawingContext.setLineDash([5, 5]);
+            }
+            
+            p.strokeWeight(4);
+            p.line(imgX, yBase, imgX, yTop);
+            
+            p.noStroke();
+            p.drawingContext.setLineDash([]);
+            let arrowDir = imgH > 0 ? 1 : -1;
+            p.triangle(imgX - 6, yTop + 15 * arrowDir, imgX + 6, yTop + 15 * arrowDir, imgX, yTop);
+            p.pop();
+        }
+
+        function drawBlocker(p) {
+            p.push();
+            p.fill(50);
+            p.noStroke();
+            p.rect(centerX - 5, 0, 10, centerY);
+            
+            p.fill(255);
+            p.textSize(12);
+            p.textAlign(p.CENTER, p.CENTER);
+            p.text("遮挡", centerX, centerY / 2);
+            p.pop();
+        }
+
+        function drawRays(p, physics, lensWidth) {
+            p.push();
+            p.strokeWeight(2);
+            p.noFill();
+            
+            let objX = centerX - state.objectPos;
+            let objY = centerY - state.objectHeight;
+            let imgX = centerX + physics.v;
+            let imgY = centerY - state.objectHeight * physics.m;
+            let f = state.focalLength;
+            let isReal = physics.isReal;
+            
+            // --- Ray 1 ---
+            if (!state.isBlocked) {
+                p.stroke(245, 158, 11); 
+                p.line(objX, objY, centerX, objY);
+                p.push(); p.translate((objX+centerX)/2, objY); p.line(0,0,-5,-3); p.line(0,0,-5,3); p.pop();
+
+                if (state.lensType === 'convex') {
+                    let slope = (centerY - objY) / f; 
+                    let endX = p.width + 5000; 
+                    let endY = objY + slope * (endX - centerX);
+                    p.line(centerX, objY, endX, endY);
+                    
+                    if (!isReal && physics.v !== Infinity) {
+                        p.stroke(245, 158, 11, 100);
+                        p.drawingContext.setLineDash([5, 5]);
+                        p.line(imgX, imgY, centerX, objY);
+                        p.drawingContext.setLineDash([]);
+                    }
+                } else {
+                    let slope = (objY - centerY) / f; 
+                    let endX = p.width + 5000;
+                    let endY = objY + slope * (endX - centerX);
+                    p.line(centerX, objY, endX, endY);
+                    
+                    p.stroke(245, 158, 11, 100);
+                    p.drawingContext.setLineDash([5, 5]);
+                    p.line(centerX - f, centerY, centerX, objY);
+                    p.drawingContext.setLineDash([]);
+                }
+            } else {
+                p.stroke(245, 158, 11, 50); 
+                p.line(objX, objY, centerX - 5, objY); 
+                p.noStroke(); p.fill(245, 158, 11); p.circle(centerX - 5, objY, 4); 
+            }
+
+            // --- Ray 2 ---
+            p.stroke(59, 130, 246);
+            let slope2 = (objY - centerY) / (objX - centerX);
+            let endX2 = p.width + 5000;
+            let endY2 = centerY + slope2 * (endX2 - centerX);
+            
+            if (state.showRealCenter) p.stroke(59, 130, 246, 80);
+            p.line(objX, objY, endX2, endY2);
+            p.push(); p.translate(centerX, centerY); p.line(0,0,-5,-3); p.line(0,0,-5,3); p.pop();
+            
+            // Real Center logic (visual only)
+            if (state.showRealCenter) {
+                p.stroke(30, 64, 175); 
+                p.drawingContext.setLineDash([2, 4]); 
+                let halfW = lensWidth / 2;
+                let shift = lensWidth * 0.2; 
+                if (slope2 < 0) shift = -shift;
+                let xIn = centerX - halfW;
+                let yEnter = centerY + slope2 * (xIn - centerX);
+                let xOut = centerX + halfW;
+                let yExit = centerY + slope2 * (xOut - centerX) + shift; 
+                
+                p.line(objX, objY, xIn, yEnter);
+                p.strokeWeight(3);
+                p.line(xIn, yEnter, xOut, yExit);
+                p.strokeWeight(2);
+                let yEndShifted = endY2 + shift;
+                p.line(xOut, yExit, endX2, yEndShifted);
+                
+                p.noStroke();
+                p.fill(30, 64, 175);
+                p.textSize(10);
+                p.textAlign(p.LEFT, p.CENTER);
+                p.text("侧移", xOut + 5, yExit);
+                p.drawingContext.setLineDash([]);
+            }
+            
+            if (!isReal && state.lensType === 'convex' && physics.v !== Infinity) {
+                 p.stroke(59, 130, 246, 100);
+                 p.drawingContext.setLineDash([5, 5]);
+                 if (imgX < objX) p.line(imgX, imgY, objX, objY);
+                 p.drawingContext.setLineDash([]);
+            }
+
+            // --- Ray 3 ---
+            if (Math.abs(objX - (centerX - f)) > 1) { 
+                p.stroke(236, 72, 153);
+                let lensHitY;
+                if (state.lensType === 'convex') {
+                    let slope3 = (centerY - objY) / ((centerX - f) - objX);
+                    lensHitY = objY + slope3 * (centerX - objX);
+                    
+                    if (lensHitY >= centerY) {
+                        p.line(objX, objY, centerX, lensHitY);
+                        p.line(centerX, lensHitY, p.width + 5000, lensHitY); // Long
+                        if (!isReal && physics.v !== Infinity) {
+                            p.stroke(236, 72, 153, 100);
+                            p.drawingContext.setLineDash([5, 5]);
+                            p.line(imgX, lensHitY, centerX, lensHitY);
+                            p.drawingContext.setLineDash([]);
+                        }
+                    }
+                } else {
+                    let slope3 = (centerY - objY) / ((centerX + f) - objX);
+                    lensHitY = objY + slope3 * (centerX - objX);
+                    p.line(objX, objY, centerX, lensHitY);
+                    p.stroke(236, 72, 153, 50);
+                    p.drawingContext.setLineDash([2, 4]);
+                    p.line(centerX, lensHitY, centerX + f, centerY);
+                    p.stroke(236, 72, 153);
+                    p.drawingContext.setLineDash([]);
+                    p.line(centerX, lensHitY, p.width + 5000, lensHitY); // Long
+                    p.stroke(236, 72, 153, 100);
+                    p.drawingContext.setLineDash([5, 5]);
+                    p.line(imgX, lensHitY, centerX, lensHitY);
+                    p.drawingContext.setLineDash([]);
+                }
+            }
+
+            // --- Ray 4 (Blocked) ---
+            if (state.isBlocked && state.lensType === 'convex') {
+                p.stroke(245, 158, 11);
+                let lowerY = centerY + 80;
+                p.line(objX, objY, centerX, lowerY);
+                if (isReal) {
+                    let slope4 = (imgY - lowerY) / (imgX - centerX);
+                    let endX4 = p.width + 5000;
+                    let endY4 = lowerY + slope4 * (endX4 - centerX);
+                    p.line(centerX, lowerY, endX4, endY4);
+                } else {
+                     let slope4 = (lowerY - imgY) / (centerX - imgX);
+                     let endX4 = p.width + 5000;
+                     let endY4 = lowerY + slope4 * (endX4 - centerX);
+                     p.line(centerX, lowerY, endX4, endY4);
+                     p.stroke(245, 158, 11, 100);
+                     p.drawingContext.setLineDash([5, 5]);
+                     p.line(imgX, imgY, centerX, lowerY);
+                     p.drawingContext.setLineDash([]);
+                }
+            }
+            p.pop();
+        }
+
+        // --- NEW: Custom Laser System ---
+        function drawLaserSystem(p) {
+            p.push();
+            let l = state.laser;
+            let lx = centerX + l.x;
+            let ly = centerY + l.y;
+            
+            // 1. Draw Laser Body
+            p.push();
+            p.translate(lx, ly);
+            p.rotate(l.angle);
+            
+            // Body style
+            p.fill(40);
+            p.stroke(200);
+            p.strokeWeight(1);
+            p.rectMode(p.CENTER);
+            p.rect(-20, 0, 40, 14, 4); // Handle
+            
+            // Tip/Nozzle
+            p.fill(200, 50, 50);
+            p.noStroke();
+            p.circle(5, 0, 8); // Drag this to rotate
+            
+            p.pop();
+
+            // 2. Ray Calculation
+            // Incident Ray slope
+            let slope = Math.tan(l.angle);
+            
+            // Intersection with lens plane (x=centerX)
+            // Ray equation: y - ly = slope * (x - lx)
+            // At x = centerX: yHit = ly + slope * (centerX - lx)
+            let yHit = ly + slope * (centerX - lx);
+            
+            // Draw Incident Ray (Green Laser)
+            p.stroke(50, 255, 50);
+            p.strokeWeight(2);
+            p.line(lx, ly, centerX, yHit);
+            
+            // Draw Aux Point/Line for construction logic
+            p.strokeWeight(1);
+            p.stroke(150, 150, 150, 150);
+            p.drawingContext.setLineDash([3, 3]);
+            
+            // Auxiliary line through Center (O) parallel to incident ray
+            // Equation: y - centerY = slope * (x - centerX)
+            
+            let f = state.focalLength;
+            let refractedSlope;
+            let startRefractionX = centerX;
+            let startRefractionY = yHit;
+            
+            if (state.lensType === 'convex') {
+                // For convex: Parallel ray through center hits BACK focal plane (x = centerX + f)
+                let yFocalPlane = centerY + slope * ((centerX + f) - centerX); // y = cy + slope * f
+                
+                // Draw aux line from center to focal plane intersection
+                p.line(centerX, centerY, centerX + f, yFocalPlane);
+                
+                // Draw Intersection Point on Focal Plane
+                p.fill(150); p.noStroke(); p.circle(centerX + f, yFocalPlane, 4);
+                
+                // Refracted ray passes through (centerX, yHit) and (centerX+f, yFocalPlane)
+                p.stroke(50, 255, 50);
+                p.drawingContext.setLineDash([]);
+                p.strokeWeight(2);
+                
+                // Draw line from lens hit point through focal plane intersection
+                // Extend it far
+                let dx = (centerX + f) - centerX;
+                let dy = yFocalPlane - yHit;
+                let mRefracted = dy / dx;
+                
+                let endX = p.width + 5000;
+                let endY = yHit + mRefracted * (endX - centerX);
+                p.line(centerX, yHit, endX, endY);
+                
+                // Label "Secondary Axis"
+                p.fill(100); p.noStroke(); p.textSize(10);
+                p.text("副光轴", centerX + f/2, (centerY + yFocalPlane)/2 - 5);
+                
+            } else {
+                // For concave: Parallel ray through center hits FRONT focal plane (x = centerX - f)
+                // Note: state.focalLength is positive magnitude.
+                let yFocalPlane = centerY + slope * ((centerX - f) - centerX); // y = cy + slope * (-f)
+                
+                // Draw aux line
+                p.line(centerX, centerY, centerX - f, yFocalPlane);
+                p.fill(150); p.noStroke(); p.circle(centerX - f, yFocalPlane, 4);
+                
+                // Refracted ray appears to come FROM this point (centerX - f, yFocalPlane)
+                // passing through (centerX, yHit)
+                p.stroke(50, 255, 50);
+                p.drawingContext.setLineDash([]);
+                p.strokeWeight(2);
+                
+                let dx = centerX - (centerX - f); // +f
+                let dy = yHit - yFocalPlane;
+                let mRefracted = dy / dx;
+                
+                let endX = p.width + 5000;
+                let endY = yHit + mRefracted * (endX - centerX);
+                p.line(centerX, yHit, endX, endY);
+                
+                // Draw virtual extension backward
+                p.stroke(50, 255, 50, 80);
+                p.drawingContext.setLineDash([4, 4]);
+                p.line(centerX - f, yFocalPlane, centerX, yHit);
+            }
+
+            p.pop();
+        }
+
+        // --- Interaction ---
+        function handleHoverCursor(p) {
+            let wMouse = screenToWorld(p.mouseX, p.mouseY);
+            let objX = centerX - state.objectPos;
+            let fX = centerX - state.focalLength;
+            
+            // Hit test for Laser
+            if (state.laser.active) {
+                let lx = centerX + state.laser.x;
+                let ly = centerY + state.laser.y;
+                // Body hit
+                if (p.dist(wMouse.x, wMouse.y, lx, ly) < 20) {
+                    p.cursor('move');
+                    return;
+                }
+                // Nozzle hit (approx)
+                let nozzleX = lx + 20 * Math.cos(state.laser.angle);
+                let nozzleY = ly + 20 * Math.sin(state.laser.angle);
+                if (p.dist(wMouse.x, wMouse.y, nozzleX, nozzleY) < 20) {
+                     p.cursor('crosshair'); // Rotate
+                     return;
+                }
+            }
+            
+            let dObj = p.dist(wMouse.x, wMouse.y, objX, centerY);
+            let dF = p.dist(wMouse.x, wMouse.y, fX, centerY);
+            
+            if (state.draggingObj || state.draggingF || state.panning || state.laser.draggingBody || state.laser.rotating) {
+                p.cursor('grabbing');
+            } else if (dObj < 20 || dF < 20) {
+                p.cursor('grab');
+            } else {
+                p.cursor('default');
+            }
+        }
+
+        p.mousePressed = () => {
+            let wMouse = screenToWorld(p.mouseX, p.mouseY);
+            
+            // 1. Check Laser Interaction First (highest priority if active)
+            if (state.laser.active) {
+                let lx = centerX + state.laser.x;
+                let ly = centerY + state.laser.y;
+                
+                // Check Rotation Handle (Front)
+                // Since drawing rotates, the nozzle is at local (5,0) rotated.
+                // Or simplified: distance check to center, then check alignment?
+                // Better: Reverse rotate mouse to check local bounds
+                let dx = wMouse.x - lx;
+                let dy = wMouse.y - ly;
+                
+                // Nozzle is roughly 10-20px in front along angle
+                let rotX = dx * Math.cos(-state.laser.angle) - dy * Math.sin(-state.laser.angle);
+                let rotY = dx * Math.sin(-state.laser.angle) + dy * Math.cos(-state.laser.angle);
+                
+                if (rotX > 0 && rotX < 30 && Math.abs(rotY) < 15) {
+                    state.laser.rotating = true;
+                    return;
+                }
+                if (Math.abs(rotX) < 20 && Math.abs(rotY) < 10) {
+                    state.laser.draggingBody = true;
+                    return;
+                }
+            }
+            
+            let objX = centerX - state.objectPos;
+            let fX = centerX - state.focalLength;
+            
+            // 2. Check Standard Objects
+            if (p.dist(wMouse.x, wMouse.y, objX, centerY) < 30) {
+                state.draggingObj = true;
+            } else if (p.dist(wMouse.x, wMouse.y, fX, centerY) < 30) {
+                state.draggingF = true;
+            } else if (p.mouseX > 0 && p.mouseX < p.width && p.mouseY > 0 && p.mouseY < p.height) {
+                state.panning = true;
+            }
+        };
+
+        p.mouseDragged = () => {
+            let wMouse = screenToWorld(p.mouseX, p.mouseY);
+            
+            if (state.laser.draggingBody) {
+                state.laser.x = wMouse.x - centerX;
+                state.laser.y = wMouse.y - centerY;
+            } else if (state.laser.rotating) {
+                let lx = centerX + state.laser.x;
+                let ly = centerY + state.laser.y;
+                state.laser.angle = Math.atan2(wMouse.y - ly, wMouse.x - lx);
+            } else if (state.draggingObj) {
+                let newPos = centerX - wMouse.x;
+                newPos = Math.max(10, Math.min(newPos, 5000)); 
+                state.objectPos = newPos;
+                updateUI();
+            } else if (state.draggingF) {
+                let newF = centerX - wMouse.x;
+                newF = Math.max(50, Math.min(newF, 800));
+                state.focalLength = newF;
+                updateUI();
+            } else if (state.panning) {
+                state.view.panX += p.movedX;
+                state.view.panY += p.movedY;
+            }
+        };
+
+        p.mouseReleased = () => {
+            state.draggingObj = false;
+            state.draggingF = false;
+            state.panning = false;
+            state.laser.draggingBody = false;
+            state.laser.rotating = false;
+        };
+    };
+
+    let myp5 = new p5(sketch);
+
+    // --- UI Logic ---
+
+    window.toggleLaser = () => {
+        state.laser.active = !state.laser.active;
+        let btn = document.getElementById('btn-laser');
+        if (state.laser.active) {
+            btn.classList.add('active-laser');
+            btn.innerHTML = '<span id="laser-icon">🔦</span> <span>关闭激光笔 (Close Laser)</span>';
+            showToast("激光笔已开启\n拖动笔身移动，拖动前端旋转");
+        } else {
+            btn.classList.remove('active-laser');
+            btn.innerHTML = '<span id="laser-icon">🔦</span> <span>开启激光笔 (Custom Laser)</span>';
+        }
+    };
+
+    window.setMode = (mode) => {
+        state.lensType = mode;
+        document.getElementById('btn-convex').className = `toggle-btn ${mode === 'convex' ? 'active' : ''}`;
+        document.getElementById('btn-concave').className = `toggle-btn ${mode === 'concave' ? 'active' : ''}`;
+        
+        if (mode === 'concave') {
+             state.isBlocked = false;
+             document.getElementById('chk-block').checked = false;
+        }
+        showToast(mode === 'convex' ? "已切换至凸透镜" : "已切换至凹透镜");
+    };
+
+    window.resetView = () => {
+        state.view = { zoom: 1.0, panX: 0, panY: 0 };
+        showToast("视图已复原");
+    };
+
+    window.setScenario = (id) => {
+        if (id <= 5) window.setMode('convex');
+        state.isBlocked = false;
+        document.getElementById('chk-block').checked = false;
+        window.resetView();
+
+        const canvasW = document.getElementById('canvas-container').offsetWidth;
+        const maxSafeDistance = (canvasW / 2) - 80; 
+        
+        let newF = state.focalLength;
+        if (newF * 2.5 > maxSafeDistance) newF = maxSafeDistance / 2.5; 
+        if (newF < 100) newF = 100;
+        state.focalLength = newF;
+        updateUI(); 
+
+        switch(id) {
+            case 1: state.objectPos = newF * 2.5; showToast("📸 照相机\nu > 2f"); break;
+            case 2: state.objectPos = newF * 2.0; showToast("📏 测焦距\nu = 2f"); break;
+            case 3: state.objectPos = newF * 1.5; showToast("📽️ 投影仪\nf < u < 2f"); break;
+            case 4: state.objectPos = newF * 1.0; showToast("🔦 探照灯\nu = f"); break;
+            case 5: state.objectPos = newF * 0.6; showToast("🔍 放大镜\nu < f"); break;
+            case 6: window.setMode('concave'); state.objectPos = newF * 2.0; showToast("👓 近视眼镜\n(凹透镜)"); break;
+        }
+    };
+    
+    document.getElementById('slider-thickness').addEventListener('input', (e) => {
+        let val = parseInt(e.target.value);
+        state.focalLength = 400 - (val / 100) * 350;
+    });
+
+    document.getElementById('chk-rays').addEventListener('change', (e) => state.showRays = e.target.checked);
+    document.getElementById('chk-grid').addEventListener('change', (e) => state.showGrid = e.target.checked);
+    document.getElementById('chk-focal-planes').addEventListener('change', (e) => state.showFocalPlanes = e.target.checked);
+    document.getElementById('chk-values').addEventListener('change', (e) => state.showValues = e.target.checked);
+    document.getElementById('chk-block').addEventListener('change', (e) => state.isBlocked = e.target.checked);
+    document.getElementById('chk-dimensions').addEventListener('change', (e) => state.showDimensions = e.target.checked);
+    document.getElementById('chk-eye').addEventListener('change', (e) => state.showEye = e.target.checked);
+    document.getElementById('chk-thick-center').addEventListener('change', (e) => {
+        state.showRealCenter = e.target.checked;
+        if(e.target.checked) showToast("已开启真实侧移模拟\n(注意观察透镜中心)");
+    });
+
+    function updateDataPanel(physics) {
+        document.getElementById('val-u').innerText = physics.u.toFixed(0);
+        document.getElementById('val-v').innerText = Math.abs(physics.v) === Infinity ? "∞" : physics.v.toFixed(0);
+        document.getElementById('val-f').innerText = state.focalLength.toFixed(0);
+        document.getElementById('val-m').innerText = Math.abs(physics.m) === Infinity ? "∞" : physics.m.toFixed(2) + "x";
+
+        let natureText = "";
+        if (state.lensType === 'concave') {
+            natureText = "正立缩小虚像";
+        } else {
+            if (Math.abs(physics.v) === Infinity) natureText = "不成像 (光平行)";
+            else if (physics.isReal) {
+                if (Math.abs(physics.m) === 1) natureText = "倒立等大实像";
+                else if (Math.abs(physics.m) > 1) natureText = "倒立放大实像";
+                else natureText = "倒立缩小实像";
+            } else {
+                natureText = "正立放大虚像";
+            }
+        }
+        document.getElementById('val-nature').innerText = natureText;
+    }
+
+    function updateUI() {
+        let val = (400 - state.focalLength) / 350 * 100;
+        document.getElementById('slider-thickness').value = val;
+    }
+
+    let toastTimer;
+    function showToast(msg) {
+        let t = document.getElementById('toast');
+        t.innerText = msg;
+        t.style.opacity = 1;
+        t.style.transform = "translateX(-50%) translateY(0)";
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => {
+            t.style.opacity = 0;
+            t.style.transform = "translateX(-50%) translateY(-10px)";
+        }, 2500);
+    }
+</script>
+</body>
+</html>

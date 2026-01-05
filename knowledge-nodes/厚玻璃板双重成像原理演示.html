@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>厚玻璃板双重成像原理演示</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <style>
+    /* 全局重置与字体设置 */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+      background-color: #f5f7fa;
+      color: #333;
+      overflow-y: scroll; /* 允许PC端滚动 */
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* 布局容器 */
+    .container {
+      width: 100%;
+      max-width: 1400px;
+      display: flex;
+      flex-direction: row; /* 左右布局 */
+      gap: 20px;
+      padding: 20px;
+      height: 95vh;
+    }
+
+    /* 左侧控制面板 */
+    .control-panel {
+      flex: 0 0 320px; /* 固定宽度 */
+      background: #ffffff;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      overflow-y: auto;
+    }
+
+    /* 右侧可视化区域 */
+    .canvas-container {
+      flex: 1;
+      background: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+      min-height: 500px;
+    }
+
+    /* 标题与题目区 */
+    h1 {
+      font-size: 20px;
+      color: #2c3e50;
+      border-bottom: 2px solid #3498db;
+      padding-bottom: 10px;
+      margin-bottom: 10px;
+    }
+    .problem-box {
+      background: #eef7fe;
+      border-left: 4px solid #3498db;
+      padding: 12px;
+      font-size: 14px;
+      line-height: 1.6;
+      color: #444;
+    }
+    .answer-highlight {
+      color: #e74c3c;
+      font-weight: bold;
+      background: rgba(231, 76, 60, 0.1);
+      padding: 0 4px;
+      border-radius: 4px;
+    }
+
+    /* 控件样式 */
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    label {
+      font-size: 14px;
+      font-weight: 600;
+      color: #555;
+      display: flex;
+      justify-content: space-between;
+    }
+    input[type=range] {
+      width: 100%;
+      cursor: pointer;
+    }
+    .value-display {
+      color: #3498db;
+      font-family: monospace;
+    }
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+    }
+    .toggle-row input {
+      cursor: pointer;
+      width: 18px;
+      height: 18px;
+    }
+    .toggle-label {
+      font-size: 14px;
+      user-select: none;
+    }
+
+    /* 状态栏 */
+    .status-bar {
+      margin-top: auto;
+      padding-top: 20px;
+      border-top: 1px solid #eee;
+      font-size: 13px;
+      color: #666;
+    }
+    .formula-box {
+      font-family: 'Times New Roman', serif;
+      font-size: 16px;
+      background: #f9f9f9;
+      padding: 10px;
+      border-radius: 6px;
+      margin-top: 10px;
+      border: 1px solid #ddd;
+    }
+
+    /* 响应式适配 */
+    @media (max-width: 900px) {
+      .container {
+        flex-direction: column;
+        height: auto;
+      }
+      .control-panel {
+        width: 100%;
+        flex: none;
+      }
+      .canvas-container {
+        height: 60vh;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- 控制面板 -->
+    <div class="control-panel">
+      <div>
+        <h1>厚玻璃板成像演示</h1>
+        <div class="problem-box">
+          <b>题目大意：</b><br>
+          一支铅笔放在厚度为 <span id="text-d">4</span> mm 的玻璃板前。玻璃板的前后两个面各成一个像。
+          <br><br>
+          <b>求：</b>两个像之间的笔尖距离。
+          <br><br>
+          <b>结论：</b>距离 = <span class="answer-highlight" id="text-ans">8</span> mm
+        </div>
+      </div>
+
+      <div class="control-group">
+        <!-- 修改点：最小值改为0，步长改为0.1 -->
+        <label>玻璃厚度 d (mm) <span class="value-display" id="val-thickness">4</span></label>
+        <input type="range" id="slider-thickness" min="0" max="15" step="0.1" value="4">
+      </div>
+
+      <div class="control-group">
+        <label>笔尖物距 u (mm) <span class="value-display" id="val-distance">15</span></label>
+        <input type="range" id="slider-distance" min="5" max="30" step="1" value="15">
+      </div>
+
+      <hr style="border: 0; border-top: 1px solid #eee;">
+
+      <div class="control-group">
+        <label class="toggle-row">
+          <input type="checkbox" id="chk-surfaceA" checked>
+          <span class="toggle-label">显示前表面成像 (像1)</span>
+        </label>
+        <label class="toggle-row">
+          <input type="checkbox" id="chk-surfaceB" checked>
+          <span class="toggle-label">显示后表面成像 (像2)</span>
+        </label>
+        <label class="toggle-row">
+          <input type="checkbox" id="chk-measure" checked>
+          <span class="toggle-label">显示测量标注</span>
+        </label>
+      </div>
+
+      <div class="status-bar">
+        <div class="formula-box">
+          像间距 Δx = 2 × 厚度
+        </div>
+        <p style="margin-top:10px;">
+          <small>注：为了演示清晰，画布上的比例尺经过放大处理，并非 1:1 像素对应。</small>
+        </p>
+      </div>
+    </div>
+
+    <!-- 可视化画布 -->
+    <div class="canvas-container" id="canvas-wrapper">
+      <!-- p5.js canvas will be injected here -->
+    </div>
+  </div>
+
+  <script>
+    // 变量定义
+    let glassThickness = 4;
+    let objectDistance = 15;
+    let showSurfaceA = true;
+    let showSurfaceB = true;
+    let showMeasure = true;
+
+    // 像素转换比例 (1mm = ? px)
+    const scaleFactor = 10; 
+    // 画布中心偏置
+    let centerX, centerY;
+
+    function setup() {
+      // 获取容器尺寸
+      const container = document.getElementById('canvas-wrapper');
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+      
+      const canvas = createCanvas(w, h);
+      canvas.parent('canvas-wrapper');
+      
+      centerX = w / 2 - 50; // 稍微左偏一点，留出右侧空间给像
+      centerY = h / 2;
+
+      // 绑定DOM事件
+      bindEvents();
+      
+      // 字体设置
+      textFont('sans-serif');
+    }
+
+    function windowResized() {
+      const container = document.getElementById('canvas-wrapper');
+      resizeCanvas(container.clientWidth, container.clientHeight);
+      centerX = width / 2 - 50;
+      centerY = height / 2;
+    }
+
+    function draw() {
+      background(255);
+      
+      // 1. 坐标转换：原点设在玻璃板的前表面 (Surface A)
+      push();
+      translate(centerX, centerY);
+
+      // --- 绘制环境 ---
+      drawOpticalAxis();
+      drawGlassPlate();
+      
+      // --- 绘制物体 (实物) ---
+      // 物体位置 x = -objectDistance
+      drawPencil(-objectDistance * scaleFactor, 1, 1);
+
+      // --- 绘制像 1 (前表面反射) ---
+      // 像1位置 x = +objectDistance
+      if (showSurfaceA) {
+        let img1Pos = objectDistance * scaleFactor;
+        drawPencil(img1Pos, 0.5, 0.8); // 半透明
+        drawSymmetryLine(-objectDistance * scaleFactor, img1Pos, -60, "A");
+      }
+
+      // --- 绘制像 2 (后表面反射) ---
+      // 物距 = objectDistance + glassThickness
+      // 像2位置 (相对于后表面) = objectDistance + glassThickness
+      // 后表面位置 = glassThickness
+      // 像2绝对位置 = glassThickness + (objectDistance + glassThickness) = objectDistance + 2*glassThickness
+      if (showSurfaceB) {
+        let img2Pos = (objectDistance + 2 * glassThickness) * scaleFactor;
+        drawPencil(img2Pos, 0.3, 0.6); // 更透明
+        
+        // 绘制辅助线说明相对于后表面的对称
+        // 后表面x坐标
+        let backSurfaceX = glassThickness * scaleFactor;
+        drawSymmetryLine(-objectDistance * scaleFactor, img2Pos, -100, "B", backSurfaceX);
+      }
+
+      // --- 绘制测量标注 ---
+      if (showMeasure && showSurfaceA && showSurfaceB) {
+        let img1X = objectDistance * scaleFactor;
+        let img2X = (objectDistance + 2 * glassThickness) * scaleFactor;
+        // 如果厚度非常小（接近0），像间距标注可能重叠，但保持显示以展示数值变化
+        drawDimensionLine(img1X, img2X, 120, `Δx = ${(2 * glassThickness).toFixed(1)} mm`);
+      }
+
+      pop();
+    }
+
+    // --- 绘图辅助函数 ---
+
+    function drawOpticalAxis() {
+      stroke(150);
+      strokeWeight(1);
+      line(-width/2, 0, width, 0); // 主光轴
+    }
+
+    function drawGlassPlate() {
+      let thickPx = glassThickness * scaleFactor;
+      
+      fill(200, 230, 255, 150); // 淡蓝色玻璃
+      noStroke();
+      rect(0, -150, thickPx, 300); // 玻璃实体
+
+      // 前表面 A (x=0)
+      stroke(50, 100, 200);
+      strokeWeight(3);
+      line(0, -150, 0, 150);
+      noStroke();
+      fill(50, 100, 200);
+      textAlign(RIGHT, BOTTOM);
+      textSize(14);
+      text("前表面 A", -5, 145);
+
+      // 后表面 B (x=thickPx)
+      stroke(50, 100, 200);
+      strokeWeight(3);
+      line(thickPx, -150, thickPx, 150);
+      noStroke();
+      fill(50, 100, 200);
+      textAlign(LEFT, BOTTOM);
+      text("后表面 B", thickPx + 5, 145);
+
+      // 标注厚度
+      // 当厚度为0时，标注可能会挤在一起，这里简单处理
+      drawDimensionLine(0, thickPx, 160, `d=${glassThickness.toFixed(1)}mm`);
+    }
+
+    function drawPencil(x, opacity, scaleSize) {
+      push();
+      translate(x, 0);
+      // 笔尖朝右，笔在左侧。如果 x>0 (像)，应该也是笔尖朝左指向镜面吗？
+      // 平面镜成像左右颠倒（对于垂直镜面的物体是前后颠倒）。
+      // 物体笔尖朝右指镜面 -> 像笔尖朝左指镜面。
+      
+      let isImage = x > 0;
+      if (isImage) {
+        scale(-1, 1); // 镜像翻转
+      }
+
+      scale(scaleSize); // 像可能画小一点表示虚像感(可选，这里主要靠透明度)
+
+      // 绘制铅笔
+      // 笔身
+      fill(241, 196, 15, 255 * opacity);
+      stroke(0, 0, 0, 255 * opacity);
+      strokeWeight(1);
+      rect(-60, -5, 50, 10);
+      
+      // 笔头(木头部分)
+      fill(230, 126, 34, 255 * opacity);
+      triangle(-10, -5, -10, 5, 0, 0); // 笔尖点在 (0,0)
+      
+      // 笔芯
+      fill(50, 50, 50, 255 * opacity);
+      triangle(-3, -1.5, -3, 1.5, 0, 0);
+
+      // 标注
+      fill(0, 0, 0, 255 * opacity);
+      noStroke();
+      textAlign(CENTER);
+      textSize(12);
+      scale(isImage ? -1 : 1, 1); // 文字不要翻转
+      if (!isImage) text("实物", -30, -15);
+      else if (x < (objectDistance + glassThickness)*scaleFactor + 10) text("像1", 30, -15);
+      else text("像2", 30, -15);
+
+      pop();
+    }
+
+    function drawSymmetryLine(x1, x2, yOffset, surfaceLabel, mirrorX = 0) {
+      // 绘制表示对称关系的虚线框
+      stroke(100, 100, 100, 80);
+      strokeWeight(1);
+      drawingContext.setLineDash([5, 5]);
+      
+      // 竖线从物体/像延伸上去
+      line(x1, 0, x1, yOffset);
+      line(x2, 0, x2, yOffset);
+      
+      // 横线连接
+      line(x1, yOffset, x2, yOffset);
+      
+      // 中轴标记
+      line(mirrorX, -150, mirrorX, yOffset - 10); // 镜面延伸
+
+      drawingContext.setLineDash([]);
+
+      // 标注文字
+      fill(80);
+      noStroke();
+      textAlign(CENTER, BOTTOM);
+      textSize(12);
+      text(`关于${surfaceLabel}对称`, (x1 + x2)/2, yOffset - 2);
+    }
+
+    function drawDimensionLine(x1, x2, yOffset, labelStr) {
+      stroke(200, 50, 50);
+      strokeWeight(1.5);
+      fill(200, 50, 50);
+
+      let y = yOffset; // 向下为正
+      if (yOffset > 0) y = yOffset; 
+      
+      // 横线
+      line(x1, y, x2, y);
+      
+      // 箭头/端点
+      line(x1, y - 3, x1, y + 3);
+      line(x2, y - 3, x2, y + 3);
+
+      // 文字
+      noStroke();
+      textAlign(CENTER, TOP);
+      text(labelStr, (x1 + x2) / 2, y + 2);
+    }
+
+
+    // --- 交互逻辑 ---
+    function bindEvents() {
+      const sThickness = document.getElementById('slider-thickness');
+      const sDistance = document.getElementById('slider-distance');
+      const tThickness = document.getElementById('val-thickness');
+      const tDistance = document.getElementById('val-distance');
+      
+      // 监听厚度变化
+      sThickness.addEventListener('input', (e) => {
+        glassThickness = parseFloat(e.target.value);
+        // 使用 toFixed(1) 避免过长的小数
+        let displayVal = Number.isInteger(glassThickness) ? glassThickness : glassThickness.toFixed(1);
+        tThickness.innerText = displayVal;
+        updateText();
+      });
+
+      // 监听物距变化
+      sDistance.addEventListener('input', (e) => {
+        objectDistance = parseFloat(e.target.value);
+        tDistance.innerText = objectDistance;
+        updateText();
+      });
+
+      // 监听开关
+      document.getElementById('chk-surfaceA').addEventListener('change', (e) => showSurfaceA = e.target.checked);
+      document.getElementById('chk-surfaceB').addEventListener('change', (e) => showSurfaceB = e.target.checked);
+      document.getElementById('chk-measure').addEventListener('change', (e) => showMeasure = e.target.checked);
+    }
+
+    function updateText() {
+      // 更新HTML文本中的数值
+      let dStr = Number.isInteger(glassThickness) ? glassThickness : glassThickness.toFixed(1);
+      let ans = glassThickness * 2;
+      let ansStr = Number.isInteger(ans) ? ans : ans.toFixed(1);
+
+      document.getElementById('text-d').innerText = dStr;
+      document.getElementById('text-ans').innerText = ansStr;
+    }
+
+  </script>
+</body>
+</html>

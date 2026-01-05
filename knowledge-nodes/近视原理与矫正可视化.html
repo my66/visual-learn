@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>交互式视力矫正实验室</title>
+  
+  <!-- p5.js CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <!-- MathJax CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  <style>
+    :root {
+      --bg-color: #f0f4f8;
+      --panel-bg: #ffffff;
+      --text-color: #1e293b;
+      --accent-color: #2563eb;
+      --border-color: #cbd5e1;
+      --success-color: #16a34a;
+      --danger-color: #dc2626;
+      --warn-color: #ea580c;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Header */
+    header {
+      background: var(--panel-bg);
+      padding: 12px 24px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    h1 { margin: 0; font-size: 1.25rem; color: #0f172a; }
+
+    /* Layout */
+    .main-container {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* Controls Panel */
+    .controls {
+      width: 340px;
+      background: var(--panel-bg);
+      border-right: 1px solid var(--border-color);
+      padding: 20px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      flex-shrink: 0;
+    }
+
+    .canvas-container {
+      flex: 1;
+      position: relative;
+      background-color: #ffffff;
+      /* Grid pattern background */
+      background-image: radial-gradient(#e2e8f0 1px, transparent 1px);
+      background-size: 20px 20px;
+      overflow: hidden;
+    }
+
+    /* UI Elements */
+    .control-group {
+      background: #f8fafc;
+      padding: 16px;
+      border-radius: 10px;
+      border: 1px solid var(--border-color);
+    }
+
+    .control-group h3 {
+      margin: 0 0 12px 0;
+      font-size: 0.95rem;
+      color: #475569;
+      border-bottom: 2px solid #e2e8f0;
+      padding-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .slider-row {
+      margin-bottom: 12px;
+    }
+
+    .slider-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      margin-bottom: 6px;
+      font-weight: 500;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      cursor: pointer;
+      accent-color: var(--accent-color);
+    }
+
+    /* Custom marks for sliders */
+    .slider-marks {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      color: #94a3b8;
+      margin-top: -4px;
+    }
+
+    /* Scenario Buttons */
+    .scenario-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    button {
+      padding: 8px;
+      background-color: #fff;
+      color: var(--accent-color);
+      border: 1px solid var(--accent-color);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+
+    button:hover {
+      background-color: #eff6ff;
+      transform: translateY(-1px);
+    }
+    
+    button.active {
+      background-color: var(--accent-color);
+      color: white;
+    }
+
+    /* Big Status Overlay */
+    .status-overlay {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 12px 24px;
+      border-radius: 30px;
+      font-weight: bold;
+      font-size: 1.1rem;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+      backdrop-filter: blur(4px);
+      border: 2px solid transparent;
+      transition: all 0.3s ease;
+      text-align: center;
+      min-width: 200px;
+      z-index: 10;
+    }
+
+    .status-success {
+      background-color: rgba(220, 252, 231, 0.95);
+      color: var(--success-color);
+      border-color: var(--success-color);
+    }
+
+    .status-danger {
+      background-color: rgba(254, 226, 226, 0.95);
+      color: var(--danger-color);
+      border-color: var(--danger-color);
+    }
+    
+    .status-warn {
+      background-color: rgba(255, 237, 213, 0.95);
+      color: var(--warn-color);
+      border-color: var(--warn-color);
+    }
+    
+    .status-detail {
+      font-size: 0.85rem;
+      font-weight: normal;
+      margin-top: 4px;
+      opacity: 0.9;
+    }
+
+    /* Math container */
+    .math-box {
+      font-size: 0.85rem;
+      color: #64748b;
+      padding: 10px;
+      background: #fff;
+      border-radius: 6px;
+    }
+
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>交互式视力矫正实验室 (Vision Optics Lab)</h1>
+  </header>
+
+  <div class="main-container">
+    <aside class="controls">
+      
+      <!-- Scenarios -->
+      <div class="control-group">
+        <h3>典型案例 (Presets)</h3>
+        <div class="scenario-grid">
+          <button onclick="setScenario('normal')">1. 标准正常眼</button>
+          <button onclick="setScenario('myopia')">2. 典型近视眼</button>
+          <button onclick="setScenario('hyperopia')">3. 典型远视眼</button>
+          <button onclick="setScenario('corrected_myopia')">4. 矫正近视</button>
+          <button onclick="setScenario('corrected_hyperopia')">5. 矫正远视</button>
+        </div>
+      </div>
+
+      <!-- Eye Control -->
+      <div class="control-group">
+        <h3>眼球生理参数</h3>
+        <div class="slider-row">
+          <div class="slider-label">
+            <span>眼轴长度 (Eye Length)</span>
+            <span id="val-eye-len">正常</span>
+          </div>
+          <!-- 80-160 range, 120 is normal -->
+          <input type="range" id="slider-eye-len" min="80" max="160" value="120" step="1">
+          <div class="slider-marks">
+            <span>远视(短)</span>
+            <span>正常</span>
+            <span>近视(长)</span>
+          </div>
+        </div>
+        <div class="slider-row">
+           <div class="slider-label">
+            <span>物体距离</span>
+            <span id="val-obj-dist">5.0m</span>
+          </div>
+          <input type="range" id="slider-obj-dist" min="300" max="2000" value="1500" step="50">
+        </div>
+      </div>
+
+      <!-- Glasses Control -->
+      <div class="control-group">
+        <h3>矫正镜片 (Glasses)</h3>
+        <div class="slider-row">
+          <div class="slider-label">
+            <span>镜片度数 (Power)</span>
+            <span id="val-lens-power">0 (无镜片)</span>
+          </div>
+          <!-- -10 to +10 range, 0 is none -->
+          <input type="range" id="slider-lens-power" min="-10" max="10" value="0" step="0.1">
+          <div class="slider-marks">
+            <span>凹透镜(-)</span>
+            <span>无</span>
+            <span>凸透镜(+)</span>
+          </div>
+        </div>
+        <div style="font-size:0.8rem; color:#64748b; line-height:1.4;">
+          <strong style="color:var(--accent-color)">操作提示：</strong><br>
+          拖动滑块选择镜片。负数为凹透镜（矫正近视），正数为凸透镜（矫正远视）。
+        </div>
+      </div>
+
+      <div class="control-group">
+        <h3>光学原理</h3>
+        <div id="math-box" class="math-box"></div>
+      </div>
+
+    </aside>
+
+    <main class="canvas-container" id="canvas-wrapper">
+      <div id="status-overlay" class="status-overlay status-success">
+        <div>视力正常</div>
+        <div class="status-detail">成像完美落在视网膜上</div>
+      </div>
+    </main>
+  </div>
+
+<script>
+/**
+ * Configuration & Physics Constants
+ */
+const CONFIG = {
+  // Rendering Colors
+  colors: {
+    ray: 'rgba(250, 204, 21, 0.6)',     // Yellow rays
+    rayFocus: 'rgba(234, 88, 12, 0.9)', // Orange focused rays
+    lens: '#bae6fd',                    // Light blue
+    lensStroke: '#0284c7',
+    retina: '#cbd5e1',
+    object: '#10b981',                  // Green object
+    image: '#8b5cf6',                   // Purple image
+    success: '#16a34a',
+    danger: '#dc2626'
+  },
+  // Geometry
+  eye: {
+    baseFocalLength: 110, // Fixed focal length of the crystalline lens
+    normalRetinaX: 120,   // The "Perfect" distance for normal vision
+    lensHeight: 70
+  },
+  glass: {
+    offsetX: -60,         // Position relative to eye lens
+    maxPower: 10          // Slider max val
+  }
+};
+
+/**
+ * App State
+ */
+let state = {
+  eyeLength: 120,    // Controlled by slider (80-160)
+  objDist: 1500,     // Distance in pixels
+  lensPower: 0,      // -10 to 10 (arbitrary units ~ Diopters)
+  showRays: true
+};
+
+let canvas;
+let width, height;
+
+/**
+ * P5.js Setup
+ */
+function setup() {
+  const container = document.getElementById('canvas-wrapper');
+  width = container.clientWidth;
+  height = container.clientHeight;
+  canvas = createCanvas(width, height);
+  canvas.parent('canvas-wrapper');
+  
+  rectMode(CENTER);
+  imageMode(CENTER);
+  
+  setupUIListeners();
+  updateMathBox();
+  
+  // Initial draw
+  redraw();
+}
+
+/**
+ * P5.js Main Loop
+ */
+function draw() {
+  background('#f8fafc'); // Clear canvas
+  
+  // Grid lines (subtle)
+  drawGrid();
+
+  // Move origin to the Eye Lens Center
+  translate(width * 0.75, height / 2);
+
+  // 1. Calculate Optics
+  const result = calculateSystem();
+
+  // 2. Draw Object
+  drawObject();
+
+  // 3. Draw Anatomy
+  drawEyeSystem(result);
+
+  // 4. Draw Glasses (Dynamic Shape)
+  drawDynamicGlasses();
+
+  // 5. Draw Rays
+  drawLightRays(result);
+  
+  // 6. Draw Image Arrow
+  drawImageFormation(result);
+
+  // 7. Update HTML Status Overlay
+  updateStatusOverlay(result);
+}
+
+function windowResized() {
+  const container = document.getElementById('canvas-wrapper');
+  width = container.clientWidth;
+  height = container.clientHeight;
+  resizeCanvas(width, height);
+}
+
+/**
+ * Core Physics Calculation
+ * System: Object -> [Corrective Lens] -> [Eye Lens] -> Image
+ * Corrected to handle Virtual Objects for Hyperopia
+ */
+function calculateSystem() {
+  // Constants
+  const f_eye = CONFIG.eye.baseFocalLength; 
+  const d_glass_offset = Math.abs(CONFIG.glass.offsetX); // 60px
+  
+  // -- Step 1: Corrective Lens Calculation --
+  let virtualObjDist = state.objDist; // Default if no glass (Real object distance for eye)
+  let isVirtualObject = false;        // For eye: is input light converging?
+  
+  // Visual focus point of the glasses (for ray tracing)
+  let glassFocusX = null; 
+  let glassMag = 1;
+
+  if (Math.abs(state.lensPower) > 0.05) {
+    // f_glass = Scale / Power
+    // Use a scale that makes Power values physically meaningful relative to pixels
+    const K = 2000; 
+    let f_glass = K / state.lensPower; 
+    
+    // Object dist for glass
+    let do_g = state.objDist - d_glass_offset; // Object distance from glass
+    
+    // Lens Eq: 1/di = 1/f - 1/do
+    let val = (1/f_glass) - (1/do_g);
+    let di_g = 1 / val; // Image distance from GLASS (Signed)
+    
+    // Magnification of Glass
+    glassMag = -di_g / do_g;
+    
+    // Position of intermediate image relative to Eye (Eye at 0, Glass at -60)
+    // If di_g > 0 (Real image): To the right of glass.
+    // X_coord = -60 + di_g.
+    // If di_g < 0 (Virtual image): To the left of glass.
+    // X_coord = -60 + di_g.
+    
+    let imageX_abs = CONFIG.glass.offsetX + di_g;
+    
+    glassFocusX = imageX_abs;
+    
+    // -- Step 2: Determine nature of object for Eye --
+    if (imageX_abs > 0) {
+      // Image is formed BEHIND the eye lens.
+      // This acts as a VIRTUAL OBJECT for the eye (converging rays hitting eye).
+      isVirtualObject = true;
+      virtualObjDist = imageX_abs; // Positive value
+    } else {
+      // Image is formed IN FRONT of the eye lens.
+      // Acts as a REAL OBJECT for the eye (diverging rays hitting eye).
+      isVirtualObject = false;
+      virtualObjDist = Math.abs(imageX_abs);
+    }
+  }
+
+  // -- Step 3: Eye Lens Calculation --
+  let di_final;
+  
+  if (isVirtualObject) {
+    // Lens Equation for Virtual Object: 1/v = 1/f + 1/u
+    // (Incoming rays are converging, Lens adds more convergence)
+    const val2 = (1/f_eye) + (1/virtualObjDist);
+    di_final = 1 / val2;
+  } else {
+    // Standard Lens Equation: 1/v = 1/f - 1/u
+    const val2 = (1/f_eye) - (1/virtualObjDist);
+    di_final = 1 / val2;
+  }
+
+  // Final magnification approximation
+  // M_eye = -v / u (standard)
+  // For virtual object, geometry is slightly different, but linear approximation holds for height
+  let magEye = -di_final / virtualObjDist;
+  
+  // For drawing logic, we just multiply mags
+  let totalMag = glassMag * magEye; 
+  // Note: if virtual object, glassMag was likely negative (real image upside down), 
+  // magEye is negative (real image on retina upside down relative to virtual obj).
+  // Total should be upright? No, Real image of real object is inverted.
+  // Real image (inverted) -> Virtual Object (inverted) -> Real Image (Upright relative to V.O, so Inverted relative to orig)?
+  
+  // Let's rely on simple ray trace geometry for final height in diagram
+  // Or just use the calculated mag.
+  // Standard: Real image on retina is inverted.
+  
+  return {
+    retinaPos: state.eyeLength, // Current physical retina pos
+    imagePos: di_final,         // Where the light actually focuses
+    glassMag: glassMag,
+    virtualObjDist: virtualObjDist,
+    glassFocusX: glassFocusX,
+    totalMag: totalMag,
+    isVirtualObject: isVirtualObject
+  };
+}
+
+/**
+ * Drawing Helpers
+ */
+
+function drawGrid() {
+  push();
+  stroke(220);
+  strokeWeight(1);
+  for (let x = 0; x < width; x+=40) line(x, 0, x, height);
+  for (let y = 0; y < height; y+=40) line(0, y, width, y);
+  pop();
+}
+
+function drawObject() {
+  push();
+  translate(-state.objDist, 0);
+  stroke(CONFIG.colors.object);
+  strokeWeight(3);
+  line(0, 40, 0, -40);
+  // Arrowheads
+  fill(CONFIG.colors.object);
+  noStroke();
+  triangle(0, -45, -5, -35, 5, -35); // Top
+  triangle(0, 45, -5, 35, 5, 35);    // Bottom (showing extended source)
+  
+  fill(50);
+  noStroke();
+  textAlign(CENTER);
+  text("物体 (Object)", 0, -55);
+  pop();
+}
+
+function drawEyeSystem(res) {
+  const rX = state.eyeLength; // Retina X position
+  
+  push();
+  noFill();
+  stroke('#334155');
+  strokeWeight(2);
+  
+  // Sclera (Eyeball shape) - Dynamic based on length
+  beginShape();
+  // Start top of lens
+  vertex(0, -CONFIG.eye.lensHeight/2);
+  // Top Curve
+  bezierVertex(rX*0.3, -70, rX, -60, rX, 0);
+  // Bottom Curve
+  bezierVertex(rX, 60, rX*0.3, 70, 0, CONFIG.eye.lensHeight/2);
+  endShape();
+  
+  // Retina Screen
+  stroke(CONFIG.colors.retina);
+  strokeWeight(4);
+  line(rX, -45, rX, 45); // Visual retina
+  
+  // Label Retina
+  noStroke();
+  fill('#64748b');
+  textAlign(LEFT);
+  text("视网膜", rX + 8, 0);
+
+  // Crystalline Lens (The Eye's biological lens)
+  fill(CONFIG.colors.lens);
+  stroke(CONFIG.colors.lensStroke);
+  strokeWeight(1);
+  ellipse(0, 0, 18, CONFIG.eye.lensHeight);
+  
+  // Optical Axis
+  stroke(200);
+  setLineDash([5, 5]);
+  line(-width, 0, width, 0);
+  setLineDash([]);
+  pop();
+}
+
+function drawDynamicGlasses() {
+  const power = state.lensPower;
+  if (Math.abs(power) < 0.05) return; // No glass
+
+  push();
+  translate(CONFIG.glass.offsetX, 0);
+  fill('rgba(165, 243, 252, 0.4)'); // Very clear blue
+  stroke('#0891b2');
+  strokeWeight(2);
+
+  const h = 50; // Height of glass
+  const w = 6;  // Base width
+  
+  beginShape();
+  if (power < 0) {
+    // Concave (Thin middle, thick edge)
+    // Curve inwards
+    const curve = map(power, -10, 0, 10, 0); 
+    vertex(-w, -h/2);
+    bezierVertex(curve, -h/4, curve, h/4, -w, h/2);
+    vertex(w, h/2);
+    bezierVertex(-curve, h/4, -curve, -h/4, w, -h/2);
+  } else {
+    // Convex (Thick middle, thin edge)
+    // Curve outwards
+    const curve = map(power, 0, 10, 0, 15);
+    vertex(0, -h/2);
+    bezierVertex(curve, -h/4, curve, h/4, 0, h/2);
+    vertex(0, h/2);
+    bezierVertex(-curve, h/4, -curve, -h/4, 0, -h/2);
+  }
+  endShape(CLOSE);
+  
+  // Label
+  noStroke();
+  fill('#0e7490');
+  textAlign(CENTER);
+  let type = power < 0 ? "凹透镜" : "凸透镜";
+  text(type, 0, -h/2 - 10);
+  text(`${Math.abs(power)}D`, 0, h/2 + 15);
+  pop();
+}
+
+function drawLightRays(res) {
+  // Trace rays from Object Top (-40) and Bottom (+40)
+  
+  const objX = -state.objDist;
+  const glassX = CONFIG.glass.offsetX;
+  
+  const sources = [-40, 0, 40];
+  
+  strokeWeight(2);
+  
+  sources.forEach(srcY => {
+    // Target Y at Eye Lens (x=0)
+    let targetY_atEye = srcY * 0.5; // Compresses slightly to enter eye
+    if (srcY === 0) targetY_atEye = 0;
+    
+    // If Glass exists
+    if (Math.abs(state.lensPower) > 0.05) {
+      let y_glass = targetY_atEye; // Simple assumption: beam width at glass ~ beam width at eye
+      
+      // Segment 1: Obj -> Glass
+      stroke(CONFIG.colors.ray);
+      line(objX, srcY, glassX, y_glass);
+      
+      // Segment 2: Glass -> Eye
+      // Ray directs towards (or away from) Virtual/Real Image point
+      // Point: (res.glassFocusX, srcY * res.glassMag)
+      let vX = res.glassFocusX;
+      let vY = srcY * res.glassMag;
+      
+      // Slope calculation
+      // Works for both real and virtual intersections
+      let slope = (y_glass - vY) / (glassX - vX);
+      
+      // Calculate Y at Eye (x=0)
+      let y_eye = y_glass + slope * (0 - glassX);
+      
+      line(glassX, y_glass, 0, y_eye);
+      
+      // Segment 3: Eye -> Focus
+      // Ray goes to final image (res.imagePos)
+      let finalY = 0; // Center ray
+      if (srcY !== 0) {
+        // Linear extrapolation to focus point
+        // But height at focus depends on totalMag
+        // Or simply connect (0, y_eye) to (res.imagePos, srcY * res.totalMag)?
+        // Let's use the calculated image height
+        // Real image is inverted relative to Object. 
+        // We need to trust `totalMag`.
+        
+        // However, a simpler visual way is to connect lens exit point to focus point on axis?
+        // No, off-axis rays focus off-axis.
+        
+        // Let's use the property that rays from the tip focus at the image tip.
+        // Image Tip Y = srcY * res.totalMag.
+        // But totalMag sign might be tricky with the 2-step calc.
+        
+        // Let's recalculate geometric image height for drawing:
+        // M = h_i / h_o.
+        // For final segment, we just draw line from (0, y_eye) to (res.imagePos, calculated_Height)
+        // What is calculated_Height?
+        // If we trust the ray tracing logic:
+        // The ray passes through (0, y_eye). 
+        // It must pass through the image point.
+        // Wait, not all rays pass through the *same* image point if spherical aberration exists, 
+        // but here we assume ideal lens.
+        // Where is the image point for srcY?
+        // H_final = srcY * totalMag.
+        // Is totalMag correct?
+        // Let's force consistent visual logic:
+        // Top ray (srcY < 0) should end up at Bottom (y > 0) usually.
+        // Let's just use the calculated magnitude.
+        
+        // Heuristic check:
+        // Total Mag is usually negative for Real Image.
+        // So -40 * negative = positive Y. Correct.
+        
+         finalY = srcY * res.totalMag;
+      }
+      
+      stroke(CONFIG.colors.rayFocus);
+      line(0, y_eye, res.imagePos, finalY);
+      
+    } else {
+      // No Glass
+      // Segment 1: Obj -> Eye
+      let y_eye = targetY_atEye;
+      stroke(CONFIG.colors.ray);
+      line(objX, srcY, 0, y_eye);
+      
+      // Segment 2: Eye -> Focus
+      let imgY = srcY * (-res.imagePos / state.objDist); // Simple Mag
+      stroke(CONFIG.colors.rayFocus);
+      line(0, y_eye, res.imagePos, imgY);
+    }
+  });
+}
+
+function drawImageFormation(res) {
+  // Draw the image arrow at the focus point
+  const x = res.imagePos;
+  // Fallback Mag calculation for no-glass case
+  let mag = res.totalMag;
+  if (Math.abs(state.lensPower) < 0.05) {
+     mag = -res.imagePos / state.objDist;
+  }
+  
+  const h = 40 * mag; // Height
+  
+  push();
+  translate(x, 0);
+  
+  // Determine if it lands on retina
+  const isFocused = Math.abs(x - res.retinaPos) < 5;
+  
+  stroke(isFocused ? CONFIG.colors.success : CONFIG.colors.image);
+  strokeWeight(3);
+  
+  // Draw arrow 
+  line(0, 0, 0, h);
+  
+  fill(isFocused ? CONFIG.colors.success : CONFIG.colors.image);
+  noStroke();
+  
+  // Arrowhead logic
+  // If h is positive (pointing down), draw arrow at bottom
+  if (h > 0) { 
+     triangle(0, h+5, -5, h-5, 5, h-5);
+  } else {
+     triangle(0, h-5, -5, h+5, 5, h+5);
+  }
+  
+  // Text
+  if (isFocused) {
+    fill(CONFIG.colors.success);
+    textAlign(CENTER);
+    text("★ 清晰成像", 0, h + (h>0?20:-20));
+  }
+  pop();
+}
+
+function setLineDash(list) {
+  drawingContext.setLineDash(list);
+}
+
+/**
+ * UI & Logic Updates
+ */
+function updateStatusOverlay(res) {
+  const el = document.getElementById('status-overlay');
+  const diff = res.imagePos - res.retinaPos;
+  const absDiff = Math.abs(diff);
+  
+  // Threshold for "Normal"
+  const TOLERANCE = 4.0;
+  
+  // Classes
+  el.className = 'status-overlay'; // reset
+  
+  let title = "";
+  let detail = "";
+  
+  if (absDiff <= TOLERANCE) {
+    // Success Case
+    el.classList.add('status-success');
+    
+    // Context aware message
+    if (Math.abs(state.lensPower) < 0.2) {
+      title = "视力正常 (无需矫正)";
+      detail = "成像完美落在视网膜上";
+    } else {
+      title = "矫正成功！";
+      let type = state.lensPower < 0 ? "近视" : "远视";
+      detail = `度数合适，${type}已修正`;
+    }
+  } else {
+    // Failure Case
+    if (diff < 0) {
+      // Focus in front of retina
+      el.classList.add('status-danger');
+      if (res.retinaPos > 125) {
+         title = "看不清 (近视状态)";
+         detail = "眼轴过长，成像落在视网膜【前方】";
+      } else {
+         // Could be wrong glass causing it
+         title = "成像靠前";
+         detail = "光线汇聚太早";
+      }
+    } else {
+      // Focus behind retina
+      el.classList.add('status-danger');
+      if (res.retinaPos < 115) {
+        title = "看不清 (远视状态)";
+        detail = "眼轴过短，成像落在视网膜【后方】";
+      } else {
+        title = "成像靠后";
+        detail = "光线汇聚不足";
+      }
+    }
+    
+    // Add "Wrong Glass" hint if glass is present but result is bad
+    if (Math.abs(state.lensPower) > 0.5) {
+       // Check for wrong direction
+       // Myopia (Long eye) needs Neg. If Pos -> Wrong
+       if (state.eyeLength > 125 && state.lensPower > 0) {
+          title = "镜片选错了！";
+          detail = "近视眼不能戴凸透镜，会更模糊";
+       }
+       // Hyperopia (Short eye) needs Pos. If Neg -> Wrong
+       if (state.eyeLength < 115 && state.lensPower < 0) {
+          title = "镜片选错了！";
+          detail = "远视眼不能戴凹透镜，会更模糊";
+       }
+    }
+  }
+  
+  el.innerHTML = `<div>${title}</div><div class="status-detail">${detail}</div>`;
+}
+
+function updateMathBox() {
+  const container = document.getElementById('math-box');
+  const formula = String.raw`
+    \[ \frac{1}{f_{eye}} = \frac{1}{v} + \frac{1}{u_{eff}} \]
+    <div style="margin-top:8px; line-height:1.6;">
+    <strong>矫正逻辑：</strong><br>
+    <span style="color:#2563eb">近视 (Myopia)</span>：眼轴长，需凹透镜发散光线，推后成像。<br>
+    <span style="color:#dc2626">远视 (Hyperopia)</span>：眼轴短，需凸透镜会聚光线（形成虚物），拉近成像。
+    </div>
+  `;
+  container.innerHTML = formula;
+  if(window.MathJax) MathJax.typesetPromise([container]);
+}
+
+/**
+ * Scenario Presets
+ * Calibrated Values for Perfect Match
+ */
+function setScenario(type) {
+  // Reset basics
+  state.objDist = 1500;
+  
+  switch(type) {
+    case 'normal':
+      state.eyeLength = CONFIG.eye.normalRetinaX; // 120
+      state.lensPower = 0;
+      break;
+    case 'myopia':
+      state.eyeLength = 145; // Elongated eye
+      state.lensPower = 0;
+      break;
+    case 'hyperopia':
+      state.eyeLength = 100; // Short eye
+      state.lensPower = 0;
+      break;
+    case 'corrected_myopia':
+      state.eyeLength = 145;
+      // Calculated: ~ -3.5D to -3.7D
+      state.lensPower = -3.7; 
+      break;
+    case 'corrected_hyperopia':
+      state.eyeLength = 100;
+      // Calculated: ~ +3.0D
+      state.lensPower = 3.1;
+      break;
+  }
+  
+  syncUISliders();
+  redraw();
+}
+
+function setupUIListeners() {
+  // Eye Length
+  const sEye = document.getElementById('slider-eye-len');
+  const lEye = document.getElementById('val-eye-len');
+  sEye.addEventListener('input', (e) => {
+    state.eyeLength = parseInt(e.target.value);
+    let val = state.eyeLength;
+    let txt = "正常";
+    if(val > 125) txt = "近视 (眼轴过长)";
+    if(val < 115) txt = "远视 (眼轴过短)";
+    lEye.innerText = txt;
+    redraw();
+  });
+
+  // Object Dist
+  const sObj = document.getElementById('slider-obj-dist');
+  const lObj = document.getElementById('val-obj-dist');
+  sObj.addEventListener('input', (e) => {
+    state.objDist = parseInt(e.target.value);
+    lObj.innerText = (state.objDist/300).toFixed(1) + "m";
+    redraw();
+  });
+
+  // Lens Power
+  const sLens = document.getElementById('slider-lens-power');
+  const lLens = document.getElementById('val-lens-power');
+  sLens.addEventListener('input', (e) => {
+    state.lensPower = parseFloat(e.target.value);
+    let p = state.lensPower;
+    let txt = "无镜片";
+    if(p < 0) txt = `凹透镜 (${p}D)`;
+    if(p > 0) txt = `凸透镜 (+${p}D)`;
+    lLens.innerText = txt;
+    redraw();
+  });
+}
+
+function syncUISliders() {
+  document.getElementById('slider-eye-len').value = state.eyeLength;
+  let val = state.eyeLength;
+  let txt = "正常";
+  if(val > 125) txt = "近视 (眼轴过长)";
+  if(val < 115) txt = "远视 (眼轴过短)";
+  document.getElementById('val-eye-len').innerText = txt;
+
+  document.getElementById('slider-lens-power').value = state.lensPower;
+  let p = state.lensPower;
+  let txt2 = "无镜片";
+  if(p < 0) txt2 = `凹透镜 (${p}D)`;
+  if(p > 0) txt2 = `凸透镜 (+${p}D)`;
+  document.getElementById('val-lens-power').innerText = txt2;
+}
+
+</script>
+</body>
+</html>

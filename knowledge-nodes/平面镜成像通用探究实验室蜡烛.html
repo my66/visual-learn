@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>平面镜成像通用探究实验室</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background-color: #f0f2f5;
+            color: #333;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .header-area {
+            width: 100%;
+            background-color: #fff;
+            padding: 15px 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+            text-align: center;
+            margin-bottom: 20px;
+            position: relative;
+            z-index: 10;
+        }
+
+        .header-area h1 { margin: 0; font-size: 20px; color: #2c3e50; }
+        .header-area p { margin: 5px 0 0; font-size: 13px; color: #7f8c8d; }
+
+        .main-wrapper {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px;
+            width: 95%;
+            max-width: 1400px;
+            padding-bottom: 40px;
+        }
+
+        .canvas-card {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            padding: 0;
+            flex: 1 1 600px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 600px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .controls-card {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            padding: 20px;
+            flex: 0 0 300px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            height: fit-content;
+        }
+
+        .section-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: #34495e;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 8px;
+            margin-bottom: 10px;
+        }
+
+        .control-row { margin-bottom: 15px; }
+        .control-row label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            color: #555;
+            margin-bottom: 5px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 4px;
+            background: #dfe6e9;
+            border-radius: 2px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #0984e3;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        input[type="range"]::-webkit-slider-thumb:hover { background: #74b9ff; }
+
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            user-select: none;
+        }
+        .toggle-row input { accent-color: #0984e3; }
+
+        .btn-reset {
+            background-color: #ff7675;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            width: 100%;
+            transition: 0.2s;
+        }
+        .btn-reset:hover { background-color: #d63031; }
+
+        .hint-card {
+            background-color: #fff3cd;
+            border: 1px solid #ffeeba;
+            color: #856404;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        .overlay-instruction {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            background: rgba(255,255,255,0.85);
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            color: #636e72;
+            border: 1px solid #b2bec3;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header-area">
+        <h1>平面镜成像通用探究实验室</h1>
+        <p>物理仿真引擎：还原倾斜镜面的成像规律</p>
+    </div>
+
+    <div class="main-wrapper">
+        <div class="controls-card">
+            
+            <div class="control-section">
+                <div class="section-title">🛠️ 实验设置</div>
+                
+                <div class="control-row">
+                    <label>镜面倾斜角度 <span id="val-angle" style="color:#0984e3; font-weight:bold;">45°</span></label>
+                    <input type="range" id="slider-angle" min="30" max="150" value="45" step="1">
+                    <div style="font-size:11px; color:#999; margin-top:4px;">(45°时像呈水平，90°时像呈竖直)</div>
+                </div>
+
+                <div class="control-row">
+                    <label>蜡烛位置 <span id="val-pos" style="color:#0984e3; font-weight:bold;">200</span></label>
+                    <input type="range" id="slider-pos" min="50" max="350" value="200" step="1">
+                </div>
+            </div>
+
+            <div class="control-section">
+                <div class="section-title">👀 视觉辅助</div>
+                <label class="toggle-row">
+                    <input type="checkbox" id="chk-image" checked>
+                    显示虚像 (A'B') - 虚线
+                </label>
+                <label class="toggle-row">
+                    <input type="checkbox" id="chk-symmetry" checked>
+                    显示对称连线 - 垂直平分
+                </label>
+                <label class="toggle-row">
+                    <input type="checkbox" id="chk-ray" checked>
+                    显示成像光路 (眼睛视角)
+                </label>
+                <label class="toggle-row">
+                    <input type="checkbox" id="chk-normal" checked>
+                    显示法线 (辅助线)
+                </label>
+            </div>
+
+            <div class="hint-card">
+                <strong>现象观察：</strong><br>
+                1. 保持45°角，像A'B'是水平的（倒在地下）。<br>
+                2. 拖动蜡烛，像始终关于镜面对称移动。<br>
+                3. “像”在镜子背面（地下），是虚像。
+            </div>
+
+            <button class="btn-reset" onclick="resetSim()">重置到题目状态 (45°)</button>
+        </div>
+
+        <div class="canvas-card" id="canvas-container">
+            <div class="overlay-instruction">💡 提示：鼠标可拖拽 🕯️蜡烛 或 👁️眼睛</div>
+            <!-- P5 Canvas Here -->
+        </div>
+    </div>
+
+    <script>
+        // --- 变量声明 ---
+        let angleSlider, posSlider;
+        let chkImage, chkSymmetry, chkRay, chkNormal;
+        let valAngleSpan, valPosSpan;
+
+        // 画布尺寸与物理常量
+        const CW = 800;
+        const CH = 600;
+        // 关键调整：把桌面线上移到 300 (原450)，留出下方 300px 给“地下”成像
+        const TABLE_Y = 300; 
+
+        // 状态对象
+        let mirror = {
+            pivotX: 450,    // 镜子底端接触桌面的点
+            pivotY: TABLE_Y, 
+            length: 350,    // 镜子加长，防止光线打不中
+            angle: 45       // 角度
+        };
+
+        let candle = {
+            x: 250,         // 默认放在左侧
+            y: TABLE_Y,     // 放在桌面上
+            h: 90,          // 蜡烛高度
+            w: 24,
+            isDragging: false
+        };
+
+        let eye = {
+            x: 650,
+            y: 150,
+            isDragging: false
+        };
+
+        // --- P5.js 生命周期 ---
+
+        function setup() {
+            let cnv = createCanvas(CW, CH);
+            cnv.parent('canvas-container');
+            
+            // 绑定 DOM 元素
+            angleSlider = select('#slider-angle');
+            posSlider = select('#slider-pos');
+            valAngleSpan = select('#val-angle');
+            valPosSpan = select('#val-pos');
+            
+            chkImage = select('#chk-image');
+            chkSymmetry = select('#chk-symmetry');
+            chkRay = select('#chk-ray');
+            chkNormal = select('#chk-normal');
+
+            // 监听器
+            angleSlider.input(updateParams);
+            posSlider.input(updateParams);
+            
+            // 初始化
+            updateParams();
+            textFont('Arial');
+        }
+
+        function draw() {
+            background(255);
+            cursor(ARROW);
+            
+            handleInteractions();
+
+            // 1. 画背景环境（桌面与地下）
+            drawEnvironment();
+
+            // 2. 计算镜子几何
+            // 角度说明：p5坐标系Y轴向下。
+            // 题意：镜子从桌面(Pivot)向右上方延伸。
+            // 45度角意味着向量 (cos(-45), sin(-45)) -> (0.707, -0.707)
+            let rad = radians(-mirror.angle);
+            let mTipX = mirror.pivotX + mirror.length * cos(rad);
+            let mTipY = mirror.pivotY + mirror.length * sin(rad);
+
+            // 3. 画镜子
+            drawMirror(mirror.pivotX, mirror.pivotY, mTipX, mTipY);
+
+            // 4. 画实物蜡烛
+            drawCandle(candle.x, candle.y, candle.h, false);
+
+            // 5. 计算像的位置 (关于镜子直线的对称点)
+            // 镜子直线由 Pivot 和 角度 决定
+            let Top = createVector(candle.x, candle.y - candle.h); // 蜡烛头A
+            let Bot = createVector(candle.x, candle.y);            // 蜡烛底B
+            
+            let Top_Prime = reflectPoint(Top, mirror.pivotX, mirror.pivotY, rad);
+            let Bot_Prime = reflectPoint(Bot, mirror.pivotX, mirror.pivotY, rad);
+
+            // 6. 画像 (如果开启)
+            if (chkImage.checked()) {
+                drawGhostCandle(Top_Prime, Bot_Prime);
+                
+                if (chkSymmetry.checked()) {
+                    drawSymmetryLine(Top, Top_Prime);
+                    drawSymmetryLine(Bot, Bot_Prime);
+                }
+            }
+
+            // 7. 画光路 (如果开启)
+            // 逻辑：连接 像点(Top_Prime) 和 眼睛(Eye) -> 交点即为入射点
+            drawEye(eye.x, eye.y);
+            
+            if (chkRay.checked()) {
+                // 计算入射点
+                // 直线1: Top_Prime -> Eye
+                // 直线2: Mirror Start -> Mirror End
+                let intersect = getLineIntersection(
+                    Top_Prime.x, Top_Prime.y, eye.x, eye.y,
+                    mirror.pivotX, mirror.pivotY, mTipX, mTipY
+                );
+
+                if (intersect) {
+                    // 检查交点是否在镜子范围内
+                    let dToPivot = dist(intersect.x, intersect.y, mirror.pivotX, mirror.pivotY);
+                    
+                    if (dToPivot <= mirror.length && dToPivot >= 0 && intersect.x >= mirror.pivotX) {
+                        // 有效反射
+                        // A. 虚光线 (A' -> O)
+                        stroke(255, 100, 100);
+                        drawingContext.setLineDash([5, 5]);
+                        line(Top_Prime.x, Top_Prime.y, intersect.x, intersect.y);
+                        
+                        // B. 实反射光线 (O -> Eye)
+                        drawingContext.setLineDash([]);
+                        stroke(255, 0, 0);
+                        strokeWeight(2);
+                        line(intersect.x, intersect.y, eye.x, eye.y);
+                        drawArrowMid(intersect.x, intersect.y, eye.x, eye.y); // 箭头
+                        
+                        // C. 实入射光线 (A -> O)
+                        line(Top.x, Top.y, intersect.x, intersect.y);
+                        drawArrowMid(Top.x, Top.y, intersect.x, intersect.y); // 箭头
+
+                        // D. 标注入射点O
+                        fill(200, 0, 0);
+                        noStroke();
+                        circle(intersect.x, intersect.y, 5);
+                        text("O", intersect.x+8, intersect.y+5);
+
+                        // E. 法线
+                        if (chkNormal.checked()) {
+                            drawNormal(intersect, mirror.angle);
+                        }
+
+                    } else {
+                        // 视线没有打在镜子上
+                        fill(150);
+                        noStroke();
+                        text("视线未落在镜面上", eye.x, eye.y + 35);
+                    }
+                }
+            }
+        }
+
+        // --- 核心绘图函数 ---
+
+        function drawEnvironment() {
+            // 桌面线
+            stroke(80);
+            strokeWeight(4);
+            line(0, TABLE_Y, CW, TABLE_Y);
+            
+            // 地下区域 (浅灰)
+            noStroke();
+            fill(245, 245, 245);
+            rect(0, TABLE_Y+2, CW, CH - TABLE_Y);
+
+            // 标注
+            fill(100);
+            textSize(14);
+            textAlign(RIGHT);
+            text("桌面 (Table)", CW - 20, TABLE_Y - 10);
+            text("地下/镜后空间", CW - 20, TABLE_Y + 25);
+        }
+
+        function drawMirror(x1, y1, x2, y2) {
+            push();
+            // 玻璃本体
+            stroke(100, 149, 237, 100); // 半透明蓝
+            strokeWeight(8);
+            line(x1, y1, x2, y2);
+            
+            // 反射面 (数学线)
+            stroke(50, 50, 150);
+            strokeWeight(2);
+            line(x1, y1, x2, y2);
+            
+            // 梳子状阴影 (表示背面)
+            // 需要计算法线方向
+            let angle = atan2(y2-y1, x2-x1);
+            stroke(100);
+            strokeWeight(1);
+            let len = dist(x1,y1,x2,y2);
+            translate(x1, y1);
+            rotate(angle);
+            for(let i=0; i<len; i+=10) {
+                line(i, 0, i+5, 5); // 这里的5是相对于镜子坐标系的"下方"
+            }
+            pop();
+        }
+
+        function drawCandle(x, y, h, isVirtual) {
+            push();
+            translate(x, y);
+            if (isVirtual) {
+                // 虚像样式
+                stroke(150);
+                drawingContext.setLineDash([4, 4]);
+                fill(200, 200, 200, 50);
+            } else {
+                // 实物样式
+                stroke(50);
+                fill(231, 76, 60);
+            }
+
+            // 身体
+            rectMode(CORNER);
+            rect(-10, -h, 20, h);
+            // 烛芯
+            line(0, -h, 0, -h - 6);
+            
+            // 火焰
+            if (!isVirtual) {
+                fill(255, 165, 0); noStroke();
+                ellipse(0, -h - 12, 10, 18);
+            } else {
+                fill(180, 180, 180, 100); noStroke();
+                ellipse(0, -h - 12, 10, 18);
+            }
+
+            // 标注
+            fill(50); noStroke(); textAlign(CENTER);
+            if(!isVirtual) {
+                drawingContext.setLineDash([]);
+                text("A", 0, -h - 25);
+                text("B", 0, 15);
+            }
+            pop();
+        }
+
+        function drawGhostCandle(TopP, BotP) {
+            // 虚像可能旋转，所以基于 Top' 和 Bot' 两个点来画
+            push();
+            
+            // 1. 连线 A'B' (虚线)
+            stroke(100);
+            strokeWeight(2);
+            drawingContext.setLineDash([5, 5]);
+            line(BotP.x, BotP.y, TopP.x, TopP.y);
+            
+            // 2. 绘制身体矩形
+            // 计算方向向量 B' -> A'
+            let dir = p5.Vector.sub(TopP, BotP);
+            let h = dir.mag();
+            let angle = dir.heading(); // 旋转角度
+            
+            translate(BotP.x, BotP.y);
+            rotate(angle + PI/2); // p5 0度是右，矩形默认竖直向上需要调整
+            
+            // 这里的变换稍复杂，改用更简单的方法：
+            // 直接在 B' 处建立局部坐标系，X轴沿着 B'->A'
+            rotate(-PI/2); // 抵消刚才的 +PI/2
+            
+            // 现在 X轴水平向右。我们要让 -Y 轴指向 A' ?
+            // 不，直接用 dir.heading() 旋转坐标系，使 X轴 = B'->A'
+            // 实际上 p5 rect 默认向下。
+            // 让我们重置变换
+            pop(); 
+            
+            push();
+            translate(BotP.x, BotP.y);
+            rotate(angle); // 现在 X轴指向 A'
+            
+            fill(200, 200, 200, 80);
+            stroke(150);
+            drawingContext.setLineDash([4, 4]);
+            
+            // 画蜡烛身体 (宽20, 高h)
+            // 在局部坐标系中，A' 在 (h, 0)， B' 在 (0,0)
+            // 身体应该在轴线两侧，即 y 从 -10 到 10
+            rect(0, -10, h, 20); 
+            
+            // 画火焰 (在 A' 端，即 x=h)
+            noStroke();
+            fill(180, 180, 180, 150);
+            ellipse(h + 10, 0, 18, 10);
+            
+            pop();
+
+            // 标注
+            fill(80); noStroke(); textSize(14);
+            text("A'", TopP.x + 10, TopP.y);
+            text("B'", BotP.x + 10, BotP.y);
+        }
+
+        function drawEye(x, y) {
+            push();
+            translate(x, y);
+            if (dist(mouseX, mouseY, x, y) < 30) {
+                scale(1.1); cursor(MOVE);
+            }
+            fill(255); stroke(0); strokeWeight(2);
+            
+            beginShape();
+            vertex(-15, 0);
+            bezierVertex(-5, -10, 5, -10, 15, 0);
+            bezierVertex(5, 10, -5, 10, -15, 0);
+            endShape(CLOSE);
+            
+            fill(0); circle(0,0,8);
+            noStroke(); text("👁️", -20, -10);
+            pop();
+        }
+
+        function drawSymmetryLine(p1, p2) {
+            push();
+            stroke(0, 150, 255, 80);
+            strokeWeight(1);
+            drawingContext.setLineDash([2, 4]);
+            line(p1.x, p1.y, p2.x, p2.y);
+            
+            // 画垂直符号 (近似在中间)
+            let mid = p5.Vector.add(p1, p2).div(2);
+            fill(0, 150, 255); noStroke();
+            circle(mid.x, mid.y, 3);
+            pop();
+        }
+
+        function drawNormal(p, angleDeg) {
+            // 法线垂直于镜面。镜面角度 angleDeg。法线角度 angleDeg+90
+            let rad = radians(-angleDeg - 90);
+            push();
+            translate(p.x, p.y);
+            stroke(100); strokeWeight(1); drawingContext.setLineDash([3,3]);
+            let len = 40;
+            line(0, 0, len*cos(rad), len*sin(rad));
+            line(0, 0, -len*cos(rad), -len*sin(rad));
+            pop();
+        }
+
+        function drawArrowMid(x1, y1, x2, y2) {
+            push();
+            let midX = (x1+x2)/2;
+            let midY = (y1+y2)/2;
+            let angle = atan2(y2-y1, x2-x1);
+            translate(midX, midY);
+            rotate(angle);
+            fill(255, 0, 0); noStroke();
+            triangle(-6, 4, 6, 0, -6, -4);
+            pop();
+        }
+
+        // --- 数学计算函数 ---
+
+        function reflectPoint(p, pivX, pivY, angRad) {
+            // 1. 移到枢轴原点
+            let x = p.x - pivX;
+            let y = p.y - pivY;
+            
+            // 2. 旋转坐标系，使镜子变水平 (X轴)
+            // 镜子角度是 angRad (负值)。旋转 -angRad 变水平。
+            let x2 = x * cos(-angRad) - y * sin(-angRad);
+            let y2 = x * sin(-angRad) + y * cos(-angRad);
+            
+            // 3. 关于X轴翻转 (y -> -y)
+            y2 = -y2;
+            
+            // 4. 旋转回来
+            let x3 = x2 * cos(angRad) - y2 * sin(angRad);
+            let y3 = x2 * sin(angRad) + y2 * cos(angRad);
+            
+            // 5. 移回原位
+            return createVector(x3 + pivX, y3 + pivY);
+        }
+
+        function getLineIntersection(x1, y1, x2, y2, x3, y3, x4, y4) {
+            let denom = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1);
+            if (denom == 0) return null;
+            let ua = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / denom;
+            // ub 用于判断线段范围，这里只关心无限直线交点
+            return createVector(x1 + ua * (x2 - x1), y1 + ua * (y2 - y1));
+        }
+
+        // --- 交互处理 ---
+
+        function updateParams() {
+            mirror.angle = parseInt(angleSlider.value());
+            candle.x = parseInt(posSlider.value());
+            
+            valAngleSpan.html(mirror.angle + "°");
+            valPosSpan.html(candle.x);
+        }
+
+        function handleInteractions() {
+            if (mouseIsPressed) {
+                // 拖拽蜡烛
+                if (!eye.isDragging && (candle.isDragging || dist(mouseX, mouseY, candle.x, candle.y - candle.h/2) < 40)) {
+                    candle.isDragging = true;
+                    candle.x = constrain(mouseX, 50, mirror.pivotX - 20); // 限制在镜子左侧
+                    posSlider.value(candle.x);
+                    updateParams();
+                }
+                // 拖拽眼睛
+                else if (!candle.isDragging && (eye.isDragging || dist(mouseX, mouseY, eye.x, eye.y) < 30)) {
+                    eye.isDragging = true;
+                    eye.x = mouseX;
+                    eye.y = mouseY;
+                }
+            } else {
+                candle.isDragging = false;
+                eye.isDragging = false;
+            }
+        }
+
+        function resetSim() {
+            angleSlider.value(45);
+            posSlider.value(250);
+            eye.x = 650;
+            eye.y = 150;
+            updateParams();
+        }
+    </script>
+</body>
+</html>
+```

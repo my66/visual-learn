@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小学方位认知：双重旋转终极版 (v5.3)</title>
+    
+    <!-- Load Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        :root {
+            --primary-color: #27AE60;
+            --secondary-color: #2980B9;
+            --bg-color: #F9F9F9;
+            --text-color: #333;
+            --panel-width: 350px;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Layout */
+        #main-container {
+            display: flex;
+            flex: 1;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        /* Control Panel */
+        #control-panel {
+            width: var(--panel-width);
+            background: white;
+            padding: 12px; 
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px; 
+            z-index: 10;
+        }
+
+        /* Canvas Area */
+        #canvas-container {
+            flex: 1;
+            position: relative;
+            background-color: #e6f3ff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            cursor: default;
+        }
+
+        /* FEEDBACK LOG */
+        #feedback-log {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 260px;
+            max-height: 220px;
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 10px;
+            overflow-y: auto;
+            font-size: 13px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            z-index: 5;
+            font-family: "PingFang SC", sans-serif;
+        }
+
+        .log-entry {
+            margin-bottom: 5px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #eee;
+            line-height: 1.4;
+            display: flex;
+            align-items: flex-start;
+        }
+        .log-num { font-weight: bold; color: #bbb; margin-right: 6px; font-size: 11px; margin-top: 2px;}
+        .log-content { flex: 1; }
+        .log-action { color: #2c3e50; font-weight: 700; font-size: 14px;}
+        .log-result { color: #555; font-size: 12px; display: block; margin-top: 1px;}
+        .log-visual { color: #888; font-size: 11px; display: block; margin-top: 1px; font-style: italic;}
+        .log-warn { color: #e74c3c; font-weight: bold; font-size: 12px; margin-left: 5px; }
+        .log-success { color: #27ae60; font-weight: bold; background: #e8f8f5; padding: 2px 4px; border-radius: 4px; display: block;}
+
+        /* Typography & UI */
+        h1 {
+            font-size: 18px; margin: 0 0 5px 0; color: var(--secondary-color);
+            border-bottom: 2px solid var(--secondary-color); padding-bottom: 5px;
+        }
+        h2 { font-size: 14px; margin: 0 0 8px 0; color: #555; font-weight: 700; }
+        p { font-size: 12px; color: #666; margin: 2px 0; line-height: 1.4; }
+
+        .math-content {
+            background: #eafaf1;
+            padding: 10px;
+            border-radius: 6px;
+            border-left: 4px solid var(--primary-color);
+            font-size: 13px;
+            line-height: 1.6;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+        .math-content strong { color: #27AE60; }
+
+        .control-group {
+            background: #fafafa;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #eee;
+        }
+
+        .btn {
+            background: var(--secondary-color); color: white; border: none; padding: 8px;
+            border-radius: 4px; cursor: pointer; font-size: 13px; width: 100%; font-weight: 600;
+            transition: background 0.2s;
+        }
+        .btn:hover { background: #1F618D; }
+        .btn-reset { background: #95a5a6; margin-top:0; }
+        .btn-reset:hover { background: #7f8c8d; }
+
+        /* Sliders & Grids */
+        .rotation-slider-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+        input[type=range] { flex: 1; cursor: pointer; height: 5px; }
+        
+        .angle-grid {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 4px;
+        }
+        .angle-btn {
+            background: #fff; border: 1px solid #dcdcdc; color: #555; padding: 5px 0;
+            font-size: 11px; border-radius: 3px; cursor: pointer; transition: all 0.1s;
+        }
+        .angle-btn:hover { background: #f0f0f0; border-color: #bbb; color: #333; }
+        .angle-btn.active { background: #D6EAF8; border-color: #3498DB; color: #2980B9; font-weight:bold; }
+
+        /* MOVEMENT CONTROLS - Optimized Logic */
+        .rel-pad {
+            display: grid; grid-template-columns: 1fr 1fr 1fr; grid-template-rows: 1fr 1fr;
+            gap: 8px; margin-top: 5px;
+        }
+        .rel-btn {
+            background: #fff; 
+            border: 2px solid #ddd;
+            border-radius: 12px; 
+            padding: 4px; 
+            cursor: pointer; 
+            text-align: center;
+            position: relative; 
+            box-shadow: 0 3px 0 rgba(0,0,0,0.05);
+            transition: all 0.1s; 
+            display: flex; 
+            flex-direction: column;
+            align-items: center; 
+            justify-content: center; 
+            height: 75px; 
+        }
+        .rel-btn:active { transform: translateY(3px); box-shadow: none; background: #f9f9f9; }
+        
+        /* Arrow Container */
+        .btn-icon-row {
+            display: flex; align-items: center; justify-content: center; gap: 6px;
+            margin-bottom: 4px; background: #f4f4f4; padding: 3px 8px; border-radius: 10px;
+        }
+        
+        .static-icon { font-size: 14px; color: #95a5a6; font-weight: bold; }
+        .icon-sep { font-size: 10px; color: #ccc; }
+        
+        .dynamic-icon {
+            font-size: 22px; 
+            line-height: 1; 
+            display: inline-block;
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            font-weight: 900; 
+            text-shadow: 1px 1px 0px rgba(0,0,0,0.1);
+            transform-origin: center;
+        }
+        
+        .btn-labels {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            line-height: 1.2;
+        }
+        .main-tag { font-size: 12px; color: #666; }
+        .sub-tag { font-size: 13px; font-weight: 800; margin-top: 2px; }
+        
+        .rel-up { grid-column: 2; grid-row: 1; border-color: #27AE60; }
+        .rel-left { grid-column: 1; grid-row: 2; border-color: #27AE60; }
+        .rel-down { grid-column: 2; grid-row: 2; border-color: #27AE60; }
+        .rel-right { grid-column: 3; grid-row: 2; border-color: #27AE60; }
+
+        .switch-group { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 10px; }
+        .switch-label { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px; padding: 2px 0; }
+
+        #status-bar {
+            background: #2c3e50; color: white; padding: 6px 15px;
+            font-size: 12px; display: flex; justify-content: space-between;
+            align-items: center; border-top: 3px solid #34495e; height: 30px;
+        }
+
+        @media (max-width: 800px) {
+            #main-container { flex-direction: column; }
+            #control-panel { width: 100%; height: auto; max-height: 45vh; flex-direction: row; flex-wrap: wrap; padding: 5px; gap: 5px;}
+            .control-group { flex: 1; min-width: 200px; margin-bottom: 0; padding: 5px;}
+            #feedback-log { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="main-container">
+    <!-- Control Panel -->
+    <div id="control-panel">
+        <h1>方位大冒险 v5.3</h1>
+        
+        <div class="math-content" id="intro-math"></div>
+
+        <!-- 1. Map Rotation -->
+        <div class="control-group" style="border-left: 4px solid #3498DB;">
+            <h2>1. 旋转地图 (视角变化)</h2>
+            <!-- Updated Text to match mental model -->
+            <p>旋转地图，决定<b>屏幕上方</b>是哪个方向。</p>
+            <div class="rotation-slider-row">
+                <input type="range" id="slider-map-rotation" min="-180" max="180" value="0" step="1">
+                <span id="val-map-rotation" style="width: 40px; text-align:right; font-weight:bold; font-size:12px; color:#2980B9;">0°</span>
+            </div>
+            <div class="angle-grid" id="map-angle-buttons">
+                <!-- North Up = 0 deg -->
+                <button class="angle-btn active" onclick="setMapTarget(0)">正北朝上</button>
+                <!-- East Up = Rotate Map -90 deg (Counter-Clockwise) -->
+                <button class="angle-btn" onclick="setMapTarget(-90)">正东朝上</button>
+                <!-- South Up = Rotate Map 180 deg -->
+                <button class="angle-btn" onclick="setMapTarget(180)">正南朝上</button>
+                <!-- West Up = Rotate Map +90 deg (Clockwise) -->
+                <button class="angle-btn" onclick="setMapTarget(90)">正西朝上</button>
+            </div>
+        </div>
+
+        <!-- 2. Body Rotation -->
+        <div class="control-group" style="border-left: 4px solid #27AE60;">
+            <h2>2. 转身 (小人朝向)</h2>
+            <p>小人转身决定了“前”是哪里。</p>
+            <div class="rotation-slider-row">
+                <input type="range" id="slider-player-rotation" min="0" max="360" value="0" step="90">
+                <span id="val-player-rotation" style="width: 40px; text-align:right; font-weight:bold; font-size:12px; color:#27AE60;">北</span>
+            </div>
+            <div class="angle-grid">
+                <button class="angle-btn" onclick="setPlayerFacing(0)">面朝北</button>
+                <button class="angle-btn" onclick="setPlayerFacing(90)">面朝东</button>
+                <button class="angle-btn" onclick="setPlayerFacing(180)">面朝南</button>
+                <button class="angle-btn" onclick="setPlayerFacing(270)">面朝西</button>
+            </div>
+        </div>
+
+        <!-- 3. Movement -->
+        <div class="control-group">
+            <h2>3. 移动 (相对身体)</h2>
+            <p style="font-size:12px; color:#E67E22; background:#FEF5E7; padding:6px; border-radius:4px; border:1px solid #FDEBD0; line-height:1.5;">
+                <b>图解：</b><span style="color:#95a5a6; font-weight:bold;">灰色小箭头</span> (按键动作)<br>
+                ➜ <span style="font-weight:bold; color:#E74C3C;">彩色大箭头</span> (地图/屏幕上的实际去向)
+            </p>
+            <div class="rel-pad">
+                <!-- FRONT -->
+                <button class="rel-btn rel-up" id="btn-front">
+                    <div class="btn-icon-row">
+                        <span class="static-icon">⬆</span>
+                        <span class="icon-sep">➜</span>
+                        <span class="dynamic-icon" id="arrow-front">⬆</span>
+                    </div>
+                    <div class="btn-labels">
+                        <span class="main-tag">向前走</span>
+                        <span class="sub-tag" id="lbl-front">往北(N)</span>
+                    </div>
+                </button>
+                
+                <!-- LEFT -->
+                <button class="rel-btn rel-left" id="btn-left">
+                    <div class="btn-icon-row">
+                        <span class="static-icon">⬅</span>
+                        <span class="icon-sep">➜</span>
+                        <span class="dynamic-icon" id="arrow-left">⬆</span>
+                    </div>
+                    <div class="btn-labels">
+                        <span class="main-tag">向左走</span>
+                        <span class="sub-tag" id="lbl-left">往西(W)</span>
+                    </div>
+                </button>
+                
+                <!-- BACK -->
+                <button class="rel-btn rel-down" id="btn-back">
+                    <div class="btn-icon-row">
+                        <span class="static-icon">⬇</span>
+                        <span class="icon-sep">➜</span>
+                        <span class="dynamic-icon" id="arrow-back">⬆</span>
+                    </div>
+                    <div class="btn-labels">
+                        <span class="main-tag">向后走</span>
+                        <span class="sub-tag" id="lbl-back">往南(S)</span>
+                    </div>
+                </button>
+                
+                <!-- RIGHT -->
+                <button class="rel-btn rel-right" id="btn-right">
+                    <div class="btn-icon-row">
+                        <span class="static-icon">➡</span>
+                        <span class="icon-sep">➜</span>
+                        <span class="dynamic-icon" id="arrow-right">⬆</span>
+                    </div>
+                    <div class="btn-labels">
+                        <span class="main-tag">向右走</span>
+                        <span class="sub-tag" id="lbl-right">往东(E)</span>
+                    </div>
+                </button>
+            </div>
+        </div>
+
+        <!-- 4. Footer Controls -->
+        <div class="control-group">
+            <div class="switch-group">
+                <label class="switch-label"><input type="checkbox" id="chk-grid" checked> 网格</label>
+                <label class="switch-label"><input type="checkbox" id="chk-cardinal" checked> <b>指南针</b></label>
+                <label class="switch-label"><input type="checkbox" id="chk-local" checked> 随身罗盘</label>
+                <label class="switch-label"><input type="checkbox" id="chk-trace"> 足迹</label>
+            </div>
+            <div style="display:flex; gap:5px; margin-top:8px;">
+                <button class="btn" id="btn-new-mission">领取新任务</button>
+                <button class="btn btn-reset" id="btn-reset">重置所有</button>
+            </div>
+            <button class="btn" id="btn-clear-log" style="background: #ecf0f1; color:#7f8c8d; margin-top: 5px; font-size:11px; padding:4px;">清空日志</button>
+        </div>
+    </div>
+
+    <!-- Canvas -->
+    <div id="canvas-container">
+        <div id="feedback-log">
+            <div class="log-entry" style="color:#888; font-style:italic;">欢迎！尝试转动地图或小人...</div>
+        </div>
+    </div>
+</div>
+
+<!-- Status Bar -->
+<div id="status-bar">
+    <span id="status-pos">准备就绪</span>
+    <span id="status-msg">v5.3 Logic Fix</span>
+</div>
+
+<script>
+/**
+ * 视题目可视化英文版 - MathPhysics_Interactive_Visualizer_Ultimate_v5.3
+ * Subject: Final Corrected Logic (Buttons Swapped to Match Mental Model)
+ * Engine: Pure p5.js
+ */
+
+const CONFIG = {
+    gridSize: 50,
+    moveSpeed: 5,
+    playerSize: 34,
+    colors: {
+        bg: '#F9F9F9',
+        grid: '#E0E0E0',
+        player: '#27AE60',
+        trace: '#F1C40F',
+        north: '#C0392B', // Red
+        south: '#2980B9', // Blue
+        east: '#F39C12',  // Orange
+        west: '#8E44AD'   // Purple
+    },
+    landmarks: [
+        { name: "家", x: 0, y: 0, icon: "🏠", color: "#8E44AD" },
+        { name: "学校", x: 0, y: -4, icon: "🏫", color: "#2980B9" },
+        { name: "公园", x: -4, y: 0, icon: "🌳", color: "#27AE60" },
+        { name: "超市", x: 4, y: 0, icon: "🛒", color: "#E67E22" },
+        { name: "图书馆", x: 0, y: 4, icon: "📚", color: "#16A085" },
+        { name: "游乐场", x: -3, y: -3, icon: "🎡", color: "#D35400" },
+        { name: "医院", x: 3, y: -3, icon: "🏥", color: "#e74c3c" },
+        { name: "动物园", x: 3, y: 3, icon: "🦁", color: "#f39c12" }
+    ]
+};
+
+let state = {
+    player: {
+        gridX: 0, gridY: 0,
+        pixelX: 0, pixelY: 0,
+        targetPixelX: 0, targetPixelY: 0,
+        isMoving: false,
+        rotation: 0 // 0=N, 90=E (Player Facing relative to Map)
+    },
+    mapRotation: 0,       // Current display rotation
+    targetMapRotation: 0, // Target for lerp
+    trace: [],
+    mission: null,
+    stepCount: 0, 
+    showGrid: true,
+    showCardinal: true,
+    showLocal: true, 
+    showTrace: false,
+    confetti: []
+};
+
+let canvas;
+
+function setup() {
+    let container = document.getElementById('canvas-container');
+    let w = container.clientWidth;
+    let h = container.clientHeight;
+    
+    canvas = createCanvas(w, h);
+    canvas.parent('canvas-container');
+    
+    rectMode(CENTER);
+    imageMode(CENTER);
+    textAlign(CENTER, CENTER);
+    angleMode(DEGREES);
+    
+    resetGame();
+    initUI();
+    renderIntroMath(); 
+}
+
+function windowResized() {
+    let container = document.getElementById('canvas-container');
+    resizeCanvas(container.clientWidth, container.clientHeight);
+}
+
+function draw() {
+    background(CONFIG.colors.bg);
+    
+    // Smooth Map Rotation Logic
+    if (abs(state.targetMapRotation - state.mapRotation) > 0.1) {
+        state.mapRotation = lerp(state.mapRotation, state.targetMapRotation, 0.1);
+        updateButtonVisuals(); 
+    } else {
+        if (state.mapRotation !== state.targetMapRotation) {
+            state.mapRotation = state.targetMapRotation;
+            updateButtonVisuals();
+        }
+    }
+    
+    updatePlayerPosition();
+    updateConfetti();
+    
+    // --- WORLD SPACE (Rotatable Map) ---
+    push();
+    translate(width / 2, height / 2);
+    rotate(state.mapRotation); 
+    
+    if (state.showGrid) drawGrid();
+    drawSun(); 
+    
+    if (state.showCardinal) drawMapDirections();
+    drawTrace();
+    drawLandmarks(); // Includes pulsing for mission
+    
+    if (state.showLocal) drawLocalCompass(); 
+    drawPlayer();
+    
+    pop(); 
+    // --- END WORLD SPACE ---
+    
+    // --- SCREEN SPACE (UI) ---
+    drawConfetti(); 
+    drawCompassUI(); 
+    drawScreenLabels(); 
+}
+
+// --- LOGIC ---
+
+function updatePlayerPosition() {
+    let p = state.player;
+    if (p.isMoving) {
+        let dx = p.targetPixelX - p.pixelX;
+        let dy = p.targetPixelY - p.pixelY;
+        let dist = Math.sqrt(dx*dx + dy*dy);
+        
+        if (dist < CONFIG.moveSpeed) {
+            p.pixelX = p.targetPixelX;
+            p.pixelY = p.targetPixelY;
+            p.isMoving = false;
+            checkMission();
+        } else {
+            p.pixelX += (dx / dist) * CONFIG.moveSpeed;
+            p.pixelY += (dy / dist) * CONFIG.moveSpeed;
+        }
+    }
+    let faceText = getCardinalName(p.rotation);
+    document.getElementById('status-pos').innerText = 
+        `位置: (东${p.gridX}, 北${-p.gridY}) | 面朝: ${faceText}`;
+}
+
+function movePlayerRelative(relDir) {
+    if (state.player.isMoving) return;
+    
+    let moveAngle = (state.player.rotation + relDir * 90) % 360;
+    if (moveAngle < 0) moveAngle += 360;
+    
+    let dx = 0, dy = 0;
+    let snappedAngle = Math.round(moveAngle / 90) * 90 % 360;
+    
+    if (snappedAngle === 0) dy = -1;      // North
+    else if (snappedAngle === 90) dx = 1; // East
+    else if (snappedAngle === 180) dy = 1;// South
+    else if (snappedAngle === 270) dx = -1;// West
+    
+    let distBefore = -1;
+    let target = null;
+    if (state.mission !== null) {
+        target = CONFIG.landmarks[state.mission];
+        distBefore = Math.abs(state.player.gridX - target.x) + Math.abs(state.player.gridY - target.y);
+    }
+
+    state.player.gridX += dx;
+    state.player.gridY += dy;
+    state.player.targetPixelX = state.player.gridX * CONFIG.gridSize;
+    state.player.targetPixelY = state.player.gridY * CONFIG.gridSize;
+    state.player.isMoving = true;
+    
+    if (state.trace.length === 0 || 
+        state.trace[state.trace.length-1].x !== state.player.pixelX || 
+        state.trace[state.trace.length-1].y !== state.player.pixelY) {
+        state.trace.push({x: state.player.pixelX, y: state.player.pixelY});
+    }
+    
+    let isWrongMove = false;
+    if (state.mission !== null && target) {
+        let distAfter = Math.abs(state.player.gridX - target.x) + Math.abs(state.player.gridY - target.y);
+        if (distAfter > distBefore) isWrongMove = true;
+    }
+    
+    logMove(relDir, snappedAngle, isWrongMove);
+}
+
+function logMove(relDir, absAngle, isWrongMove) {
+    state.stepCount++;
+    let relText = ["向前走", "向右走", "向后走", "向左走"][relDir];
+    let absText = getCardinalName(absAngle);
+    
+    let screenAngle = (state.mapRotation + absAngle) % 360;
+    if (screenAngle > 180) screenAngle -= 360;
+    if (screenAngle <= -180) screenAngle += 360;
+    
+    let screenDir = "";
+    if (screenAngle >= -45 && screenAngle < 45) screenDir = "屏幕向上 👆";
+    else if (screenAngle >= 45 && screenAngle < 135) screenDir = "屏幕向右 👉";
+    else if (screenAngle >= 135 || screenAngle < -135) screenDir = "屏幕向下 👇";
+    else screenDir = "屏幕向左 👈";
+
+    const logBox = document.getElementById('feedback-log');
+    if (state.stepCount === 1) logBox.innerHTML = "";
+    
+    const entry = document.createElement('div');
+    entry.className = 'log-entry';
+    entry.innerHTML = `
+        <div class="log-num">${state.stepCount}</div>
+        <div class="log-content">
+            <span class="log-action">${relText}</span>
+            <span class="log-result">即：往 ${absText} 走 ${isWrongMove ? '<span class="log-warn">⚠️偏离</span>' : ''}</span>
+            <span class="log-visual">(${screenDir})</span>
+        </div>`;
+    
+    logBox.appendChild(entry);
+    logBox.scrollTop = logBox.scrollHeight;
+}
+
+function getCardinalName(angle) {
+    let a = (angle % 360 + 360) % 360;
+    if (a === 0) return "北 (N)";
+    if (a === 90) return "东 (E)";
+    if (a === 180) return "南 (S)";
+    if (a === 270) return "西 (W)";
+    return `${a}°`;
+}
+
+function logMissionComplete(targetName) {
+    state.stepCount++;
+    const logBox = document.getElementById('feedback-log');
+    const entry = document.createElement('div');
+    entry.className = 'log-entry';
+    entry.innerHTML = `<div class="log-num">${state.stepCount}</div><div class="log-content"><span class="log-success">🎉 抵达 ${targetName}！</span></div>`;
+    logBox.appendChild(entry);
+    logBox.scrollTop = logBox.scrollHeight;
+}
+
+function checkMission() {
+    if (state.mission === null) return;
+    let target = CONFIG.landmarks[state.mission];
+    if (state.player.gridX === target.x && state.player.gridY === target.y) {
+        logMissionComplete(target.name);
+        spawnConfetti();
+        state.mission = null;
+    }
+}
+
+// --- VISUALS ---
+
+function drawGrid() {
+    stroke(CONFIG.colors.grid);
+    strokeWeight(1);
+    let limit = Math.max(width, height) / CONFIG.gridSize + 8; 
+    let cols = Math.ceil(limit);
+    for (let i = -cols; i <= cols; i++) {
+        line(i * CONFIG.gridSize, -limit*CONFIG.gridSize, i * CONFIG.gridSize, limit*CONFIG.gridSize);
+        line(-limit*CONFIG.gridSize, i * CONFIG.gridSize, limit*CONFIG.gridSize, i * CONFIG.gridSize);
+    }
+    stroke(200); strokeWeight(2);
+    line(0, -limit*CONFIG.gridSize, 0, limit*CONFIG.gridSize);
+    line(-limit*CONFIG.gridSize, 0, limit*CONFIG.gridSize, 0);
+}
+
+function drawSun() {
+    let sunDist = 420;
+    push();
+    translate(sunDist, 0); 
+    push(); rotate(-state.mapRotation); pop();
+    
+    push();
+    rotate(frameCount * 0.5);
+    stroke(255, 180, 0, 150);
+    strokeWeight(4);
+    for(let i=0; i<8; i++) {
+        line(35, 0, 55, 0);
+        rotate(360/8);
+    }
+    pop();
+    
+    noStroke();
+    for(let i=3; i>0; i--) { fill(255, 200, 0, 40); circle(0, 0, 50 + i*15); }
+    fill(255, 160, 0); circle(0, 0, 60);
+    fill(255, 220, 50); circle(0, 0, 50);
+    
+    fill(0, 0, 0, 150); 
+    ellipse(-10, -5, 6, 12); ellipse(10, -5, 6, 12);
+    noFill(); stroke(200, 100, 0); strokeWeight(2); arc(0, 10, 20, 10, 0, 180);
+    
+    push();
+    rotate(-state.mapRotation); 
+    fill(200, 100, 0); noStroke(); textSize(14); textStyle(BOLD);
+    text("东方 (E)", 0, 65); 
+    pop();
+    pop();
+}
+
+function drawMapDirections() {
+    let dist = 240;
+    textSize(24); textStyle(BOLD);
+    const drawLabel = (txt, x, y, col) => {
+        push();
+        translate(x, y);
+        rotate(-state.mapRotation);
+        fill(col); noStroke();
+        text(txt, 0, 0);
+        pop();
+    };
+    drawLabel("北", 0, -dist, CONFIG.colors.north);
+    drawLabel("南", 0, dist, CONFIG.colors.south);
+    drawLabel("东", dist, 0, CONFIG.colors.east);
+    drawLabel("西", -dist, 0, CONFIG.colors.west);
+}
+
+function drawLocalCompass() {
+    let x = state.player.pixelX;
+    let y = state.player.pixelY;
+    let r = 50; 
+    push();
+    translate(x, y);
+    
+    stroke(0,0,0,30); noFill(); circle(0,0,r*2);
+    strokeWeight(2);
+    
+    // North (Map North)
+    stroke(CONFIG.colors.north); line(0,0,0,-r);
+    fill(CONFIG.colors.north); noStroke(); triangle(0,-r-5, -5,-r+5, 5,-r+5);
+    
+    // Text: Counter-rotate text so it stays upright
+    push(); translate(0, -r-20); rotate(-state.mapRotation);
+    fill(CONFIG.colors.north); textSize(16); textStyle(BOLD); text("北 N", 0, 0); pop();
+    
+    // East
+    stroke(CONFIG.colors.east); line(0,0,r,0);
+    fill(CONFIG.colors.east); noStroke(); triangle(r+5, 0, r-5, -5, r-5, 5); 
+    push(); translate(r+25, 0); rotate(-state.mapRotation);
+    fill(CONFIG.colors.east); textSize(16); textStyle(BOLD); text("东 E", 0, 0); pop();
+    
+    // South
+    stroke(CONFIG.colors.south); line(0,0,0,r);
+    push(); translate(0, r+20); rotate(-state.mapRotation);
+    fill(CONFIG.colors.south); textSize(14); textStyle(NORMAL); text("南 S", 0, 0); pop();
+    
+    // West
+    stroke(CONFIG.colors.west); line(0,0,-r,0);
+    push(); translate(-r-25, 0); rotate(-state.mapRotation);
+    fill(CONFIG.colors.west); textSize(14); textStyle(NORMAL); text("西 W", 0, 0); pop();
+    
+    pop();
+}
+
+function drawPlayer() {
+    push();
+    translate(state.player.pixelX, state.player.pixelY);
+    rotate(state.player.rotation); 
+    
+    noStroke();
+    fill(255, 215, 0, 120); 
+    arc(0, 0, 160, 160, -125, -55, PIE); 
+    
+    fill(CONFIG.colors.player); stroke(255); strokeWeight(2);
+    circle(0,0,CONFIG.playerSize);
+    
+    fill(CONFIG.colors.player); noStroke();
+    ellipse(-15, -5, 10, 10); ellipse(15, -5, 10, 10); 
+    
+    fill(255); noStroke();
+    ellipse(-7, -10, 8, 8); ellipse(7, -10, 8, 8);
+    fill(0); ellipse(-7, -10, 3, 3); ellipse(7, -10, 3, 3);
+    
+    fill(255, 200, 0); triangle(0, -20, -5, -8, 5, -8);
+    
+    rotate(-state.player.rotation);
+    rotate(-state.mapRotation);
+    fill(50); textSize(11); text("我", 0, 5);
+    pop();
+}
+
+function drawTrace() {
+    if (!state.showTrace || state.trace.length === 0) return;
+    noFill(); stroke(CONFIG.colors.trace); strokeWeight(4); strokeJoin(ROUND);
+    beginShape();
+    for (let p of state.trace) vertex(p.x, p.y);
+    vertex(state.player.pixelX, state.player.pixelY);
+    endShape();
+}
+
+function drawLandmarks() {
+    for (let i = 0; i < CONFIG.landmarks.length; i++) {
+        let lm = CONFIG.landmarks[i];
+        let px = lm.x * CONFIG.gridSize;
+        let py = lm.y * CONFIG.gridSize;
+        
+        let scaleFactor = 1;
+        // Pulse effect if active mission
+        if (state.mission === i) {
+            scaleFactor = 1.2 + 0.2 * sin(frameCount * 10);
+        }
+        
+        push();
+        translate(px, py);
+        scale(scaleFactor);
+        
+        noStroke(); fill(255,255,255,200); ellipse(0, 15, 40, 20);
+        textSize(24); textAlign(CENTER, CENTER); text(lm.icon, 0, -5);
+        
+        push();
+        translate(0, 25); 
+        rotate(-state.mapRotation); 
+        fill(lm.color); textSize(12); textStyle(BOLD); stroke(255); strokeWeight(3);
+        text(lm.name, 0, 0);
+        pop();
+        
+        pop();
+    }
+}
+
+// Confetti
+class ConfettiParticle {
+    constructor() {
+        this.x = width/2; this.y = height/2;
+        this.vx = random(-5,5); this.vy = random(-10,-2);
+        this.gravity = 0.2; this.size = random(5,10);
+        this.color = color(random(255),random(255),random(255));
+        this.life = 255;
+    }
+    update() { this.x+=this.vx; this.y+=this.vy; this.vy+=this.gravity; this.life-=4; }
+    draw() { noStroke(); fill(red(this.color),green(this.color),blue(this.color),this.life); rect(this.x,this.y,this.size,this.size); }
+}
+function spawnConfetti() { for(let i=0;i<80;i++) state.confetti.push(new ConfettiParticle()); }
+function updateConfetti() { 
+    for(let i=state.confetti.length-1;i>=0;i--) {
+        state.confetti[i].update(); if(state.confetti[i].life<=0) state.confetti.splice(i,1);
+    }
+}
+function drawConfetti() { for(let p of state.confetti) p.draw(); }
+
+function drawCompassUI() {
+    if (!state.showCardinal) return;
+    // Adjusted position: Left a bit, Down a bit to avoid corner crowding
+    let cx = width - 80; let cy = 80; let r = 40;
+    
+    noStroke(); fill(255,255,255,220); circle(cx,cy,r*2.6);
+    
+    push();
+    translate(cx, cy);
+    rotate(state.mapRotation);
+    
+    stroke(200); strokeWeight(1);
+    line(0,-r,0,r); line(-r,0,r,0); // Cross
+    
+    let rDiag = r*0.7; let d = rDiag*0.707;
+    line(-d,-d, d,d); line(d,-d, -d,d);
+    
+    const drawLab = (t,x,y,c, sz=12) => { 
+        push(); translate(x,y); rotate(-state.mapRotation); 
+        fill(c); textSize(sz); textStyle(BOLD); noStroke(); text(t,0,0); pop(); 
+    };
+    
+    let off = r+15;
+    drawLab("北 N", 0, -off, CONFIG.colors.north, 14);
+    drawLab("南 S", 0, off, CONFIG.colors.south, 14);
+    drawLab("东 E", off, 0, CONFIG.colors.east, 14);
+    drawLab("西 W", -off, 0, CONFIG.colors.west, 14);
+    
+    let off2 = r+2; let dd = off2*0.707;
+    drawLab("东北", dd, -dd, "#999", 9);
+    drawLab("东南", dd, dd, "#999", 9);
+    drawLab("西南", -dd, dd, "#999", 9);
+    drawLab("西北", -dd, -dd, "#999", 9);
+    
+    stroke(CONFIG.colors.north); strokeWeight(3); line(0,0,0,-r);
+    pop();
+    
+    fill(100); noStroke(); textSize(10); text("指南针", cx, cy+r+30);
+}
+
+function drawScreenLabels() {
+    let pad = 20; textSize(12); textStyle(BOLD); fill(180); noStroke();
+    text("屏幕上", width/2, pad);
+    text("屏幕下", width/2, height-pad);
+    text("左", pad, height/2);
+    text("右", width-pad, height/2);
+}
+
+// --- UI ---
+
+function setMapTarget(angle) {
+    state.targetMapRotation = angle;
+    document.getElementById('slider-map-rotation').value = angle;
+    document.getElementById('val-map-rotation').innerText = angle + "°";
+    
+    let btns = document.querySelectorAll('#map-angle-buttons .angle-btn');
+    btns.forEach(b => b.classList.remove('active'));
+    
+    // Logic Match: 
+    // North Up -> 0
+    // East Up -> -90 (Rotate CCW so Right becomes Up)
+    // South Up -> 180
+    // West Up -> 90 (Rotate CW so Left becomes Up)
+    
+    if(angle===0) btns[0].classList.add('active');
+    if(angle===-90) btns[1].classList.add('active'); // East Up
+    if(angle===180) btns[2].classList.add('active'); // South Up
+    if(angle===90) btns[3].classList.add('active'); // West Up
+}
+
+function setPlayerFacing(angle) {
+    state.player.rotation = angle;
+    document.getElementById('slider-player-rotation').value = angle;
+    updateButtonVisuals();
+}
+
+function updateButtonVisuals() {
+    let t = getCardinalName(state.player.rotation);
+    document.getElementById('val-player-rotation').innerText = t;
+    
+    const dirs = ["往北走", "往东走", "往南走", "往西走"];
+    const colors = [CONFIG.colors.north, CONFIG.colors.east, CONFIG.colors.south, CONFIG.colors.west];
+    
+    let faceIdx = state.player.rotation / 90;
+    
+    const updateBtn = (id, offset) => {
+        let absIdx = (faceIdx + offset) % 4;
+        let el = document.getElementById(id);
+        el.innerText = dirs[absIdx];
+        el.style.color = colors[absIdx];
+    };
+    
+    updateBtn('lbl-front', 0);
+    updateBtn('lbl-right', 1);
+    updateBtn('lbl-back', 2);
+    updateBtn('lbl-left', 3);
+    
+    const setArrow = (id, relOffset) => {
+        let absAngle = (state.player.rotation + relOffset) % 360;
+        let screenAngle = (state.mapRotation + absAngle) % 360;
+        let el = document.getElementById(id);
+        el.style.transform = `rotate(${screenAngle}deg)`;
+        
+        let idx = Math.round(absAngle / 90) % 4;
+        el.style.color = colors[idx];
+    };
+    
+    setArrow('arrow-front', 0);
+    setArrow('arrow-right', 90);
+    setArrow('arrow-back', 180);
+    setArrow('arrow-left', 270);
+}
+
+function resetGame() {
+    state.player.gridX=0; state.player.gridY=0;
+    state.player.pixelX=0; state.player.pixelY=0;
+    state.player.targetPixelX=0; state.player.targetPixelY=0;
+    state.trace=[]; state.mission=null; state.stepCount=0;
+    setPlayerFacing(0); setMapTarget(0);
+    document.getElementById('feedback-log').innerHTML = '<div class="log-entry" style="color:#888;">请领取新任务...</div>';
+}
+
+function getNewMission() {
+    let options = CONFIG.landmarks.filter(l => l.x !== state.player.gridX || l.y !== state.player.gridY);
+    let target = random(options);
+    state.mission = CONFIG.landmarks.indexOf(target);
+    
+    state.stepCount++;
+    const logBox = document.getElementById('feedback-log');
+    if (state.stepCount === 1) logBox.innerHTML = "";
+    const entry = document.createElement('div');
+    entry.className = 'log-entry';
+    entry.style.background = "#fff3e0";
+    entry.innerHTML = `<div class="log-num">${state.stepCount}</div><div class="log-content"><strong>新任务:</strong> 去 ${target.name} (${target.icon})</div>`;
+    logBox.appendChild(entry);
+    logBox.scrollTop = logBox.scrollHeight;
+}
+
+function initUI() {
+    document.getElementById('btn-front').onclick = () => movePlayerRelative(0);
+    document.getElementById('btn-right').onclick = () => movePlayerRelative(1);
+    document.getElementById('btn-back').onclick = () => movePlayerRelative(2);
+    document.getElementById('btn-left').onclick = () => movePlayerRelative(3);
+    
+    document.getElementById('btn-reset').onclick = resetGame;
+    document.getElementById('btn-new-mission').onclick = getNewMission;
+    document.getElementById('btn-clear-log').onclick = clearLog;
+    
+    const sliderMap = document.getElementById('slider-map-rotation');
+    sliderMap.oninput = (e) => {
+        state.targetMapRotation = parseInt(e.target.value);
+        document.getElementById('val-map-rotation').innerText = e.target.value + "°";
+    };
+    
+    const sliderPlayer = document.getElementById('slider-player-rotation');
+    sliderPlayer.oninput = (e) => {
+        let val = parseInt(e.target.value);
+        let snapped = Math.round(val/90)*90; if(snapped===360) snapped=0;
+        setPlayerFacing(snapped);
+    };
+    
+    document.getElementById('chk-grid').onchange = (e) => state.showGrid = e.target.checked;
+    document.getElementById('chk-cardinal').onchange = (e) => state.showCardinal = e.target.checked;
+    document.getElementById('chk-local').onchange = (e) => state.showLocal = e.target.checked;
+    document.getElementById('chk-trace').onchange = (e) => state.showTrace = e.target.checked;
+}
+
+function clearLog() {
+    state.stepCount = 0;
+    document.getElementById('feedback-log').innerHTML = '<div class="log-entry" style="color:#888;">日志已清空...</div>';
+}
+
+function renderIntroMath() {
+    const introText = `
+        <strong>核心概念：</strong><br>
+        <span style="color:#C0392B">东南西北</span>是地球的方言，永远不会变。<br>
+        <span style="color:#2980B9">前后左右</span>是你的视角，随你身体转动而变。<br>
+        <br>
+        <strong>试一试：</strong><br>
+        1. 领取一个任务（例如去北边的学校）。<br>
+        2. 转动滑块，让自己面向<span style="color:#F39C12">东</span>。<br>
+        3. 思考：学校在北边，你的身体面朝东，你应该往左走还是往右走？
+    `;
+    const container = document.getElementById('intro-math');
+    container.innerHTML = introText;
+    container.style.display = 'block'; 
+    container.style.visibility = 'visible';
+}
+</script>
+</body>
+</html>

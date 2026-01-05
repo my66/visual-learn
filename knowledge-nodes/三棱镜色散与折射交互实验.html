@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>三棱镜色散与折射交互实验 (修正版)</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <style>
+    /* 页面基础样式 */
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+      background-color: #f0f2f5;
+      color: #333;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* 布局容器 */
+    #container {
+      display: flex;
+      flex: 1;
+      flex-direction: row;
+      overflow: hidden;
+      height: 100%;
+    }
+
+    /* 左侧控制面板 */
+    #sidebar {
+      width: 340px;
+      background: #ffffff;
+      padding: 20px;
+      box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+      overflow-y: auto;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    /* 标题区域 */
+    .header {
+      border-bottom: 2px solid #eee;
+      padding-bottom: 10px;
+      margin-bottom: 5px;
+    }
+    .header h2 {
+      margin: 0;
+      font-size: 20px;
+      color: #2c3e50;
+    }
+    .header p {
+      margin: 5px 0 0;
+      font-size: 13px;
+      color: #7f8c8d;
+    }
+
+    /* 控制组 */
+    .control-group {
+      background: #f8f9fa;
+      padding: 15px;
+      border-radius: 8px;
+      border: 1px solid #e9ecef;
+    }
+    .control-title {
+      font-weight: bold;
+      font-size: 14px;
+      margin-bottom: 10px;
+      color: #34495e;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    
+    /* 控件样式 */
+    label {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 8px;
+      color: #555;
+    }
+    input[type=range] {
+      width: 100%;
+      margin: 5px 0;
+      cursor: pointer;
+    }
+    .value-display {
+      float: right;
+      font-weight: bold;
+      color: #3498db;
+    }
+    
+    /* 按钮组 */
+    .btn-group {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .btn-toggle {
+      flex: 1;
+      padding: 8px;
+      border: 1px solid #ddd;
+      background: white;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s;
+    }
+    .btn-toggle.active {
+      background: #e1f0fa;
+      border-color: #3498db;
+      color: #2980b9;
+      font-weight: bold;
+    }
+    
+    /* 说明文字 */
+    .info-box {
+      font-size: 12px;
+      line-height: 1.6;
+      color: #666;
+      background: #fff3cd;
+      padding: 10px;
+      border-radius: 4px;
+      border-left: 3px solid #ffc107;
+    }
+
+    /* 状态栏 */
+    .status-bar {
+      margin-top: auto;
+      padding-top: 15px;
+      font-size: 12px;
+      color: #888;
+      border-top: 1px solid #eee;
+    }
+
+    /* 画布容器 */
+    #canvas-container {
+      flex: 1;
+      position: relative;
+      background-color: #f0f2f5;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="container">
+    <!-- 左侧控制栏 -->
+    <aside id="sidebar">
+      <div class="header">
+        <h2>三棱镜色散与折射 (修正版)</h2>
+        <p>探究红光与紫光在介质中的差异</p>
+      </div>
+
+      <!-- 核心实验控制 -->
+      <div class="control-group">
+        <div class="control-title">🔦 光源设置</div>
+        
+        <label>光线颜色模式：</label>
+        <div class="btn-group">
+          <button class="btn-toggle active" onclick="setLightMode('red')" id="btn-red">🔴 红光</button>
+          <button class="btn-toggle" onclick="setLightMode('violet')" id="btn-violet">🟣 紫光</button>
+          <button class="btn-toggle" onclick="setLightMode('both')" id="btn-both">🌈 对比</button>
+        </div>
+
+        <label>入射角度 (调整光线倾斜) <span id="angle-val" class="value-display">49°</span></label>
+        <input type="range" id="angle-slider" min="30" max="80" value="49" step="1">
+        <div style="font-size:11px; color:#888; margin-top:5px;">* 默认 49° 时红光在棱镜内水平 (经典视角)</div>
+      </div>
+
+      <!-- 光屏实验 -->
+      <div class="control-group">
+        <div class="control-title">📏 光屏实验 (解题关键)</div>
+        <p style="font-size:12px; margin-bottom:10px; color:#555;">
+          题目问：换成紫光后，光斑偏离 a 点。<br>
+          向左还是向右移动光屏，能让紫光斑回到 a 点的高度？
+        </p>
+        
+        <label>光屏位置 (左右平移) <span id="screen-val" class="value-display">0</span></label>
+        <input type="range" id="screen-slider" min="-150" max="100" value="0" step="1">
+        
+        <div style="margin-top:10px;">
+          <input type="checkbox" id="mark-a" checked>
+          <label for="mark-a" style="display:inline; cursor:pointer;">锁定初始红光高度 (虚线参考 a)</label>
+        </div>
+      </div>
+
+      <!-- 知识点提示 -->
+      <div class="info-box">
+        <strong>💡 修正说明：</strong><br>
+        1. 入射光现已改为从左下方射入，符合教材插图。<br>
+        2. 紫光折射率大，偏折角大，出射光线更陡峭（更向下）。<br>
+        3. 试着把光屏向左移（靠近棱镜），观察紫光斑是否会升高回到虚线 a 处。
+      </div>
+
+      <div class="status-bar">
+        Physics Simulation: Refraction & Dispersion
+      </div>
+    </aside>
+
+    <!-- 右侧画布 -->
+    <div id="canvas-container"></div>
+  </div>
+
+<script>
+/**
+ * 物理与数学可视化逻辑 (p5.js)
+ * 修正版：调整几何布局以匹配经典物理教材
+ */
+
+// ---------------- 全局变量 ----------------
+let canvasWidth, canvasHeight;
+let prismVertices = []; // 存储三棱镜顶点
+let lightMode = 'red';  // 'red', 'violet', 'both'
+
+// 物理参数
+const N_AIR = 1.00;
+const N_GLASS_RED = 1.50;
+const N_GLASS_VIOLET = 1.60; // 夸大差异以便观察 (实际差异较小)
+
+// 场景状态
+let incidentAngleDeg = 49; // 默认49度，使得红光在正三角形棱镜中水平传播
+let screenOffset = 0;   
+let showMarkA = true;   
+
+// 记录点a的位置 (红光在初始屏幕位置的落点)
+// 这里我们锁定 a 的高度为“屏幕坐标系下的绝对高度”，
+// 假设题目意思是 a 点是一个物理标记，随屏幕移动？
+// 不，题目通常意指“空间位置”或“相对高度”。
+// 这里我们定义：a 是红光在 screenOffset=0 时打在屏幕上的高度。
+// 当屏幕移动时，我们画出一条虚线表示这个“目标高度”，看紫光能不能碰到这条线。
+let targetHeightY = null;
+
+// UI 元素引用
+let angleSlider, screenSlider, checkMarkA;
+let angleValDisplay, screenValDisplay;
+
+function setup() {
+  const container = document.getElementById('canvas-container');
+  canvasWidth = container.clientWidth;
+  canvasHeight = container.clientHeight;
+  const cnv = createCanvas(canvasWidth, canvasHeight);
+  cnv.parent('canvas-container');
+  
+  angleSlider = document.getElementById('angle-slider');
+  screenSlider = document.getElementById('screen-slider');
+  checkMarkA = document.getElementById('mark-a');
+  angleValDisplay = document.getElementById('angle-val');
+  screenValDisplay = document.getElementById('screen-val');
+  
+  angleSlider.addEventListener('input', updateState);
+  screenSlider.addEventListener('input', updateState);
+  checkMarkA.addEventListener('change', updateState);
+  window.addEventListener('resize', windowResized);
+
+  updateState();
+}
+
+function updateState() {
+  incidentAngleDeg = parseFloat(angleSlider.value);
+  screenOffset = parseFloat(screenSlider.value);
+  showMarkA = checkMarkA.checked;
+  
+  angleValDisplay.innerText = incidentAngleDeg + "°";
+  screenValDisplay.innerText = screenOffset > 0 ? "+" + screenOffset : screenOffset;
+}
+
+function setLightMode(mode) {
+  lightMode = mode;
+  document.querySelectorAll('.btn-toggle').forEach(b => b.classList.remove('active'));
+  document.getElementById('btn-' + mode).classList.add('active');
+}
+
+function windowResized() {
+  const container = document.getElementById('canvas-container');
+  canvasWidth = container.clientWidth;
+  canvasHeight = container.clientHeight;
+  resizeCanvas(canvasWidth, canvasHeight);
+}
+
+// ---------------- 核心绘制循环 ----------------
+function draw() {
+  background(255);
+  translate(width / 2, height / 2);
+  
+  // 1. 定义三棱镜 (正三角形)
+  let side = 200;
+  let h = side * Math.sqrt(3) / 2;
+  // 顶点 A(top), B(left), C(right)
+  let topY = -h / 2;
+  let bottomY = h / 2;
+  
+  let A = createVector(0, topY);
+  let B = createVector(-side / 2, bottomY);
+  let C = createVector(side / 2, bottomY);
+  prismVertices = [A, B, C];
+  
+  drawPrism(A, B, C);
+  
+  // 2. 绘制光屏
+  // 初始位置在棱镜右侧
+  let baseScreenX = side / 2 + 100;
+  let currentScreenX = baseScreenX + screenOffset;
+  drawScreen(currentScreenX);
+  
+  // 3. 计算“参考点 a”的高度
+  // 永远以红光、screenOffset=0、当前角度 为基准计算 a 点高度
+  // 这样如果用户改变入射角，a 点也会更新，符合“保持入射光位置不变”的前提
+  let refRedHit = calculateRayHit(N_GLASS_RED, A, B, C, baseScreenX);
+  if (refRedHit) {
+    targetHeightY = refRedHit.y;
+  }
+  
+  // 绘制目标高度虚线 (a点水平线)
+  if (showMarkA && targetHeightY !== null) {
+    drawTargetLine(currentScreenX, targetHeightY);
+  }
+
+  // 4. 绘制光路
+  if (lightMode === 'red' || lightMode === 'both') {
+    drawRayTrace(N_GLASS_RED, color(255, 50, 50), currentScreenX, "红");
+  }
+  
+  if (lightMode === 'violet' || lightMode === 'both') {
+    drawRayTrace(N_GLASS_VIOLET, color(140, 50, 220), currentScreenX, "紫");
+  }
+
+  drawLegend();
+}
+
+// ---------------- 绘图辅助 ----------------
+
+function drawPrism(A, B, C) {
+  fill(230, 245, 255, 200);
+  stroke(100, 150, 200);
+  strokeWeight(2);
+  triangle(A.x, A.y, B.x, B.y, C.x, C.y);
+  
+  // 标注顶点
+  noStroke();
+  fill(100);
+  textSize(12);
+  // text("A", A.x, A.y - 10);
+  // text("B", B.x - 10, B.y + 15);
+  // text("C", C.x + 10, C.y + 15);
+}
+
+function drawScreen(x) {
+  stroke(80);
+  strokeWeight(4);
+  line(x, -200, x, 200);
+  
+  noStroke();
+  fill(80);
+  textAlign(CENTER);
+  text("光屏", x, -210);
+  
+  // 底部导轨
+  stroke(200);
+  strokeWeight(2);
+  line(x-60, 200, x+60, 200);
+  // 刻度
+  for(let i=-50; i<=50; i+=10) line(x+i, 200, x+i, 205);
+}
+
+function drawTargetLine(screenX, y) {
+  // 画一条贯穿光屏区域的水平虚线，表示高度 a
+  stroke(255, 100, 100, 150); // 红色虚线
+  strokeWeight(1);
+  drawingContext.setLineDash([5, 5]);
+  line(screenX - 40, y, screenX + 40, y);
+  drawingContext.setLineDash([]);
+  
+  noStroke();
+  fill(200, 50, 50);
+  textAlign(LEFT, CENTER);
+  text(" a (目标高度)", screenX + 45, y);
+  
+  // 在光屏上画个点
+  fill(50);
+  ellipse(screenX, y, 4, 4);
+}
+
+function drawLegend() {
+  resetMatrix();
+  fill(50);
+  noStroke();
+  textAlign(LEFT, TOP);
+  textSize(12);
+  text("图例：", 20, 20);
+  
+  fill(255, 50, 50);
+  rect(20, 40, 10, 10);
+  fill(50);
+  text("红光 (偏折小)", 40, 40);
+  
+  fill(140, 50, 220);
+  rect(20, 60, 10, 10);
+  fill(50);
+  text("紫光 (偏折大)", 40, 60);
+}
+
+// ---------------- 物理计算核心 ----------------
+
+function drawRayTrace(n_glass, col, screenX, label) {
+  let trace = calculateRayPath(n_glass, prismVertices[0], prismVertices[1], prismVertices[2], screenX);
+  if (!trace) return;
+  
+  stroke(col);
+  strokeWeight(2);
+  noFill();
+  
+  // 1. 入射光线 (画一部分)
+  let startP = p5.Vector.sub(trace.entry, p5.Vector.mult(trace.incidentDir, 100));
+  line(startP.x, startP.y, trace.entry.x, trace.entry.y);
+  drawArrow(startP, trace.incidentDir, col);
+  
+  // 2. 内部光线
+  line(trace.entry.x, trace.entry.y, trace.exit.x, trace.exit.y);
+  
+  // 3. 出射光线
+  // 判断是否打到光屏 (x方向)
+  // 如果光屏在出射点左侧，就不画了（或者画反向延长线，这里只画正向）
+  if (screenX > trace.exit.x) {
+     let hitY = trace.exit.y + (screenX - trace.exit.x) * (trace.exitDir.y / trace.exitDir.x);
+     line(trace.exit.x, trace.exit.y, screenX, hitY);
+     drawArrow(trace.exit, trace.exitDir, col);
+     
+     // 光斑
+     fill(col);
+     noStroke();
+     ellipse(screenX, hitY, 6, 6);
+     if (lightMode === 'both') {
+       textAlign(RIGHT, CENTER);
+       text(label, screenX - 10, hitY);
+     }
+  } else {
+     // 光屏在棱镜内部或左侧，只画一段射线
+     let endP = p5.Vector.add(trace.exit, p5.Vector.mult(trace.exitDir, 50));
+     line(trace.exit.x, trace.exit.y, endP.x, endP.y);
+  }
+}
+
+// 纯计算函数，返回光路关键点
+function calculateRayPath(n_glass, A, B, C, targetX) {
+  // 设定入射点在 AB 边中点附近
+  let entryPoint = p5.Vector.lerp(A, B, 0.65);
+  
+  // 计算 AB 边法线 (向外)
+  // A(0, -h/2), B(-w/2, h/2). Vector AB = (-w/2, h)
+  // Normal = (h, w/2) -> Right-Down? No.
+  // We want Normal pointing OUT from left face. Should be Left-Up.
+  // AB vector is Down-Left. (B-A).
+  // Normal (y, -x) of (-w, h) is (h, w). Right-Up?
+  // Let's use Geometry explicitly.
+  // Left face angle is 120 deg (from X axis counter-clockwise)?
+  // Triangle is equilateral. Base is horizontal.
+  // Left side leans at 60 deg to horizontal? No, 60 deg is internal.
+  // Side slope is -sqrt(3) (if A is origin).
+  // Visual normal angle: 150 deg (Left-Up).
+  let normalAB = createVector(-Math.cos(radians(30)), -Math.sin(radians(30))); // Normal pointing Left-Up (210 deg? No, 150 deg)
+  // Let's just calculate perpendicular to AB.
+  let AB = p5.Vector.sub(B, A);
+  let normalOut = createVector(AB.y, -AB.x).normalize(); 
+  // A=(0,-), B=(-, +). AB=(-, +). Normal=(+, +)? Points Right-Up (Into Prism).
+  // So we want -Normal.
+  normalOut.mult(-1); // Now points Left-Up.
+  
+  // 入射角 i
+  // 入射光线方向: 
+  // 题目图中光线从左下射向右上.
+  // 也就是 RayDir 应该指向 First Quadrant (x>0, y<0? No y is down in p5)
+  // p5 coordinates: y increases downwards.
+  // Visual: Up is y<0.
+  // Ray goes "Up-Right" visually => x>0, y<0.
+  
+  // Snell's Law Setup:
+  // Angle i is between Normal and Ray.
+  // Normal points Left-Up (-x, -y).
+  // Ray points Right-Up (+x, -y).
+  // To get a nice incident angle, we define Ray relative to Normal.
+  // Ray = Normal rotated by (180 - i) or something.
+  // Let's define incident angle w.r.t Normal.
+  // Ray_IN is approaching surface.
+  // Let's construct Ray direction explicitly based on `incidentAngleDeg`.
+  // If angle=0, Ray aligns with -Normal (enters perpendicularly).
+  // If angle=i, Ray is rotated by i from -Normal.
+  // To match "Up-Right" entry, we rotate Clockwise from -Normal?
+  // NormalOut points Left-Up. -NormalOut points Right-Down (Into Prism).
+  // Wait, Ray direction must be the direction OF travel.
+  // Ray travel is Right-Up.
+  // NormalOut is Left-Up.
+  // Angle between them is obtuse.
+  // Snell's angle is angle between Ray and Normal? Actually between Ray and -Normal (if both originate from surface).
+  // Let's just use the refract function which handles vectors robustly.
+  // We need to define Incident Direction Vector `incidentDir`.
+  
+  // We want Ray to go Right-Up.
+  // Angle of AB surface normal (Out): approx 210 degrees (if 0 is Right, 90 is Down).
+  // Wait, p5 coordinates: 0 Right, 90 Down, 180 Left, 270 Up.
+  // A=(0, -h), B=(-w, h). AB is Vector(-w, 2h). Points Left-Down.
+  // Normal (-dy, dx) = (-2h, -w). Left-Up. Angle approx 240? 
+  // Let's simpler: Side angle is 60 deg from horizontal.
+  // Normal angle is 150 deg (visual). In p5 (y down):
+  // Visual Up is 270. Visual Left is 180.
+  // Normal is 210? (Left-Down). No Left-Up visual is 225?
+  // Let's stick to vector math.
+  
+  // Construct Incident Ray based on user slider 'incidentAngle'.
+  // We assume 'incidentAngle' is the angle with the Normal.
+  // And we want the ray to come from "Below" the normal axis.
+  // Vector -Normal points INTO prism (Right-Down).
+  // We want Ray to be Right-Up.
+  // So we rotate -Normal by some angle to point Up.
+  let inNormal = p5.Vector.mult(normalOut, -1); // Points into prism (perp to side)
+  // We rotate this vector to get incident ray.
+  // If we rotate negative (CCW), we go towards Up.
+  // So incidentDir = inNormal.rotate(-radians(incidentAngleDeg)).
+  
+  // Correction: To ensure internal ray is horizontal when angle is ideal (~49).
+  // Side angle is 30 deg from vertical.
+  // Normal is 30 deg from horizontal.
+  // If we want horizontal ray (0 deg), refraction angle r must be 30 deg.
+  // Snell: sin(i) = 1.5 * sin(30) = 0.75. i = 48.6 deg.
+  // So if i = 49, r = 30.
+  // Ray inside is Horizontal (0 deg or 180).
+  // If InNormal is 30 deg down from horizontal (30 deg).
+  // We rotate -49 deg (Up). 30 - 49 = -19 deg (Up-Right).
+  // Visual: Ray goes Up-Right. Matches!
+  
+  let incidentDir = inNormal.copy().rotate(radians(-incidentAngleDeg));
+  
+  // 1. Refract at AB
+  let refractDir1 = refractVector(incidentDir, normalOut, N_AIR, n_glass);
+  
+  // 2. Intersect with AC
+  let AC = p5.Vector.sub(C, A);
+  let hit = intersectLineLine(entryPoint, refractDir1, A, AC);
+  
+  if (hit) {
+    // 3. Refract at AC
+    let AB_vec = p5.Vector.sub(B, A);
+    // Normal at AC. Points Right-Up.
+    let normalAC = createVector(AC.y, -AC.x).normalize(); // Points Right-Up.
+    
+    // Refract out
+    let refractDir2 = refractVector(refractDir1, p5.Vector.mult(normalAC, -1), n_glass, N_AIR);
+    
+    return {
+      entry: entryPoint,
+      incidentDir: incidentDir,
+      exit: hit,
+      exitDir: refractDir2
+    };
+  }
+  return null;
+}
+
+function calculateRayHit(n, A, B, C, screenX) {
+  let trace = calculateRayPath(n, A, B, C, screenX);
+  if (trace && trace.exitDir.x > 0) {
+    let t = (screenX - trace.exit.x) / trace.exitDir.x;
+    let y = trace.exit.y + t * trace.exitDir.y;
+    return createVector(screenX, y);
+  }
+  return null;
+}
+
+// Snell's Law
+function refractVector(I, N, n1, n2) {
+  let i = I.copy().normalize();
+  let n = N.copy().normalize();
+  let eta = n1 / n2;
+  let cos_theta1 = - p5.Vector.dot(n, i);
+  
+  if (cos_theta1 < 0) {
+    n.mult(-1);
+    cos_theta1 = - p5.Vector.dot(n, i);
+  }
+  
+  let k = 1 - eta * eta * (1 - cos_theta1 * cos_theta1);
+  if (k < 0) return createVector(0,0); // TIR
+  
+  return p5.Vector.add(
+    p5.Vector.mult(i, eta),
+    p5.Vector.mult(n, eta * cos_theta1 - Math.sqrt(k))
+  );
+}
+
+function intersectLineLine(P, D, A, AB) {
+  let x1 = P.x, y1 = P.y;
+  let x2 = P.x + D.x, y2 = P.y + D.y;
+  let x3 = A.x, y3 = A.y;
+  let x4 = A.x + AB.x, y4 = A.y + AB.y;
+  
+  let den = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+  if (den == 0) return null;
+  
+  let t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / den;
+  let u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / den;
+  
+  if (u > 0 && u < 1 && t > 0) {
+    return createVector(x1 + t * (x2 - x1), y1 + t * (y2 - y1));
+  }
+  return null;
+}
+
+function drawArrow(base, dir, col) {
+  push();
+  stroke(col);
+  fill(col);
+  translate(base.x + dir.x * 20, base.y + dir.y * 20);
+  rotate(dir.heading());
+  let s = 5;
+  triangle(0, 0, -s, s/2, -s, -s/2);
+  pop();
+}
+
+</script>
+</body>
+</html>

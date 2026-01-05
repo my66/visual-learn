@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>光的色散与折射交互实验 (Dispersion Interactive)</title>
+  <style>
+    :root {
+      --bg-color: #f5f7fa;
+      --panel-bg: #ffffff;
+      --text-color: #333;
+      --accent-color: #3498db;
+      --border-color: #ddd;
+    }
+    
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      overflow: hidden; /* 防止双滚动条 */
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* 顶部标题栏 */
+    header {
+      background-color: var(--panel-bg);
+      padding: 15px 20px;
+      border-bottom: 1px solid var(--border-color);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      flex-shrink: 0;
+      z-index: 10;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 1.2rem;
+      color: #2c3e50;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .badge {
+      background: var(--accent-color);
+      color: white;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-weight: normal;
+    }
+
+    /* 主布局 */
+    .main-container {
+      display: flex;
+      flex: 1;
+      height: calc(100vh - 60px); /* 减去header高度 */
+      overflow: hidden;
+    }
+
+    /* 左侧控制面板 */
+    .controls {
+      width: 320px;
+      background-color: var(--panel-bg);
+      border-right: 1px solid var(--border-color);
+      padding: 20px;
+      overflow-y: auto;
+      box-shadow: 2px 0 5px rgba(0,0,0,0.02);
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      flex-shrink: 0;
+    }
+
+    .control-group {
+      background: #f8f9fa;
+      padding: 15px;
+      border-radius: 8px;
+      border: 1px solid #eee;
+    }
+
+    .control-group h3 {
+      margin: 0 0 12px 0;
+      font-size: 1rem;
+      color: #2c3e50;
+      border-bottom: 2px solid #e0e0e0;
+      padding-bottom: 5px;
+    }
+
+    .control-item {
+      margin-bottom: 12px;
+    }
+
+    label {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 5px;
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+
+    .value-display {
+      color: var(--accent-color);
+      font-family: monospace;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      cursor: pointer;
+    }
+
+    /* 按钮组 */
+    .btn-group {
+      display: flex;
+      gap: 5px;
+      margin-top: 5px;
+    }
+
+    .btn-radio {
+      flex: 1;
+      padding: 6px;
+      border: 1px solid #ccc;
+      background: #fff;
+      cursor: pointer;
+      font-size: 0.85rem;
+      border-radius: 4px;
+      transition: all 0.2s;
+      text-align: center;
+    }
+
+    .btn-radio.active {
+      background: var(--accent-color);
+      color: white;
+      border-color: var(--accent-color);
+      font-weight: bold;
+    }
+    
+    .btn-radio:hover:not(.active) {
+      background: #f0f0f0;
+    }
+
+    /* 题目引用区域 */
+    .problem-ref {
+      font-size: 0.85rem;
+      color: #666;
+      line-height: 1.5;
+      background: #fff3cd;
+      padding: 10px;
+      border-radius: 4px;
+      border-left: 3px solid #ffc107;
+    }
+
+    /* 右侧画布 */
+    #canvas-container {
+      flex: 1;
+      position: relative;
+      background-color: #fff;
+      overflow: hidden;
+      cursor: crosshair;
+    }
+
+    /* 图例说明 */
+    .legend {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 10px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      font-size: 0.85rem;
+      pointer-events: none;
+      user-select: none;
+    }
+    
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+    
+    .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+</head>
+<body>
+
+<header>
+  <h1>
+    <span class="badge">物理</span>
+    光的色散与折射演示 (Dispersion of Light)
+  </h1>
+</header>
+
+<div class="main-container">
+  <div class="controls">
+    
+    <div class="problem-ref">
+      <strong>题目考点复现：</strong><br>
+      1. 观察红光与紫光的偏折程度差异。<br>
+      2. 改变光屏颜色（红/白），观察现象。<br>
+      3. 改变棱镜材质（蓝/透明），观察现象。<br>
+      4. 识别红外线（热效应）区域。
+    </div>
+
+    <div class="control-group">
+      <h3>实验参数 (Parameters)</h3>
+      
+      <div class="control-item">
+        <label>光屏位置 (Screen Position)<span id="val-dist" class="value-display">60%</span></label>
+        <!-- 修改: 添加光屏位置滑块，范围 40% 到 95% -->
+        <input type="range" id="slider-dist" min="40" max="95" value="60" step="1">
+      </div>
+
+      <div class="control-item">
+        <label>入射角度 (Incident Angle)<span id="val-angle" class="value-display">0°</span></label>
+        <input type="range" id="slider-angle" min="-30" max="30" value="0" step="1">
+      </div>
+
+      <div class="control-item">
+        <label>棱镜顶角 (Prism Apex)<span id="val-apex" class="value-display">60°</span></label>
+        <input type="range" id="slider-apex" min="45" max="75" value="60" step="1">
+      </div>
+      
+      <div class="control-item">
+        <label>色散程度 (Dispersion)<span id="val-disp" class="value-display">高</span></label>
+        <input type="range" id="slider-disp" min="0.01" max="0.08" value="0.04" step="0.005">
+        <div style="font-size:0.8rem; color:#888;">*为了演示效果，色散率被夸大了</div>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <h3>材质与光屏 (Material & Screen)</h3>
+      
+      <div class="control-item">
+        <label>三棱镜颜色 (Prism Color)</label>
+        <div class="btn-group" id="group-prism">
+          <div class="btn-radio active" onclick="setPrismMode('transparent')">无色透明</div>
+          <div class="btn-radio" onclick="setPrismMode('blue')" style="color:blue">蓝色透明</div>
+        </div>
+      </div>
+
+      <div class="control-item">
+        <label>光屏颜色 (Screen Color)</label>
+        <div class="btn-group" id="group-screen">
+          <div class="btn-radio active" onclick="setScreenMode('white')">白色</div>
+          <div class="btn-radio" onclick="setScreenMode('red')" style="color:red">红色</div>
+          <div class="btn-radio" onclick="setScreenMode('blue')" style="color:blue">蓝色</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <h3>显示选项 (Display)</h3>
+      <div class="control-item">
+        <label><input type="checkbox" id="check-normal" checked> 显示法线 (Normals)</label>
+      </div>
+      <div class="control-item">
+        <label><input type="checkbox" id="check-regions" checked> 显示光谱区域标注 (Regions)</label>
+      </div>
+    </div>
+
+  </div>
+
+  <div id="canvas-container">
+    <div class="legend">
+      <div class="legend-item"><span class="dot" style="background:red"></span> 红光 (波长长，折射率小)</div>
+      <div class="legend-item"><span class="dot" style="background:violet"></span> 紫光 (波长短，折射率大)</div>
+      <div class="legend-item"><strong>结论：</strong>紫光的偏折程度 > 红光</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// 全局变量
+let angleSlider, apexSlider, dispSlider, distSlider; // 新增 distSlider
+let prismMode = 'transparent'; // transparent, blue
+let screenMode = 'white';      // white, red, blue
+let showNormals = true;
+let showRegions = true;
+
+// 光线颜色定义 (模拟光谱)
+const spectrum = [
+  { name: 'Red',    lambda: 700, color: [255, 0, 0] },
+  { name: 'Orange', lambda: 620, color: [255, 127, 0] },
+  { name: 'Yellow', lambda: 580, color: [255, 255, 0] },
+  { name: 'Green',  lambda: 530, color: [0, 255, 0] },
+  { name: 'Cyan',   lambda: 490, color: [0, 255, 255] },
+  { name: 'Blue',   lambda: 450, color: [0, 0, 255] },
+  { name: 'Violet', lambda: 400, color: [148, 0, 211] }
+];
+
+function setup() {
+  const container = document.getElementById('canvas-container');
+  const canvas = createCanvas(container.clientWidth, container.clientHeight);
+  canvas.parent(container);
+  
+  // 初始化DOM引用
+  angleSlider = document.getElementById('slider-angle');
+  apexSlider = document.getElementById('slider-apex');
+  dispSlider = document.getElementById('slider-disp');
+  distSlider = document.getElementById('slider-dist'); // 新增
+  
+  // 绑定事件监听器
+  angleSlider.addEventListener('input', updateLabels);
+  apexSlider.addEventListener('input', updateLabels);
+  dispSlider.addEventListener('input', updateLabels);
+  distSlider.addEventListener('input', updateLabels); // 新增
+  
+  document.getElementById('check-normal').addEventListener('change', (e) => showNormals = e.target.checked);
+  document.getElementById('check-regions').addEventListener('change', (e) => showRegions = e.target.checked);
+  
+  updateLabels();
+}
+
+function windowResized() {
+  const container = document.getElementById('canvas-container');
+  resizeCanvas(container.clientWidth, container.clientHeight);
+}
+
+function updateLabels() {
+  document.getElementById('val-angle').innerText = angleSlider.value + "°";
+  document.getElementById('val-apex').innerText = apexSlider.value + "°";
+  document.getElementById('val-dist').innerText = distSlider.value + "%"; // 新增
+  // document.getElementById('val-disp').innerText = dispSlider.value;
+}
+
+// 外部调用函数
+window.setPrismMode = function(mode) {
+  prismMode = mode;
+  document.querySelectorAll('#group-prism .btn-radio').forEach(el => el.classList.remove('active'));
+  event.target.classList.add('active');
+}
+
+window.setScreenMode = function(mode) {
+  screenMode = mode;
+  document.querySelectorAll('#group-screen .btn-radio').forEach(el => el.classList.remove('active'));
+  event.target.classList.add('active');
+}
+
+function draw() {
+  background(255);
+  
+  // 参数获取
+  const incidentAngle = radians(parseFloat(angleSlider.value));
+  const apexAngle = radians(parseFloat(apexSlider.value));
+  const dispersionPower = parseFloat(dispSlider.value);
+  const screenPosPercent = parseFloat(distSlider.value) / 100.0; // 获取百分比
+  
+  // 基础折射率 (玻璃)
+  const baseIndex = 1.5; 
+  
+  // 坐标系中心化
+  push();
+  // 棱镜位置固定
+  translate(width * 0.25, height * 0.4); 
+  
+  // 1. 绘制三棱镜
+  const sideLen = 200;
+  
+  rotate(incidentAngle);
+  
+  const pTop = createVector(0, -100);
+  const legLength = 250;
+  const pLeft = createVector(
+    pTop.x - legLength * sin(apexAngle/2), 
+    pTop.y + legLength * cos(apexAngle/2)
+  );
+  const pRight = createVector(
+    pTop.x + legLength * sin(apexAngle/2), 
+    pTop.y + legLength * cos(apexAngle/2)
+  );
+
+  // 绘制棱镜实体
+  noStroke();
+  if (prismMode === 'blue') {
+    fill(200, 200, 255, 150); // 蓝色透明
+    stroke(100, 100, 255);
+  } else {
+    fill(220, 240, 255, 150); // 无色透明
+    stroke(180);
+  }
+  strokeWeight(2);
+  triangle(pTop.x, pTop.y, pLeft.x, pLeft.y, pRight.x, pRight.y);
+  
+  pop(); // 结束棱镜的旋转上下文
+  
+  // 重新计算世界坐标系下的棱镜顶点
+  function rotatePoint(p, angle) {
+    const x = p.x * cos(angle) - p.y * sin(angle);
+    const y = p.x * sin(angle) + p.y * cos(angle);
+    return createVector(x + width * 0.25, y + height * 0.4);
+  }
+  
+  const wTop = rotatePoint(pTop, incidentAngle);
+  const wLeft = rotatePoint(pLeft, incidentAngle);
+  const wRight = rotatePoint(pRight, incidentAngle);
+  
+  // 再次绘制棱镜 (Visual Overlay)
+  noStroke();
+  if (prismMode === 'blue') {
+    fill(0, 50, 200, 50);
+    stroke(0, 0, 200);
+  } else {
+    fill(230, 245, 255, 200);
+    stroke(100);
+  }
+  triangle(wTop.x, wTop.y, wLeft.x, wLeft.y, wRight.x, wRight.y);
+
+  // 2. 光线追踪
+  // 光源位置调整：跟随棱镜高度
+  const sourceStart = createVector(0, height * 0.45); 
+  const rayY = (wTop.y + wLeft.y) / 2 + 20; 
+  const rayOrigin = createVector(0, rayY);
+  const rayDir = createVector(1, 0); // 水平向右
+  
+  // 绘制入射白光
+  stroke(255, 200, 200); 
+  strokeWeight(4);
+  const i1 = lineIntersection(rayOrigin, p5.Vector.add(rayOrigin, p5.Vector.mult(rayDir, 1000)), wLeft, wTop);
+  
+  // ★★★ 计算光屏 X 坐标 (基于滑块) ★★★
+  const screenX = width * screenPosPercent;
+
+  if (i1) {
+    // 画入射光
+    stroke(50); // 使用灰色表示入射光，在白底上更清晰
+    strokeWeight(3);
+    line(rayOrigin.x, rayOrigin.y, i1.x, i1.y);
+    drawArrow(rayOrigin, p5.Vector.sub(i1, rayOrigin).normalize(), 50);
+
+    if (showNormals) {
+      const normal1 = getNormal(wLeft, wTop);
+      drawNormal(i1, normal1);
+    }
+
+    let maxY = -Infinity, minY = Infinity; 
+
+    for (let wave of spectrum) {
+      let isAbsorbed = false;
+      if (prismMode === 'blue') {
+        if (wave.name !== 'Blue' && wave.name !== 'Cyan' && wave.name !== 'Violet') {
+          isAbsorbed = true;
+        }
+      }
+
+      const lambdaFactor = map(wave.lambda, 700, 400, 0, 1);
+      const n2 = baseIndex + lambdaFactor * dispersionPower;
+      const n1 = 1.0; 
+      
+      const normal1 = getNormal(wLeft, wTop);
+      const refractedDir1 = refract(rayDir, normal1, n1, n2);
+      
+      if (refractedDir1) {
+        const i2 = lineIntersection(i1, p5.Vector.add(i1, p5.Vector.mult(refractedDir1, 1000)), wTop, wRight);
+        
+        if (i2) {
+          stroke(wave.color[0], wave.color[1], wave.color[2], isAbsorbed ? 30 : 200);
+          strokeWeight(2);
+          line(i1.x, i1.y, i2.x, i2.y);
+          
+          if (!isAbsorbed) {
+            const normal2 = getNormal(wTop, wRight); 
+            const refractedDir2 = refract(refractedDir1, p5.Vector.mult(normal2, -1), n2, 1.0); 
+            
+            if (refractedDir2) {
+              if (refractedDir2.x > 0) {
+                // 计算光线与屏幕的交点
+                const t = (screenX - i2.x) / refractedDir2.x;
+                const hitY = i2.y + t * refractedDir2.y;
+                
+                // 只有当交点在棱镜右侧时才绘制 (防止光线向后射)
+                if (t > 0) {
+                  let isScreenVisible = true;
+                  if (screenMode === 'red' && wave.name !== 'Red' && wave.name !== 'Orange') isScreenVisible = false;
+                  if (screenMode === 'blue' && wave.name !== 'Blue' && wave.name !== 'Cyan' && wave.name !== 'Violet') isScreenVisible = false;
+                  
+                  stroke(wave.color[0], wave.color[1], wave.color[2], isScreenVisible ? 255 : 20); 
+                  strokeWeight(2);
+                  line(i2.x, i2.y, screenX, hitY);
+                  
+                  if (isScreenVisible) {
+                      if (hitY > maxY) maxY = hitY;
+                      if (hitY < minY) minY = hitY;
+                      
+                      noStroke();
+                      fill(wave.color[0], wave.color[1], wave.color[2], 200);
+                      ellipse(screenX, hitY, 6, 15);
+                  }
+                }
+              }
+              
+              if (showNormals && wave.name === 'Green') { 
+                 drawNormal(i2, normal2);
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    // 3. 绘制光屏 (全高度，位置由 slider 控制)
+    fill(screenMode === 'white' ? 245 : (screenMode === 'red' ? 255 : 50), 
+         screenMode === 'red' ? 200 : (screenMode === 'blue' ? 50 : 245), 
+         screenMode === 'blue' ? 255 : 245);
+    stroke(150);
+    rectMode(CORNER);
+    rect(screenX, 0, 15, height); // 贯穿整个画布
+    
+    // 标注光屏区域
+    if (showRegions && minY !== Infinity && maxY !== -Infinity) {
+        fill(50);
+        noStroke();
+        textSize(14);
+        textAlign(LEFT, CENTER);
+        
+        // 只有当坐标在合理范围内才显示文本
+        if (minY > 0 && minY < height) {
+          text("I区: 红外线", screenX + 20, minY - 25);
+          text("(热效应)", screenX + 20, minY - 10);
+          stroke(200,0,0,100);
+          line(screenX, minY-5, screenX+30, minY-5);
+        }
+        
+        if ((minY + maxY)/2 > 0 && (minY + maxY)/2 < height) {
+          noStroke();
+          text("II区: 可见光", screenX + 20, (minY + maxY)/2);
+        }
+        
+        if (maxY > 0 && maxY < height) {
+          text("III区: 紫外线", screenX + 20, maxY + 20);
+          stroke(100,0,200,100);
+        }
+    }
+    
+  } else {
+    text("调整角度使光线射入棱镜", width/2, height - 50);
+  }
+}
+
+// 辅助数学函数
+
+function getNormal(p1, p2) {
+  const dx = p2.x - p1.x;
+  const dy = p2.y - p1.y;
+  return createVector(dy, -dx).normalize();
+}
+
+function refract(I, N, n1, n2) {
+  const eta = n1 / n2;
+  const cosI = -p5.Vector.dot(N, I);
+  const sinT2 = eta * eta * (1.0 - cosI * cosI);
+  
+  if (sinT2 > 1.0) return null; 
+  
+  const cosT = Math.sqrt(1.0 - sinT2);
+  return p5.Vector.add(
+    p5.Vector.mult(I, eta),
+    p5.Vector.mult(N, eta * cosI - cosT)
+  ).normalize();
+}
+
+function lineIntersection(p1, p2, p3, p4) {
+  const x1 = p1.x, y1 = p1.y;
+  const x2 = p2.x, y2 = p2.y;
+  const x3 = p3.x, y3 = p3.y;
+  const x4 = p4.x, y4 = p4.y;
+  
+  const den = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1);
+  if (den === 0) return null;
+  
+  const ua = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / den;
+  const ub = ((x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3)) / den;
+  
+  if (ua >= 0 && ua <= 1 && ub >= 0 && ub <= 1) {
+    return createVector(x1 + ua * (x2 - x1), y1 + ua * (y2 - y1));
+  }
+  return null;
+}
+
+function drawArrow(base, dir, len) {
+  push();
+  translate(base.x + dir.x * len/2, base.y + dir.y * len/2);
+  rotate(dir.heading());
+  const arrowSize = 6;
+  fill(50);
+  noStroke();
+  triangle(0, arrowSize/2, 0, -arrowSize/2, arrowSize, 0);
+  pop();
+}
+
+function drawNormal(p, n) {
+  push();
+  stroke(100, 100, 100, 100);
+  strokeWeight(1);
+  drawingContext.setLineDash([5, 5]);
+  line(p.x - n.x*30, p.y - n.y*30, p.x + n.x*30, p.y + n.y*30);
+  drawingContext.setLineDash([]);
+  pop();
+}
+
+</script>
+</body>
+</html>

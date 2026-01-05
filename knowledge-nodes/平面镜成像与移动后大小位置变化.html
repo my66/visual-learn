@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>物理探究：平面镜成像与移动</title>
+    <!-- 引入 Tailwind CSS 进行快速样式布局 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 FontAwesome 图标 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f4f8;
+            user-select: none; /* 防止拖动时选中文本 */
+        }
+        canvas {
+            border: 1px solid #cbd5e1;
+            background-color: #ffffff;
+            cursor: crosshair;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .control-panel {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        input[type=range] {
+            flex-grow: 1;
+            height: 6px;
+            border-radius: 5px;
+            background: #e2e8f0;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            transition: background .15s ease-in-out;
+        }
+        input[type=range]::-webkit-slider-thumb:hover {
+            background: #2563eb;
+        }
+        .label-badge {
+            font-size: 0.75rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: #e0f2fe;
+            color: #0369a1;
+            font-weight: 600;
+        }
+        .toggle-btn {
+            transition: all 0.2s;
+        }
+        .toggle-btn.active {
+            background-color: #dbeafe;
+            color: #1d4ed8;
+            border-color: #3b82f6;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col md:flex-row overflow-hidden">
+
+    <!-- 左侧：题目与控制区 -->
+    <div class="w-full md:w-1/3 p-4 flex flex-col gap-4 overflow-y-auto z-10">
+        
+        <!-- 题目描述 -->
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-100">
+            <h2 class="text-lg font-bold text-slate-800 mb-2 flex items-center gap-2">
+                <i class="fas fa-book-open text-blue-500"></i> 原题重现 (第12题)
+            </h2>
+            <p class="text-sm text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-lg border border-slate-200">
+                如图，小明站在窗户玻璃A的正前方，看到自己在玻璃A后面所成的等大的<span class="font-bold border-b-2 border-dashed border-blue-400">______</span>像；
+                若往前走几步，看到的像将<span class="font-bold border-b-2 border-dashed border-blue-400">______</span>；
+                如果将窗户玻璃A水平平移到窗户玻璃B的前面，那么像将<span class="font-bold border-b-2 border-dashed border-blue-400">______</span>。
+            </p>
+            <div class="mt-3 text-xs text-slate-500 flex gap-2">
+                <span class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded">关键点：平面镜成像规律</span>
+                <span class="bg-green-100 text-green-800 px-2 py-1 rounded">易错点：像的移动</span>
+            </div>
+        </div>
+
+        <!-- 交互控制面板 -->
+        <div class="control-panel p-5 flex-1 flex flex-col gap-6">
+            <h3 class="font-bold text-slate-700 border-b pb-2">实验操作台</h3>
+
+            <!-- 控制组 1: 小明的位置 -->
+            <div>
+                <div class="flex justify-between items-center mb-2">
+                    <label class="text-sm font-semibold text-slate-700">
+                        <i class="fas fa-walking text-blue-500 mr-1"></i> 小明的位置 (前后移动)
+                    </label>
+                    <span id="distVal" class="label-badge">3.0 m</span>
+                </div>
+                <div class="slider-container">
+                    <span class="text-xs text-slate-400">远</span>
+                    <input type="range" id="personY" min="50" max="350" value="250">
+                    <span class="text-xs text-slate-400">近</span>
+                </div>
+                <p class="text-xs text-slate-500 mt-1">对应操作："往前走几步"</p>
+            </div>
+
+            <!-- 控制组 2: 窗户A的位置 -->
+            <div>
+                <div class="flex justify-between items-center mb-2">
+                    <label class="text-sm font-semibold text-slate-700">
+                        <i class="fas fa-arrows-left-right text-purple-500 mr-1"></i> 窗户A的位置 (左右平移)
+                    </label>
+                    <span id="mirrorVal" class="label-badge">原位</span>
+                </div>
+                <div class="slider-container">
+                    <span class="text-xs text-slate-400">左</span>
+                    <input type="range" id="mirrorX" min="-150" max="150" value="0">
+                    <span class="text-xs text-slate-400">右 (至B处)</span>
+                </div>
+                <p class="text-xs text-slate-500 mt-1">对应操作："水平平移到窗户B前面"</p>
+            </div>
+
+            <!-- 标注开关 -->
+            <div>
+                <label class="text-sm font-semibold text-slate-700 mb-2 block">
+                    <i class="fas fa-eye text-green-500 mr-1"></i> 可视化辅助
+                </label>
+                <div class="grid grid-cols-2 gap-2">
+                    <button class="toggle-btn active border px-3 py-2 rounded text-xs font-medium text-slate-600 hover:bg-slate-50 flex items-center justify-center gap-2" id="btnShowImage" onclick="toggleFeature('showImage')">
+                        <i class="far fa-check-square"></i> 显示虚像
+                    </button>
+                    <button class="toggle-btn border px-3 py-2 rounded text-xs font-medium text-slate-600 hover:bg-slate-50 flex items-center justify-center gap-2" id="btnShowLines" onclick="toggleFeature('showLines')">
+                        <i class="far fa-square"></i> 物像连线
+                    </button>
+                    <button class="toggle-btn border px-3 py-2 rounded text-xs font-medium text-slate-600 hover:bg-slate-50 flex items-center justify-center gap-2" id="btnShowDistance" onclick="toggleFeature('showDistance')">
+                        <i class="far fa-square"></i> 显示距离
+                    </button>
+                    <button class="toggle-btn border px-3 py-2 rounded text-xs font-medium text-slate-600 hover:bg-slate-50 flex items-center justify-center gap-2" id="btnShowNormal" onclick="toggleFeature('showNormal')">
+                        <i class="far fa-square"></i> 显示镜面所在平面
+                    </button>
+                </div>
+            </div>
+
+            <!-- 结论观察区 -->
+            <div class="mt-auto bg-indigo-50 p-3 rounded border border-indigo-100">
+                <h4 class="text-xs font-bold text-indigo-800 mb-1">实时观察结论：</h4>
+                <ul class="text-xs text-indigo-700 space-y-1">
+                    <li>• 像的性质：<span id="imageType" class="font-bold">虚像</span></li>
+                    <li>• 像的大小：<span id="imageSizeStatus" class="font-bold">不变 (始终与人等大)</span></li>
+                    <li>• 像的位置：<span id="imageMoveStatus" class="font-bold">静止不动</span></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- 右侧：可视化画布 -->
+    <div class="flex-1 bg-slate-50 relative flex flex-col overflow-hidden">
+        <div class="absolute top-4 left-4 bg-white/90 backdrop-blur px-3 py-1 rounded text-sm font-bold text-slate-500 shadow z-10 border border-slate-200">
+            <i class="fas fa-camera"></i> 俯视图 (Top-Down View)
+        </div>
+        
+        <div class="flex-1 relative flex items-center justify-center p-4">
+            <canvas id="simCanvas" width="800" height="600" class="w-full h-full object-contain rounded-lg shadow-inner bg-white"></canvas>
+            
+            <!-- 场景内的文字提示，绝对定位 -->
+            <div id="tutorial-tip" class="absolute bottom-8 text-center w-full pointer-events-none opacity-0 transition-opacity duration-500">
+                <span class="bg-black/70 text-white px-4 py-2 rounded-full text-sm">
+                    试着拖动窗户，观察像动不动？
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. 初始化配置与状态 ---
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // 物理/几何参数（以 Canvas 坐标系为准）
+        // 坐标系原点设为画布中心，X向右，Y向下
+        const state = {
+            personY: 200,      // 小明距离镜面的垂直距离 (y轴)
+            mirrorAX: 0,       // 窗户A的中心位置偏移 (x轴)
+            mirrorBX: 200,     // 窗户B的中心位置 (x轴，固定)
+            
+            // 开关状态
+            showImage: true,
+            showLines: false,
+            showDistance: false,
+            showNormal: false, // 是否显示无限延伸的镜面平面
+            
+            // 静态常量
+            mirrorY: 0,        // 镜面所在的平面 Y=0
+            mirrorWidth: 120,
+            mirrorHeight: 10,  // 厚度示意
+            personRadius: 15,
+        };
+
+        // --- 2. 交互逻辑 ---
+        
+        // 监听滑块
+        const personSlider = document.getElementById('personY');
+        const mirrorSlider = document.getElementById('mirrorX');
+        
+        // 数值显示
+        const distVal = document.getElementById('distVal');
+        const mirrorVal = document.getElementById('mirrorVal');
+        const imageSizeStatus = document.getElementById('imageSizeStatus');
+        const imageMoveStatus = document.getElementById('imageMoveStatus');
+
+        function updateStateFromDOM() {
+            // 滑块值映射到逻辑坐标
+            // personY slider: 50(近) ~ 350(远) -> logic: 50 ~ 300
+            // 滑块往左是远(max)，往右是近(min)？通常滑块右边是大值。
+            // 让我们设定：滑块左边(min)是近，右边(max)是远。
+            // 题目说"往前走几步"，即距离变小。
+            // 修正：Slider UI Label说左边是远，右边是近。
+            // 我们读取 slider 值，反转一下或者直接映射。
+            // 既然 HTML label 是 "远 ... 近"，那 value 应该对应距离。
+            // 实际上，更直观的是：Slider往右 -> 距离变近（走到窗前）。
+            // HTML中 min=50(近) max=350(远)。如果用户把滑块拉到右边(350)，那是远。
+            // 让我们重新看下 HTML 标注：左(远) 右(近)。那 value 应该从大到小。
+            // 简单起见，我们直接读值。
+            
+            // 修正 HTML 逻辑：让 Slider 左边是远(350)，右边是近(50)。
+            // CSS 中 range 是从左到右增大的。所以 min=50(右边?), max=350(左边?) 不对。
+            // input range 默认左小右大。
+            // 让我们设定：左边(min 50) = 近, 右边(max 350) = 远。
+            // 但是 HTML text 是 左:远, 右:近。
+            // 我们修改代码逻辑以匹配 HTML 的 label:
+            // 假设 slider value 代表 "距离"。HTML min=50, max=350.
+            // 我们让 value = 实际距离。
+            // 此时左边是 50(近)，右边是 350(远)。
+            // 但 HTML label 写反了？我们改 HTML label 吧，或者在这里反转。
+            // 决定：让滑块代表 "进程序度" 或者直接 "Y坐标"。
+            // 让 Slider 左边 = 0 (原始位置，远)，右边 = 100 (贴近)。
+            // 重新映射：
+            const progress = (personSlider.value - personSlider.min) / (personSlider.max - personSlider.min);
+            // 距离 = maxDist - progress * (maxDist - minDist)
+            // 这样滑块往右(值变大)，距离变小(走近)。
+            const maxDist = 300;
+            const minDist = 50;
+            state.personY = maxDist - progress * (maxDist - minDist);
+
+            // 镜子 A
+            state.mirrorAX = parseInt(mirrorSlider.value);
+            
+            // 更新文字
+            distVal.innerText = (state.personY / 100).toFixed(1) + " m";
+            
+            if(Math.abs(state.mirrorAX - state.mirrorBX) < 10) {
+                mirrorVal.innerText = "重合 (窗B前)";
+            } else if (state.mirrorAX > 50) {
+                mirrorVal.innerText = "向右平移";
+            } else if (state.mirrorAX < -50) {
+                mirrorVal.innerText = "向左平移";
+            } else {
+                mirrorVal.innerText = "原位";
+            }
+
+            // 更新结论文字
+            // 像的大小：始终不变
+            imageSizeStatus.innerText = "不变 (始终等大)";
+            
+            // 像的位置：如果镜子只是平移，像不动
+            // 这里我们做一个检测，如果镜子在动，提示用户看像
+            if (Math.abs(lastMirrorX - state.mirrorAX) > 0) {
+               imageMoveStatus.innerText = "静止不动！";
+               imageMoveStatus.className = "font-bold text-red-500 animate-pulse";
+            } else {
+               imageMoveStatus.innerText = "静止不动";
+               imageMoveStatus.className = "font-bold";
+            }
+            lastMirrorX = state.mirrorAX;
+
+            draw();
+        }
+
+        let lastMirrorX = 0;
+
+        // 绑定事件
+        personSlider.addEventListener('input', updateStateFromDOM);
+        mirrorSlider.addEventListener('input', updateStateFromDOM);
+
+        // 开关功能
+        function toggleFeature(featureName) {
+            state[featureName] = !state[featureName];
+            
+            // 更新按钮样式
+            const btnMap = {
+                'showImage': 'btnShowImage',
+                'showLines': 'btnShowLines',
+                'showDistance': 'btnShowDistance',
+                'showNormal': 'btnShowNormal'
+            };
+            const btn = document.getElementById(btnMap[featureName]);
+            const icon = btn.querySelector('i');
+            
+            if (state[featureName]) {
+                btn.classList.add('active');
+                icon.className = 'far fa-check-square';
+            } else {
+                btn.classList.remove('active');
+                icon.className = 'far fa-square';
+            }
+            draw();
+        }
+
+        // --- 3. 绘图逻辑 (核心) ---
+        
+        function toCanvasX(x) { return canvas.width / 2 + x; }
+        function toCanvasY(y) { return canvas.height / 2 + y; }
+
+        function draw() {
+            // 清空画布
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 绘制网格背景 (便于观察位置不动)
+            drawGrid();
+
+            // 1. 绘制基准平面线 (Mirror Plane)
+            // 即使镜子很短，成像原理是基于无限延伸的平面
+            if (state.showNormal) {
+                ctx.beginPath();
+                ctx.moveTo(0, toCanvasY(state.mirrorY));
+                ctx.lineTo(canvas.width, toCanvasY(state.mirrorY));
+                ctx.strokeStyle = '#94a3b8';
+                ctx.setLineDash([5, 5]);
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                ctx.setLineDash([]);
+                
+                // 标注 "平面镜所在平面"
+                ctx.fillStyle = '#64748b';
+                ctx.font = '12px Arial';
+                ctx.fillText("成像对称平面", 20, toCanvasY(state.mirrorY) - 5);
+            }
+
+            // 2. 绘制窗户 B (参考物)
+            // 固定位置
+            drawWindow(state.mirrorBX, state.mirrorY, '#cbd5e1', '窗户 B');
+
+            // 3. 绘制窗户 A (移动的镜子)
+            // 根据 slider 移动
+            drawWindow(state.mirrorAX, state.mirrorY, '#3b82f6', '窗户 A (镜面)');
+
+            // 4. 计算位置
+            // 物体位置: (0, state.personY) —— 注意：这里为了简化，假设人始终在 X=0 轴上
+            // 但如果镜子移开了，人还在原处吗？题目说 "小明站在窗户A正前方"。
+            // 如果窗户A移走了，小明是否跟着移？
+            // 题目："如果将窗户玻璃A水平平移... 那么像将..." 
+            // 通常这类题目隐含：观察者/物体(小明)不动，只动镜子。
+            // 否则如果小明跟着窗户A走，那像当然也跟着走。
+            // 根据问题 "像将(消失/移动)" 的选项，考察的是"镜动像不动"的规律。
+            // 所以：小明 X 固定为 0 (初始在A正前方)，A 移走后，小明 X 仍为 0。
+            const objX = 0;
+            const objY = state.personY; // 正值，在镜子下方(或前方)
+
+            // 像的位置
+            // 平面镜成像规律：(x, y) 关于 y=mirrorY 对称 -> (x, mirrorY - (y - mirrorY))
+            // 既然 mirrorY = 0，则 ImageY = -objY
+            const imgX = objX;
+            const imgY = -objY;
+
+            // 5. 绘制物体 (小明)
+            drawPerson(objX, objY, false);
+
+            // 6. 绘制像 (虚像)
+            if (state.showImage) {
+                // 关键点：无论镜子移到哪里，只要还在那个平面上，像的位置就是 (imgX, imgY)
+                // 即使镜子没挡住那个位置，虚像的数学位置依然在那里（只要人眼能通过镜子看到反射光）
+                // 为了演示清晰，我们始终画出虚像，并标明 "虚像"
+                drawPerson(imgX, imgY, true);
+            }
+
+            // 7. 辅助线
+            if (state.showLines && state.showImage) {
+                // 连接物像
+                ctx.beginPath();
+                ctx.moveTo(toCanvasX(objX), toCanvasY(objY));
+                ctx.lineTo(toCanvasX(imgX), toCanvasY(imgY));
+                ctx.strokeStyle = '#f59e0b'; // Amber
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([5, 3]);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                
+                // 垂直符号
+                // 在与镜面交点处画个小方块
+                const crossY = toCanvasY(0);
+                const size = 8;
+                ctx.beginPath();
+                ctx.moveTo(toCanvasX(objX) + size, crossY);
+                ctx.lineTo(toCanvasX(objX) + size, crossY + (objY > 0 ? size : -size));
+                ctx.lineTo(toCanvasX(objX), crossY + (objY > 0 ? size : -size));
+                ctx.stroke();
+            }
+
+            // 8. 距离标注
+            if (state.showDistance) {
+                // 物距
+                drawDimensionLine(toCanvasX(objX) - 40, toCanvasY(0), toCanvasX(objX) - 40, toCanvasY(objY), "u", "#ef4444");
+                // 像距
+                if (state.showImage) {
+                    drawDimensionLine(toCanvasX(imgX) - 40, toCanvasY(0), toCanvasX(imgX) - 40, toCanvasY(imgY), "v", "#ef4444");
+                }
+            }
+        }
+
+        // --- 绘图辅助函数 ---
+
+        function drawGrid() {
+            ctx.strokeStyle = '#f1f5f9';
+            ctx.lineWidth = 1;
+            const step = 40;
+            
+            ctx.beginPath();
+            for (let x = 0; x <= canvas.width; x += step) {
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+            }
+            for (let y = 0; y <= canvas.height; y += step) {
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+            }
+            ctx.stroke();
+        }
+
+        function drawWindow(centerX, centerY, color, label) {
+            const w = state.mirrorWidth;
+            const h = state.mirrorHeight;
+            const cx = toCanvasX(centerX);
+            const cy = toCanvasY(centerY);
+
+            // 玻璃主体
+            ctx.fillStyle = color + '80'; // 半透明
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            
+            ctx.beginPath();
+            ctx.rect(cx - w/2, cy - h/2, w, h);
+            ctx.fill();
+            ctx.stroke();
+
+            // 玻璃高光效果
+            ctx.beginPath();
+            ctx.moveTo(cx - w/2 + 5, cy + h/2 - 2);
+            ctx.lineTo(cx - w/2 + 15, cy - h/2 + 2);
+            ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+            ctx.stroke();
+
+            // 标签
+            ctx.fillStyle = color; // 使用 solid color
+            ctx.font = 'bold 12px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            ctx.fillText(label, cx, cy - h/2 - 5);
+        }
+
+        function drawPerson(x, y, isImage) {
+            const cx = toCanvasX(x);
+            const cy = toCanvasY(y);
+            const r = state.personRadius;
+
+            ctx.save();
+            
+            // 如果是像，加一点虚化效果或淡色
+            if (isImage) {
+                ctx.globalAlpha = 0.6;
+                ctx.setLineDash([3, 2]);
+            }
+
+            // 身体/头部
+            ctx.beginPath();
+            ctx.arc(cx, cy, r, 0, Math.PI * 2);
+            ctx.fillStyle = isImage ? '#fca5a5' : '#ef4444'; // Red
+            ctx.fill();
+            ctx.strokeStyle = '#991b1b';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // 简单的肩部示意 (俯视)
+            ctx.beginPath();
+            ctx.ellipse(cx, cy, r + 5, r - 2, 0, 0, Math.PI * 2);
+            ctx.strokeStyle = '#991b1b';
+            ctx.stroke();
+
+            // 文字标签
+            ctx.fillStyle = '#b91c1c';
+            ctx.font = isImage ? 'italic bold 14px Arial' : 'bold 14px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            
+            // 计算标签位置，防止遮挡
+            const labelY = cy + r + 8;
+            const labelText = isImage ? "像 (小明')" : "小明 (物)";
+            
+            ctx.fillText(labelText, cx, labelY);
+
+            // 如果是虚像，额外标注 "虚"
+            if (isImage) {
+                ctx.font = '10px Arial';
+                ctx.fillStyle = '#64748b';
+                ctx.fillText("(正立、等大、虚像)", cx, labelY + 16);
+            }
+
+            ctx.restore();
+        }
+
+        function drawDimensionLine(x1, y1, x2, y2, text, color) {
+            ctx.save();
+            ctx.strokeStyle = color;
+            ctx.fillStyle = color;
+            ctx.lineWidth = 1;
+            
+            // 线
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+            
+            // 箭头
+            drawArrowHead(x1, y1, y2 > y1 ? 'up' : 'down'); // 简单判断方向
+            drawArrowHead(x2, y2, y2 > y1 ? 'down' : 'up');
+
+            // 文字
+            const midX = (x1 + x2) / 2;
+            const midY = (y1 + y2) / 2;
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, midX - 5, midY);
+            
+            ctx.restore();
+        }
+
+        function drawArrowHead(x, y, dir) {
+            // 简单画个横线当端点
+            const s = 4;
+            ctx.beginPath();
+            ctx.moveTo(x - s, y);
+            ctx.lineTo(x + s, y);
+            ctx.stroke();
+        }
+
+        // --- 4. 启动与自适应 ---
+        
+        function resizeCanvas() {
+            // 让 Canvas 这种物理像素匹配 CSS 像素，避免模糊
+            const parent = canvas.parentElement;
+            canvas.width = parent.clientWidth;
+            canvas.height = parent.clientHeight;
+            // 重新绘制
+            draw();
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        
+        // 初始化
+        // 修正 HTML Slider Label 逻辑：让 slider 位置符合视觉习惯
+        // 左边：350(远), 右边: 50(近) 
+        // 实际上我们用的是 input range, 左边是 min, 右边是 max.
+        // 为了让“往前走”(距离变小)对应滑块向右(符合进度的感觉)，我们让 min=远, max=近？不行，range必须 min < max。
+        // 所以: min=50(近), max=350(远).
+        // 滑块在最右边(350) = 离镜子远。滑块在最左边(50) = 离镜子近。
+        // 标签修正：
+        document.querySelector('.slider-container input#personY').previousElementSibling.innerText = "近";
+        document.querySelector('.slider-container input#personY').nextElementSibling.innerText = "远";
+        
+        resizeCanvas();
+        updateStateFromDOM();
+
+    </script>
+</body>
+</html>

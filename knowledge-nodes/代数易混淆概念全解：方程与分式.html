@@ -1,0 +1,1125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>代数易混淆概念全解：方程与分式 (紧凑无滚动条版)</title>
+  
+  <!-- p5.js Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  
+  <!-- MathJax Configuration & Library -->
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['\\(', '\\)']],
+        displayMath: [['\\[', '\\]']],
+        processEscapes: true,
+        packages: {'[+]': ['color', 'ams']}
+      },
+      loader: {load: ['[tex]/color', '[tex]/ams']},
+      options: {
+        ignoreHtmlClass: 'tex2jax_ignore',
+        processHtmlClass: 'tex2jax_process',
+        skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
+      },
+      startup: {
+        typeset: false
+      }
+    };
+  </script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  <style>
+    :root {
+      --primary-blue: #3498db;  /* Equation / Balance */
+      --primary-green: #2ecc71; /* Correct Expression */
+      --primary-orange: #e67e22; /* Fraction Logic */
+      --danger-red: #e74c3c;    /* Errors */
+      --bg-color: #f0f2f5;
+      --panel-bg: #ffffff;
+      --text-main: #2c3e50;
+      --border-radius: 8px;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* --- Navigation Bar --- */
+    nav {
+      background: var(--panel-bg);
+      padding: 0 20px;
+      height: 45px; /* Slightly reduced nav height */
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #e0e0e0;
+      flex-shrink: 0;
+      z-index: 10;
+    }
+
+    .nav-brand {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .nav-tabs {
+      display: flex;
+      gap: 5px;
+    }
+
+    .nav-tab {
+      padding: 5px 10px;
+      border: none;
+      background: transparent;
+      font-size: 0.85rem;
+      cursor: pointer;
+      color: #7f8c8d;
+      font-weight: 600;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+
+    .nav-tab:hover {
+      background: #f0f2f5;
+    }
+
+    .nav-tab.active {
+      background: var(--text-main);
+      color: white;
+    }
+
+    /* --- Main Layout: Vertical (Canvas Top, Panel Bottom) --- */
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column; /* Vertical Stack */
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Scene Container */
+    .scene-container {
+      display: none;
+      width: 100%;
+      height: 100%;
+      flex-direction: column;
+    }
+    .scene-container.active {
+      display: flex;
+    }
+
+    /* Top: Canvas Area */
+    .canvas-area {
+      flex: 1; 
+      width: 100%;
+      position: relative;
+      background: #fafafa;
+      overflow: hidden;
+      border-bottom: 1px solid #ccc;
+    }
+
+    #p5-container-1, #p5-container-2 {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* Bottom: Control Deck */
+    .control-deck {
+      height: 320px; /* Optimized height */
+      width: 100%;
+      background: var(--panel-bg);
+      border-top: 1px solid #ddd;
+      box-shadow: 0 -4px 10px rgba(0,0,0,0.05);
+      flex-shrink: 0;
+      z-index: 5;
+      display: flex;       
+      flex-direction: column; 
+    }
+
+    /* Toolbar for Reset Button */
+    .deck-toolbar {
+      flex-shrink: 0;
+      height: 36px; /* Compact toolbar */
+      border-bottom: 1px solid #eee;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end; /* Right align */
+      padding: 0 15px;
+      background: #fff;
+    }
+
+    /* * Scene 1 Panel Layout: Left-Right Split */
+    .deck-row-split {
+      flex: 1; /* Take remaining height */
+      display: flex;
+      flex-direction: row;
+      overflow: hidden; /* Hide scrollbar if possible, relying on layout fitting */
+    }
+
+    .deck-half {
+      flex: 1;
+      padding: 12px; /* Compact padding */
+      display: flex;
+      flex-direction: column;
+      gap: 8px; /* Compact gap */
+      border-right: 1px solid #eee;
+      overflow-y: auto; /* Allow scroll only if absolutely necessary */
+    }
+    .deck-half:last-child {
+      border-right: none;
+    }
+
+    .deck-header {
+      font-size: 0.95rem;
+      font-weight: bold;
+      margin-bottom: 2px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .deck-subtitle {
+      font-size: 0.8rem; 
+      font-weight:normal; 
+      color:#666; 
+      margin-left:auto;
+    }
+
+    .text-blue { color: var(--primary-blue); }
+    .text-green { color: var(--primary-green); }
+    .text-orange { color: var(--primary-orange); }
+
+    /* Scene 2 Panel Layout: 3 Columns */
+    .deck-row-tri {
+      flex: 1; 
+      display: flex;
+      flex-direction: row;
+      padding: 12px;
+      gap: 15px;
+      overflow-y: auto;
+    }
+    .deck-col {
+      flex: 1;
+      background: #f8f9fa;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #eee;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* UI Elements */
+    .btn {
+      padding: 6px 12px; /* Compact button */
+      border: none;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      width: 100%;
+      margin-bottom: 5px; 
+    }
+    .btn:active { transform: translateY(1px); }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; filter: grayscale(1); }
+
+    .btn-blue { background: var(--primary-blue); color: white; }
+    .btn-blue:hover { background: #2980b9; }
+
+    .btn-green { background: var(--primary-green); color: white; }
+    .btn-green:hover { background: #27ae60; }
+
+    .btn-red { background: var(--danger-red); color: white; }
+    .btn-red:hover { background: #c0392b; }
+
+    .btn-outline { background: white; border: 1px solid #bdc3c7; color: #7f8c8d; }
+    .btn-outline:hover { border-color: #95a5a6; color: #2c3e50; }
+
+    /* Mode Grid for Scene 2 */
+    .mode-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-bottom: 5px;
+    }
+    .mode-grid .btn { margin-bottom: 0; font-size: 0.85rem; padding: 6px 5px; }
+
+    /* Math Boxes - Optimized Height */
+    .math-box {
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      padding: 5px; 
+      min-height: 75px; 
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.05em;
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+      margin-bottom: 5px; 
+      overflow-x: auto;
+    }
+
+    .info-text {
+      font-size: 0.85rem;
+      color: #666;
+      line-height: 1.4;
+      margin-top: 5px;
+      background: rgba(0,0,0,0.02);
+      padding: 6px;
+      border-radius: 4px;
+    }
+
+    /* Sliders */
+    .slider-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px; 
+    }
+    .slider-row label { font-weight: 500; font-size: 0.85rem; width: 50px; }
+    .slider-row input { flex: 1; margin: 0 8px; cursor: pointer; }
+    .slider-val { width: 25px; text-align: right; font-weight: bold; color: var(--primary-blue); font-size:0.9rem; }
+
+    /* Scene 0 Landing */
+    #scene-landing {
+        overflow-y: auto;
+    }
+    .landing-wrapper {
+      padding: 40px;
+      text-align: center;
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .landing-card {
+      background: white;
+      max-width: 800px;
+      width: 100%;
+      padding: 50px;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+    }
+    .landing-options {
+      display: flex;
+      gap: 30px;
+      margin-top: 40px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .option-card {
+      flex: 1;
+      min-width: 280px;
+      border: 2px solid #eee;
+      border-radius: 10px;
+      padding: 30px 20px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .option-card:hover {
+      border-color: var(--primary-blue);
+      transform: translateY(-5px);
+    }
+
+    @media (max-width: 768px) {
+      .deck-row-split, .deck-row-tri { flex-direction: column; height: auto; }
+      .control-deck { height: auto; max-height: 50vh; }
+      .deck-toolbar { justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <div class="nav-brand">
+      🎓 数学概念可视化 <span style="font-weight:normal; font-size:0.9em; margin-left:5px; color:#7f8c8d;">Master Class</span>
+    </div>
+    <div class="nav-tabs">
+      <button class="nav-tab active" onclick="app.switchScene('landing')">首页</button>
+      <button class="nav-tab" onclick="app.switchScene('eq_vs_exp')">1. 方程 vs 分式</button>
+      <button class="nav-tab" onclick="app.switchScene('mult_vs_add')">2. 扩分 vs 变形</button>
+    </div>
+  </nav>
+
+  <main>
+    
+    <!-- SCENE 0: LANDING -->
+    <div id="scene-landing" class="scene-container active">
+      <div class="landing-wrapper">
+        <div class="landing-card">
+          <h1 style="color:var(--text-main); margin-bottom:15px;">代数中的"形似而神不似"</h1>
+          <p style="color:#666; font-size:1.1rem; line-height:1.6;">
+            请选择一个主题，通过更开阔的视图和直观的对比，<br>理解数学运算的本质。
+          </p>
+          
+          <div class="landing-options">
+            <div class="option-card" onclick="app.switchScene('eq_vs_exp')">
+              <div style="font-size:3.5rem; margin-bottom:20px;">⚖️ vs 🍰</div>
+              <h3 style="margin:0 0 10px 0;">去分母 vs 通分</h3>
+              <p style="font-size:0.95rem; color:#7f8c8d;">
+                为什么解方程可以去分母，<br>而分式计算只能通分？
+              </p>
+            </div>
+            
+            <div class="option-card" onclick="app.switchScene('mult_vs_add')">
+              <div style="font-size:3.5rem; margin-bottom:20px;">🍕</div>
+              <h3 style="margin:0 0 10px 0;">扩分 vs 变形</h3>
+              <p style="font-size:0.95rem; color:#7f8c8d;">
+                乘除法（性质） vs 加减法（变形），<br>几何意义有何不同？
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SCENE 1: EQ vs EXP -->
+    <div id="scene-eq_vs_exp" class="scene-container">
+      
+      <!-- Top: Canvas -->
+      <div class="canvas-area">
+        <div id="p5-container-1"></div>
+        <!-- Center Divider Overlay -->
+        <div style="position:absolute; left:50%; top:20px; bottom:20px; width:1px; background:rgba(0,0,0,0.1); pointer-events:none; border-left:1px dashed #ccc;"></div>
+      </div>
+
+      <!-- Bottom: Control Deck (Flex Column) -->
+      <div class="control-deck">
+        
+        <!-- TOOLBAR: Reset Scene 1 -->
+        <div class="deck-toolbar">
+           <span style="font-size:0.9rem; font-weight:bold; color:#555; margin-right:auto;">场景控制</span>
+           <button class="btn btn-outline" onclick="app.resetScene1()" style="width:auto; margin:0; padding:4px 12px; font-size:0.8rem;">
+             🔄 重置本场景
+           </button>
+        </div>
+
+        <!-- CONTENT: Split L/R -->
+        <div class="deck-row-split">
+            
+            <!-- LEFT HALF: Equation Controls -->
+            <div class="deck-half" style="background: linear-gradient(to bottom, #fff, #f4faff);">
+                <div class="deck-header text-blue">
+                    <span>⚖️ 场景一：等式的性质</span>
+                    <span class="deck-subtitle">目标：保持平衡</span>
+                </div>
+                
+                <div id="math-eq" class="math-box"></div>
+                
+                <div class="info-text" id="eq-feedback">
+                    <strong>核心：</strong>等式两边同时加减乘除（除数不为0）同一个数，等式依然成立。天平始终平衡。
+                </div>
+                
+                <div style="margin-top:auto;">
+                    <div style="font-size:0.8rem; color:#888; margin-bottom:4px;">选择两边同时执行的操作：</div>
+                    <div class="mode-grid">
+                        <button class="btn btn-blue" id="btn-eq-mult" onclick="app.eqAction('mult')">× 6 (去分母)</button>
+                        <button class="btn btn-outline" id="btn-eq-div" onclick="app.eqAction('div')">÷ 2</button>
+                        <button class="btn btn-outline" id="btn-eq-add" onclick="app.eqAction('add')">+ 2</button>
+                        <button class="btn btn-outline" id="btn-eq-sub" onclick="app.eqAction('sub')">- 2</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT HALF: Expression Controls -->
+            <div class="deck-half" style="background: linear-gradient(to bottom, #fff, #f4fff8);">
+                <div class="deck-header text-green">
+                    <span>🍰 场景二：分式计算</span>
+                    <span class="deck-subtitle">目标：化简求值</span>
+                </div>
+
+                <div id="math-exp" class="math-box"></div>
+
+                <div id="exp-feedback" class="info-text">
+                    <strong>核心：</strong>分式变形必须保证<strong>数值（总面积）不变</strong>。注意观察左侧下方图形。
+                </div>
+
+                <div style="margin-top:auto; display:flex; gap:8px;">
+                    <button class="btn btn-outline" id="btn-exp-wrong" onclick="app.expAction('wrong')" style="color:var(--danger-red); border-color:var(--danger-red); flex:1;">
+                        ❌ 错误：同乘 6
+                    </button>
+                    <button class="btn btn-green" id="btn-exp-correct" onclick="app.expAction('correct')" style="flex:1;">
+                        ✅ 正确：通分
+                    </button>
+                </div>
+            </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- SCENE 2: MULT vs ADD -->
+    <div id="scene-mult_vs_add" class="scene-container">
+      
+      <!-- Top: Canvas -->
+      <div class="canvas-area">
+        <div id="p5-container-2"></div>
+      </div>
+
+      <!-- Bottom: Control Deck (3 Cols) -->
+      <div class="control-deck">
+        <div class="deck-row-tri">
+          
+          <!-- Col 1: Parameters -->
+          <div class="deck-col">
+            <div class="deck-header text-blue">1. 设定初始分数</div>
+            <div class="slider-row">
+              <label>分子 a</label>
+              <input type="range" min="1" max="6" value="2" id="slider-a" oninput="app.updateScene2Params()">
+              <span class="slider-val" id="val-a">2</span>
+            </div>
+            <div class="slider-row">
+              <label>分母 b</label>
+              <input type="range" min="2" max="10" value="6" id="slider-b" oninput="app.updateScene2Params()">
+              <span class="slider-val" id="val-b">6</span>
+            </div>
+          </div>
+
+          <!-- Col 2: Action -->
+          <div class="deck-col">
+            <div class="deck-header text-orange">2. 选择操作</div>
+            
+            <div class="mode-grid">
+              <button class="btn btn-green" id="mode-mult" onclick="app.setMode2('mult')">× 乘法</button>
+              <button class="btn btn-green" id="mode-div" onclick="app.setMode2('div')">÷ 除法</button>
+              <button class="btn btn-outline" id="mode-add" onclick="app.setMode2('add')">+ 加法</button>
+              <button class="btn btn-outline" id="mode-sub" onclick="app.setMode2('sub')">- 减法</button>
+            </div>
+
+            <div class="slider-row">
+              <label>操作数 k</label>
+              <input type="range" min="1" max="5" step="1" value="2" id="slider-k" oninput="app.updateScene2Params()">
+              <span class="slider-val" id="val-k">2</span>
+            </div>
+            <div id="k-hint" style="font-size:0.75rem; color:#888; text-align:right;"></div>
+          </div>
+
+          <!-- Col 3: Result -->
+          <div class="deck-col" style="background:white; border-color:#ddd;">
+            <div class="deck-header">3. 结果分析</div>
+            <div id="math-frac" class="math-box" style="border:none; background:#f9f9f9; margin-bottom:5px; flex-wrap:wrap;"></div>
+            <div id="frac-conclusion" style="padding:8px; border-radius:6px; text-align:center; font-weight:bold; color:#7f8c8d; background:#eee; font-size:0.9rem;">
+              请选择操作...
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+<script>
+/**
+ * APP STATE & LOGIC
+ */
+const app = {
+  currentScene: 'landing',
+  
+  // Scene 1: eqMode ('init', 'mult', 'div', 'add', 'sub'), expStep (0, 1, 2)
+  s1: { eqMode: 'init', expStep: 0 },
+  
+  // Scene 2
+  s2: { a: 2, b: 6, k: 2, mode: 'mult' },
+
+  init: function() {
+    this.updateMath1();
+    this.updateMath2();
+  },
+
+  switchScene: function(name) {
+    this.currentScene = name;
+    
+    // Toggle DOM
+    document.querySelectorAll('.scene-container').forEach(el => el.classList.remove('active'));
+    document.getElementById(`scene-${name}`).classList.add('active');
+    
+    // Toggle Tabs
+    document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
+    const map = {'landing':0, 'eq_vs_exp':1, 'mult_vs_add':2};
+    document.querySelectorAll('.nav-tab')[map[name]].classList.add('active');
+
+    // Trigger Resize for P5
+    setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+  },
+
+  // --- Scene 1 ---
+  eqAction: function(mode) {
+    this.s1.eqMode = mode;
+    
+    // Update button styles
+    const modes = ['mult', 'div', 'add', 'sub'];
+    modes.forEach(m => {
+        const btn = document.getElementById(`btn-eq-${m}`);
+        if(m === mode) {
+            btn.className = 'btn btn-blue';
+        } else {
+            btn.className = 'btn btn-outline';
+        }
+    });
+
+    this.updateMath1();
+  },
+
+  expAction: function(type) {
+    if (type === 'wrong') {
+      this.s1.expStep = 1;
+      document.getElementById('exp-feedback').innerHTML = "❌ <span style='color:var(--danger-red)'>数值不相等！</span> 左侧图形变长了，与原图形无法对齐。";
+    } else {
+      this.s1.expStep = 2;
+      document.getElementById('exp-feedback').innerHTML = "✅ <span style='color:var(--primary-green)'>数值相等！</span> 左侧图形长度未变，只是被切分得更细了。";
+    }
+    this.updateMath1();
+  },
+
+  resetScene1: function() {
+    this.s1.eqMode = 'init';
+    this.s1.expStep = 0;
+    
+    // Reset buttons
+    ['mult', 'div', 'add', 'sub'].forEach(m => {
+        document.getElementById(`btn-eq-${m}`).className = (m === 'mult' ? 'btn btn-blue' : 'btn btn-outline');
+    });
+    // Reset selection look manually
+    document.getElementById('btn-eq-mult').className = 'btn btn-outline';
+
+    document.getElementById('exp-feedback').innerHTML = "<strong>核心：</strong>分式变形必须保证<strong>数值（总面积）不变</strong>。注意观察左侧下方图形。";
+    this.updateMath1();
+  },
+
+  updateMath1: function() {
+    // Equation Math
+    let eqTex = "";
+    const mode = this.s1.eqMode;
+
+    if (mode === 'init') {
+        eqTex = String.raw`\frac{x}{2} = \frac{x+4}{3}`;
+    } else if (mode === 'mult') {
+        eqTex = String.raw`
+        \begin{aligned}
+           \color{#3498db}{6 \times} \frac{x}{2} &= \color{#3498db}{6 \times} \frac{x+4}{3} \\
+           \downarrow & \\
+           3x &= 2(x+4)
+        \end{aligned}
+        `;
+    } else if (mode === 'div') {
+        eqTex = String.raw`
+        \begin{aligned}
+           \frac{x}{2} \color{#3498db}{\div 2} &= \frac{x+4}{3} \color{#3498db}{\div 2} \\
+           \downarrow & \\
+           \frac{x}{4} &= \frac{x+4}{6}
+        \end{aligned}
+        `;
+    } else if (mode === 'add') {
+        eqTex = String.raw`
+        \begin{aligned}
+           \frac{x}{2} \color{#3498db}{+ 2} &= \frac{x+4}{3} \color{#3498db}{+ 2} \\
+           \text{依然} &= \text{平衡}
+        \end{aligned}
+        `;
+    } else if (mode === 'sub') {
+        eqTex = String.raw`
+        \begin{aligned}
+           \frac{x}{2} \color{#3498db}{- 2} &= \frac{x+4}{3} \color{#3498db}{- 2} \\
+           \text{依然} &= \text{平衡}
+        \end{aligned}
+        `;
+    }
+    renderMath('math-eq', `\\[ ${eqTex} \\]`);
+
+    // Expression Math
+    let expTex = "";
+    if (this.s1.expStep === 0) {
+        expTex = String.raw`\frac{x}{2} + \frac{x+4}{3}`;
+    } else if (this.s1.expStep === 1) {
+        // Wrong: Show implicit multiply by 6
+        expTex = String.raw`
+        \begin{aligned}
+           \text{原式} \times \color{#e74c3c}{6} &= 3x + 2(x+4) \\
+           &\color{#e74c3c}{\neq} \text{原式}
+        \end{aligned}
+        `;
+    } else if (this.s1.expStep === 2) {
+        // Correct: Show expanding
+        expTex = String.raw`
+        \begin{aligned}
+           &= \frac{x \times 3}{2 \times 3} + \frac{(x+4) \times 2}{3 \times 2} \\
+           &= \frac{3x}{6} + \frac{2(x+4)}{6}
+        \end{aligned}
+        `;
+    }
+    renderMath('math-exp', `\\[ ${expTex} \\]`);
+  },
+
+  // --- Scene 2 ---
+  updateScene2Params: function() {
+    this.s2.a = parseInt(document.getElementById('slider-a').value);
+    this.s2.b = parseInt(document.getElementById('slider-b').value);
+    this.s2.k = parseFloat(document.getElementById('slider-k').value);
+    document.getElementById('val-a').innerText = this.s2.a;
+    document.getElementById('val-b').innerText = this.s2.b;
+    document.getElementById('val-k').innerText = this.s2.k;
+    this.updateMath2();
+  },
+
+  setMode2: function(mode) {
+    this.s2.mode = mode;
+    
+    // Update Button Styles
+    const modes = ['mult', 'div', 'add', 'sub'];
+    modes.forEach(m => {
+        const btn = document.getElementById(`mode-${m}`);
+        const isSelected = (mode === m);
+        const isGood = (m === 'mult' || m === 'div');
+        
+        if (isSelected) {
+            btn.className = isGood ? 'btn btn-green' : 'btn btn-red';
+        } else {
+            btn.className = 'btn btn-outline';
+        }
+    });
+
+    // Update Slider limits and values based on mode
+    const sk = document.getElementById('slider-k');
+    
+    if (mode === 'add' || mode === 'sub') {
+        sk.min = "0"; // Allow 0 for add/sub
+    } else {
+        sk.min = "1"; // Min 1 for mult/div
+        if (parseFloat(sk.value) < 1) {
+            sk.value = "1";
+            this.s2.k = 1;
+        }
+    }
+
+    // Ensure k is integer
+    if(this.s2.k % 1 !== 0) {
+        this.s2.k = Math.round(this.s2.k);
+        sk.value = this.s2.k;
+    }
+    
+    this.updateScene2Params();
+  },
+
+  updateMath2: function() {
+    const { a, b, k, mode } = this.s2;
+    let newA, newB, opStr, relStr;
+    const con = document.getElementById('frac-conclusion');
+    const hint = document.getElementById('k-hint');
+    
+    hint.innerText = "";
+
+    if (mode === 'mult') {
+        newA = a * k; newB = b * k;
+        opStr = `\\times ${k}`;
+        relStr = "=";
+        con.style.background = "rgba(46, 204, 113, 0.2)";
+        con.style.color = "#27ae60";
+        con.innerText = "比值相等 (✅ 扩分)";
+    } else if (mode === 'div') {
+        newA = a / k; newB = b / k;
+        opStr = `\\div ${k}`;
+        relStr = "=";
+        con.style.background = "rgba(46, 204, 113, 0.2)";
+        con.style.color = "#27ae60";
+        con.innerText = "比值相等 (✅ 约分)";
+        if (!Number.isInteger(newA) || !Number.isInteger(newB)) {
+            hint.innerText = "注：演示产生小数，通常约分用于整除";
+        }
+    } else if (mode === 'add') {
+        newA = a + k; newB = b + k;
+        opStr = `+ ${k}`;
+        if (k === 0) {
+            relStr = "=";
+            con.style.background = "#eee"; con.style.color = "#7f8c8d"; con.innerText = "数值未变 (k=0)";
+        } else if (Math.abs(a/b - newA/newB) < 0.001) {
+            relStr = "=";
+            con.style.background = "#eee"; con.style.color = "#7f8c8d"; con.innerText = "数值未变";
+        } else {
+            relStr = "\\neq";
+            con.style.background = "rgba(231, 76, 60, 0.2)";
+            con.style.color = "#c0392b";
+            con.innerText = "比值改变 (❌ 错误变形)";
+        }
+    } else if (mode === 'sub') {
+        newA = a - k; newB = b - k;
+        opStr = `- ${k}`;
+        if (k === 0) {
+            relStr = "=";
+            con.style.background = "#eee"; con.style.color = "#7f8c8d"; con.innerText = "数值未变 (k=0)";
+        } else if (newA < 0 || newB <= 0) {
+            relStr = "\\text{?}";
+            con.style.background = "rgba(231, 76, 60, 0.2)";
+            con.style.color = "#c0392b";
+            con.innerText = "数值无效 (负数/零)";
+            hint.innerText = "分子或分母变为了负数/零";
+        } else if (Math.abs(a/b - newA/newB) < 0.001) {
+            relStr = "=";
+            con.style.background = "#eee"; con.style.color = "#7f8c8d"; con.innerText = "数值未变";
+        } else {
+            relStr = "\\neq";
+            con.style.background = "rgba(231, 76, 60, 0.2)";
+            con.style.color = "#c0392b";
+            con.innerText = "比值改变 (❌ 错误变形)";
+        }
+    }
+
+    // Format numbers to avoid long decimals
+    const fA = parseFloat(newA.toFixed(2));
+    const fB = parseFloat(newB.toFixed(2));
+    
+    // LaTeX construction
+    // Use smaller font for operation part if needed
+    const tex = String.raw`\frac{${a}}{${b}} \quad \mathbf{${relStr}} \quad \frac{${a} ${opStr}}{${b} ${opStr}} = \frac{${fA}}{${fB}}`;
+    renderMath('math-frac', `\\[ ${tex} \\]`);
+  },
+};
+
+/**
+ * P5 SKETCHES (Visual Logic)
+ */
+
+// Sketch 1: Equation vs Expression (Split View)
+const sketch1 = (p) => {
+  p.setup = () => {
+    let c = document.getElementById('p5-container-1');
+    p.createCanvas(c.clientWidth, c.clientHeight).parent(c);
+    p.rectMode(p.CENTER);
+  };
+  p.windowResized = () => {
+    let c = document.getElementById('p5-container-1');
+    if(c.clientWidth > 0) p.resizeCanvas(c.clientWidth, c.clientHeight);
+  };
+
+  p.draw = () => {
+    p.background(252);
+    if(app.currentScene !== 'eq_vs_exp') return;
+
+    // Left: Balance (Equation)
+    p.push();
+    p.translate(p.width * 0.25, p.height * 0.5); // Centered vertically
+    drawBalance(p);
+    p.pop();
+
+    // Right: Bars (Expression)
+    p.push();
+    p.translate(p.width * 0.75, p.height * 0.5); // Centered vertically
+    drawBars(p);
+    p.pop();
+  };
+
+  function drawBalance(p) {
+    let mode = app.s1.eqMode;
+    // Base scale and visual multipliers for different modes
+    let scale = 1; 
+    let visualMult = 1;
+    let addedWeight = 0; // 0: none, 1: positive, -1: negative (sub)
+
+    if (mode === 'mult') {
+        scale = 6; visualMult = 1.5;
+    } else if (mode === 'div') {
+        scale = 0.5; visualMult = 0.7;
+    } else if (mode === 'add') {
+        addedWeight = 1;
+    } else if (mode === 'sub') {
+        addedWeight = -1;
+    }
+    
+    // Stand
+    p.fill(100); p.noStroke();
+    p.triangle(0,0, -15, 60, 15, 60);
+    p.rect(0, 60, 60, 5);
+    
+    // Beam (Always Balanced)
+    p.stroke(50); p.strokeWeight(4);
+    p.line(-100, 0, 100, 0); 
+    
+    // Pans
+    drawPan(p, -100, 0, scale, visualMult, addedWeight);
+    drawPan(p, 100, 0, scale, visualMult, addedWeight);
+    
+    // Label
+    p.fill(mode !== 'init' ? '#2980b9' : '#7f8c8d');
+    p.noStroke(); p.textAlign(p.CENTER); p.textSize(16);
+    let txt = "初始平衡状态";
+    if (mode === 'mult') txt = "质量扩大，依然平衡";
+    if (mode === 'div') txt = "质量减小，依然平衡";
+    if (mode === 'add') txt = "两边加重，依然平衡";
+    if (mode === 'sub') txt = "两边减重，依然平衡";
+    p.text(txt, 0, -80);
+  }
+
+  function drawPan(p, x, y, scale, vScale, addedWeight) {
+    p.push();
+    p.translate(x, y);
+    p.stroke(180); p.strokeWeight(2);
+    p.line(0,0, -20, 40); p.line(0,0, 20, 40);
+    
+    p.translate(0, 40);
+    p.fill(240); p.noStroke();
+    p.arc(0,0, 60, 16, 0, p.PI);
+    
+    // Main Weight
+    let h = 30 * vScale;
+    let w = 40 * vScale;
+    p.fill('#3498db'); p.stroke('#2980b9');
+    p.rect(0, -h/2, w, h);
+    
+    p.fill(255); p.noStroke(); p.textSize(12);
+    if(scale > 1) p.text("×6", 0, -h/2);
+    if(scale < 1) p.text("÷2", 0, -h/2);
+
+    // Added/Subtracted Weight
+    if (addedWeight !== 0) {
+        // Draw a small block on top or beside
+        p.push();
+        // Shift position slightly
+        p.translate(25, -10); 
+        let col = addedWeight > 0 ? '#f1c40f' : '#e74c3c'; // Yellow for add, Red for sub
+        let txt = addedWeight > 0 ? '+2' : '-2';
+        
+        p.fill(col); p.stroke(p.color(col).levels.map(c=>c*0.8));
+        p.rect(0, 0, 20, 20);
+        
+        p.fill(255); p.textAlign(p.CENTER, p.CENTER); p.textSize(10);
+        p.text(txt, 0, 0);
+        p.pop();
+    }
+
+    p.pop();
+  }
+
+  function drawBars(p) {
+    // Step 0: Base, 1: Wrong(Big), 2: Correct(Cuts)
+    let step = app.s1.expStep;
+    let hBase = 60;
+    let w = 50; 
+
+    // Shared Ground Baseline Y
+    let groundY = 100;
+
+    // --- LEFT: Original (Reference) ---
+    p.push();
+    p.translate(-80, 0); 
+    p.fill('#7f8c8d'); p.noStroke(); 
+    p.textAlign(p.CENTER); p.textSize(14);
+    p.text("原图形", 0, groundY + 25);
+    p.stroke(200); p.strokeWeight(2);
+    p.line(-40, groundY, 40, groundY);
+    p.fill('#bdc3c7'); p.stroke(255); p.strokeWeight(2);
+    p.rect(0, groundY - hBase/2, w, hBase);
+    p.pop();
+
+    // --- RIGHT: New (Transformed) ---
+    p.push();
+    p.translate(80, 0);
+    let hCurr = hBase;
+    let col = '#2ecc71';
+    let label = "新图形";
+
+    if (step === 1) {
+      hCurr = 200; // Visual x6 growth
+      col = '#e74c3c';
+      label = "长度暴涨 (≠)";
+    } else if (step === 2) {
+      label = "长度不变 (=)";
+    }
+
+    p.fill(step === 1 ? '#c0392b' : '#27ae60'); 
+    p.noStroke(); p.textAlign(p.CENTER); p.textSize(14);
+    p.text(label, 0, groundY + 25);
+    p.stroke(200); p.strokeWeight(2);
+    p.line(-40, groundY, 40, groundY);
+    p.fill(col); p.stroke(255); p.strokeWeight(2);
+    p.rect(0, groundY - hCurr/2, w, hCurr);
+
+    if (step === 2) {
+      p.stroke(255, 200); p.strokeWeight(1);
+      for(let i=1; i<6; i++) {
+        let ly = groundY - (hCurr/6)*i;
+        p.line(-w/2, ly, w/2, ly);
+      }
+    }
+    p.pop();
+
+    // --- Middle Comparison ---
+    p.fill(150); p.noStroke(); p.textAlign(p.CENTER); p.textSize(24);
+    let symbol = (step === 1) ? "≠" : (step === 2 ? "=" : "vs");
+    p.text(symbol, 0, groundY - 30);
+  }
+};
+
+// Sketch 2: Pie & Coordinate
+const sketch2 = (p) => {
+  p.setup = () => {
+    let c = document.getElementById('p5-container-2');
+    p.createCanvas(c.clientWidth, c.clientHeight).parent(c);
+    p.angleMode(p.DEGREES);
+    p.textAlign(p.CENTER, p.CENTER);
+  };
+  p.windowResized = () => {
+    let c = document.getElementById('p5-container-2');
+    if(c.clientWidth > 0) p.resizeCanvas(c.clientWidth, c.clientHeight);
+  };
+
+  p.draw = () => {
+    p.background(252);
+    if(app.currentScene !== 'mult_vs_add') return;
+
+    let { a, b, k, mode } = app.s2;
+    let newA, newB, opSymbol;
+    
+    if (mode === 'mult') { newA = a*k; newB = b*k; opSymbol = `× ${k}`; }
+    else if (mode === 'div') { newA = a/k; newB = b/k; opSymbol = `÷ ${k}`; }
+    else if (mode === 'add') { newA = a+k; newB = b+k; opSymbol = `+ ${k}`; }
+    else if (mode === 'sub') { newA = a-k; newB = b-k; opSymbol = `- ${k}`; }
+
+    let cx1 = p.width * 0.3;
+    let cx2 = p.width * 0.7;
+    let cy = p.height * 0.5;
+    let r = Math.min(p.width, p.height) * 0.25;
+
+    // Operation Arrow
+    p.push();
+    p.stroke(200); p.strokeWeight(3);
+    p.line(p.width/2 - 40, cy, p.width/2 + 40, cy);
+    p.fill(200); p.noStroke();
+    p.triangle(p.width/2+40, cy, p.width/2+30, cy-8, p.width/2+30, cy+8);
+    p.fill(100); p.textSize(18);
+    p.text(opSymbol, p.width/2, cy - 25);
+    p.pop();
+
+    drawPie(p, cx1, cy, r, a, b, '#3498db', "原分数");
+    
+    // Check validity for new fraction
+    let isValid = (newB > 0 && newA >= 0);
+    let isSame = false;
+    if(isValid && b > 0) {
+        if (mode === 'add' || mode === 'sub') {
+             // For add/sub, check if values differ numerically
+             // But if k=0, they are same numerically
+             isSame = Math.abs(a/b - newA/newB) < 0.001;
+        } else {
+             // For mult/div, they are mathematically equivalent (mostly)
+             isSame = Math.abs(a/b - newA/newB) < 0.001;
+        }
+    }
+    
+    // Logic for color: 
+    let col2;
+    if (!isValid) {
+        col2 = '#e74c3c'; // Invalid
+    } else {
+        if (mode === 'mult' || mode === 'div') {
+            col2 = '#2ecc71'; // Correct (Green)
+        } else {
+            // Add/Sub
+            if (k === 0) {
+                col2 = '#95a5a6'; // Gray/Neutral for no change
+            } else {
+                col2 = '#e74c3c'; // Wrong (Red) for any change
+            }
+        }
+    }
+    
+    if (!isValid) {
+        // Draw invalid state
+        p.push();
+        p.translate(cx2, cy);
+        p.fill(235); p.noStroke(); p.circle(0,0, r*2);
+        p.fill(150); p.textSize(16); 
+        p.text("无效值", 0, 0);
+        p.text("新分数", 0, -r-25);
+        p.pop();
+    } else {
+        // Pass dynamic color
+        drawPie(p, cx2, cy, r, newA, newB, col2, "新分数");
+    }
+  };
+
+  function drawPie(p, x, y, r, num, den, col, label) {
+    if (den <= 0) return;
+    
+    // Bg
+    p.fill(235); p.noStroke();
+    p.circle(x, y, r*2);
+    
+    // 1. Draw Fill First (Color)
+    p.fill(col); p.noStroke();
+    if(num > 0) {
+      let effectiveRatio = num/den;
+      if (effectiveRatio >= 1) {
+         p.circle(x,y,r*2);
+      } else {
+         let endAng = effectiveRatio*360;
+         p.arc(x, y, r*2, r*2, -90, -90+endAng, p.PIE);
+      }
+    }
+
+    // 2. Draw Slices (Lines) AFTER fill
+    p.stroke(255); p.strokeWeight(2);
+    
+    // Only draw slices if density is reasonable and den is positive
+    if (den > 0 && den < 60) {
+        let step = 360 / den;
+        for(let i=0; i<Math.ceil(den); i++) {
+            let ang = -90 + i*step;
+            p.line(x, y, x + r*p.cos(ang), y + r*p.sin(ang));
+        }
+    }
+    
+    p.fill(50); p.noStroke(); p.textSize(16);
+    p.text(label, x, y - r - 25);
+    p.textSize(22);
+    p.text(`${parseFloat(num.toFixed(2))} / ${parseFloat(den.toFixed(2))}`, x, y + r + 30);
+  }
+};
+
+new p5(sketch1);
+new p5(sketch2);
+
+// Safe MathJax Rendering
+async function renderMath(id, tex) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.style.visibility = 'hidden'; 
+  el.innerHTML = tex;
+  
+  if (window.MathJax && typeof window.MathJax.typesetPromise === 'function') {
+    try {
+      await MathJax.typesetPromise([el]);
+      el.style.visibility = 'visible';
+    } catch(e) { 
+        console.warn(e); 
+        el.innerText = tex.replace(/\\/g, ''); 
+        el.style.visibility = 'visible'; 
+    }
+  } else {
+    setTimeout(() => renderMath(id, tex), 200);
+  }
+}
+
+app.init();
+</script>
+</body>
+</html>

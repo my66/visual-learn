@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>汽车挡风玻璃光路原理演示 (题9 C/D选项)</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f2f5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            color: #333;
+        }
+        header {
+            background-color: #2c3e50;
+            color: white;
+            width: 100%;
+            padding: 1rem 0;
+            text-align: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        h1 { margin: 0; font-size: 1.2rem; }
+        .subtitle { font-size: 0.9rem; opacity: 0.8; margin-top: 5px; }
+        
+        #canvas-container {
+            position: relative;
+            margin: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+            background: linear-gradient(to bottom, #1a2a3a 0%, #2c3e50 50%, #111 50%, #000 100%); /* Night Mode for better reflection visibility */
+            cursor: default; /* Default cursor, will change on hover */
+        }
+        
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            width: 90%;
+            max-width: 600px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .control-group {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .slider-container {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        input[type=range] {
+            flex-grow: 1;
+        }
+        
+        .toggle-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s;
+            background-color: #e0e0e0;
+            color: #555;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .toggle-btn.active {
+            color: white;
+        }
+        
+        #btn-c { border: 2px solid #ff9800; color: #ff9800; background: transparent; }
+        #btn-c.active { background-color: #ff9800; color: white; }
+        
+        #btn-d { border: 2px solid #e91e63; color: #e91e63; background: transparent; }
+        #btn-d.active { background-color: #e91e63; color: white; }
+        
+        .legend {
+            display: flex;
+            gap: 15px;
+            font-size: 0.85rem;
+            margin-top: 5px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .legend-item { display: flex; align-items: center; gap: 5px; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; }
+        
+        .info-panel {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #e8f4fd;
+            border-left: 4px solid #2196F3;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>第9题 物理原理可视化 (修正版)</h1>
+    <div class="subtitle">选项C（车内乘客/亮物成像）与 选项D（后方水平强光）</div>
+</header>
+
+<div id="canvas-container">
+    <canvas id="simCanvas" width="600" height="400"></canvas>
+</div>
+
+<div class="controls">
+    <div class="control-group">
+        <label><strong>挡风玻璃角度:</strong> <span id="angle-display">45° (轿车)</span></label>
+        <div class="slider-container">
+            <span>垂直 (公交车)</span>
+            <input type="range" id="angleSlider" min="0" max="60" value="45">
+            <span>倾斜 (跑车)</span>
+        </div>
+    </div>
+
+    <div class="control-group" style="justify-content: center;">
+        <button id="btn-c" class="toggle-btn active" onclick="toggleScenario('C')">
+            <span>💡 选项C: 车内乘客/亮物 (可拖动)</span>
+        </button>
+        <button id="btn-d" class="toggle-btn" onclick="toggleScenario('D')">
+            <span>🚗 选项D: 后方强光</span>
+        </button>
+    </div>
+
+    <div class="info-panel" id="info-text">
+        <!-- Text will be updated by JS -->
+    </div>
+
+    <div class="legend">
+        <div class="legend-item"><div class="dot" style="background:orange"></div>车内亮物(乘客)</div>
+        <div class="legend-item"><div class="dot" style="background:#e91e63"></div>后方强光</div>
+        <div class="legend-item"><div class="dot" style="background:rgba(255,255,255,0.5); border:1px dashed #fff"></div>虚像</div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('simCanvas');
+    const ctx = canvas.getContext('2d');
+    const slider = document.getElementById('angleSlider');
+    const angleDisplay = document.getElementById('angle-display');
+    const infoText = document.getElementById('info-text');
+    const btnC = document.getElementById('btn-c');
+    const btnD = document.getElementById('btn-d');
+
+    // State
+    let glassAngle = 45; // Degrees from vertical
+    let activeScenario = 'C'; 
+    
+    // Constants
+    const width = canvas.width;
+    const height = canvas.height;
+    const roadY = height * 0.75; // Horizon line for road
+    const dashY = roadY - 40; // Dashboard height
+
+    // Draggable Items Position
+    let eyePos = { x: 180, y: roadY - 70 }; // Driver eye position
+    let objectPos = { x: 160, y: roadY - 30 }; // Interior object position
+
+    // Dragging State
+    let isDraggingEye = false;
+    let isDraggingObject = false;
+    let dragOffset = { x: 0, y: 0 };
+    const dragRadius = 15; // Hit detection radius
+
+    function toggleScenario(scenario) {
+        if (scenario === 'C') {
+            activeScenario = 'C';
+            btnC.classList.add('active');
+            btnD.classList.remove('active');
+            canvas.style.cursor = 'default';
+        } else {
+            activeScenario = 'D';
+            btnD.classList.add('active');
+            btnC.classList.remove('active');
+            canvas.style.cursor = 'default';
+        }
+        draw();
+    }
+
+    function updateInfo() {
+        angleDisplay.textContent = glassAngle + "°";
+        if (glassAngle < 10) {
+            angleDisplay.textContent += " (垂直)";
+        } else if (glassAngle > 50) {
+            angleDisplay.textContent += " (极度倾斜)";
+        }
+
+        if (activeScenario === 'C') {
+            if (glassAngle < 15) {
+                infoText.innerHTML = "<strong>⚠️ 危险情况 (垂直玻璃)：</strong><br>车内乘客或司机（橙色点）的虚像直接出现在<strong>正前方的路面上</strong>。在夜间，这会像一个幽灵飘在车前，严重干扰司机观察路况。";
+            } else {
+                infoText.innerHTML = "<strong>✅ 安全设计 (倾斜玻璃)：</strong><br>玻璃倾斜后，乘客的虚像位置被<strong>抬高到了半空中</strong>。司机平视路面时，虚像位于视线上方（天空背景），从而避开了路面上的行人车辆。";
+            }
+        } else {
+            if (glassAngle < 15) {
+                infoText.innerHTML = "<strong>⚠️ 眩光干扰 (垂直玻璃)：</strong><br>后方射来的水平强光（如后车远光灯）射到垂直玻璃上，会<strong>水平反射回来</strong>，直接进入司机眼睛或后视镜，造成强烈眩光。";
+            } else {
+                infoText.innerHTML = "<strong>✅ 防眩光设计 (倾斜玻璃)：</strong><br>光线射入倾斜的玻璃（∖ 形状）。根据反射定律，水平入射光会被<strong>反射向下方</strong>，打在深色的中控台/仪表盘上被吸收，不会干扰司机视线。";
+            }
+        }
+    }
+
+    slider.addEventListener('input', (e) => {
+        glassAngle = parseInt(e.target.value);
+        draw();
+    });
+
+    // --- Mouse Interactions for Dragging ---
+
+    function getMousePos(canvas, evt) {
+        const rect = canvas.getBoundingClientRect();
+        return {
+            x: evt.clientX - rect.left,
+            y: evt.clientY - rect.top
+        };
+    }
+
+    function isHit(pos, target) {
+        const dx = pos.x - target.x;
+        const dy = pos.y - target.y;
+        return dx * dx + dy * dy <= dragRadius * dragRadius;
+    }
+
+    canvas.addEventListener('mousedown', (e) => {
+        if (activeScenario !== 'C') return;
+        const mousePos = getMousePos(canvas, e);
+
+        if (isHit(mousePos, eyePos)) {
+            isDraggingEye = true;
+            dragOffset.x = mousePos.x - eyePos.x;
+            dragOffset.y = mousePos.y - eyePos.y;
+            canvas.style.cursor = 'grabbing';
+        } else if (isHit(mousePos, objectPos)) {
+            isDraggingObject = true;
+            dragOffset.x = mousePos.x - objectPos.x;
+            dragOffset.y = mousePos.y - objectPos.y;
+            canvas.style.cursor = 'grabbing';
+        }
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+        if (activeScenario !== 'C') return;
+        const mousePos = getMousePos(canvas, e);
+
+        if (isDraggingEye) {
+            eyePos.x = mousePos.x - dragOffset.x;
+            eyePos.y = mousePos.y - dragOffset.y;
+            draw();
+        } else if (isDraggingObject) {
+            objectPos.x = mousePos.x - dragOffset.x;
+            objectPos.y = mousePos.y - dragOffset.y;
+            draw();
+        } else {
+            // Update cursor for hover effect
+            if (isHit(mousePos, eyePos) || isHit(mousePos, objectPos)) {
+                canvas.style.cursor = 'grab';
+            } else {
+                canvas.style.cursor = 'default';
+            }
+        }
+    });
+
+    canvas.addEventListener('mouseup', () => {
+        if (isDraggingEye || isDraggingObject) {
+            isDraggingEye = false;
+            isDraggingObject = false;
+            canvas.style.cursor = 'grab'; // Set to grab to indicate it's still draggable
+            draw();
+        }
+    });
+
+    canvas.addEventListener('mouseleave', () => {
+        if (isDraggingEye || isDraggingObject) {
+            isDraggingEye = false;
+            isDraggingObject = false;
+            canvas.style.cursor = 'default';
+            draw();
+        }
+    });
+
+    // --- Drawing Functions ---
+
+    function drawCarBody(glassTopX, glassTopY, glassBottomX, glassBottomY) {
+        ctx.strokeStyle = "#888"; // Lighter color for night visibility
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        // Hood
+        ctx.moveTo(glassBottomX, glassBottomY);
+        ctx.lineTo(glassBottomX + 150, glassBottomY); 
+        ctx.lineTo(glassBottomX + 150, glassBottomY + 40);
+        // Roof
+        ctx.moveTo(glassTopX, glassTopY);
+        ctx.lineTo(glassTopX - 120, glassTopY);
+        ctx.stroke();
+
+        // Dashboard area (Dark absorbent material)
+        ctx.fillStyle = "#111"; // Very dark
+        ctx.fillRect(glassBottomX - 60, glassBottomY, 100, 10); // Dash
+        
+        // Label Dashboard
+        if (activeScenario === 'D' && glassAngle > 20) {
+            ctx.fillStyle = "#888";
+            ctx.font = "10px Arial";
+            ctx.fillText("吸光中控台", glassBottomX - 40, glassBottomY + 25);
+        }
+    }
+
+    function drawEye() {
+        ctx.font = "20px Arial";
+        ctx.fillStyle = "#fff";
+        ctx.fillText("👁️", eyePos.x, eyePos.y);
+        ctx.fillStyle = "rgba(255,255,255,0.7)";
+        ctx.font = "12px Arial";
+        ctx.fillText("司机视线", eyePos.x - 30, eyePos.y + 25);
+        
+        // Draw line of sight (dashed)
+        ctx.strokeStyle = "rgba(255,255,255,0.2)";
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        ctx.moveTo(eyePos.x + 10, eyePos.y);
+        ctx.lineTo(width, eyePos.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Add drag indicator ring
+        if (activeScenario === 'C') {
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(eyePos.x + 5, eyePos.y - 5, dragRadius, 0, Math.PI*2);
+            ctx.stroke();
+        }
+    }
+
+    function getReflection(p1, p2, source, rayDir) {
+        const x1 = p1.x, y1 = p1.y;
+        const x2 = p2.x, y2 = p2.y;
+        const x3 = source.x, y3 = source.y;
+        const x4 = source.x + rayDir.x * 1000, y4 = source.y + rayDir.y * 1000;
+
+        const den = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+        if (den == 0) return null;
+
+        const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / den;
+        const u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / den;
+
+        if (t >= 0 && t <= 1 && u >= 0) {
+            const intersectX = x1 + t * (x2 - x1);
+            const intersectY = y1 + t * (y2 - y1);
+            
+            // Normal vector to the glass (pointing inward/backward)
+            let dx = x2 - x1;
+            let dy = y2 - y1;
+            // Rotate 90 deg
+            let nx = -dy;
+            let ny = dx;
+            // Normalize
+            let len = Math.sqrt(nx*nx + ny*ny);
+            nx /= len; ny /= len;
+
+            // Ensure normal points generally towards the ray source side
+            if (nx * rayDir.x + ny * rayDir.y > 0) {
+                nx = -nx;
+                ny = -ny;
+            }
+
+            // R = I - 2(I.N)N
+            const dot = rayDir.x * nx + rayDir.y * ny;
+            const rx = rayDir.x - 2 * dot * nx;
+            const ry = rayDir.y - 2 * dot * ny;
+
+            return {
+                x: intersectX,
+                y: intersectY,
+                rx: rx,
+                ry: ry
+            };
+        }
+        return null;
+    }
+
+    function getVirtualImage(point, p1, p2) {
+         const x1 = p1.x, y1 = p1.y;
+         const x2 = p2.x, y2 = p2.y;
+         const A = y1 - y2;
+         const B = x2 - x1;
+         const C = -A*x1 - B*y1;
+         const m = A*A + B*B;
+         const x = point.x - 2*A*(A*point.x + B*point.y + C)/m;
+         const y = point.y - 2*B*(A*point.x + B*point.y + C)/m;
+         return {x: x, y: y};
+    }
+
+    function draw() {
+        updateInfo();
+        ctx.clearRect(0, 0, width, height);
+        
+        // Night Background
+        // Road Line
+        ctx.beginPath();
+        ctx.strokeStyle = "#666";
+        ctx.lineWidth = 2;
+        ctx.moveTo(0, roadY);
+        ctx.lineTo(width, roadY);
+        ctx.stroke();
+
+        // Calculate Windshield Position
+        // Base glass bottom position on a fixed point relative to the car's frame, not the eye
+        const carFrameX = 180;
+        const glassBottom = { x: carFrameX + 80, y: dashY };
+        const glassLen = 120;
+        const rad = (glassAngle * Math.PI) / 180;
+        const glassTop = {
+            x: glassBottom.x - Math.sin(rad) * glassLen,
+            y: glassBottom.y - Math.cos(rad) * glassLen
+        };
+
+        drawCarBody(glassTop.x, glassTop.y, glassBottom.x, glassBottom.y);
+        drawEye();
+
+        // Draw Windshield
+        ctx.strokeStyle = "rgba(200, 230, 255, 0.6)";
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.moveTo(glassTop.x, glassTop.y);
+        ctx.lineTo(glassBottom.x, glassBottom.y);
+        ctx.stroke();
+
+        // --- SCENARIO C: Interior Object (Passenger/Driver) ---
+        if (activeScenario === 'C') {
+            // Draw Object (Simulating a bright shirt or face)
+            ctx.fillStyle = "orange";
+            ctx.beginPath();
+            ctx.arc(objectPos.x, objectPos.y, 8, 0, Math.PI*2);
+            ctx.fill();
+            // Simple body shape
+            ctx.fillRect(objectPos.x - 8, objectPos.y, 16, 20);
+            
+            // Labels for object
+            ctx.fillStyle = "orange";
+            ctx.font = "12px Arial";
+            ctx.fillText("车内亮物", objectPos.x - 30, objectPos.y + 35);
+            ctx.font = "10px Arial";
+            ctx.fillText("(可拖动)", objectPos.x - 25, objectPos.y + 48);
+
+            // Add drag indicator ring
+            ctx.strokeStyle = "rgba(255, 165, 0, 0.3)";
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(objectPos.x, objectPos.y + 10, dragRadius, 0, Math.PI*2);
+            ctx.stroke();
+
+
+            // Trace rays from object to eye
+            // We need to find the point on the glass where the reflection happens
+            // This is done by finding the intersection of the line from Virtual Image to Eye with the glass
+            const vImg = getVirtualImage(objectPos, glassTop, glassBottom);
+            
+            // Line from vImg to eyePos
+            const rayDir = { x: eyePos.x - vImg.x, y: eyePos.y - vImg.y };
+            const len = Math.sqrt(rayDir.x*rayDir.x + rayDir.y*rayDir.y);
+            rayDir.x /= len; rayDir.y /= len;
+
+            // Find intersection with glass
+            // We use getReflection for intersection logic, even though we know the direction
+            // We need a point on the ray (vImg) and its direction
+            const reflectionPoint = getReflection(glassTop, glassBottom, vImg, rayDir);
+
+            if (reflectionPoint) {
+                // Incident Ray (Object -> Glass)
+                ctx.strokeStyle = "orange";
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+                ctx.moveTo(objectPos.x, objectPos.y);
+                ctx.lineTo(reflectionPoint.x, reflectionPoint.y);
+                ctx.stroke();
+
+                // Reflected Ray (Glass -> Eye)
+                ctx.setLineDash([]);
+                ctx.strokeStyle = "rgba(255, 165, 0, 0.6)";
+                ctx.beginPath();
+                ctx.moveTo(reflectionPoint.x, reflectionPoint.y);
+                ctx.lineTo(eyePos.x, eyePos.y);
+                ctx.stroke();
+                
+                // Draw Arrow on Reflected Ray
+                drawArrow(ctx, reflectionPoint.x, reflectionPoint.y, eyePos.x, eyePos.y, "rgba(255, 165, 0, 0.6)");
+
+                // Virtual Image Position
+                // Draw Virtual Image (Ghost)
+                ctx.fillStyle = "rgba(255, 165, 0, 0.6)"; 
+                ctx.beginPath();
+                ctx.arc(vImg.x, vImg.y, 8, 0, Math.PI*2);
+                ctx.fill();
+                ctx.fillRect(vImg.x - 8, vImg.y, 16, 20);
+                
+                ctx.strokeStyle = "orange";
+                ctx.lineWidth = 1;
+                ctx.setLineDash([2, 2]);
+                ctx.stroke();
+                
+                ctx.fillStyle = "#fff";
+                ctx.font = "14px Arial";
+                ctx.fillText("虚像", vImg.x + 15, vImg.y);
+
+                // Analyze Height relative to Eye Level
+                if (vImg.y > roadY) {
+                    ctx.fillStyle = "#ff5555";
+                    ctx.fillText("⚠️ 危险: 像在路面", vImg.x + 15, vImg.y + 20);
+                } else {
+                    ctx.fillStyle = "#55ff55";
+                    ctx.fillText("✅ 安全: 像在空中", vImg.x + 15, vImg.y - 10);
+                }
+            }
+        }
+
+        // --- SCENARIO D: Rear Light Reflection ---
+        if (activeScenario === 'D') {
+            // Source: Far behind. Use eyePos.y as reference but fixed x
+            const rearRayY = eyePos.y + 10; 
+            const startX = 0;
+            const dir = { x: 1, y: 0 }; // Horizontal right
+
+            const reflection = getReflection(glassTop, glassBottom, {x: startX, y: rearRayY}, dir);
+
+            if (reflection) {
+                // Incident
+                ctx.strokeStyle = "#e91e63"; 
+                ctx.lineWidth = 3;
+                ctx.setLineDash([10, 5]);
+                ctx.beginPath();
+                ctx.moveTo(startX, rearRayY);
+                ctx.lineTo(reflection.x, reflection.y);
+                ctx.stroke();
+                
+                ctx.fillStyle = "#e91e63";
+                ctx.fillText("后方强光", 20, rearRayY - 10);
+
+                // Reflected Ray
+                ctx.setLineDash([]);
+                ctx.beginPath();
+                ctx.moveTo(reflection.x, reflection.y);
+                
+                // Make ray length just enough to hit dashboard
+                // Check intersection with "dashboard line" (glassBottom.y)
+                let endX = reflection.x + reflection.rx * 200;
+                let endY = reflection.y + reflection.ry * 200;
+                
+                // Calculate intersection with Dash Y level
+                if (reflection.ry > 0) { // Going down
+                    const distToDash = dashY - reflection.y;
+                    if (distToDash > 0) {
+                        const scalar = distToDash / reflection.ry;
+                        endX = reflection.x + reflection.rx * scalar;
+                        endY = dashY; // Stop at dash
+                    }
+                }
+
+                ctx.lineTo(endX, endY);
+                ctx.stroke();
+
+                drawArrow(ctx, reflection.x, reflection.y, reflection.x + reflection.rx * 30, reflection.y + reflection.ry * 30, "#e91e63");
+
+                // Logic check
+                if (reflection.ry > 0.3) {
+                    // Points down
+                    ctx.fillStyle = "#55ff55";
+                    ctx.fillText("✅ 反射向下", endX + 10, endY - 10);
+                    ctx.fillText("(被中控台吸收)", endX + 10, endY + 5);
+                    
+                    // Impact effect
+                    ctx.beginPath();
+                    ctx.arc(endX, endY, 5, 0, Math.PI*2);
+                    ctx.fillStyle = "#e91e63";
+                    ctx.fill();
+                } else if (Math.abs(reflection.ry) < 0.3) {
+                    // Horizontal-ish
+                    ctx.fillStyle = "#ff5555";
+                    ctx.fillText("⚠️ 反射入眼!", endX, endY);
+                } else {
+                     ctx.fillStyle = "#aaa";
+                     ctx.fillText("反射向上", endX, endY);
+                }
+            }
+        }
+    }
+
+    function drawArrow(ctx, fromx, fromy, tox, toy, color) {
+        const headlen = 10; 
+        const dx = tox - fromx;
+        const dy = toy - fromy;
+        const angle = Math.atan2(dy, dx);
+        ctx.strokeStyle = color;
+        ctx.beginPath();
+        ctx.moveTo(tox, toy);
+        ctx.lineTo(tox - headlen * Math.cos(angle - Math.PI / 6), toy - headlen * Math.sin(angle - Math.PI / 6));
+        ctx.moveTo(tox, toy);
+        ctx.lineTo(tox - headlen * Math.cos(angle + Math.PI / 6), toy - headlen * Math.sin(angle + Math.PI / 6));
+        ctx.stroke();
+    }
+
+    draw();
+
+</script>
+
+</body>
+</html>

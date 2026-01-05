@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>初二几何压轴题完整演示</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap');
+        body { font-family: 'Noto Sans SC', sans-serif; }
+        canvas { touch-action: none; }
+        .tab-btn { transition: all 0.2s; }
+        .tab-btn.active { background-color: #4f46e5; color: white; border-color: #4f46e5; }
+        .tab-btn:not(.active):hover { background-color: #f1f5f9; }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen flex flex-col items-center py-4 sm:py-8">
+
+    <div class="max-w-5xl w-full bg-white shadow-2xl rounded-2xl overflow-hidden border border-slate-200 flex flex-col h-[90vh] sm:h-auto">
+        
+        <!-- Top Navigation / Tabs -->
+        <div class="bg-white border-b border-slate-200 flex flex-col sm:flex-row">
+            <div class="px-6 py-4 bg-slate-50 border-b sm:border-b-0 sm:border-r border-slate-200 flex-shrink-0">
+                <h1 class="text-slate-800 text-lg font-bold">初二几何压轴题演示</h1>
+                <p class="text-slate-500 text-xs mt-1">手拉手模型 & 截长补短法</p>
+            </div>
+            <div class="flex-1 flex p-2 space-x-2 bg-slate-50">
+                <button onclick="switchMode('part2')" id="tab-part2" class="tab-btn active flex-1 py-2 px-4 rounded-lg border border-transparent font-medium text-sm text-center">
+                    第(2)问：求证 AP=2AO
+                </button>
+                <button onclick="switchMode('part3')" id="tab-part3" class="tab-btn flex-1 py-2 px-4 rounded-lg border border-slate-200 text-slate-600 font-medium text-sm text-center">
+                    第(3)问：AE/BE/CE 数量关系
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="flex flex-col lg:flex-row flex-1 overflow-hidden">
+            <!-- Canvas Container -->
+            <div class="relative w-full lg:w-2/3 h-[40vh] lg:h-[600px] bg-slate-50 border-b lg:border-b-0 lg:border-r border-slate-200">
+                <canvas id="geometryCanvas" class="w-full h-full block cursor-crosshair"></canvas>
+                
+                <!-- Dynamic Legend Overlay -->
+                <div id="legend-container" class="absolute top-4 left-4 space-y-2 pointer-events-none">
+                    <!-- Legends will be injected by JS -->
+                </div>
+
+                <!-- Step Indicator Floating on Canvas (Mobile) -->
+                <div class="absolute top-4 right-4 bg-white/90 backdrop-blur px-3 py-1 rounded-full shadow-sm border border-slate-200 text-xs font-mono text-indigo-600 lg:hidden">
+                    Step <span id="step-count-mobile">0</span>
+                </div>
+            </div>
+
+            <!-- Sidebar / Explanation -->
+            <div class="w-full lg:w-1/3 flex flex-col h-full bg-white">
+                <!-- Header for Step -->
+                <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-baseline">
+                    <h2 class="text-xl font-bold text-slate-800" id="step-title">准备开始</h2>
+                    <span class="hidden lg:inline-block text-xs font-mono bg-slate-100 text-slate-500 px-2 py-1 rounded" id="step-indicator">
+                        步骤 0 / 0
+                    </span>
+                </div>
+
+                <!-- Scrollable Content -->
+                <div class="flex-1 p-6 overflow-y-auto custom-scrollbar relative" id="explanation-content">
+                    <!-- Content injected by JS -->
+                </div>
+
+                <!-- Controls -->
+                <div class="p-4 border-t border-slate-100 bg-slate-50 flex justify-between items-center z-10">
+                    <button id="prevBtn" class="px-4 py-2 rounded-lg bg-white border border-slate-300 text-slate-600 text-sm font-medium hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm">
+                        &larr; 上一步
+                    </button>
+                    
+                    <!-- Dots -->
+                    <div class="flex space-x-1" id="dots-container"></div>
+
+                    <button id="nextBtn" class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition">
+                        下一步 &rarr;
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // Data & Logic Definitions
+        // ==========================================
+        
+        const SQRT3 = Math.sqrt(3);
+
+        // --- Part 2 Logic (AP = 2AO) ---
+        const PART2 = {
+            totalSteps: 7,
+            initPoints: function() {
+                const pts = { O: {x:0, y:0}, A: {x:0, y:2}, Q: {x:0, y:-2} };
+                pts.B = { x: SQRT3, y: 1 };
+                pts.M = { x: 0, y: 3.5 };
+                // N is M rotated -60 deg around B
+                const vx = pts.M.x - pts.B.x, vy = pts.M.y - pts.B.y;
+                const cos = 0.5, sin = -SQRT3/2; 
+                pts.N = { x: pts.B.x + (vx*cos - vy*sin), y: pts.B.y + (vx*sin + vy*cos) };
+                // P is intersection of AN and y=0
+                pts.P = intersectLineY(pts.A, pts.N, 0);
+                return pts;
+            },
+            steps: [
+                {
+                    title: "题目回顾",
+                    content: `<p class="mb-2 text-sm text-slate-600">已知：△OAB和△BMN都是等边三角形，A在y轴上，M在y轴上，N,A,P共线。</p><p class="text-sm text-slate-600">求证：<strong>AP = 2AO</strong></p><div class="mt-4 p-3 bg-yellow-50 text-yellow-800 text-xs rounded border border-yellow-200">🎯 <strong>思路：</strong> 不用勾股定理，尝试用<strong>倍长中线法</strong>构造等边三角形。</div>`
+                },
+                {
+                    title: "1. 识别模型",
+                    content: `<p class="text-sm text-slate-600">观察两个共顶点的等边三角形：</p><ul class="list-disc pl-5 mt-2 space-y-1 text-sm text-slate-600"><li><span class="text-blue-600 font-bold">OB = AB</span> (△OAB)</li><li><span class="text-blue-600 font-bold">BM = BN</span> (△BMN)</li></ul>`
+                },
+                {
+                    title: "2. 证明全等",
+                    content: `<p class="text-sm text-slate-600">利用SAS证明全等：</p><ul class="list-disc pl-5 mt-2 space-y-1 text-sm text-slate-600"><li>OB = AB</li><li>∠OBM = ∠ABN (同为60°+∠ABM)</li><li>BM = BN</li><li><strong>∴ △OBM ≌ △ABN</strong></li></ul>`
+                },
+                {
+                    title: "3. 导角计算",
+                    content: `<p class="text-sm text-slate-600">利用全等转移角度：</p><ul class="list-disc pl-5 mt-2 space-y-1 text-sm text-slate-600"><li>∠BAN = ∠BOM</li><li>∵ M在y轴, B在第一象限(30°方向)</li><li>∴ ∠BOM = ∠AOB = <strong>60°</strong></li><li><strong>∴ ∠BAN = 60°</strong></li></ul>`
+                },
+                {
+                    title: "4. 锁定目标角",
+                    content: `<p class="text-sm text-slate-600">计算 ∠OAP：</p><ul class="list-disc pl-5 mt-2 space-y-1 text-sm text-slate-600"><li>∠OAN = ∠OAB(60°) + ∠BAN(60°) = 120°</li><li>∵ P, A, N 共线</li><li>∴ ∠OAP = 180° - 120° = <strong>60°</strong></li></ul>`
+                },
+                {
+                    title: "5. 几何构造",
+                    content: `<p class="text-sm text-slate-600">关键一步（倍长法）：</p><div class="p-3 bg-green-50 text-green-800 text-xs rounded border border-green-200 mt-2"><strong>作法：</strong> 延长 AO 到 Q，使得 <strong>OQ = AO</strong>，连接 PQ。</div><p class="text-xs text-slate-500 mt-2">这相当于把直角三角形向下翻折。此时 PA = PQ（垂直平分线性质）。</p>`
+                },
+                {
+                    title: "6. 证等边三角形",
+                    content: `<p class="text-sm text-slate-600">在 △APQ 中：</p><ul class="list-disc pl-5 mt-2 space-y-1 text-sm text-slate-600"><li>PA = PQ (已证)</li><li>∠PAO = 60° (第4步已证)</li><li>∴ <strong>△APQ 是等边三角形</strong></li></ul>`
+                },
+                {
+                    title: "7. 得出结论",
+                    content: `<p class="text-sm text-slate-600">最后一步：</p><ul class="list-disc pl-5 mt-2 space-y-1 text-sm text-slate-600"><li>∵ △APQ 等边 → <strong>AP = AQ</strong></li><li>∵ AQ = AO + OQ = 2AO</li><li><strong>∴ AP = 2AO</strong></li></ul><div class="mt-4 text-center text-xs text-indigo-600 font-bold">得证！</div>`
+                }
+            ],
+            draw: function(ctx, pts, step, toCanvas, drawHelpers) {
+                const { drawLine, drawPoint, drawPolygon, drawTick } = drawHelpers;
+                
+                // Base
+                drawLine(pts.O, pts.A);
+                drawLine(pts.A, pts.B);
+                drawLine(pts.B, pts.O);
+                drawLine(pts.B, pts.M);
+                drawLine(pts.M, pts.N);
+                drawLine(pts.N, pts.B);
+
+                if (step >= 1) {
+                    drawPolygon([pts.O, pts.A, pts.B], 'rgba(59, 130, 246, 0.1)', '#3b82f6');
+                    drawPolygon([pts.B, pts.M, pts.N], 'rgba(59, 130, 246, 0.1)', '#3b82f6');
+                }
+                if (step >= 2) {
+                    drawPolygon([pts.O, pts.B, pts.M], 'rgba(168, 85, 247, 0.2)', '#a855f7');
+                    drawPolygon([pts.A, pts.B, pts.N], 'rgba(168, 85, 247, 0.2)', '#a855f7');
+                }
+                if (step >= 4) {
+                    drawLine(pts.N, pts.P, '#64748b', 2, [5,5]);
+                    drawLine(pts.A, pts.P, '#334155', 3);
+                    drawLine(pts.P, pts.O, '#334155', 3);
+                }
+                if (step >= 5) {
+                    drawLine(pts.O, pts.Q, '#dc2626', 3, [5,3]);
+                    drawLine(pts.P, pts.Q, '#dc2626', 3, [5,3]);
+                    drawPoint(pts.Q, 'Q', '#dc2626');
+                }
+                if (step >= 6) {
+                    drawPolygon([pts.A, pts.P, pts.Q], 'rgba(34, 197, 94, 0.1)', '#22c55e');
+                }
+                
+                // Points
+                drawPoint(pts.O, 'O');
+                drawPoint(pts.A, 'A');
+                drawPoint(pts.B, 'B');
+                drawPoint(pts.M, 'M');
+                drawPoint(pts.N, 'N');
+                if (step >= 4) drawPoint(pts.P, 'P');
+            }
+        };
+
+        // --- Part 3 Logic (AE = BE + CE) ---
+        const PART3 = {
+            totalSteps: 6,
+            initPoints: function() {
+                const pts = { O: {x:0, y:0}, A: {x:0, y:2} };
+                pts.B = { x: SQRT3, y: 1 };
+                // C is B rotated -90 then shifted? No, Tri OBC is isosceles right at B? 
+                // Problem says BC perp BO, BC=BO.
+                // Vector OB=(sq3, 1). Rotate -90 -> (1, -sq3). C = B + vec.
+                pts.C = { x: SQRT3 + 1, y: 1 - SQRT3 };
+                pts.D = { x: (pts.O.x+pts.C.x)/2, y: (pts.O.y+pts.C.y)/2 };
+                // E is intersect of AC and BD
+                pts.E = intersectLines(pts.A, pts.C, pts.B, pts.D);
+                // F is on AE such that EF = EB (approx calc for viz)
+                const distEB = Math.sqrt((pts.E.x-pts.B.x)**2 + (pts.E.y-pts.B.y)**2);
+                const vecEA = { x: pts.A.x-pts.E.x, y: pts.A.y-pts.E.y };
+                const lenEA = Math.sqrt(vecEA.x**2 + vecEA.y**2);
+                pts.F = { 
+                    x: pts.E.x + (vecEA.x/lenEA)*distEB, 
+                    y: pts.E.y + (vecEA.y/lenEA)*distEB 
+                };
+                return pts;
+            },
+            steps: [
+                {
+                    title: "题目回顾",
+                    content: `<p class="mb-2 text-sm text-slate-600">已知：△OAB等边，△OBC等腰直角(∠OBC=90°)，D为OC中点。</p><p class="text-sm text-slate-600">求证：<strong>AE, BE, CE</strong> 的数量关系。</p><div class="mt-4 p-3 bg-yellow-50 text-yellow-800 text-xs rounded border border-yellow-200">💡 <strong>提示：</strong> AE看起来最长，猜测 AE = BE + CE。使用<strong>截长补短法</strong>。</div>`
+                },
+                {
+                    title: "1. 发现大等腰三角形",
+                    content: `<p class="text-sm text-slate-600">连接AC：</p><ul class="list-disc pl-5 mt-2 space-y-1 text-sm text-slate-600"><li>AB = OB (等边)</li><li>BC = OB (等腰直角)</li><li><strong>∴ AB = BC</strong> (△ABC是等腰三角形)</li><li>∠ABC = 60°+90° = 150°</li><li><strong>∴ ∠ACB = 15°</strong></li></ul>`
+                },
+                {
+                    title: "2. 计算核心角",
+                    content: `<p class="text-sm text-slate-600">计算 ∠AEB：</p><ul class="list-disc pl-5 mt-2 space-y-1 text-sm text-slate-600"><li>∠BCE = 15° (上步得)</li><li>∠CBE = 45° (BD平分直角)</li><li>在 △BCE 中，∠BEC = 180°-15°-45° = 120°</li><li><strong>∴ ∠AEB = 60°</strong> (邻补角)</li></ul>`
+                },
+                {
+                    title: "3. 截长补短",
+                    content: `<p class="text-sm text-slate-600">作辅助线：</p><div class="p-3 bg-green-50 text-green-800 text-xs rounded border border-green-200 mt-2">在 AE 上截取 <strong>EF = BE</strong>，连接 BF。</div><p class="text-xs text-slate-500 mt-2">目的是利用 60° 角构造等边三角形。</p>`
+                },
+                {
+                    title: "4. 验证构造",
+                    content: `<p class="text-sm text-slate-600">观察 △BEF：</p><ul class="list-disc pl-5 mt-2 space-y-1 text-sm text-slate-600"><li>EF = BE (作法)</li><li>∠AEB = 60° (第2步已证)</li><li>∴ <strong>△BEF 是等边三角形</strong></li><li>推论：BF = BE，∠FBE = 60°</li></ul>`
+                },
+                {
+                    title: "5. 证明全等",
+                    content: `<p class="text-sm text-slate-600">证 △ABF ≌ △CBE：</p><ul class="list-disc pl-5 mt-2 space-y-1 text-sm text-slate-600"><li>AB = CB (已证)</li><li>BF = BE (等边三角形)</li><li>∠ABF = 150°-60°-45° = <strong>45°</strong> = ∠CBE</li><li><strong>∴ △ABF ≌ △CBE (SAS)</strong></li></ul>`
+                },
+                {
+                    title: "6. 得出结论",
+                    content: `<p class="text-sm text-slate-600">最终推导：</p><ul class="list-disc pl-5 mt-2 space-y-1 text-sm text-slate-600"><li>由全等得：<strong>AF = CE</strong></li><li>AE = AF + EF</li><li>代换得：<strong>AE = CE + BE</strong></li></ul>`
+                }
+            ],
+            draw: function(ctx, pts, step, toCanvas, drawHelpers) {
+                const { drawLine, drawPoint, drawPolygon, drawTick } = drawHelpers;
+
+                drawLine(pts.O, pts.A);
+                drawLine(pts.A, pts.B);
+                drawLine(pts.B, pts.O);
+                drawLine(pts.O, pts.C);
+                drawLine(pts.C, pts.B);
+                drawLine(pts.A, pts.C);
+                drawLine(pts.B, pts.D);
+
+                if (step >= 1) {
+                    drawPolygon([pts.A, pts.B, pts.C], 'rgba(59, 130, 246, 0.1)', '#3b82f6');
+                    drawTick(pts.A, pts.B, '#3b82f6');
+                    drawTick(pts.B, pts.C, '#3b82f6');
+                }
+                if (step >= 3) {
+                    drawLine(pts.B, pts.F, '#059669', 2, [5,3]);
+                    drawPoint(pts.F, 'F', '#dc2626');
+                }
+                if (step >= 4) {
+                    drawPolygon([pts.B, pts.E, pts.F], 'rgba(34, 197, 94, 0.1)', '#22c55e');
+                }
+                if (step >= 5) {
+                    drawPolygon([pts.A, pts.B, pts.F], 'rgba(168, 85, 247, 0.2)', '#a855f7');
+                    drawPolygon([pts.C, pts.B, pts.E], 'rgba(168, 85, 247, 0.2)', '#a855f7');
+                }
+                if (step >= 6) {
+                    drawLine(pts.A, pts.F, '#dc2626', 4);
+                    drawLine(pts.C, pts.E, '#dc2626', 4);
+                }
+
+                drawPoint(pts.O, 'O');
+                drawPoint(pts.A, 'A');
+                drawPoint(pts.B, 'B');
+                drawPoint(pts.C, 'C');
+                drawPoint(pts.D, 'D');
+                drawPoint(pts.E, 'E');
+            }
+        };
+
+
+        // ==========================================
+        // App State & Core Logic
+        // ==========================================
+
+        let activeMode = 'part2'; // 'part2' or 'part3'
+        let currentStep = 0;
+        let points = {};
+        
+        // Canvas & Context
+        const canvas = document.getElementById('geometryCanvas');
+        const ctx = canvas.getContext('2d');
+        let scale = 1, offsetX = 0, offsetY = 0;
+
+        function switchMode(mode) {
+            activeMode = mode;
+            currentStep = 0;
+            
+            // UI Toggle
+            document.getElementById('tab-part2').className = mode === 'part2' ? 'tab-btn active flex-1 py-2 px-4 rounded-lg border border-transparent font-medium text-sm text-center' : 'tab-btn flex-1 py-2 px-4 rounded-lg border border-slate-200 text-slate-600 font-medium text-sm text-center';
+            document.getElementById('tab-part3').className = mode === 'part3' ? 'tab-btn active flex-1 py-2 px-4 rounded-lg border border-transparent font-medium text-sm text-center' : 'tab-btn flex-1 py-2 px-4 rounded-lg border border-slate-200 text-slate-600 font-medium text-sm text-center';
+
+            // Init Data
+            const data = activeMode === 'part2' ? PART2 : PART3;
+            points = data.initPoints();
+            
+            // Reset View
+            resize();
+            updateUI();
+        }
+
+        function resize() {
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * 2; 
+            canvas.height = rect.height * 2;
+            
+            // Auto-fit Logic
+            const ptValues = Object.values(points);
+            if (ptValues.length === 0) return;
+
+            let minX=Infinity, maxX=-Infinity, minY=Infinity, maxY=-Infinity;
+            ptValues.forEach(p => {
+                if(p.x < minX) minX = p.x;
+                if(p.x > maxX) maxX = p.x;
+                if(p.y < minY) minY = p.y;
+                if(p.y > maxY) maxY = p.y;
+            });
+
+            const padding = 1.0; 
+            const geoW = (maxX - minX) + padding*2;
+            const geoH = (maxY - minY) + padding*2;
+            
+            const fitScale = Math.min(canvas.width / geoW, canvas.height / geoH) * 0.9;
+            scale = fitScale;
+            
+            const midX = (minX + maxX)/2;
+            const midY = (minY + maxY)/2;
+            
+            offsetX = canvas.width/2 - midX*scale;
+            offsetY = canvas.height/2 + midY*scale; // Note + because Y inverted logic below
+
+            draw();
+        }
+
+        // --- Utils ---
+        function intersectLineY(p1, p2, y) {
+            if(p2.y===p1.y) return {x: p1.x, y: y};
+            const t = (y - p1.y)/(p2.y - p1.y);
+            return { x: p1.x + t*(p2.x - p1.x), y: y };
+        }
+        function intersectLines(p1, p2, p3, p4) {
+            const denom = (p4.y-p3.y)*(p2.x-p1.x) - (p4.x-p3.x)*(p2.y-p1.y);
+            if(denom===0) return {x:0, y:0};
+            const ua = ((p4.x-p3.x)*(p1.y-p3.y) - (p4.y-p3.y)*(p1.x-p3.x))/denom;
+            return { x: p1.x + ua*(p2.x-p1.x), y: p1.y + ua*(p2.y-p1.y) };
+        }
+
+        // --- Drawing Helper Wrapper ---
+        const drawHelpers = {
+            toCanvas: function(pt) {
+                return { x: offsetX + pt.x*scale, y: offsetY - pt.y*scale };
+            },
+            drawLine: function(p1, p2, color='#334155', width=2, dash=[]) {
+                const c1 = drawHelpers.toCanvas(p1), c2 = drawHelpers.toCanvas(p2);
+                ctx.beginPath();
+                ctx.moveTo(c1.x, c1.y);
+                ctx.lineTo(c2.x, c2.y);
+                ctx.strokeStyle = color;
+                ctx.lineWidth = width;
+                ctx.setLineDash(dash);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            },
+            drawPoint: function(pt, label, color='#334155') {
+                const c = drawHelpers.toCanvas(pt);
+                ctx.beginPath();
+                ctx.arc(c.x, c.y, 5, 0, Math.PI*2);
+                ctx.fillStyle = color;
+                ctx.fill();
+                if(label) {
+                    ctx.fillStyle = '#1e293b';
+                    ctx.font = 'bold 16px "Noto Sans SC"';
+                    // Simple offset heuristic
+                    let lx = c.x+8, ly = c.y-8;
+                    if(label==='O') { lx-=20; ly+=20; }
+                    if(label==='A') { lx-=25; ly+=5; }
+                    if(label==='Q') { lx-=25; ly-=5; }
+                    if(label==='M') { lx-=25; ly+=5; }
+                    if(label==='P') { lx-=10; ly+=25; }
+                    ctx.fillText(label, lx, ly);
+                }
+            },
+            drawPolygon: function(ptsArr, fill, stroke) {
+                if(ptsArr.length<2) return;
+                ctx.beginPath();
+                const start = drawHelpers.toCanvas(ptsArr[0]);
+                ctx.moveTo(start.x, start.y);
+                for(let i=1; i<ptsArr.length; i++){
+                    const p = drawHelpers.toCanvas(ptsArr[i]);
+                    ctx.lineTo(p.x, p.y);
+                }
+                ctx.closePath();
+                ctx.fillStyle = fill;
+                ctx.fill();
+                if(stroke) {
+                    ctx.strokeStyle = stroke;
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                }
+            },
+            drawTick: function(p1, p2, color='#dc2626') {
+                const c1 = drawHelpers.toCanvas(p1), c2 = drawHelpers.toCanvas(p2);
+                const mx = (c1.x+c2.x)/2, my = (c1.y+c2.y)/2;
+                ctx.beginPath();
+                ctx.arc(mx, my, 3, 0, Math.PI*2);
+                ctx.fillStyle = color;
+                ctx.fill();
+            }
+        };
+
+        function draw() {
+            ctx.clearRect(0,0, canvas.width, canvas.height);
+            
+            // Axes
+            const o = drawHelpers.toCanvas({x:0, y:0});
+            ctx.beginPath();
+            ctx.moveTo(o.x, -10000); ctx.lineTo(o.x, 10000);
+            ctx.moveTo(-10000, o.y); ctx.lineTo(10000, o.y);
+            ctx.strokeStyle = '#e2e8f0';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            // Delegate
+            const data = activeMode === 'part2' ? PART2 : PART3;
+            if(data.draw) {
+                data.draw(ctx, points, currentStep, drawHelpers.toCanvas, drawHelpers);
+            }
+        }
+
+        // --- Interaction ---
+        function updateUI() {
+            const data = activeMode === 'part2' ? PART2 : PART3;
+            const currentStepData = data.steps[currentStep];
+
+            // Update Text
+            document.getElementById('step-title').innerText = currentStepData.title;
+            document.getElementById('explanation-content').innerHTML = currentStepData.content;
+            document.getElementById('step-indicator').innerText = `步骤 ${currentStep} / ${data.totalSteps}`;
+            document.getElementById('step-count-mobile').innerText = `${currentStep}/${data.totalSteps}`;
+
+            // Buttons
+            document.getElementById('prevBtn').disabled = currentStep === 0;
+            document.getElementById('nextBtn').disabled = currentStep === data.totalSteps;
+
+            // Dots
+            const dotsContainer = document.getElementById('dots-container');
+            dotsContainer.innerHTML = '';
+            for(let i=0; i<=data.totalSteps; i++) {
+                const dot = document.createElement('span');
+                dot.className = `w-2 h-2 rounded-full ${i===currentStep ? 'bg-indigo-600' : 'bg-slate-300'}`;
+                dotsContainer.appendChild(dot);
+            }
+
+            draw();
+        }
+
+        document.getElementById('nextBtn').addEventListener('click', () => {
+            const data = activeMode === 'part2' ? PART2 : PART3;
+            if(currentStep < data.totalSteps) {
+                currentStep++;
+                updateUI();
+            }
+        });
+
+        document.getElementById('prevBtn').addEventListener('click', () => {
+            if(currentStep > 0) {
+                currentStep--;
+                updateUI();
+            }
+        });
+
+        window.addEventListener('resize', resize);
+        
+        // Boot
+        switchMode('part2');
+
+    </script>
+</body>
+</html>

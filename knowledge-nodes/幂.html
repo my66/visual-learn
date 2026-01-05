@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>幂的数形结合互动演示</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f4f6fb;
+      color: #333;
+    }
+
+    header {
+      background: #4a6cf7;
+      color: white;
+      padding: 16px 24px;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 22px;
+    }
+
+    header p {
+      margin: 4px 0 0;
+      font-size: 14px;
+      opacity: 0.9;
+    }
+
+    main {
+      padding: 16px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .section {
+      background: white;
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    }
+
+    .section h2 {
+      margin-top: 0;
+      font-size: 18px;
+      border-left: 4px solid #4a6cf7;
+      padding-left: 8px;
+    }
+
+    .section small {
+      color: #777;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin: 12px 0;
+      align-items: center;
+    }
+
+    .control-group {
+      min-width: 180px;
+      font-size: 14px;
+    }
+
+    .control-group label {
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    .control-group input[type="range"] {
+      width: 100%;
+    }
+
+    .formula {
+      font-size: 18px;
+      margin: 8px 0;
+      padding: 8px 10px;
+      border-radius: 6px;
+      background: #f7f8ff;
+      border: 1px solid #e0e4ff;
+    }
+
+    .highlight {
+      color: #e53935;
+      font-weight: bold;
+    }
+
+    .visual-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-top: 8px;
+    }
+
+    .visual-box {
+      flex: 1 1 260px;
+      min-width: 240px;
+      border-radius: 8px;
+      border: 1px solid #e0e0e0;
+      padding: 8px;
+      background: #fafafa;
+    }
+
+    .visual-title {
+      font-size: 14px;
+      margin-bottom: 4px;
+      font-weight: bold;
+    }
+
+    /* 方块网格展示 a^n */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(10px, 10px));
+      gap: 2px;
+      max-width: 160px;
+      max-height: 160px;
+      overflow: auto;
+      padding: 4px;
+      background: white;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+    }
+
+    .cell {
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+      background: #4a6cf7;
+    }
+
+    .small-note {
+      font-size: 12px;
+      color: #777;
+      margin-top: 4px;
+    }
+
+    /* 柱状“楼层”展示指数 */
+    .tower-wrapper {
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+      height: 120px;
+      padding: 4px;
+      background: white;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+    }
+
+    .tower {
+      flex: 1;
+      display: flex;
+      flex-direction: column-reverse;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .tower-block {
+      width: 20px;
+      height: 10px;
+      border-radius: 2px;
+      background: #ffb300;
+    }
+
+    .tower-label {
+      font-size: 12px;
+      margin-top: 2px;
+      text-align: center;
+    }
+
+    /* 数轴 / 比例柱状图 */
+    .bar-wrapper {
+      width: 100%;
+      max-width: 280px;
+      height: 80px;
+      background: white;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+      padding: 4px 8px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+    }
+
+    .bar-track {
+      position: relative;
+      height: 36px;
+      border-radius: 18px;
+      background: #e0e0e0;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      border-radius: 18px;
+      background: #4caf50;
+    }
+
+    .bar-text {
+      font-size: 12px;
+      margin-top: 2px;
+      text-align: center;
+    }
+
+    @media (max-width: 720px) {
+      .controls {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .visual-container {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+<header>
+  <h1>幂的数形结合互动演示</h1>
+  <p>拖动滑块，直观感受 aⁿ 的大小变化，并观察幂的加法、减法和乘方规律。</p>
+</header>
+
+<main>
+  <!-- 一、基本幂 a^n -->
+  <section class="section" id="section-basic">
+    <h2>一、幂的基本概念：aⁿ</h2>
+    <small>理解：把 a 作为因数连乘 n 次。用“面积小方块 + 高度条 + 楼层”三个形象方式一起看。</small>
+
+    <div class="controls">
+      <div class="control-group">
+        <label for="base">底数 a：<span id="baseValue">2</span></label>
+        <input type="range" id="base" min="1" max="5" value="2" />
+      </div>
+      <div class="control-group">
+        <label for="exp">指数 n：<span id="expValue">3</span></label>
+        <input type="range" id="exp" min="0" max="8" value="3" />
+      </div>
+    </div>
+
+    <div class="formula" id="basicFormula"></div>
+    <div class="small-note" id="basicExplain"></div>
+
+    <div class="visual-container">
+      <div class="visual-box">
+        <div class="visual-title">1. 小方块“面积”模型（最多显示 100 个）</div>
+        <div id="grid" class="grid"></div>
+        <div class="small-note">
+          每一个小方块看作“1 个单位面积”，总数 ≈ aⁿ。太多时只显示前 100 个，用来感受增长速度。
+        </div>
+      </div>
+
+      <div class="visual-box">
+        <div class="visual-title">2. 高度条模型（长度代表大小）</div>
+        <div class="bar-wrapper">
+          <div class="bar-track">
+            <div id="barFill" class="bar-fill"></div>
+          </div>
+          <div id="barText" class="bar-text"></div>
+        </div>
+        <div class="small-note">
+          将当前 aⁿ 的大小压缩到 0～100% 的比例，指数越大，条越长，表示“放大次数”越多。
+        </div>
+      </div>
+
+      <div class="visual-box">
+        <div class="visual-title">3. 楼层模型（指数 = 楼层数）</div>
+        <div class="tower-wrapper" id="towerBasic"></div>
+        <div class="small-note">
+          每一层代表一次“乘以 a”，指数 n 就是“乘了几层”的记录。
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 二、幂的乘法：a^m × a^n = a^(m+n) -->
+  <section class="section" id="section-add">
+    <h2>二、幂的“加法”规律：a^m × a^n = a^(m + n)</h2>
+    <small>重点感受：同底数相乘时，指数可以相加。用“楼层叠加”的方式理解。</small>
+
+    <div class="controls">
+      <div class="control-group">
+        <label for="base2">底数 a：<span id="base2Value">2</span></label>
+        <input type="range" id="base2" min="2" max="5" value="2" />
+      </div>
+      <div class="control-group">
+        <label for="mExp">左边指数 m：<span id="mValue">2</span></label>
+        <input type="range" id="mExp" min="0" max="6" value="2" />
+      </div>
+      <div class="control-group">
+        <label for="nExp">右边指数 n：<span id="nValue">3</span></label>
+        <input type="range" id="nExp" min="0" max="6" value="3" />
+      </div>
+    </div>
+
+    <div class="formula" id="mulFormula"></div>
+    <div class="small-note" id="mulExplain"></div>
+
+    <div class="visual-container">
+      <div class="visual-box">
+        <div class="visual-title">楼层叠加示意图</div>
+        <div class="tower-wrapper" id="towerMul"></div>
+        <div class="small-note">
+          左边 a^m 是 m 层，右边 a^n 是 n 层，相乘后等价于 m + n 层的 a^(m+n)。<br>
+          可以对孩子说：<span class="highlight">“乘法就是把扩大的楼层数叠在一起。”</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 三、幂的减法：a^m ÷ a^n = a^(m−n) -->
+  <section class="section" id="section-sub">
+    <h2>三、幂的“减法”规律：a^m ÷ a^n = a^(m − n)</h2>
+    <small>重点感受：同底数相除时，指数可以相减。用“楼层被削掉”的方式理解。</small>
+
+    <div class="controls">
+      <div class="control-group">
+        <label for="base3">底数 a：<span id="base3Value">2</span></label>
+        <input type="range" id="base3" min="2" max="5" value="2" />
+      </div>
+      <div class="control-group">
+        <label for="mSub">被除数指数 m（上面的楼层）：<span id="mSubValue">5</span></label>
+        <input type="range" id="mSub" min="0" max="8" value="5" />
+      </div>
+      <div class="control-group">
+        <label for="nSub">除数指数 n（要削去的楼层）：<span id="nSubValue">2</span></label>
+        <input type="range" id="nSub" min="0" max="8" value="2" />
+      </div>
+    </div>
+
+    <div class="formula" id="divFormula"></div>
+    <div class="small-note" id="divExplain"></div>
+
+    <div class="visual-container">
+      <div class="visual-box">
+        <div class="visual-title">楼层被削掉的示意图</div>
+        <div class="tower-wrapper" id="towerDiv"></div>
+        <div class="small-note">
+          上面一整栋楼表示 a^m，红色部分表示被“除掉”的 a^n 楼层，剩下的是 a^(m−n)。<br>
+          当 m &lt; n 时，可以顺便引出负指数 a^(m−n) = 1 / a^(n−m) 的概念。
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 四、幂的乘方：(a^m)^n = a^(mn) -->
+  <section class="section" id="section-power">
+    <h2>四、幂的乘方规律：(a^m)ⁿ = a^(m × n)</h2>
+    <small>重点感受：先放大 m 次，再整体放大 n 次，等价于一口气放大 m×n 次。</small>
+
+    <div class="controls">
+      <div class="control-group">
+        <label for="base4">底数 a：<span id="base4Value">2</span></label>
+        <input type="range" id="base4" min="2" max="5" value="2" />
+      </div>
+      <div class="control-group">
+        <label for="mPow">内部指数 m：<span id="mPowValue">2</span></label>
+        <input type="range" id="mPow" min="1" max="5" value="2" />
+      </div>
+      <div class="control-group">
+        <label for="nPow">外部指数 n：<span id="nPowValue">3</span></label>
+        <input type="range" id="nPow" min="1" max="5" value="3" />
+      </div>
+    </div>
+
+    <div class="formula" id="powFormula"></div>
+    <div class="small-note" id="powExplain"></div>
+
+    <div class="visual-container">
+      <div class="visual-box">
+        <div class="visual-title">“组”和“组的重复”的层级感</div>
+        <div class="tower-wrapper" id="towerPow"></div>
+        <div class="small-note">
+          可以这样向孩子解释：<br>
+          先做一组“放大 m 次”（这是 a^m），然后这一整组又重复 n 次，总共重复了 m×n 次放大。
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>五、小结（可以让学生自己说一遍）</h2>
+    <ul style="font-size:14px;line-height:1.6;">
+      <li>幂 aⁿ 记录的是：把 a 这个底数连乘了 <b>n 次</b>，指数是“乘法的次数”。</li>
+      <li>同底数相乘：<b>a^m × a^n = a^(m+n)</b> ——楼层数叠加。</li>
+      <li>同底数相除：<b>a^m ÷ a^n = a^(m−n)</b> ——楼层被削掉。</li>
+      <li>幂的乘方：<b>(a^m)ⁿ = a^(m×n)</b> ——“一组 m 层”重复了 n 次。</li>
+      <li>可以一边拖动滑块，一边让孩子口头描述：<span class="highlight">“指数变大时，图形哪一部分变化得最快？”</span></li>
+    </ul>
+  </section>
+</main>
+
+<script>
+  // ---------------------------
+  // 工具函数
+  // ---------------------------
+  function powInt(base, exp) {
+    // 简单整数幂，避免 Math.pow 的小数误差
+    if (exp === 0) return 1;
+    let result = 1;
+    const positive = exp > 0;
+    const e = Math.abs(exp);
+    for (let i = 0; i < e; i++) {
+      result *= base;
+    }
+    return positive ? result : 1 / result;
+  }
+
+  // ---------------------------
+  // 一、基本幂 a^n
+  // ---------------------------
+  const baseInput = document.getElementById('base');
+  const expInput = document.getElementById('exp');
+  const baseValueSpan = document.getElementById('baseValue');
+  const expValueSpan = document.getElementById('expValue');
+  const basicFormula = document.getElementById('basicFormula');
+  const basicExplain = document.getElementById('basicExplain');
+  const grid = document.getElementById('grid');
+  const barFill = document.getElementById('barFill');
+  const barText = document.getElementById('barText');
+  const towerBasic = document.getElementById('towerBasic');
+
+  function updateBasic() {
+    const a = parseInt(baseInput.value);
+    const n = parseInt(expInput.value);
+    baseValueSpan.textContent = a;
+    expValueSpan.textContent = n;
+
+    const value = powInt(a, n);
+
+    // 公式显示
+    basicFormula.innerHTML = `当前：<span class="highlight">${a}<sup>${n}</sup> = ${value}</span>`;
+
+    // 文字解释
+    if (n === 0) {
+      basicExplain.textContent =
+        `${a}⁰ = 1，可以理解为“还没有开始放大”，任何非零数的 0 次幂都等于 1。`;
+    } else if (n === 1) {
+      basicExplain.textContent =
+        `${a}¹ 就是 ${a} 本身，只放大了一次。`;
+    } else if (n === 2) {
+      basicExplain.textContent =
+        `${a}² 可以想象成边长为 ${a} 的正方形面积，一共有 ${value} 个 1×1 的小方块。`;
+    } else if (n === 3) {
+      basicExplain.textContent =
+        `${a}³ 可以想象成边长为 ${a} 的正方体体积，一共有 ${value} 个 1×1×1 的小立方体。`;
+    } else {
+      basicExplain.textContent =
+        `${a} 的 ${n} 次幂表示把 ${a} 连乘 ${n} 次，指数越大，${a}ⁿ 增长得越快。`;
+    }
+
+    // 方块网格：最多 100 个
+    grid.innerHTML = '';
+    const cellsToShow = Math.min(value, 100);
+    for (let i = 0; i < cellsToShow; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      grid.appendChild(cell);
+    }
+
+    // 高度条：用 log 压缩，避免超出
+    // 简单处理：在 [1, a^8] 之间映射到 0-100%
+    const maxValue = powInt(a, 8);
+    let ratio = value / maxValue;
+    ratio = Math.min(1, ratio);
+    const percent = (ratio * 100).toFixed(1);
+    barFill.style.width = percent + '%';
+    barText.textContent = `把 ${a} 连乘 ${n} 次，压缩后长度约为 ${percent}%`;
+
+    // 楼层模型：n 层
+    towerBasic.innerHTML = '';
+    for (let i = 0; i < n; i++) {
+      const tower = document.createElement('div');
+      tower.className = 'tower-block';
+      towerBasic.appendChild(tower);
+    }
+    const label = document.createElement('div');
+    label.className = 'tower-label';
+    label.textContent = `楼层数 = 指数 n = ${n}`;
+    towerBasic.appendChild(label);
+  }
+
+  baseInput.addEventListener('input', updateBasic);
+  expInput.addEventListener('input', updateBasic);
+
+  // ---------------------------
+  // 二、幂的乘法 a^m × a^n = a^(m+n)
+  // ---------------------------
+  const base2 = document.getElementById('base2');
+  const base2Value = document.getElementById('base2Value');
+  const mExp = document.getElementById('mExp');
+  const nExp = document.getElementById('nExp');
+  const mValue = document.getElementById('mValue');
+  const nValue = document.getElementById('nValue');
+  const mulFormula = document.getElementById('mulFormula');
+  const mulExplain = document.getElementById('mulExplain');
+  const towerMul = document.getElementById('towerMul');
+
+  function updateMul() {
+    const a = parseInt(base2.value);
+    const m = parseInt(mExp.value);
+    const n = parseInt(nExp.value);
+    base2Value.textContent = a;
+    mValue.textContent = m;
+    nValue.textContent = n;
+
+    const left = powInt(a, m);
+    const right = powInt(a, n);
+    const result = powInt(a, m + n);
+
+    mulFormula.innerHTML =
+      `<span class="highlight">${a}<sup>${m}</sup> × ${a}<sup>${n}</sup> = ${a}<sup>${m+n}</sup></span> 
+       ，即 ${left} × ${right} = ${result}`;
+
+    mulExplain.textContent =
+      `可以理解为：“先把 1 放大 ${m} 次，再放大 ${n} 次”，
+       总共放大了 ${m + n} 次，所以指数相加。`;
+
+    // 楼层叠加图：三栋楼
+    towerMul.innerHTML = '';
+
+    function createTower(levels, labelText, color) {
+      const tower = document.createElement('div');
+      tower.className = 'tower';
+      for (let i = 0; i < levels; i++) {
+        const block = document.createElement('div');
+        block.className = 'tower-block';
+        block.style.background = color;
+        tower.appendChild(block);
+      }
+      const label = document.createElement('div');
+      label.className = 'tower-label';
+      label.textContent = labelText;
+      tower.appendChild(label);
+      return tower;
+    }
+
+    towerMul.appendChild(createTower(m, `a^${m}`, '#ffb300'));
+    towerMul.appendChild(createTower(n, `a^${n}`, '#42a5f5'));
+    towerMul.appendChild(createTower(m + n, `a^${m+n}`, '#66bb6a'));
+  }
+
+  base2.addEventListener('input', updateMul);
+  mExp.addEventListener('input', updateMul);
+  nExp.addEventListener('input', updateMul);
+
+  // ---------------------------
+  // 三、幂的减法 a^m ÷ a^n = a^(m−n)
+  // ---------------------------
+  const base3 = document.getElementById('base3');
+  const base3Value = document.getElementById('base3Value');
+  const mSub = document.getElementById('mSub');
+  const nSub = document.getElementById('nSub');
+  const mSubValue = document.getElementById('mSubValue');
+  const nSubValue = document.getElementById('nSubValue');
+  const divFormula = document.getElementById('divFormula');
+  const divExplain = document.getElementById('divExplain');
+  const towerDiv = document.getElementById('towerDiv');
+
+  function updateDiv() {
+    const a = parseInt(base3.value);
+    let m = parseInt(mSub.value);
+    let n = parseInt(nSub.value);
+    base3Value.textContent = a;
+    mSubValue.textContent = m;
+    nSubValue.textContent = n;
+
+    const left = powInt(a, m);
+    const right = powInt(a, n);
+
+    let formulaText = '';
+    let explainText = '';
+    towerDiv.innerHTML = '';
+
+    if (m === n) {
+      formulaText =
+        `<span class="highlight">${a}<sup>${m}</sup> ÷ ${a}<sup>${n}</sup> = ${a}<sup>0</sup> = 1</span> 
+         ，因为相同的“楼层”全部抵消掉了。`;
+      explainText =
+        `可以理解为：上面 ${m} 层楼全部被削掉，刚好削光，就只剩下 1。`;
+      // 画一栋被完全涂红的楼
+      const tower = document.createElement('div');
+      tower.className = 'tower';
+      for (let i = 0; i < m; i++) {
+        const block = document.createElement('div');
+        block.className = 'tower-block';
+        block.style.background = '#ef5350';
+        tower.appendChild(block);
+      }
+      const label = document.createElement('div');
+      label.className = 'tower-label';
+      label.textContent = `a^${m} 被完全削掉 → 剩 1`;
+      tower.appendChild(label);
+      towerDiv.appendChild(tower);
+    } else if (m > n) {
+      const resultExp = m - n;
+      const result = powInt(a, resultExp);
+      formulaText =
+        `<span class="highlight">${a}<sup>${m}</sup> ÷ ${a}<sup>${n}</sup> = ${a}<sup>${m-n}</sup></span> 
+         ，即 ${left} ÷ ${right} = ${result}`;
+      explainText =
+        `可以理解为：原来有 ${m} 层“放大楼层”，削掉 ${n} 层，还剩 ${m-n} 层，所以指数做减法。`;
+
+      // 楼层图：一栋完整楼 + 红色削掉 + 保留
+      // 先画所有楼层
+      const tower = document.createElement('div');
+      tower.className = 'tower';
+
+      for (let i = 0; i < m; i++) {
+        const block = document.createElement('div');
+        block.className = 'tower-block';
+        if (i < n) {
+          block.style.background = '#ef5350'; // 底部削掉部分
+        } else {
+          block.style.background = '#66bb6a'; // 保留部分
+        }
+        tower.appendChild(block);
+      }
+      const label = document.createElement('div');
+      label.className = 'tower-label';
+      label.textContent = `绿色剩余楼层 = a^${m-n}`;
+      tower.appendChild(label);
+      towerDiv.appendChild(tower);
+    } else {
+      // m < n，引出负指数
+      const resultExp = m - n;
+      const result = powInt(a, resultExp);
+      formulaText =
+        `<span class="highlight">${a}<sup>${m}</sup> ÷ ${a}<sup>${n}</sup> = ${a}<sup>${m-n}</sup> = 1 / ${a}<sup>${n-m}</sup></span> 
+         ，约等于 ${result.toFixed(5)}`;
+      explainText =
+        `削掉的楼层比原来还多，楼层“倒着往下长”，就出现了负指数：a⁻ᵏ = 1/aᵏ。`;
+
+      const tower = document.createElement('div');
+      tower.className = 'tower';
+
+      // 画 n 层，其中前 m 层绿色（原始楼），多出来的 (n-m) 层红色（多削的）
+      for (let i = 0; i < n; i++) {
+        const block = document.createElement('div');
+        block.className = 'tower-block';
+        if (i < m) {
+          block.style.background = '#66bb6a'; // 原始楼层
+        } else {
+          block.style.background = '#ef5350'; // 超出的削去部分
+        }
+        tower.appendChild(block);
+      }
+      const label = document.createElement('div');
+      label.className = 'tower-label';
+      label.textContent = `超出的削楼 = 出现负指数 a^${m-n}`;
+      tower.appendChild(label);
+      towerDiv.appendChild(tower);
+    }
+
+    divFormula.innerHTML = formulaText;
+    divExplain.textContent = explainText;
+  }
+
+  base3.addEventListener('input', updateDiv);
+  mSub.addEventListener('input', updateDiv);
+  nSub.addEventListener('input', updateDiv);
+
+  // ---------------------------
+  // 四、幂的乘方 (a^m)^n = a^(m×n)
+  // ---------------------------
+  const base4 = document.getElementById('base4');
+  const base4Value = document.getElementById('base4Value');
+  const mPow = document.getElementById('mPow');
+  const nPow = document.getElementById('nPow');
+  const mPowValue = document.getElementById('mPowValue');
+  const nPowValue = document.getElementById('nPowValue');
+  const powFormula = document.getElementById('powFormula');
+  const powExplain = document.getElementById('powExplain');
+  const towerPow = document.getElementById('towerPow');
+
+  function updatePow() {
+    const a = parseInt(base4.value);
+    const m = parseInt(mPow.value);
+    const n = parseInt(nPow.value);
+    base4Value.textContent = a;
+    mPowValue.textContent = m;
+    nPowValue.textContent = n;
+
+    const leftBase = powInt(a, m);
+    const left = powInt(leftBase, n);
+    const right = powInt(a, m * n);
+
+    powFormula.innerHTML =
+      `<span class="highlight">(${a}<sup>${m}</sup>)<sup>${n}</sup> = ${a}<sup>${m*n}</sup></span>，
+       即 (${a}^${m})^${n} = ${left}，而 ${a}^${m*n} = ${right}`;
+
+    powExplain.textContent =
+      `先做一组“把 ${a} 放大 ${m} 次”（a^${m}），然后这整组再重复 ${n} 次，
+       相当于一共放大了 ${m}×${n} 次，所以指数相乘。`;
+
+    // 楼层层级图：两种视角
+    towerPow.innerHTML = '';
+
+    // 左边：n 组，每组 m 层
+    const groupTower = document.createElement('div');
+    groupTower.className = 'tower';
+    for (let i = 0; i < m * n; i++) {
+      const block = document.createElement('div');
+      block.className = 'tower-block';
+      // 每 m 层换一种色调
+      const groupIndex = Math.floor(i / m);
+      const colors = ['#ffb300', '#42a5f5', '#66bb6a', '#ab47bc', '#ff7043'];
+      block.style.background = colors[groupIndex % colors.length];
+      groupTower.appendChild(block);
+    }
+    const label1 = document.createElement('div');
+    label1.className = 'tower-label';
+    label1.textContent = `${n} 组，每组 ${m} 层（(a^${m})^${n}）`;
+    groupTower.appendChild(label1);
+
+    // 右边：直接一栋 m×n 层的楼
+    const singleTower = document.createElement('div');
+    singleTower.className = 'tower';
+    for (let i = 0; i < m * n; i++) {
+      const block = document.createElement('div');
+      block.className = 'tower-block';
+      block.style.background = '#66bb6a';
+      singleTower.appendChild(block);
+    }
+    const label2 = document.createElement('div');
+    label2.className = 'tower-label';
+    label2.textContent = `一口气 ${m*n} 层（a^${m*n}）`;
+    singleTower.appendChild(label2);
+
+    towerPow.appendChild(groupTower);
+    towerPow.appendChild(singleTower);
+  }
+
+  base4.addEventListener('input', updatePow);
+  mPow.addEventListener('input', updatePow);
+  nPow.addEventListener('input', updatePow);
+
+  // ---------------------------
+  // 初始渲染
+  // ---------------------------
+  updateBasic();
+  updateMul();
+  updateDiv();
+  updatePow();
+</script>
+</body>
+</html>

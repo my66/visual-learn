@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>工程问题核心特性演示</title>
+  
+  <!-- p5.js CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <!-- MathJax CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  <style>
+    :root {
+      --bg-color: #f5f7fa;
+      --panel-bg: #ffffff;
+      --primary: #4CAF50;    /* Team A Green */
+      --accent: #2196F3;     /* Team B Blue */
+      --mixed: #00BCD4;      /* Coop Mixed */
+      --warning: #FF9800;    /* Highlight */
+      --text: #37474f;
+      --border: #eceff1;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Header */
+    header {
+      background: #fff;
+      padding: 10px 20px;
+      border-bottom: 1px solid #ddd;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      flex-shrink: 0;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .mode-switch {
+      display: flex;
+      background: #eee;
+      padding: 3px;
+      border-radius: 6px;
+    }
+
+    .mode-btn {
+      padding: 6px 15px;
+      border: none;
+      background: transparent;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      color: #666;
+    }
+
+    .mode-btn.active {
+      background: #fff;
+      color: var(--text);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    /* Main Layout */
+    .container {
+      display: flex;
+      flex: 1;
+      padding: 20px;
+      gap: 20px;
+      overflow: hidden;
+    }
+
+    /* Controls */
+    .controls {
+      width: 320px;
+      background: var(--panel-bg);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+
+    .control-group {
+      margin-bottom: 20px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .control-group h3 {
+      font-size: 14px;
+      color: #78909c;
+      margin: 0 0 10px 0;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 6px;
+      color: var(--text);
+    }
+
+    .val {
+      font-family: "Menlo", monospace;
+      color: #555;
+    }
+
+    input[type=range] {
+      width: 100%;
+      margin-bottom: 8px;
+      cursor: pointer;
+    }
+
+    .btn-action {
+      padding: 12px;
+      border: none;
+      border-radius: 6px;
+      font-weight: bold;
+      font-size: 14px;
+      cursor: pointer;
+      width: 100%;
+      margin-top: 5px;
+      transition: opacity 0.2s;
+    }
+    .btn-play { background: var(--text); color: white; }
+    .btn-reset { background: #e0e0e0; color: #333; margin-top: 10px; }
+    .btn-action:hover { opacity: 0.9; }
+    .btn-action:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Visual */
+    .visual-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      overflow: hidden;
+    }
+
+    .canvas-wrapper {
+      flex: 2;
+      background: var(--panel-bg);
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .math-wrapper {
+      flex: 1;
+      min-height: 180px; /* Taller for detailed formulas */
+      background: var(--panel-bg);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .math-box {
+      font-size: 16px;
+      background: #fafafa;
+      border-left: 4px solid var(--warning);
+      padding: 15px;
+      border-radius: 4px;
+      visibility: hidden;
+    }
+
+    .legend {
+      display: flex;
+      gap: 15px;
+      margin-bottom: 10px;
+      font-size: 12px;
+      color: #666;
+    }
+    .legend span { display: flex; align-items: center; gap: 5px; }
+    .dot { width: 10px; height: 10px; border-radius: 2px; }
+
+    .hidden { display: none !important; }
+
+    @media (max-width: 800px) {
+      .container { flex-direction: column; overflow-y: auto; }
+      .controls { width: 100%; }
+      .canvas-wrapper { min-height: 300px; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>🏗️ 工程问题演示</h1>
+    <div class="mode-switch">
+      <button class="mode-btn active" id="btn-mode-basic" onclick="setMode('basic')">基础合作</button>
+      <button class="mode-btn" id="btn-mode-step" onclick="setMode('step')">先甲后合 (分段)</button>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="controls">
+      
+      <!-- Efficiency Settings -->
+      <div class="control-group">
+        <h3>工作效率设定</h3>
+        <label>
+          <span style="color:var(--primary)">甲单独完成需 \(T_甲\)</span>
+          <span class="val" id="val-tA">10天</span>
+        </label>
+        <input type="range" id="inp-tA" min="5" max="30" step="1" value="10">
+        <div style="font-size:11px; color:#999; margin-bottom:10px;">
+          甲效率 \( = \frac{1}{T_甲} = \)<span id="eff-A">1/10</span>
+        </div>
+
+        <label>
+          <span style="color:var(--accent)">乙单独完成需 \(T_乙\)</span>
+          <span class="val" id="val-tB">15天</span>
+        </label>
+        <input type="range" id="inp-tB" min="5" max="30" step="1" value="15">
+        <div style="font-size:11px; color:#999;">
+          乙效率 \( = \frac{1}{T_乙} = \)<span id="eff-B">1/15</span>
+        </div>
+      </div>
+
+      <!-- Step Mode Specific -->
+      <div class="control-group hidden" id="group-step">
+        <h3>工程安排 (分段)</h3>
+        <label>
+          甲先做天数 \(t_1\)
+          <span class="val" id="val-tPre">4天</span>
+        </label>
+        <input type="range" id="inp-tPre" min="0" max="15" step="1" value="4">
+      </div>
+
+      <button class="btn-action btn-play" id="btn-play">开始施工</button>
+      <button class="btn-action btn-reset" id="btn-reset">重置工程</button>
+      
+      <div style="margin-top:15px; font-size:12px; color:#666; line-height:1.5;">
+        <span id="desc-text">观察：甲乙合作时，总效率是两者之和，工期明显缩短。</span>
+      </div>
+    </div>
+
+    <div class="visual-area">
+      <div class="canvas-wrapper" id="p5-container"></div>
+      
+      <div class="math-wrapper">
+        <div class="legend">
+          <span><div class="dot" style="background:var(--primary)"></div> 甲做部分</span>
+          <span><div class="dot" style="background:var(--accent)"></div> 乙做部分</span>
+          <span><div class="dot" style="border:1px solid #ccc; background:none;"></div> 工程总量 "1"</span>
+        </div>
+        <div id="math-box" class="math-box"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+/**
+ * Config
+ */
+const STYLE_CONFIG = {
+  bg: 255,
+  trackBg: 240,
+  colorA: '#4CAF50',
+  colorB: '#2196F3',
+  colorCoop: '#00BCD4',
+  text: 50
+};
+
+/**
+ * State
+ */
+let mode = 'basic'; // 'basic' | 'step'
+let state = {
+  TA: 10,  // Days for A solo
+  TB: 15,  // Days for B solo
+  tPre: 4, // Days A works before B joins (Step mode)
+  
+  // Animation
+  daysPassed: 0,
+  isPlaying: false,
+  isFinished: false,
+  
+  // Computed
+  workA: 0, // Work done by A row
+  workB: 0, // Work done by B row
+  workC: 0, // Work done by Coop row
+  
+  finishTimeA: 0,
+  finishTimeB: 0,
+  finishTimeC: 0
+};
+
+// DOM
+const dom = {};
+
+function setup() {
+  const container = document.getElementById('p5-container');
+  const canvas = createCanvas(container.clientWidth, container.clientHeight);
+  canvas.parent('p5-container');
+
+  // Inputs
+  dom.inpTA = document.getElementById('inp-tA');
+  dom.inpTB = document.getElementById('inp-tB');
+  dom.inpTPre = document.getElementById('inp-tPre');
+  
+  // Displays
+  dom.valTA = document.getElementById('val-tA');
+  dom.valTB = document.getElementById('val-tB');
+  dom.effA = document.getElementById('eff-A');
+  dom.effB = document.getElementById('eff-B');
+  dom.valTPre = document.getElementById('val-tPre');
+  dom.desc = document.getElementById('desc-text');
+  
+  // Logic
+  dom.groupStep = document.getElementById('group-step');
+  dom.btnPlay = document.getElementById('btn-play');
+  dom.btnReset = document.getElementById('btn-reset');
+  dom.mathBox = document.getElementById('math-box');
+
+  // Listeners
+  [dom.inpTA, dom.inpTB, dom.inpTPre].forEach(el => el.addEventListener('input', updateParams));
+  
+  dom.btnPlay.addEventListener('click', togglePlay);
+  dom.btnReset.addEventListener('click', resetSim);
+  
+  window.addEventListener('resize', () => {
+    resizeCanvas(container.clientWidth, container.clientHeight);
+    redraw();
+  });
+
+  updateParams();
+}
+
+/**
+ * Mode Switch
+ */
+window.setMode = function(m) {
+  mode = m;
+  document.getElementById('btn-mode-basic').className = m==='basic'?'mode-btn active':'mode-btn';
+  document.getElementById('btn-mode-step').className = m==='step'?'mode-btn active':'mode-btn';
+  
+  if (m === 'basic') {
+    dom.groupStep.classList.add('hidden');
+    dom.desc.innerText = "观察：甲乙合作时，进度条是两人效率的叠加。";
+  } else {
+    dom.groupStep.classList.remove('hidden');
+    dom.desc.innerText = "观察：甲先做一段时间，进度条仅由甲增长；乙加入后，增长速度变快。";
+  }
+  
+  resetSim();
+  updateParams();
+};
+
+function updateParams() {
+  state.TA = parseInt(dom.inpTA.value);
+  state.TB = parseInt(dom.inpTB.value);
+  state.tPre = parseInt(dom.inpTPre.value);
+  
+  // UI Updates
+  dom.valTA.innerText = state.TA + "天";
+  dom.valTB.innerText = state.TB + "天";
+  dom.effA.innerText = `1/${state.TA}`;
+  dom.effB.innerText = `1/${state.TB}`;
+  
+  dom.inpTPre.max = state.TA - 1; // logical constraint
+  dom.valTPre.innerText = state.tPre + "天";
+
+  // Pre-calculate Finish Times
+  state.finishTimeA = state.TA;
+  state.finishTimeB = state.TB;
+  
+  if (mode === 'basic') {
+    // 1 / (1/TA + 1/TB)
+    const effSum = (1/state.TA) + (1/state.TB);
+    state.finishTimeC = 1 / effSum;
+  } else {
+    // Work done in tPre is (tPre/TA)
+    // Remaining work is 1 - (tPre/TA)
+    // Remaining time = RemWork / (1/TA + 1/TB)
+    const wDone = state.tPre / state.TA;
+    if (wDone >= 1) {
+      state.finishTimeC = state.TA; // A finishes before B joins
+    } else {
+      const remW = 1 - wDone;
+      const effSum = (1/state.TA) + (1/state.TB);
+      state.finishTimeC = state.tPre + (remW / effSum);
+    }
+  }
+
+  updateMath();
+  if (!state.isPlaying) redraw();
+}
+
+function draw() {
+  background(STYLE_CONFIG.bg);
+  
+  const marginX = 60;
+  const barH = 30;
+  const gap = 50;
+  const w = width - marginX * 2;
+  const startY = height * 0.25;
+
+  // --- Animation Logic ---
+  if (state.isPlaying && !state.isFinished) {
+    const dt = 0.05; // Simulation speed (days per frame)
+    state.daysPassed += dt;
+    
+    // Track A (Solo)
+    if (state.workA < 1) state.workA = state.daysPassed / state.TA;
+    
+    // Track B (Solo)
+    if (state.workB < 1) state.workB = state.daysPassed / state.TB;
+    
+    // Track C (Scenario)
+    if (state.workC < 1) {
+      let currentEff = 0;
+      if (mode === 'basic') {
+        currentEff = (1/state.TA) + (1/state.TB);
+      } else {
+        // Step Mode
+        if (state.daysPassed <= state.tPre) {
+          currentEff = 1/state.TA; // A only
+        } else {
+          currentEff = (1/state.TA) + (1/state.TB); // A + B
+        }
+      }
+      // Increment work directly
+      state.workC += currentEff * dt;
+    }
+
+    // Clamp
+    if (state.workA > 1) state.workA = 1;
+    if (state.workB > 1) state.workB = 1;
+    if (state.workC > 1) state.workC = 1;
+    
+    // Finish check
+    // We stop when the SCENARIO track (C) is done, usually fastest
+    if (state.workC >= 1) {
+      state.isFinished = true;
+      state.isPlaying = false;
+      dom.btnPlay.innerText = "工程结束";
+      dom.btnPlay.disabled = true;
+    }
+  }
+
+  // --- Drawing ---
+
+  // Row 1: A Solo
+  drawProjectRow(startY, w, state.workA, "甲单独", STYLE_CONFIG.colorA, state.TA);
+  
+  // Row 2: B Solo
+  drawProjectRow(startY + gap + barH, w, state.workB, "乙单独", STYLE_CONFIG.colorB, state.TB);
+  
+  // Row 3: Scenario
+  let labelC = mode === 'basic' ? "甲乙合作" : "混合施工";
+  drawProjectRow(startY + (gap + barH)*2, w, state.workC, labelC, "#666", state.finishTimeC, true);
+
+  // Time Marker (Vertical Line)
+  drawTimeMarker(state.daysPassed, w, marginX);
+}
+
+/**
+ * Draw a single project track
+ */
+function drawProjectRow(y, w, progress, label, color, totalTime, isComposite=false) {
+  const x = 60;
+  
+  // Label
+  noStroke();
+  fill(80);
+  textSize(14);
+  textAlign(RIGHT, CENTER);
+  text(label, x - 15, y + 15);
+
+  // Empty Container (The "1")
+  stroke(200);
+  strokeWeight(2);
+  noFill();
+  rect(x, y, w, 30, 4);
+  
+  // Fill
+  noStroke();
+  if (!isComposite) {
+    // Simple Fill
+    fill(color);
+    rect(x, y, w * progress, 30, 4);
+  } else {
+    if (mode === 'basic') {
+       // Basic: Ratio is constant.
+       let effA = 1/state.TA;
+       let effB = 1/state.TB;
+       let totalEff = effA + effB;
+       let hA = 30 * (effA / totalEff);
+       let hB = 30 * (effB / totalEff);
+       
+       fill(STYLE_CONFIG.colorA);
+       rect(x, y, w * progress, hA, 4, 4, 0, 0);
+       fill(STYLE_CONFIG.colorB);
+       rect(x, y + hA, w * progress, hB, 0, 0, 4, 4);
+    } else {
+      // Step Mode
+      let wStep = state.tPre / state.TA; // Work done at step point
+      let pA = Math.min(progress, wStep);
+      
+      // Segment 1: Only A
+      fill(STYLE_CONFIG.colorA);
+      rect(x, y, w * pA, 30, 4, (progress>wStep?0:4), (progress>wStep?0:4), 4);
+      
+      // Segment 2: Coop
+      if (progress > wStep) {
+        let pRem = progress - wStep;
+        let startX = x + w * wStep;
+        let widthRem = w * pRem;
+        
+        let effA = 1/state.TA;
+        let effB = 1/state.TB;
+        let totalEff = effA + effB;
+        let hA = 30 * (effA / totalEff);
+        let hB = 30 * (effB / totalEff);
+        
+        fill(STYLE_CONFIG.colorA);
+        rect(startX, y, widthRem, hA, 0, 4, 0, 0);
+        fill(STYLE_CONFIG.colorB);
+        rect(startX, y+hA, widthRem, hB, 0, 0, 4, 0);
+        
+        // Draw step marker
+        stroke(255);
+        strokeWeight(2);
+        line(startX, y, startX, y+30);
+      }
+    }
+  }
+  
+  // 100% Marker text
+  if (progress >= 1) {
+    fill(50);
+    noStroke();
+    textSize(12);
+    textAlign(LEFT, CENTER);
+    text(`完成! 用时 ${totalTime.toFixed(1)}天`, x + w + 10, y + 15);
+  }
+}
+
+function drawTimeMarker(days, w, marginX) {
+  fill(50);
+  textSize(24);
+  textAlign(CENTER, TOP);
+  text(`第 ${days.toFixed(1)} 天`, width/2, 20);
+}
+
+async function updateMath() {
+  let tex = "";
+  
+  if (mode === 'basic') {
+    // Basic Mode: Sum of efficiencies
+    const rateA = `\\frac{1}{${state.TA}}`;
+    const rateB = `\\frac{1}{${state.TB}}`;
+    const tVal = state.finishTimeC.toFixed(2);
+    
+    tex = String.raw`
+      \begin{aligned}
+      & \text{总效率} = \underbrace{${rateA}}_{甲} + \underbrace{${rateB}}_{乙} = \frac{${state.TA+state.TB}}{${state.TA*state.TB}} \\
+      & \text{合作工期} = 1 \div \text{总效率} \approx ${tVal} \text{ (天)}
+      \end{aligned}
+    `;
+  } else {
+    // Step Mode: Detailed Equation
+    const rateSum = `(\\frac{1}{${state.TA}} + \\frac{1}{${state.TB}})`;
+    const step1Work = `\\frac{${state.tPre}}{${state.TA}}`;
+    const remWorkCalc = (1 - state.tPre/state.TA).toFixed(2);
+    const coopDays = (state.finishTimeC - state.tPre).toFixed(2);
+    const totalDays = state.finishTimeC.toFixed(2);
+    
+    tex = String.raw`
+      \begin{aligned}
+      & \textbf{设合作需 } x \textbf{ 天完成剩余部分：} \\
+      & \underbrace{ \frac{${state.tPre}}{${state.TA}} }_{\text{甲先做工作量}} + \underbrace{ ${rateSum} \times x }_{\text{合作工作量}} = 1 \\
+      & \Rightarrow x = (1 - ${step1Work}) \div ${rateSum} \approx ${coopDays} \\
+      & \textbf{总工期} = ${state.tPre} + ${coopDays} = ${totalDays} \text{ (天)}
+      \end{aligned}
+    `;
+  }
+
+  dom.mathBox.style.visibility = 'hidden';
+  dom.mathBox.innerHTML = `\\[ ${tex} \\]`;
+  await MathJax.typesetPromise([dom.mathBox]);
+  dom.mathBox.style.visibility = 'visible';
+}
+
+function togglePlay() {
+  if (state.isFinished) return;
+  state.isPlaying = !state.isPlaying;
+  dom.btnPlay.innerText = state.isPlaying ? "暂停施工" : "继续施工";
+}
+
+function resetSim() {
+  state.daysPassed = 0;
+  state.workA = 0;
+  state.workB = 0;
+  state.workC = 0;
+  state.isPlaying = false;
+  state.isFinished = false;
+  dom.btnPlay.innerText = "开始施工";
+  dom.btnPlay.disabled = false;
+  redraw();
+}
+
+</script>
+</body>
+</html>

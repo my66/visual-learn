@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>平面镜成像作图原理演示 - 2024广州三模第6题</title>
+    <!-- 引入 Tailwind CSS 进行快速样式布局 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 FontAwesome 用于图标 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- 引入 MathJax 用于显示数学公式 -->
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f3f4f6; user-select: none; }
+        canvas { touch-action: none; background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+        .control-panel { background: white; border-radius: 8px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .toggle-checkbox:checked { right: 0; border-color: #3b82f6; }
+        .toggle-checkbox:checked + .toggle-label { background-color: #3b82f6; }
+        .interactive-point { cursor: pointer; }
+        
+        /* 自定义滑块样式 */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 6px;
+            background: #e5e7eb;
+            border-radius: 5px;
+            outline: none;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            transition: background .15s ease-in-out;
+        }
+        input[type=range]::-webkit-slider-thumb:hover { background: #2563eb; }
+    </style>
+</head>
+<body class="h-screen flex flex-col md:flex-row overflow-hidden">
+
+    <!-- 左侧：题目与控制区 -->
+    <div class="w-full md:w-1/3 p-4 flex flex-col gap-4 overflow-y-auto z-10">
+        
+        <!-- 题目描述卡片 -->
+        <div class="bg-white p-4 rounded-lg shadow-md border-l-4 border-blue-500">
+            <h2 class="text-lg font-bold text-gray-800 mb-2">
+                <i class="fas fa-book-open text-blue-500 mr-2"></i>原题重现
+            </h2>
+            <p class="text-sm text-gray-600 leading-relaxed">
+                <strong>(2024 · 广州三模 第6题)</strong> 如图所示，有一个平面镜斜靠墙放置，小明手持一支激光笔，笔口 <span class="font-serif italic">A</span> 点发出的一束光经平面镜反射后在天花板上留下光点 <span class="font-serif italic">B</span>。
+            </p>
+            <ul class="list-decimal list-inside text-sm text-gray-600 mt-2 space-y-1">
+                <li>画出笔口 <span class="font-serif italic">A</span> 点在平面镜中的像 <span class="font-serif italic">A'</span>；</li>
+                <li>画出上述现象的入射、反射光线和入射角 <span class="font-serif italic">α</span>。</li>
+            </ul>
+        </div>
+
+        <!-- 交互控制面板 -->
+        <div class="control-panel flex-1 flex flex-col gap-4">
+            <h3 class="font-bold text-gray-700 border-b pb-2"><i class="fas fa-sliders-h mr-2"></i>实验控制</h3>
+            
+            <!-- 场景调整 -->
+            <div class="space-y-3">
+                <label class="text-sm font-semibold text-gray-600">场景参数</label>
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-gray-500">镜子倾斜度</span>
+                    <input type="range" id="mirrorAngle" min="45" max="85" value="65" class="w-2/3">
+                </div>
+                <p class="text-xs text-blue-600 mt-1"><i class="fas fa-hand-pointer mr-1"></i>提示：也可以直接拖动图中的 A 点、B 点和镜子端点。</p>
+            </div>
+
+            <!-- 可视化开关 -->
+            <div class="space-y-3 mt-2">
+                <label class="text-sm font-semibold text-gray-600">作图步骤演示</label>
+                
+                <div class="flex items-center space-x-2 cursor-pointer" onclick="toggleSwitch('showImage')">
+                    <input type="checkbox" id="showImage" class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500">
+                    <span class="text-sm text-gray-700">1. 显示像点 <span class="font-serif italic">A'</span> (对称性)</span>
+                </div>
+                
+                <div class="flex items-center space-x-2 cursor-pointer" onclick="toggleSwitch('showVirtualLine')">
+                    <input type="checkbox" id="showVirtualLine" class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500">
+                    <span class="text-sm text-gray-700">2. 连接 <span class="font-serif italic">A'B</span> 确定入射点</span>
+                </div>
+
+                <div class="flex items-center space-x-2 cursor-pointer" onclick="toggleSwitch('showLightRay')">
+                    <input type="checkbox" id="showLightRay" class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500">
+                    <span class="text-sm text-gray-700">3. 补全光路 (实线)</span>
+                </div>
+
+                <div class="flex items-center space-x-2 cursor-pointer" onclick="toggleSwitch('showNormal')">
+                    <input type="checkbox" id="showNormal" class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500">
+                    <span class="text-sm text-gray-700">4. 显示法线与入射角 <span class="font-serif italic">α</span></span>
+                </div>
+            </div>
+
+            <div class="mt-auto bg-blue-50 p-3 rounded border border-blue-100">
+                <h4 class="text-xs font-bold text-blue-800 mb-1">物理规律小贴士：</h4>
+                <ul class="text-xs text-blue-700 list-disc list-inside space-y-1">
+                    <li>像与物关于镜面对称。</li>
+                    <li>反射光线的反向延长线必过像点 <span class="font-serif italic">A'</span>。</li>
+                    <li>入射角 = 反射角。</li>
+                </ul>
+            </div>
+            
+             <button onclick="resetScene()" class="w-full py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded transition text-sm font-semibold">
+                <i class="fas fa-redo mr-2"></i>重置场景
+            </button>
+        </div>
+    </div>
+
+    <!-- 右侧：可视化区域 -->
+    <div class="relative w-full md:w-2/3 h-full bg-gray-100 flex items-center justify-center p-2">
+        <canvas id="simulationCanvas" class="w-full h-full"></canvas>
+        
+        <!-- 悬浮图例 -->
+        <div class="absolute top-4 right-4 bg-white/90 p-2 rounded shadow text-xs pointer-events-none border border-gray-200">
+            <div class="flex items-center mb-1"><span class="w-3 h-3 rounded-full bg-red-500 mr-2"></span>光源 A</div>
+            <div class="flex items-center mb-1"><span class="w-3 h-3 rounded-full bg-green-500 mr-2"></span>光斑 B</div>
+            <div class="flex items-center"><span class="w-8 h-1 bg-cyan-400 mr-2 border border-gray-400"></span>平面镜</div>
+        </div>
+    </div>
+
+<script>
+/**
+ * 物理与数学逻辑核心
+ */
+const canvas = document.getElementById('simulationCanvas');
+const ctx = canvas.getContext('2d');
+
+// 状态变量
+let params = {
+    // 场景尺寸 (逻辑坐标)
+    width: 800,
+    height: 600,
+    wallX: 700, // 墙壁位置
+    ceilingY: 50, // 天花板位置
+    floorY: 550, // 地面位置
+    
+    // 物体位置
+    mirrorBase: { x: 500, y: 550 }, // 镜子底部靠地点
+    mirrorLength: 350,
+    mirrorAngle: 65, // 角度（度）
+    
+    pointA: { x: 200, y: 400 }, // 光源 A
+    pointB: { x: 450, y: 50 },  // 光斑 B (在天花板上)
+    
+    // 开关状态
+    showImage: false,
+    showVirtualLine: false,
+    showLightRay: false,
+    showNormal: false,
+    
+    // 交互状态
+    dragging: null, // 'A', 'B', 'MirrorTop'
+};
+
+// 各种计算出的几何点
+let geo = {
+    mirrorTop: {x: 0, y: 0},
+    imageA: {x: 0, y: 0},
+    incidentPoint: {x: 0, y: 0}, // 入射点 O
+    validIntersection: false // 入射点是否在镜面上
+};
+
+// 初始化
+function init() {
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    updateGeometry();
+    draw();
+    
+    // 事件监听
+    canvas.addEventListener('mousedown', onMouseDown);
+    canvas.addEventListener('mousemove', onMouseMove);
+    canvas.addEventListener('mouseup', onMouseUp);
+    canvas.addEventListener('touchstart', onTouchStart, {passive: false});
+    canvas.addEventListener('touchmove', onTouchMove, {passive: false});
+    canvas.addEventListener('touchend', onMouseUp);
+    
+    document.getElementById('mirrorAngle').addEventListener('input', (e) => {
+        params.mirrorAngle = parseInt(e.target.value);
+        updateGeometry();
+        draw();
+    });
+    
+    // 复选框监听
+    ['showImage', 'showVirtualLine', 'showLightRay', 'showNormal'].forEach(id => {
+        document.getElementById(id).addEventListener('change', (e) => {
+            params[id] = e.target.checked;
+            draw();
+        });
+    });
+}
+
+function toggleSwitch(id) {
+    const el = document.getElementById(id);
+    el.checked = !el.checked;
+    // 手动触发 change 事件以更新 params
+    el.dispatchEvent(new Event('change'));
+}
+
+function resetScene() {
+    params.mirrorAngle = 65;
+    params.pointA = { x: 200, y: 400 };
+    params.pointB = { x: 450, y: 50 };
+    document.getElementById('mirrorAngle').value = 65;
+    
+    // 重置开关 (可选，也可以保留当前查看状态)
+    // params.showImage = false; ... 
+    // update checkboxes...
+    
+    updateGeometry();
+    draw();
+}
+
+function resizeCanvas() {
+    const rect = canvas.parentElement.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+    draw();
+}
+
+/**
+ * 几何计算核心函数
+ * 计算镜子坐标、像点坐标、入射点坐标等
+ */
+function updateGeometry() {
+    // 1. 计算镜子顶部坐标
+    // 镜子底部固定在 (mirrorBase.x, mirrorBase.y)
+    // 角度是相对于地面的夹角 (180 - angle)
+    const rad = params.mirrorAngle * Math.PI / 180;
+    // 简单的三角函数：dx = L * cos(rad), dy = L * sin(rad)
+    // 注意：镜子是往左斜靠墙，或者是往右？看题目图，镜子在左侧，墙在右侧？
+    // 题目图：光从左边来，镜子斜靠。通常理解为镜子面朝左上。
+    // 让我们设定墙在右侧 (wallX)，镜子底部在地面，顶部靠墙或者悬空。
+    // 题目图：镜子是斜线，左下到右上？不，看图6，镜子是 "\" 形态还是 "/" 形态？
+    // 图6中，光源S在左下，镜子是 "/" 形状（左下低右上高）。
+    // 让我们假设镜子是 "/" 形状。
+    // 修正：题目描述“斜靠墙放置”，墙通常是垂直的。如果是 "/"，那得靠左墙。如果是 "\"，靠右墙。
+    // 看图6，墙在右侧 (文字“墙”在竖线旁)。镜子是 "/" 形状（左下到右上）。
+    // 所以镜子底部在左边地面，顶部靠在右边墙上？或者顶部仅仅是高起。
+    // 我们定义镜子为一个线段。
+    
+    // 重新定义镜子逻辑：
+    // 底部固定在 (params.mirrorBase.x, params.mirrorBase.y)
+    // 角度 params.mirrorAngle，方向指向左上方(如果靠左墙)或者右上方(如果靠右墙)。
+    // 图6：墙在右侧。镜子底部在左侧 A点下方附近。镜子顶部靠在墙上。
+    // 所以镜子是 "/" 走向。
+    // 为了交互方便，我们让镜子围绕底部旋转。
+    
+    const angleRad = (180 - params.mirrorAngle) * Math.PI / 180; 
+    // 让镜子向右上方延伸
+    geo.mirrorTop = {
+        x: params.mirrorBase.x + params.mirrorLength * Math.cos(angleRad), // 向右
+        y: params.mirrorBase.y - params.mirrorLength * Math.sin(angleRad)  // 向上 (canvas y轴向下)
+    };
+    
+    // 为了确保镜子看起来像“靠墙”，我们可以限制 mirrorTop.x 不能超过 wallX
+    // 但为了交互自由度，暂时不强行截断，只是视觉上画墙。
+
+    // 2. 镜子直线方程 Ax + By + C = 0
+    // 两点式：(y - y1)/(y2 - y1) = (x - x1)/(x2 - x1)
+    // => (y2-y1)x - (x2-x1)y + x2y1 - y2x1 = 0
+    const x1 = params.mirrorBase.x, y1 = params.mirrorBase.y;
+    const x2 = geo.mirrorTop.x, y2 = geo.mirrorTop.y;
+    
+    const A_line = y2 - y1;
+    const B_line = x1 - x2;
+    const C_line = x2 * y1 - y2 * x1;
+    
+    // 3. 计算点 A 的像点 A'
+    // 对称点公式:
+    // x' = x - 2A(Ax + By + C) / (A^2 + B^2)
+    // y' = y - 2B(Ax + By + C) / (A^2 + B^2)
+    const ax = params.pointA.x, ay = params.pointA.y;
+    const distFactor = -2 * (A_line * ax + B_line * ay + C_line) / (A_line * A_line + B_line * B_line);
+    
+    geo.imageA = {
+        x: ax + A_line * distFactor,
+        y: ay + B_line * distFactor // 修正公式，之前有误
+    };
+    // 再次检查对称点公式：
+    // k = -2*(Ax0+By0+C)/(A^2+B^2)
+    // x = x0 + k*A
+    // y = y0 + k*B
+    // 正确。
+    
+    // 4. 计算入射点 O (直线 A'B 与 镜子直线的交点)
+    // 直线 A'B 方程
+    const apx = geo.imageA.x, apy = geo.imageA.y;
+    const bx = params.pointB.x, by = params.pointB.y;
+    
+    // 求解 A'B 与 镜子 的交点
+    // 镜子直线: A_line * x + B_line * y + C_line = 0
+    // 直线 A'B 参数方程: x = apx + t(bx - apx), y = apy + t(by - apy)
+    // 代入镜子方程求 t
+    const dx = bx - apx;
+    const dy = by - apy;
+    const denom = A_line * dx + B_line * dy;
+    
+    if (Math.abs(denom) < 0.001) {
+        geo.validIntersection = false; // 平行，无交点
+    } else {
+        const t = -(A_line * apx + B_line * apy + C_line) / denom;
+        geo.incidentPoint = {
+            x: apx + t * dx,
+            y: apy + t * dy
+        };
+        
+        // 判断交点是否在镜子线段范围内
+        // 简单的包围盒判断 + 在线上判断
+        const minX = Math.min(x1, x2) - 1, maxX = Math.max(x1, x2) + 1;
+        const minY = Math.min(y1, y2) - 1, maxY = Math.max(y1, y2) + 1;
+        
+        if (geo.incidentPoint.x >= minX && geo.incidentPoint.x <= maxX &&
+            geo.incidentPoint.y >= minY && geo.incidentPoint.y <= maxY) {
+            geo.validIntersection = true;
+        } else {
+            geo.validIntersection = false; // 交点在延长线上
+        }
+    }
+}
+
+/**
+ * 绘图循环
+ */
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // 坐标变换：为了适应不同屏幕，保持逻辑坐标居中
+    ctx.save();
+    // 简单缩放适配
+    const scale = Math.min(canvas.width / params.width, canvas.height / params.height) * 0.95;
+    const offsetX = (canvas.width - params.width * scale) / 2;
+    const offsetY = (canvas.height - params.height * scale) / 2;
+    ctx.translate(offsetX, offsetY);
+    ctx.scale(scale, scale);
+    
+    // 1. 绘制环境 (墙, 天花板, 地面)
+    drawEnvironment();
+    
+    // 2. 绘制镜子
+    drawMirror();
+    
+    // 3. 绘制辅助线和像 (根据开关)
+    if (params.showImage) drawImagePoint();
+    if (params.showVirtualLine) drawVirtualConnection();
+    
+    // 4. 绘制光路 (根据开关)
+    if (params.showLightRay) drawLightPath();
+    
+    // 5. 绘制法线 (根据开关)
+    if (params.showNormal && geo.validIntersection) drawNormalLine();
+
+    // 6. 绘制交互点 (A, B)
+    drawInteractivePoint(params.pointA, 'A', '#ef4444'); // Red
+    drawInteractivePoint(params.pointB, 'B', '#22c55e'); // Green
+    
+    // 如果光路无法形成（交点在镜子外），显示提示
+    if (params.showLightRay && !geo.validIntersection) {
+        ctx.fillStyle = 'red';
+        ctx.font = '16px Arial';
+        ctx.fillText("注意：反射点超出了镜面范围", 200, 300);
+    }
+    
+    ctx.restore();
+}
+
+function drawEnvironment() {
+    ctx.strokeStyle = '#9ca3af';
+    ctx.lineWidth = 2;
+    
+    // 地面
+    ctx.beginPath();
+    ctx.moveTo(0, params.floorY);
+    ctx.lineTo(params.width, params.floorY);
+    ctx.stroke();
+    // 地面斜线
+    ctx.beginPath();
+    for(let i=0; i<params.width; i+=20) {
+        ctx.moveTo(i, params.floorY);
+        ctx.lineTo(i-10, params.floorY+10);
+    }
+    ctx.strokeStyle = '#d1d5db';
+    ctx.stroke();
+    
+    // 天花板
+    ctx.strokeStyle = '#9ca3af';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, params.ceilingY);
+    ctx.lineTo(params.width, params.ceilingY);
+    ctx.stroke();
+    
+    // 墙壁
+    ctx.beginPath();
+    ctx.moveTo(params.wallX, params.ceilingY);
+    ctx.lineTo(params.wallX, params.floorY);
+    ctx.stroke();
+}
+
+function drawMirror() {
+    // 镜面本体
+    ctx.strokeStyle = '#06b6d4'; // Cyan
+    ctx.lineWidth = 5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(params.mirrorBase.x, params.mirrorBase.y);
+    ctx.lineTo(geo.mirrorTop.x, geo.mirrorTop.y);
+    ctx.stroke();
+    
+    // 镜面背面阴影 (表示非反射面)
+    ctx.strokeStyle = '#67e8f9';
+    ctx.lineWidth = 1;
+    const dx = geo.mirrorTop.x - params.mirrorBase.x;
+    const dy = geo.mirrorTop.y - params.mirrorBase.y;
+    const len = Math.sqrt(dx*dx + dy*dy);
+    const nx = -dy/len * 10; // 法向偏移
+    const ny = dx/len * 10;
+    
+    // 简单的背面斜线
+    const steps = 15;
+    for(let i=1; i<steps; i++) {
+        const t = i / steps;
+        const mx = params.mirrorBase.x + t * dx;
+        const my = params.mirrorBase.y + t * dy;
+        ctx.beginPath();
+        ctx.moveTo(mx, my);
+        ctx.lineTo(mx + nx, my + ny);
+        ctx.stroke();
+    }
+    
+    // 拖动把手 (镜子顶部)
+    ctx.fillStyle = '#0e7490';
+    ctx.beginPath();
+    ctx.arc(geo.mirrorTop.x, geo.mirrorTop.y, 6, 0, Math.PI*2);
+    ctx.fill();
+}
+
+function drawInteractivePoint(pos, label, color) {
+    // 外发光
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = color;
+    
+    // 点
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, 8, 0, Math.PI*2);
+    ctx.fill();
+    
+    // 标签
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#374151';
+    ctx.font = 'bold 16px Arial';
+    ctx.fillText(label, pos.x + 12, pos.y - 12);
+}
+
+function drawImagePoint() {
+    const p = geo.imageA;
+    // 虚像点 A'
+    ctx.fillStyle = '#ef4444';
+    ctx.globalAlpha = 0.6;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 6, 0, Math.PI*2);
+    ctx.fill();
+    ctx.globalAlpha = 1.0;
+    
+    ctx.fillStyle = '#ef4444';
+    ctx.font = 'bold 16px Arial';
+    ctx.fillText("A'", p.x + 12, p.y - 12);
+    
+    // 绘制对称辅助线 (A 到 A')
+    ctx.setLineDash([5, 5]);
+    ctx.strokeStyle = '#9ca3af';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(params.pointA.x, params.pointA.y);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    
+    // 垂直符号
+    // 计算中点
+    const midX = (params.pointA.x + p.x)/2;
+    const midY = (params.pointA.y + p.y)/2;
+    // 简单的直角标记逻辑略（此处为了简洁省略复杂计算，仅画点）
+}
+
+function drawVirtualConnection() {
+    if (!geo.imageA) return;
+    
+    // 连接 A' 到 B
+    ctx.setLineDash([5, 5]);
+    ctx.strokeStyle = '#f59e0b'; // Amber
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(geo.imageA.x, geo.imageA.y);
+    ctx.lineTo(params.pointB.x, params.pointB.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+}
+
+function drawLightPath() {
+    if (!geo.validIntersection) return;
+    
+    const O = geo.incidentPoint;
+    const A = params.pointA;
+    const B = params.pointB;
+    
+    ctx.strokeStyle = '#ef4444'; // Red laser
+    ctx.lineWidth = 3;
+    
+    // 入射光线 A -> O
+    ctx.beginPath();
+    ctx.moveTo(A.x, A.y);
+    ctx.lineTo(O.x, O.y);
+    ctx.stroke();
+    // 箭头
+    drawArrow(A, O, 0.5);
+    
+    // 反射光线 O -> B
+    ctx.beginPath();
+    ctx.moveTo(O.x, O.y);
+    ctx.lineTo(B.x, B.y);
+    ctx.stroke();
+    // 箭头
+    drawArrow(O, B, 0.5);
+    
+    // 标注 O
+    ctx.fillStyle = '#1f2937';
+    ctx.font = '14px Arial';
+    ctx.fillText("O", O.x, O.y + 20);
+}
+
+function drawNormalLine() {
+    const O = geo.incidentPoint;
+    
+    // 计算法线向量 (垂直于镜面)
+    // 镜面向量
+    const dx = geo.mirrorTop.x - params.mirrorBase.x;
+    const dy = geo.mirrorTop.y - params.mirrorBase.y;
+    // 法向量 (-dy, dx)
+    const len = Math.sqrt(dx*dx + dy*dy);
+    const nx = -dy / len;
+    const ny = dx / len;
+    
+    const lineLen = 60;
+    
+    ctx.setLineDash([4, 2]);
+    ctx.strokeStyle = '#4b5563';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    // 法线通常向受光面延伸
+    // 检查方向：法线应该指向 A 一侧
+    // 向量 OA
+    const vAx = params.pointA.x - O.x;
+    const vAy = params.pointA.y - O.y;
+    // 点积
+    if (nx * vAx + ny * vAy < 0) {
+        // 反向
+        ctx.moveTo(O.x, O.y);
+        ctx.lineTo(O.x - nx * lineLen, O.y - ny * lineLen);
+    } else {
+        ctx.moveTo(O.x, O.y);
+        ctx.lineTo(O.x + nx * lineLen, O.y + ny * lineLen);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+    
+    // 标注 Alpha
+    ctx.fillStyle = '#4b5563';
+    ctx.fillText("α", O.x + nx*20 + 5, O.y + ny*20);
+}
+
+function drawArrow(p1, p2, ratio) {
+    const x = p1.x + (p2.x - p1.x) * ratio;
+    const y = p1.y + (p2.y - p1.y) * ratio;
+    const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+    const headLen = 10;
+    
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x - headLen * Math.cos(angle - Math.PI/6), y - headLen * Math.sin(angle - Math.PI/6));
+    ctx.moveTo(x, y);
+    ctx.lineTo(x - headLen * Math.cos(angle + Math.PI/6), y - headLen * Math.sin(angle + Math.PI/6));
+    ctx.stroke();
+}
+
+/**
+ * 交互事件处理
+ */
+function getMousePos(evt) {
+    const rect = canvas.getBoundingClientRect();
+    // 考虑缩放
+    const scale = Math.min(canvas.width / params.width, canvas.height / params.height) * 0.95;
+    const offsetX = (canvas.width - params.width * scale) / 2;
+    const offsetY = (canvas.height - params.height * scale) / 2;
+    
+    let clientX, clientY;
+    if (evt.touches) {
+        clientX = evt.touches[0].clientX;
+        clientY = evt.touches[0].clientY;
+    } else {
+        clientX = evt.clientX;
+        clientY = evt.clientY;
+    }
+    
+    const rawX = clientX - rect.left;
+    const rawY = clientY - rect.top;
+    
+    // 反向映射回逻辑坐标
+    return {
+        x: (rawX - offsetX) / scale,
+        y: (rawY - offsetY) / scale
+    };
+}
+
+function dist(p1, p2) {
+    return Math.sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2);
+}
+
+function onMouseDown(e) {
+    const pos = getMousePos(e);
+    const threshold = 30; // 交互半径
+    
+    if (dist(pos, params.pointA) < threshold) {
+        params.dragging = 'A';
+    } else if (dist(pos, params.pointB) < threshold) {
+        params.dragging = 'B';
+    } else if (dist(pos, geo.mirrorTop) < threshold) {
+        params.dragging = 'MirrorTop';
+    }
+}
+
+function onMouseMove(e) {
+    const pos = getMousePos(e);
+    
+    // 鼠标悬停样式
+    if (!params.dragging) {
+        if (dist(pos, params.pointA) < 30 || dist(pos, params.pointB) < 30 || dist(pos, geo.mirrorTop) < 30) {
+            canvas.style.cursor = 'move';
+        } else {
+            canvas.style.cursor = 'default';
+        }
+        return;
+    }
+    
+    e.preventDefault(); // 防止触摸滚动
+    
+    if (params.dragging === 'A') {
+        // 限制A在地板之上，天花板之下
+        params.pointA.x = pos.x;
+        params.pointA.y = Math.min(Math.max(pos.y, params.ceilingY + 10), params.floorY - 10);
+    } else if (params.dragging === 'B') {
+        // 限制B在天花板上 (Y轴固定)
+        params.pointB.x = pos.x;
+        // params.pointB.y = params.ceilingY; // 严格限制在天花板
+        // 允许稍微离开天花板以便观察，但本题说是天花板，保持 y 固定更好
+        params.pointB.y = params.ceilingY; 
+    } else if (params.dragging === 'MirrorTop') {
+        // 拖动镜子顶部改变角度
+        // 计算新角度
+        const dx = pos.x - params.mirrorBase.x;
+        const dy = params.mirrorBase.y - pos.y; // Y轴反向
+        let angle = Math.atan2(dy, dx) * 180 / Math.PI;
+        if (angle < 0) angle += 360;
+        // 限制角度范围
+        params.mirrorAngle = Math.max(20, Math.min(160, 180 - angle)); 
+        // 更新滑块UI
+        document.getElementById('mirrorAngle').value = params.mirrorAngle;
+    }
+    
+    updateGeometry();
+    draw();
+}
+
+function onMouseUp(e) {
+    params.dragging = null;
+}
+
+function onTouchStart(e) { onMouseDown(e); }
+function onTouchMove(e) { onMouseMove(e); }
+
+// 启动
+init();
+
+</script>
+</body>
+</html>

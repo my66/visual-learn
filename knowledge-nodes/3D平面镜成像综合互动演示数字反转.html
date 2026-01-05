@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D平面镜成像互动演示 (第3题)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 错误处理样式 -->
+    <style>
+        #error-overlay {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(254, 226, 226, 0.95);
+            border: 1px solid #ef4444;
+            color: #b91c1c;
+            padding: 20px;
+            border-radius: 8px;
+            z-index: 9999;
+            max-width: 80%;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        #loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #f3f4f6;
+            z-index: 50;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.5s;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #e5e7eb;
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 16px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        /* 禁用文本选择，提升拖拽体验 */
+        body { user-select: none; -webkit-user-select: none; }
+    </style>
+
+    <!-- Import Map for Three.js (使用 unpkg 稳定源) -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    
+    <!-- 全局错误捕获 -->
+    <script>
+        window.addEventListener('error', function(e) {
+            const errorMsg = e.message || "未知错误";
+            const errorOverlay = document.getElementById('error-overlay');
+            const loadingOverlay = document.getElementById('loading-overlay');
+            if (errorOverlay) {
+                errorOverlay.style.display = 'block';
+                errorOverlay.innerHTML = `<strong>演示加载出错</strong><br><small>${errorMsg}</small><br><br><button onclick="location.reload()" class="px-3 py-1 bg-red-100 hover:bg-red-200 rounded border border-red-300 text-xs">点击刷新重试</button>`;
+            }
+            if (loadingOverlay) loadingOverlay.style.display = 'none';
+        });
+    </script>
+
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #f3f4f6; }
+        
+        /* 标签样式 - 使用 transform 优化性能 */
+        .label {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            pointer-events: none;
+            border: 1px solid #e5e7eb;
+            color: #374151;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            white-space: nowrap;
+            will-change: transform, opacity;
+            top: 0;
+            left: 0;
+        }
+        
+        /* 3D 容器 */
+        #canvas-container {
+            width: 100%;
+            height: 100vh;
+            position: relative;
+        }
+
+        /* 覆盖层 UI */
+        #overlay-ui {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 16px;
+            z-index: 10;
+        }
+        
+        /* 控制面板允许鼠标交互 */
+        .interactive-panel {
+            pointer-events: auto;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(4px);
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(229, 231, 235, 0.5);
+        }
+
+        input[type=range] {
+            width: 100%;
+            accent-color: #3b82f6;
+            cursor: pointer;
+        }
+        
+        /* 视角切换按钮 */
+        .view-btn {
+            background: white;
+            border: 1px solid #d1d5db;
+            color: #374151;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.1s;
+            pointer-events: auto;
+        }
+        .view-btn.active {
+            background: #eff6ff;
+            border-color: #3b82f6;
+            color: #1d4ed8;
+            font-weight: bold;
+        }
+        .view-btn:hover:not(.active) {
+            background: #f9fafb;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Loading UI -->
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <div class="text-gray-600 font-medium">正在初始化 3D 引擎...</div>
+        <div class="text-xs text-gray-400 mt-2">首次加载可能需要几秒钟</div>
+    </div>
+
+    <!-- Error UI -->
+    <div id="error-overlay"></div>
+
+    <div id="canvas-container">
+        <!-- 3D Canvas will be injected here -->
+        <div id="labels-container"></div>
+    </div>
+
+    <div id="overlay-ui">
+        <!-- 顶部：题目信息 -->
+        <div class="interactive-panel p-4 max-w-2xl mx-auto mt-2 shadow-lg">
+            <h1 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+                <span class="bg-blue-600 text-white text-xs px-2 py-0.5 rounded shadow-sm">3D流畅版</span>
+                平面镜成像综合演示 (第3题)
+            </h1>
+            <div class="mt-2 text-sm text-gray-600 space-y-1">
+                <p>已知：墙壁距平面镜 <span class="font-bold text-blue-600" id="text-L">2.5</span> m，小林距墙壁 <span class="font-bold text-blue-600" id="text-d">0.4</span> m。</p>
+                <p>求：电子钟的像距离小林 <span class="bg-blue-50 border border-blue-200 px-2 rounded font-bold text-blue-700" id="ans-distance">?</span> m。</p>
+            </div>
+        </div>
+
+        <!-- 底部：控制栏 -->
+        <div class="flex flex-col md:flex-row gap-4 items-end md:items-center justify-between w-full max-w-6xl mx-auto mb-2">
+            
+            <!-- 左下角：参数控制 -->
+            <div class="interactive-panel p-4 w-full md:w-80 space-y-4 shadow-lg">
+                <div>
+                    <div class="flex justify-between text-xs font-medium text-gray-500 mb-1">
+                        <span>镜子到墙的距离 (L)</span>
+                        <span id="val-wall">2.5 m</span>
+                    </div>
+                    <input type="range" id="slider-wall" min="1.5" max="4.0" step="0.1" value="2.5">
+                </div>
+                <div>
+                    <div class="flex justify-between text-xs font-medium text-gray-500 mb-1">
+                        <span>人到墙的距离 (d)</span>
+                        <span id="val-person">0.4 m</span>
+                    </div>
+                    <input type="range" id="slider-person" min="0.1" max="1.5" step="0.1" value="0.4">
+                </div>
+                <div class="pt-2 border-t border-gray-100">
+                    <div class="flex justify-between text-xs font-medium text-gray-500 mb-2">
+                        <span>电子钟时间</span>
+                        <!-- 使用 Canvas 绘制的数字，这里只显示文本状态 -->
+                        <span class="text-blue-600 font-mono font-bold tracking-widest text-lg" id="display-time">10:05</span>
+                    </div>
+                    <div class="flex gap-2">
+                         <input type="time" id="time-input" value="10:05" class="pointer-events-auto border rounded px-2 py-1 text-sm flex-1 font-mono">
+                         <button id="btn-reset-time" class="pointer-events-auto bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1 rounded text-xs font-medium transition-colors whitespace-nowrap">
+                             重置(10:05)
+                         </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 中下：视角切换 -->
+            <div class="flex gap-2 pointer-events-auto bg-white p-2 rounded-lg shadow-lg border border-gray-200">
+                <button class="view-btn active" data-view="orbit">
+                    👁️ 上帝视角
+                </button>
+                <button class="view-btn" data-view="top">
+                    📐 俯视图
+                </button>
+                <button class="view-btn" data-view="person">
+                    👤 小林视角
+                </button>
+            </div>
+
+            <!-- 右下：辅助开关 -->
+            <div class="interactive-panel p-3 space-y-2 text-sm shadow-lg">
+                <label class="flex items-center gap-2 cursor-pointer select-none hover:text-blue-600">
+                    <input type="checkbox" id="check-virtual" checked class="accent-blue-600">
+                    <span>显示虚像空间</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer select-none hover:text-blue-600">
+                    <input type="checkbox" id="check-rays" checked class="accent-blue-600">
+                    <span>显示光路与距离</span>
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <!-- 动态标签模板 -->
+    <div id="label-template" class="hidden">
+        <div id="lbl-person" class="label">👤 小林</div>
+        <div id="lbl-mirror" class="label">🪞 平面镜</div>
+        <div id="lbl-clock" class="label">⏰ 真实钟</div>
+        <div id="lbl-image" class="label">👻 虚像钟</div>
+        <div id="lbl-dist-wall" class="label text-blue-600">2.5m</div>
+        <div id="lbl-dist-person" class="label text-orange-600">0.4m</div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // ================= 全局变量定义 =================
+        // 重要：将 _vec 移动到最顶部，防止初始化前被调用
+        const _vec = new THREE.Vector3(); 
+
+        const state = {
+            wallDist: 2.5,
+            personDist: 0.4,
+            clockTime: "10:05",
+            viewMode: 'orbit', // orbit, top, person
+            showVirtual: true,
+            showRays: true,
+            needsUpdate: true // 性能优化：只有在脏标记为 true 时才计算几何
+        };
+
+        // DOM 缓存
+        const dom = {};
+        
+        let camera, scene, renderer, controls;
+        let objects = {}; 
+        const labels = {}; 
+        const MIRROR_SIZE = 3;
+
+        // ================= 初始化流程 =================
+        try {
+            initDOM();
+            init3D();
+            animate();
+            
+            // 隐藏 Loading
+            setTimeout(() => {
+                const loader = document.getElementById('loading-overlay');
+                if(loader) { loader.style.opacity = '0'; setTimeout(() => loader.style.display = 'none', 500); }
+            }, 500);
+        } catch (err) {
+            console.error("Init Error:", err);
+            throw err;
+        }
+
+        function initDOM() {
+            dom.textL = document.getElementById('text-L');
+            dom.textD = document.getElementById('text-d');
+            dom.ansDist = document.getElementById('ans-distance');
+            dom.valWall = document.getElementById('val-wall');
+            dom.valPerson = document.getElementById('val-person');
+            dom.displayTime = document.getElementById('display-time');
+            dom.sliderWall = document.getElementById('slider-wall');
+            dom.sliderPerson = document.getElementById('slider-person');
+            dom.timeInput = document.getElementById('time-input');
+        }
+
+        function init3D() {
+            const container = document.getElementById('canvas-container');
+            if (!container) throw new Error("Canvas container not found");
+            
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xf3f4f6);
+            scene.fog = new THREE.Fog(0xf3f4f6, 5, 20);
+
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(5, 4, 5);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // 性能优化：限制最大 DPR
+            renderer.shadowMap.enabled = true;
+            container.appendChild(renderer.domElement);
+
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.maxPolarAngle = Math.PI / 2 - 0.05;
+
+            // 灯光
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(5, 10, 5);
+            dirLight.castShadow = true;
+            dirLight.shadow.mapSize.width = 1024;
+            dirLight.shadow.mapSize.height = 1024;
+            scene.add(dirLight);
+
+            // 场景物体
+            createEnvironment();
+            createMirrorSystem();
+            createPerson();
+            createAnnotations(); 
+            
+            setupLabels();
+            setupUIControls();
+            
+            window.addEventListener('resize', onWindowResize);
+            
+            // 初次更新
+            updateSceneGeometry();
+        }
+
+        // ================= 7段数码管绘制逻辑 (Canvas) =================
+        function draw7Segment(ctx, x, y, width, height, char) {
+            const segW = width * 0.12; // 线宽
+            const gap = width * 0.05; // 间隙
+            
+            // 坐标定义
+            const x0 = x, x1 = x + segW, x2 = x + width - segW, x3 = x + width;
+            const y0 = y, y1 = y + segW, y2 = y + height/2 - segW/2, y3 = y + height/2 + segW/2, y4 = y + height - segW, y5 = y + height;
+            
+            function drawH(yA, yB) { // 水平段
+                ctx.beginPath();
+                ctx.moveTo(x1 + gap, yA); ctx.lineTo(x2 - gap, yA); ctx.lineTo(x2 - gap + segW/2, (yA+yB)/2);
+                ctx.lineTo(x2 - gap, yB); ctx.lineTo(x1 + gap, yB); ctx.lineTo(x1 + gap - segW/2, (yA+yB)/2);
+                ctx.fill();
+            }
+            function drawV(xA, xB, yTop, yBot) { // 垂直段
+                ctx.beginPath();
+                ctx.moveTo(xA, yTop + gap); ctx.lineTo(xB, yTop + gap); ctx.lineTo(xB, yBot - gap);
+                ctx.lineTo(xB - segW/2, yBot - gap + segW/2); ctx.lineTo(xA, yBot - gap); ctx.lineTo(xA, yTop + gap);
+                ctx.fill();
+            }
+
+            // 字符映射表
+            const map = {
+                '0': [1,1,1,1,1,1,0], '1': [0,1,1,0,0,0,0], '2': [1,1,0,1,1,0,1], '3': [1,1,1,1,0,0,1],
+                '4': [0,1,1,0,0,1,1], '5': [1,0,1,1,0,1,1], '6': [1,0,1,1,1,1,1], '7': [1,1,1,0,0,0,0],
+                '8': [1,1,1,1,1,1,1], '9': [1,1,1,1,0,1,1], ':': []
+            };
+            const segs = map[char] || [];
+            
+            ctx.fillStyle = '#4ade80'; // 亮绿色
+            
+            // 绘制冒号
+            if (char === ':') {
+                ctx.beginPath(); ctx.arc(x + width/2, y + height*0.3, segW, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(x + width/2, y + height*0.7, segW, 0, Math.PI*2); ctx.fill();
+                return;
+            }
+
+            // 绘制7段: A(上), B(右上), C(右下), D(下), E(左下), F(左上), G(中)
+            if (segs[0]) drawH(y0, y1); // A
+            if (segs[1]) drawV(x2, x3, y1, y2); // B
+            if (segs[2]) drawV(x2, x3, y3, y4); // C
+            if (segs[3]) drawH(y4, y5); // D
+            if (segs[4]) drawV(x0, x1, y3, y4); // E
+            if (segs[5]) drawV(x0, x1, y1, y2); // F
+            if (segs[6]) drawH(y2, y3); // G
+        }
+
+        function createClockTexture(timeStr) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            
+            // 背景
+            ctx.fillStyle = '#111827'; 
+            ctx.fillRect(0, 0, 512, 256);
+            ctx.strokeStyle = '#374151'; 
+            ctx.lineWidth = 12;
+            ctx.strokeRect(0, 0, 512, 256);
+
+            // 绘制数字
+            const chars = timeStr.split('');
+            const charW = 70, charH = 140;
+            let startX = 60;
+            const gap = 20;
+
+            // 发光效果
+            ctx.shadowColor = "#4ade80";
+            ctx.shadowBlur = 15;
+
+            chars.forEach((char) => {
+                const w = (char === ':') ? 40 : charW;
+                draw7Segment(ctx, startX, (256 - charH)/2, w, charH, char);
+                startX += w + gap;
+            });
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.colorSpace = THREE.SRGBColorSpace;
+            return texture;
+        }
+
+        // ================= 场景构建 =================
+        function createEnvironment() {
+            const gridHelper = new THREE.GridHelper(20, 20, 0xccd5ae, 0xe5e7eb);
+            scene.add(gridHelper);
+            const plane = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+            plane.rotation.x = -Math.PI / 2;
+            plane.position.y = -0.01;
+            plane.receiveShadow = true;
+            scene.add(plane);
+        }
+
+        function createMirrorSystem() {
+            // 镜子
+            const mirror = new THREE.Mesh(
+                new THREE.PlaneGeometry(MIRROR_SIZE, 2),
+                new THREE.MeshPhysicalMaterial({ color: 0xa5f3fc, metalness: 0.1, roughness: 0.1, transparent: true, opacity: 0.3, side: THREE.DoubleSide })
+            );
+            mirror.position.y = 1;
+            mirror.rotation.y = Math.PI; 
+            scene.add(mirror);
+            objects.mirror = mirror;
+            
+            const border = new THREE.Mesh(new THREE.BoxGeometry(MIRROR_SIZE + 0.1, 2.1, 0.05), new THREE.MeshStandardMaterial({ color: 0x4b5563 }));
+            border.position.set(0, 1, -0.025);
+            scene.add(border);
+
+            // 墙和钟
+            const wallGeo = new THREE.BoxGeometry(2, 2, 0.1);
+            const clockGeo = new THREE.BoxGeometry(1.2, 0.6, 0.05);
+            const tex = createClockTexture(state.clockTime);
+            
+            objects.wall = new THREE.Mesh(wallGeo, new THREE.MeshStandardMaterial({ color: 0xffffff }));
+            objects.wall.castShadow = true;
+            scene.add(objects.wall);
+            
+            objects.clock = new THREE.Mesh(clockGeo, new THREE.MeshBasicMaterial({ map: tex }));
+            scene.add(objects.clock);
+
+            // 虚像
+            objects.vWall = new THREE.Mesh(wallGeo, new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 }));
+            scene.add(objects.vWall);
+            
+            // 虚像钟：关键是 scale.x = -1 实现镜像
+            objects.vClock = new THREE.Mesh(clockGeo, new THREE.MeshBasicMaterial({ map: tex }));
+            objects.vClock.scale.x = -1;
+            scene.add(objects.vClock);
+        }
+
+        function createPerson() {
+            const group = new THREE.Group();
+            
+            const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.3, 1, 4, 8), new THREE.MeshStandardMaterial({ color: 0xf59e0b }));
+            body.position.y = 0.8;
+            body.castShadow = true;
+            group.add(body);
+            
+            const eyes = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.1, 0.2), new THREE.MeshStandardMaterial({ color: 0x333333 }));
+            eyes.position.set(0, 1.4, -0.2);
+            group.add(eyes);
+            
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.25), new THREE.MeshStandardMaterial({ color: 0xfcd34d }));
+            head.position.y = 1.4;
+            group.add(head);
+
+            scene.add(group);
+            objects.person = group;
+        }
+
+        function createAnnotations() {
+            const rayGeo = new THREE.BufferGeometry();
+            // 初始化一些点防止报错
+            rayGeo.setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,0)]);
+            objects.rayLine = new THREE.Line(rayGeo, new THREE.LineBasicMaterial({ color: 0xef4444, linewidth: 2 }));
+            scene.add(objects.rayLine);
+            
+            const vRayGeo = new THREE.BufferGeometry();
+            vRayGeo.setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,0)]);
+            objects.vRayLine = new THREE.Line(vRayGeo, new THREE.LineDashedMaterial({ color: 0x9ca3af, dashSize: 0.2, gapSize: 0.1, scale: 1 }));
+            scene.add(objects.vRayLine);
+
+            const dimGeo = new THREE.BufferGeometry();
+            dimGeo.setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,0)]);
+            objects.dimLine = new THREE.Line(dimGeo, new THREE.LineBasicMaterial({ color: 0x6b7280 }));
+            scene.add(objects.dimLine);
+        }
+
+        // ================= 逻辑更新 (性能优化版) =================
+        function updateSceneGeometry() {
+            const L = state.wallDist;
+            const d = state.personDist;
+            const personZ = L - d;
+
+            // 1. 更新物体位置 (轻量操作)
+            objects.wall.position.set(0, 1, L);
+            objects.clock.position.set(0, 1.5, L - 0.06);
+            objects.clock.rotation.y = Math.PI;
+
+            objects.vWall.position.set(0, 1, -L);
+            objects.vClock.position.set(0, 1.5, -L + 0.06);
+            
+            objects.person.position.set(0, 0, personZ);
+
+            objects.vWall.visible = state.showVirtual;
+            objects.vClock.visible = state.showVirtual;
+
+            // 2. 更新线条几何 (重操作，仅在需要时执行)
+            if (state.showRays) {
+                objects.rayLine.visible = true;
+                objects.vRayLine.visible = true;
+                
+                const pClock = new THREE.Vector3(0, 1.5, L - 0.06);
+                const pImage = new THREE.Vector3(0, 1.5, -L + 0.06);
+                const pEye = new THREE.Vector3(0, 1.4, personZ);
+                
+                // 计算视线在镜子上的交点
+                const dir = new THREE.Vector3().subVectors(pImage, pEye);
+                const t = -pEye.z / dir.z; // Hit.z = 0
+                const pHit = new THREE.Vector3().copy(pEye).add(dir.multiplyScalar(t));
+
+                objects.rayLine.geometry.setFromPoints([pClock, pHit, pEye]);
+                
+                objects.vRayLine.geometry.setFromPoints([pImage, pHit]);
+                objects.vRayLine.computeLineDistances(); 
+            } else {
+                objects.rayLine.visible = false;
+                objects.vRayLine.visible = false;
+            }
+
+            // 尺寸线
+            const yLevel = 0.05;
+            const xOffset = 2.5;
+            objects.dimLine.geometry.setFromPoints([
+                new THREE.Vector3(xOffset, yLevel, 0),
+                new THREE.Vector3(xOffset, yLevel, L),
+                new THREE.Vector3(xOffset, yLevel, -L)
+            ]);
+
+            // 更新文本
+            const totalDist = (L + (L - d)).toFixed(1);
+            if (dom.ansDist.innerText !== totalDist) dom.ansDist.innerText = totalDist;
+            if (dom.valWall.innerText !== L + ' m') dom.valWall.innerText = L + ' m';
+            if (dom.valPerson.innerText !== d + ' m') dom.valPerson.innerText = d + ' m';
+            
+            // 更新动态标签文本
+            if(labels.distWall) labels.distWall.innerText = `镜到墙: ${L}m`;
+            if(labels.distPerson) labels.distPerson.innerText = `人到墙: ${d}m`;
+
+            state.needsUpdate = false;
+        }
+
+        // ================= 循环渲染 =================
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+
+            // 如果有脏标记，才更新几何体
+            if (state.needsUpdate) {
+                updateSceneGeometry();
+            }
+
+            // 标签位置需要每帧更新，但使用 transform 优化
+            updateLabelsTransform();
+            
+            // 相机逻辑
+            handleCameraLogic();
+
+            renderer.render(scene, camera);
+        }
+
+        function handleCameraLogic() {
+            const personZ = state.wallDist - state.personDist;
+            
+            if (state.viewMode === 'top') {
+                controls.enabled = false;
+                camera.position.lerp(new THREE.Vector3(0, 10, 0), 0.1);
+                camera.lookAt(0, 0, 0);
+            } else if (state.viewMode === 'person') {
+                controls.enabled = false;
+                
+                // 强制隐藏小林模型 (解决遮挡问题)
+                objects.person.visible = false; 
+                
+                const eyePos = new THREE.Vector3(0, 1.4, personZ);
+                camera.position.copy(eyePos);
+                camera.lookAt(0, 1.5, -state.wallDist); 
+            } else {
+                controls.enabled = true;
+                // 恢复小林显示
+                objects.person.visible = true; 
+            }
+        }
+
+        function updateLabelsTransform() {
+            if (!labels.person) return;
+            const L = state.wallDist;
+            const d = state.personDist;
+
+            // 批量计算并应用
+            updateSingleLabel(labels.person, objects.person, 1.8, state.viewMode !== 'person');
+            updateSingleLabel(labels.mirror, objects.mirror, 1.2);
+            updateSingleLabel(labels.clock, objects.clock, 0.5);
+            updateSingleLabel(labels.image, objects.vClock, 0.5, state.showVirtual);
+            
+            // 虚拟点的位置手动计算
+            const midWall = new THREE.Vector3(1.5, 0.1, L/2);
+            updateSingleLabel(labels.distWall, midWall, 0);
+            
+            const midPerson = new THREE.Vector3(-1, 0.1, L - d/2);
+            updateSingleLabel(labels.distPerson, midPerson, 0);
+        }
+
+        function updateSingleLabel(dom, target, yOffset, isVisible = true) {
+            if (!isVisible) {
+                dom.style.opacity = 0;
+                return;
+            }
+            
+            if (target.isVector3) _vec.copy(target);
+            else {
+                target.updateWorldMatrix(true, false);
+                target.getWorldPosition(_vec);
+            }
+            _vec.y += yOffset;
+            _vec.project(camera);
+
+            // 检查是否在相机后方
+            if (Math.abs(_vec.z) > 1) {
+                dom.style.opacity = 0;
+                return;
+            }
+
+            const x = (_vec.x * .5 + .5) * window.innerWidth;
+            const y = (-_vec.y * .5 + .5) * window.innerHeight;
+
+            // 使用 transform 代替 top/left
+            dom.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
+            dom.style.opacity = 1;
+        }
+
+        // ================= UI 事件 =================
+        function setupLabels() {
+            const container = document.getElementById('labels-container');
+            const template = document.getElementById('label-template');
+            Array.from(template.children).forEach(el => {
+                const clone = el.cloneNode(true);
+                clone.id = "";
+                container.appendChild(clone);
+                if (el.id === 'lbl-person') labels.person = clone;
+                if (el.id === 'lbl-mirror') labels.mirror = clone;
+                if (el.id === 'lbl-clock') labels.clock = clone;
+                if (el.id === 'lbl-image') labels.image = clone;
+                if (el.id === 'lbl-dist-wall') labels.distWall = clone;
+                if (el.id === 'lbl-dist-person') labels.distPerson = clone;
+            });
+        }
+
+        function setupUIControls() {
+            function updateState() { state.needsUpdate = true; }
+
+            dom.sliderWall.addEventListener('input', (e) => {
+                state.wallDist = parseFloat(e.target.value);
+                const maxPerson = state.wallDist - 0.5;
+                if (parseFloat(dom.sliderPerson.value) > maxPerson) {
+                    dom.sliderPerson.value = maxPerson;
+                    state.personDist = maxPerson;
+                }
+                dom.sliderPerson.max = maxPerson;
+                dom.textL.innerText = state.wallDist;
+                updateState();
+            });
+
+            dom.sliderPerson.addEventListener('input', (e) => {
+                state.personDist = parseFloat(e.target.value);
+                dom.textD.innerText = state.personDist;
+                updateState();
+            });
+
+            dom.timeInput.addEventListener('input', (e) => {
+                state.clockTime = e.target.value;
+                dom.displayTime.innerText = state.clockTime;
+                refreshTexture();
+            });
+
+            document.getElementById('btn-reset-time').addEventListener('click', () => {
+                state.clockTime = "10:05";
+                dom.timeInput.value = "10:05";
+                dom.displayTime.innerText = "10:05";
+                refreshTexture();
+            });
+
+            function refreshTexture() {
+                const newTex = createClockTexture(state.clockTime);
+                objects.clock.material.map = newTex;
+                objects.vClock.material.map = newTex;
+                objects.clock.material.needsUpdate = true;
+                objects.vClock.material.needsUpdate = true;
+            }
+
+            // 视角切换
+            const viewBtns = document.querySelectorAll('.view-btn');
+            viewBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    viewBtns.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    state.viewMode = btn.dataset.view;
+                    if (state.viewMode === 'orbit') controls.target.set(0, 1, 0);
+                    state.needsUpdate = true; 
+                });
+            });
+
+            document.getElementById('check-virtual').addEventListener('change', (e) => { state.showVirtual = e.target.checked; updateState(); });
+            document.getElementById('check-rays').addEventListener('change', (e) => { state.showRays = e.target.checked; updateState(); });
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+    </script>
+</body>
+</html>

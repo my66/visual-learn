@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三棱镜光路几何作图演示</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        canvas { touch-action: none; /* 防止手机上拖动时滚动页面 */ }
+        .instruction-box {
+            background-color: rgba(255, 255, 255, 0.9);
+            border-left: 4px solid #3b82f6;
+        }
+        .step-active { background-color: #3b82f6; color: white; }
+        .step-inactive { background-color: #e5e7eb; color: #374151; }
+    </style>
+</head>
+<body class="bg-slate-50 h-screen flex flex-col">
+
+    <!-- 顶部标题栏 -->
+    <div class="bg-white shadow-sm p-4 z-10">
+        <div class="max-w-4xl mx-auto flex justify-between items-center">
+            <div>
+                <h1 class="text-xl font-bold text-slate-800">三棱镜光路作图法</h1>
+                <p class="text-sm text-slate-500">已知入射点 S 和出射点 P，求反射点 M</p>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="prevStep()" class="px-4 py-2 rounded bg-slate-200 hover:bg-slate-300 transition font-medium">上一步</button>
+                <button onclick="nextStep()" class="px-4 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white transition font-medium shadow-md">下一步</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主体内容 -->
+    <div class="flex-grow relative overflow-hidden flex flex-col md:flex-row">
+        
+        <!-- 左侧画布区域 -->
+        <div class="flex-grow relative bg-slate-100 flex items-center justify-center p-4">
+            <canvas id="canvas" class="bg-white shadow-lg rounded-lg cursor-crosshair border border-slate-200"></canvas>
+            
+            <!-- 浮动提示 -->
+            <div class="absolute top-6 left-6 instruction-box p-4 rounded shadow-md max-w-xs transition-opacity duration-300" id="infoBox">
+                <h3 class="font-bold text-lg mb-1" id="stepTitle">准备阶段</h3>
+                <p class="text-slate-600 text-sm leading-relaxed" id="stepDesc">
+                    拖动 AB 边上的 S 点或 AC 边上的 P 点来改变位置。<br>
+                    点击“下一步”开始作图。
+                </p>
+            </div>
+        </div>
+
+        <!-- 右侧/底部 步骤指示器 -->
+        <div class="md:w-64 bg-white border-l border-slate-200 p-6 flex flex-col gap-3 overflow-y-auto">
+            <h2 class="font-bold text-slate-700 mb-2">作图步骤</h2>
+            <div id="step-btn-0" class="p-3 rounded cursor-pointer transition step-active" onclick="setStep(0)">
+                <span class="font-bold block">1. 初始状态</span>
+                <span class="text-xs opacity-80">设定 S 和 P 的位置</span>
+            </div>
+            <div id="step-btn-1" class="p-3 rounded cursor-pointer transition step-inactive" onclick="setStep(1)">
+                <span class="font-bold block">2. 镜像翻折</span>
+                <span class="text-xs opacity-80">作 P 关于底边 BC 的对称点 P'</span>
+            </div>
+            <div id="step-btn-2" class="p-3 rounded cursor-pointer transition step-inactive" onclick="setStep(2)">
+                <span class="font-bold block">3. 连接直线</span>
+                <span class="text-xs opacity-80">连接 S 和 P'，交底边于 M</span>
+            </div>
+            <div id="step-btn-3" class="p-3 rounded cursor-pointer transition step-inactive" onclick="setStep(3)">
+                <span class="font-bold block">4. 绘制光路</span>
+                <span class="text-xs opacity-80">连接 S-M-P 完成光路</span>
+            </div>
+            
+            <div class="mt-auto border-t pt-4">
+                <p class="text-xs text-slate-400">
+                    <span class="font-bold text-orange-500">提示：</span> 
+                    利用平面镜成像原理，把折线路径转化为直线路径，这是解决反射问题的核心技巧。
+                </p>
+            </div>
+        </div>
+    </div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    // 状态变量
+    let step = 0;
+    const totalSteps = 4;
+    
+    // 几何参数 (归一化 0-1)
+    // S 在 AB 边上的比例 (0靠近A, 1靠近B)
+    let sRatio = 0.4; 
+    // P 在 AC 边上的比例 (0靠近A, 1靠近C)
+    let pRatio = 0.65;
+    
+    // 拖拽状态
+    let dragging = null; // 'S' or 'P'
+
+    // 棱镜几何数据 (使用局部变量避免与全局变量冲突)
+    let ptA, ptB, ptC, ptS, ptP, ptP_mirror, ptM, ptD_foot;
+
+    // 初始化画布大小
+    function resize() {
+        const parent = canvas.parentElement;
+        canvas.width = parent.clientWidth - 32;
+        canvas.height = parent.clientHeight - 32;
+        draw();
+    }
+    window.addEventListener('resize', resize);
+
+    // 计算坐标
+    function updateCoordinates() {
+        const w = canvas.width;
+        const h = canvas.height;
+        const cx = w / 2;
+        const cy = h / 2;
+        
+        // 定义三角形大小
+        const size = Math.min(w, h) * 0.35;
+        
+        // 等腰直角三角形，A在顶部，BC水平
+        // A角90度，意味着高 = 底边的一半
+        ptA = { x: cx, y: cy - size * 0.8 };
+        ptB = { x: cx - size, y: cy + size * 0.2 }; // y坐标 A.y + size
+        ptC = { x: cx + size, y: cy + size * 0.2 };
+        
+        // 计算 S 点 (在 AB 上)
+        ptS = {
+            x: ptA.x + (ptB.x - ptA.x) * sRatio,
+            y: ptA.y + (ptB.y - ptA.y) * sRatio
+        };
+
+        // 计算 P 点 (在 AC 上)
+        ptP = {
+            x: ptA.x + (ptC.x - ptA.x) * pRatio,
+            y: ptA.y + (ptC.y - ptA.y) * pRatio
+        };
+
+        // 计算 P 的投影点 D (在 BC 直线上)
+        ptD_foot = { x: ptP.x, y: ptB.y };
+
+        // 计算 P 的镜像点 P' (关于 BC 对称)
+        // 距离 BC 的垂直距离
+        const dy = ptB.y - ptP.y;
+        ptP_mirror = { x: ptP.x, y: ptB.y + dy };
+
+        // 计算 M 点 (S 和 P_mirror 的连线与 BC 的交点)
+        // Line SP': y - Sy = m(x - Sx), where m = (P'y - Sy)/(P'x - Sx)
+        // Line BC: y = By
+        // By - Sy = m(Mx - Sx) => Mx = Sx + (By - Sy)/m
+        if (Math.abs(ptP_mirror.x - ptS.x) < 0.001) {
+            ptM = { x: ptS.x, y: ptB.y };
+        } else {
+            const m = (ptP_mirror.y - ptS.y) / (ptP_mirror.x - ptS.x);
+            const Mx = ptS.x + (ptB.y - ptS.y) / m;
+            ptM = { x: Mx, y: ptB.y };
+        }
+    }
+
+    // 绘图主函数
+    function draw() {
+        updateCoordinates();
+        
+        // 清空画布
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // 1. 画桌面 (Ground)
+        ctx.beginPath();
+        ctx.moveTo(0, ptB.y + 20);
+        ctx.lineTo(canvas.width, ptB.y + 20);
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        // 桌面纹理
+        for(let i=0; i<canvas.width; i+=20) {
+            ctx.beginPath();
+            ctx.moveTo(i, ptB.y+20);
+            ctx.lineTo(i-10, ptB.y+30);
+            ctx.stroke();
+        }
+
+        // 2. 画棱镜 (Prism)
+        ctx.beginPath();
+        ctx.moveTo(ptB.x, ptB.y);
+        ctx.lineTo(ptA.x, ptA.y);
+        ctx.lineTo(ptC.x, ptC.y);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(224, 242, 254, 0.5)'; // 浅蓝色玻璃感
+        ctx.fill();
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = 3;
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+        
+        // 标注顶点
+        drawLabel('A', ptA.x, ptA.y - 15);
+        drawLabel('B', ptB.x - 15, ptB.y + 15);
+        drawLabel('C', ptC.x + 15, ptC.y + 15);
+
+        // 3. 根据步骤画辅助线和光路
+
+        // Step 1: 镜像翻折 P -> P'
+        if (step >= 1) {
+            // 垂线 P -> D -> P'
+            ctx.setLineDash([5, 5]);
+            ctx.strokeStyle = '#94a3b8';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(ptP.x, ptP.y);
+            ctx.lineTo(ptP_mirror.x, ptP_mirror.y);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // 垂直符号
+            drawRightAngle(ptD_foot.x, ptD_foot.y, 10);
+
+            // 画 P'
+            drawPoint(ptP_mirror.x, ptP_mirror.y, "#ef4444"); // Red
+            drawLabel("P'", ptP_mirror.x + 10, ptP_mirror.y + 10, '#ef4444');
+            
+            // 等距标记
+            drawHashMark(ptP.x, (ptP.y + ptD_foot.y)/2);
+            drawHashMark(ptP_mirror.x, (ptP_mirror.y + ptD_foot.y)/2);
+        }
+
+        // Step 2: 连接 S P'
+        if (step >= 2) {
+            ctx.setLineDash([8, 4]);
+            ctx.strokeStyle = '#f59e0b'; // Amber
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(ptS.x, ptS.y);
+            ctx.lineTo(ptP_mirror.x, ptP_mirror.y);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            
+            // 标注 M 点
+            drawPoint(ptM.x, ptM.y, "#10b981"); // Green
+            drawLabel("M", ptM.x, ptM.y + 20, '#10b981');
+        }
+
+        // Step 0-4 Always: 画 S 和 P 点
+        drawPoint(ptS.x, ptS.y, "#3b82f6"); // Blue
+        drawLabel('S', ptS.x - 15, ptS.y - 10, '#3b82f6');
+        
+        drawPoint(ptP.x, ptP.y, "#ef4444"); // Red
+        drawLabel('P', ptP.x + 15, ptP.y - 10, '#ef4444');
+
+        // Step 3-4: 最终光路
+        if (step >= 3) {
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = "red";
+            ctx.strokeStyle = '#dc2626'; // Bright Red Laser
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            
+            ctx.beginPath();
+            // 入射光 (无限远 -> S)
+            ctx.moveTo(ptS.x - 1000, ptS.y); // 平行于桌面(水平)
+            ctx.lineTo(ptS.x, ptS.y);
+            // 折射 (S -> M)
+            ctx.lineTo(ptM.x, ptM.y);
+            // 反射 (M -> P)
+            ctx.lineTo(ptP.x, ptP.y);
+            // 出射 (P -> 出去)
+            const vecX = ptP.x - ptM.x;
+            const vecY = ptP.y - ptM.y;
+            ctx.lineTo(ptP.x + vecX * 0.5, ptP.y + vecY * 0.5); 
+            ctx.stroke();
+            
+            ctx.shadowBlur = 0;
+
+            // 画箭头
+            drawArrow(ptS.x - 60, ptS.y, ptS.x - 40, ptS.y); // 入射
+            drawArrow((ptS.x+ptM.x)/2, (ptS.y+ptM.y)/2, ptM.x, ptM.y, 0.5); // 棱镜内入射
+            drawArrow((ptM.x+ptP.x)/2, (ptM.y+ptP.y)/2, ptP.x, ptP.y, 0.5); // 棱镜内反射
+        }
+
+        // 交互热区提示 (Hover effect for S and P)
+        if(step === 0) {
+           ctx.strokeStyle = 'rgba(59, 130, 246, 0.5)';
+           ctx.lineWidth = 1;
+           ctx.beginPath();
+           ctx.arc(ptS.x, ptS.y, 15, 0, Math.PI*2);
+           ctx.stroke();
+           ctx.beginPath();
+           ctx.arc(ptP.x, ptP.y, 15, 0, Math.PI*2);
+           ctx.stroke();
+        }
+    }
+
+    // 辅助绘图函数
+    function drawPoint(x, y, color) {
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(x, y, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'white';
+        ctx.beginPath();
+        ctx.arc(x, y, 2, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    function drawLabel(text, x, y, color = '#334155') {
+        ctx.fillStyle = color;
+        ctx.font = 'bold 16px sans-serif';
+        ctx.fillText(text, x - 5, y + 5);
+    }
+
+    function drawRightAngle(x, y, size) {
+        ctx.beginPath();
+        ctx.moveTo(x, y - size);
+        ctx.lineTo(x + size, y - size);
+        ctx.lineTo(x + size, y);
+        ctx.stroke();
+    }
+
+    function drawHashMark(x, y) {
+        ctx.beginPath();
+        ctx.moveTo(x-5, y);
+        ctx.lineTo(x+5, y);
+        ctx.stroke();
+    }
+    
+    function drawArrow(fromX, fromY, toX, toY, ratio=1) {
+        const headlen = 10;
+        const dx = toX - fromX;
+        const dy = toY - fromY;
+        const angle = Math.atan2(dy, dx);
+        
+        // Calculate mid point
+        const mx = fromX + dx * ratio;
+        const my = fromY + dy * ratio;
+
+        ctx.beginPath();
+        ctx.moveTo(mx, my);
+        ctx.lineTo(mx - headlen * Math.cos(angle - Math.PI / 6), my - headlen * Math.sin(angle - Math.PI / 6));
+        ctx.moveTo(mx, my);
+        ctx.lineTo(mx - headlen * Math.cos(angle + Math.PI / 6), my - headlen * Math.sin(angle + Math.PI / 6));
+        ctx.stroke();
+    }
+
+    // 交互逻辑
+    function getMousePos(evt) {
+        const rect = canvas.getBoundingClientRect();
+        return {
+            x: evt.clientX - rect.left,
+            y: evt.clientY - rect.top
+        };
+    }
+
+    // 简单的点到线段距离检测
+    function isNear(pos, target) {
+        const dx = pos.x - target.x;
+        const dy = pos.y - target.y;
+        return (dx*dx + dy*dy) < 400; // 20px radius
+    }
+
+    canvas.addEventListener('pointerdown', (e) => {
+        const pos = getMousePos(e);
+        if (isNear(pos, ptS)) dragging = 'S';
+        else if (isNear(pos, ptP)) dragging = 'P';
+        else dragging = null;
+        
+        if (dragging) canvas.setPointerCapture(e.pointerId);
+    });
+
+    canvas.addEventListener('pointermove', (e) => {
+        const pos = getMousePos(e);
+        
+        // 鼠标悬停变手型
+        if (isNear(pos, ptS) || isNear(pos, ptP)) canvas.style.cursor = 'move';
+        else canvas.style.cursor = 'default';
+
+        if (!dragging) return;
+
+        if (dragging === 'S') {
+            // 投影到 AB 边
+            // AB 向量
+            const vAB = { x: ptB.x - ptA.x, y: ptB.y - ptA.y };
+            const vAP = { x: pos.x - ptA.x, y: pos.y - ptA.y };
+            // 点乘
+            const dot = vAB.x * vAP.x + vAB.y * vAP.y;
+            const lenSq = vAB.x * vAB.x + vAB.y * vAB.y;
+            let t = dot / lenSq;
+            // 限制范围
+            t = Math.max(0.1, Math.min(0.9, t));
+            sRatio = t;
+        } else if (dragging === 'P') {
+            // 投影到 AC 边
+            const vAC = { x: ptC.x - ptA.x, y: ptC.y - ptA.y };
+            const vAP = { x: pos.x - ptA.x, y: pos.y - ptA.y };
+            const dot = vAC.x * vAP.x + vAC.y * vAP.y;
+            const lenSq = vAC.x * vAC.x + vAC.y * vAC.y;
+            let t = dot / lenSq;
+            t = Math.max(0.1, Math.min(0.9, t));
+            pRatio = t;
+        }
+        draw();
+    });
+
+    canvas.addEventListener('pointerup', (e) => {
+        dragging = null;
+    });
+
+    // 步骤控制
+    const stepsInfo = [
+        { title: "步骤 1: 确定位置", desc: "这是初始状态。光线从 S 射入，最终从 P 射出。你可以**拖动** S 和 P 来模拟不同的情况。注意 P 点通常比 S 点稍微低一些（靠近桌面）。" },
+        { title: "步骤 2: 镜像作图法", desc: "关键技巧：把棱镜底边 BC 当作平面镜。<br>过点 P 做 BC 的垂线，并延长相等距离，找到 P 的对称点 <span style='color:red; font-weight:bold'>P'</span>。" },
+        { title: "步骤 3: 连线找点", desc: "连接入射点 S 和 镜像点 P'。<br>这条直线与底边 BC 的交点，就是光线在底面上的反射点 <span style='color:#10b981; font-weight:bold'>M</span>。<br>原理：平面镜反射中，物像关于镜面对称，入射光线的延长线必过像点。" },
+        { title: "步骤 4: 完成光路", desc: "连接 S-M 和 M-P。<br>红色的折线就是光在棱镜内部行进的实际路径。<br>可以看到，无论 S 和 P 怎么移动，只要用这个方法，都能准确找到 M 点。" }
+    ];
+
+    function updateUI() {
+        document.getElementById('stepTitle').innerHTML = stepsInfo[step].title;
+        document.getElementById('stepDesc').innerHTML = stepsInfo[step].desc;
+        
+        for (let i = 0; i < totalSteps; i++) {
+            const btn = document.getElementById(`step-btn-${i}`);
+            if (i === step) {
+                btn.classList.remove('step-inactive');
+                btn.classList.add('step-active');
+            } else {
+                btn.classList.remove('step-active');
+                btn.classList.add('step-inactive');
+            }
+        }
+    }
+
+    function nextStep() {
+        if (step < totalSteps - 1) {
+            step++;
+            draw();
+            updateUI();
+        }
+    }
+
+    function prevStep() {
+        if (step > 0) {
+            step--;
+            draw();
+            updateUI();
+        }
+    }
+
+    function setStep(s) {
+        step = s;
+        draw();
+        updateUI();
+    }
+
+    // 暴露函数到全局，以便 HTML 按钮调用
+    window.nextStep = nextStep;
+    window.prevStep = prevStep;
+    window.setStep = setStep;
+
+    // 启动
+    resize();
+    updateUI();
+
+})(); // 立即执行函数结束
+</script>
+</body>
+</html>

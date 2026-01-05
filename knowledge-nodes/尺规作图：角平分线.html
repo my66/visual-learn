@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>尺规作图：角平分线 (Angle Bisector Construction)</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <style>
+    :root {
+      --bg-color: #f4f4f9;
+      --panel-bg: #ffffff;
+      --text-color: #333;
+      --accent-color: #2563eb;
+      --border-color: #e5e7eb;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: "Noto Sans SC", "Microsoft YaHei", sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden; /* 防止主页面滚动，内部滚动 */
+    }
+
+    /* 顶部标题栏 */
+    header {
+      background-color: var(--panel-bg);
+      padding: 1rem 2rem;
+      border-bottom: 1px solid var(--border-color);
+      flex-shrink: 0;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 1.5rem;
+      color: var(--accent-color);
+    }
+
+    .subtitle {
+      font-size: 0.9rem;
+      color: #666;
+      margin-top: 0.5rem;
+    }
+
+    /* 主布局 */
+    .main-container {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* 左侧控制面板 */
+    .controls {
+      width: 340px;
+      background-color: var(--panel-bg);
+      padding: 1.5rem;
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      overflow-y: auto;
+      flex-shrink: 0;
+      box-shadow: 2px 0 5px rgba(0,0,0,0.02);
+    }
+
+    .control-group {
+      background: #f8fafc;
+      padding: 1rem;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+    }
+
+    .control-group h3 {
+      margin-top: 0;
+      margin-bottom: 0.8rem;
+      font-size: 1rem;
+      color: #1e293b;
+      border-bottom: 2px solid #e2e8f0;
+      padding-bottom: 0.5rem;
+    }
+
+    .step-indicator {
+      font-weight: bold;
+      color: var(--accent-color);
+      margin-bottom: 0.5rem;
+      display: block;
+    }
+
+    .instruction {
+      font-size: 0.95rem;
+      line-height: 1.6;
+      color: #475569;
+      background: #fff;
+      padding: 0.8rem;
+      border-radius: 4px;
+      border-left: 4px solid var(--accent-color);
+    }
+
+    /* 控件样式 */
+    label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      margin-bottom: 0.5rem;
+      accent-color: var(--accent-color);
+    }
+
+    .value-display {
+      float: right;
+      font-family: monospace;
+      color: var(--accent-color);
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+    }
+
+    button {
+      flex: 1;
+      padding: 0.6rem;
+      border: 1px solid var(--border-color);
+      background-color: white;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: all 0.2s;
+    }
+
+    button:hover {
+      background-color: #f1f5f9;
+      border-color: #cbd5e1;
+    }
+
+    button.primary {
+      background-color: var(--accent-color);
+      color: white;
+      border: none;
+    }
+
+    button.primary:hover {
+      background-color: #1d4ed8;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.5rem;
+    }
+
+    .toggle-row input {
+      width: auto;
+      margin: 0;
+    }
+
+    /* 右侧画布区域 */
+    #canvas-container {
+      flex: 1;
+      position: relative;
+      background-color: #fff;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    /* 响应式调整 (针对极小窗口，尽管主要是 PC) */
+    @media (max-width: 800px) {
+      .main-container {
+        flex-direction: column;
+      }
+      .controls {
+        width: 100%;
+        height: 300px;
+        border-right: none;
+        border-bottom: 1px solid var(--border-color);
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>尺规作图：角平分线 (Angle Bisector)</h1>
+    <div class="subtitle">互动式几何教学演示 | Interactive Geometry Visualization</div>
+  </header>
+
+  <div class="main-container">
+    <div class="controls">
+      
+      <!-- 状态区 -->
+      <div class="control-group">
+        <h3>当前步骤 (Step)</h3>
+        <span class="step-indicator" id="step-num">步骤 0 / 4</span>
+        <div class="instruction" id="step-desc">
+          准备就绪。请调整初始角度，然后点击“下一步”开始作图。
+        </div>
+        <div class="btn-row">
+          <button id="btn-prev" onclick="prevStep()">上一步</button>
+          <button id="btn-next" class="primary" onclick="nextStep()">下一步</button>
+        </div>
+        <div class="btn-row">
+          <button onclick="resetSim()">重置 (Reset)</button>
+        </div>
+      </div>
+
+      <!-- 参数调节 -->
+      <div class="control-group">
+        <h3>参数设置 (Settings)</h3>
+        
+        <label>
+          角度大小 (Angle)
+          <span class="value-display" id="angle-val">60°</span>
+        </label>
+        <input type="range" id="angle-slider" min="20" max="160" value="60" step="1">
+
+        <label>
+          圆规半径 (Radius)
+          <span class="value-display" id="radius-val">150</span>
+        </label>
+        <input type="range" id="radius-slider" min="100" max="250" value="180" step="5">
+      </div>
+
+      <!-- 显示选项 -->
+      <div class="control-group">
+        <h3>显示选项 (Display)</h3>
+        <div class="toggle-row">
+          <label for="chk-labels">显示点标号 (Labels)</label>
+          <input type="checkbox" id="chk-labels" checked>
+        </div>
+        <div class="toggle-row">
+          <label for="chk-aux">显示作图痕迹 (Aux Lines)</label>
+          <input type="checkbox" id="chk-aux" checked>
+        </div>
+        <div class="toggle-row">
+          <label for="chk-anim">动画绘制 (Animation)</label>
+          <input type="checkbox" id="chk-anim" checked>
+        </div>
+      </div>
+
+    </div>
+
+    <div id="canvas-container">
+      <!-- p5.js canvas will be injected here -->
+    </div>
+  </div>
+
+<script>
+/**
+ * P5.js Interactive Angle Bisector Construction
+ * * Logic:
+ * 1. Define geometry points (O, A, B) based on slider.
+ * 2. Step 1: Draw Arc from O -> Intersects OA at M, OB at N.
+ * 3. Step 2: Draw Arc from M -> Radius R2.
+ * 4. Step 3: Draw Arc from N -> Radius R2. Intersects previous arc at P.
+ * 5. Step 4: Draw Ray OP.
+ */
+
+// Global Variables
+let angleSlider, radiusSlider;
+let chkLabels, chkAux, chkAnim;
+
+let currentStep = 0;
+let targetStep = 0;
+let animationProgress = 0; // 0.0 to 1.0
+let isAnimating = false;
+
+// Geometry State
+let angleVal = 60;
+let baseRadius = 180;
+// Renamed variables to avoid "redeclaration of global property" error (e.g., 'N' or 'name')
+let ptO, ptA, ptB; // Main angle points
+let ptM, ptN;      // First intersection points
+let ptP;           // Intersection of arcs from M and N
+let secondRadius;  // Radius for step 2 & 3
+
+function setup() {
+  const container = document.getElementById('canvas-container');
+  const canvas = createCanvas(container.clientWidth, container.clientHeight);
+  canvas.parent('canvas-container');
+  
+  // Initialize UI references
+  angleSlider = document.getElementById('angle-slider');
+  radiusSlider = document.getElementById('radius-slider');
+  chkLabels = document.getElementById('chk-labels');
+  chkAux = document.getElementById('chk-aux');
+  chkAnim = document.getElementById('chk-anim');
+
+  // Add listeners
+  angleSlider.addEventListener('input', updateParams);
+  radiusSlider.addEventListener('input', updateParams);
+  window.addEventListener('resize', windowResized);
+
+  updateParams(); // Calculate initial positions
+  
+  textFont('Noto Sans SC');
+}
+
+function windowResized() {
+  const container = document.getElementById('canvas-container');
+  resizeCanvas(container.clientWidth, container.clientHeight);
+}
+
+function updateParams() {
+  angleVal = parseInt(angleSlider.value);
+  baseRadius = parseInt(radiusSlider.value);
+  
+  document.getElementById('angle-val').innerText = angleVal + "°";
+  document.getElementById('radius-val').innerText = baseRadius;
+
+  // Recalculate Geometry
+  calculateGeometry();
+  
+  // If we are in the middle of steps, we need to redraw strictly
+  // Resetting animation progress if static to ensure it snaps to correct pos
+  if (!isAnimating) {
+    animationProgress = 1;
+  }
+}
+
+function calculateGeometry() {
+  // Center O
+  const cx = width / 2 - 50;
+  const cy = height / 2 + 100;
+  ptO = createVector(cx, cy);
+
+  // Arm length for visual representation (longer than construction radius)
+  let armLen = Math.max(width, height) * 0.6;
+
+  // Point A (Bottom horizontal-ish)
+  // Let's rotate the whole system so the bisector is roughly pointing Up-Right or Up
+  // Actually, standard textbook: OA horizontal to the right, OB at angle.
+  // Let's do OA horizontal to right for clarity.
+  ptA = createVector(cx + armLen, cy);
+
+  // Point B
+  let rad = radians(-angleVal); // Negative for Y-up on screen (p5 Y is down)
+  ptB = createVector(cx + armLen * cos(rad), cy + armLen * sin(rad));
+
+  // Points M and N (Intersection of Circle(O, baseRadius))
+  ptM = p5.Vector.add(ptO, p5.Vector.sub(ptA, ptO).setMag(baseRadius));
+  ptN = p5.Vector.add(ptO, p5.Vector.sub(ptB, ptO).setMag(baseRadius));
+
+  // Second Radius (for M and N arcs). Needs to be > 0.5 * dist(M,N)
+  // Let's make it slightly larger than half chord, or just same as baseRadius for simplicity
+  // Ideally, use a fixed visual ratio or same as baseRadius
+  secondRadius = baseRadius * 0.8; 
+
+  // Calculate P (Intersection of Circle(M, r2) and Circle(N, r2))
+  // P lies on the angle bisector.
+  let bisectorAngle = rad / 2;
+  // Distance from O to P
+  // Triangle OMP is congruent to ONP.
+  // We need distance d = OP.
+  // P is intersection of two circles.
+  // Let's just use geometry to find P explicitly on the bisector line.
+  // Distance from midpoint of chord MN to M is d_chord/2.
+  // Height of triangle MP(mid) is sqrt(secondRadius^2 - (d_chord/2)^2).
+  let vecOM = p5.Vector.sub(ptM, ptO);
+  let vecON = p5.Vector.sub(ptN, ptO);
+  let chordMN = p5.Vector.dist(ptM, ptN);
+  
+  // Check validity (triangle inequality) although M=N only if angle=0
+  if (chordMN/2 < secondRadius) {
+    let midMN = p5.Vector.add(ptM, ptN).div(2);
+    let h = sqrt(secondRadius*secondRadius - (chordMN/2)*(chordMN/2));
+    
+    // Direction from Mid to P is simply normalized (Mid - O)
+    let dir = p5.Vector.sub(midMN, ptO).normalize();
+    ptP = p5.Vector.add(midMN, p5.Vector.mult(dir, h));
+  } else {
+    // Fallback if radius too small (shouldn't happen with our constraints)
+    ptP = p5.Vector.add(ptO, p5.Vector.fromAngle(bisectorAngle).mult(baseRadius*1.5)); 
+  }
+}
+
+// --- Interaction Logic ---
+
+const stepDescriptions = [
+  "初始状态：已知 ∠AOB。准备作图。",
+  "第一步：以点 O 为圆心，任意长为半径画弧，分别交 OA、OB 于点 M、N。",
+  "第二步：以点 M 为圆心，大于 MN 一半的长为半径画弧。",
+  "第三步：以点 N 为圆心，保持同等半径画弧，两弧交于点 P。",
+  "第四步：过点 O、P 作射线 OP。射线 OP 即为 ∠AOB 的角平分线。"
+];
+
+function nextStep() {
+  if (currentStep < 4) {
+    targetStep = currentStep + 1;
+    startTransition();
+  }
+}
+
+function prevStep() {
+  if (currentStep > 0) {
+    // Instant backward, or animate? Let's just go back instantly for responsiveness
+    currentStep--; 
+    targetStep = currentStep;
+    animationProgress = 1;
+    updateUI();
+  }
+}
+
+function resetSim() {
+  currentStep = 0;
+  targetStep = 0;
+  animationProgress = 0;
+  updateUI();
+}
+
+function startTransition() {
+  if (chkAnim.checked) {
+    isAnimating = true;
+    animationProgress = 0;
+  } else {
+    currentStep = targetStep;
+    animationProgress = 1;
+    updateUI();
+  }
+}
+
+function updateUI() {
+  document.getElementById('step-num').innerText = `步骤 ${currentStep} / 4`;
+  document.getElementById('step-desc').innerText = stepDescriptions[currentStep];
+  
+  document.getElementById('btn-prev').disabled = (currentStep === 0);
+  document.getElementById('btn-next').disabled = (currentStep === 4);
+  
+  if (currentStep === 4) {
+      document.getElementById('btn-next').innerText = "完成";
+  } else {
+      document.getElementById('btn-next').innerText = "下一步";
+  }
+}
+
+// --- Drawing Loop ---
+
+function draw() {
+  background(255);
+  
+  // Handle Animation Logic
+  if (isAnimating) {
+    animationProgress += 0.02; // Speed
+    if (animationProgress >= 1) {
+      animationProgress = 1;
+      isAnimating = false;
+      currentStep = targetStep;
+      updateUI();
+    }
+  } else {
+      // Ensure geometry stays updated if we drag sliders while not animating transition
+      if (currentStep !== targetStep) {
+          // We are in a state where we haven't finished transition logic technically
+          // but usually this block handles static display
+      }
+      calculateGeometry(); 
+  }
+
+  // Draw Coordinate/Context
+  push();
+  translate(0, 0); // Already calculated in world coords
+
+  // 1. Draw Base Angle (Always Visible)
+  drawBaseAngle();
+
+  // 2. Draw Steps Cumulative
+  
+  // Step 1: Arc at O
+  if (currentStep > 0 || (targetStep === 1 && isAnimating)) {
+    let progress = (targetStep === 1 && isAnimating) ? animationProgress : 1;
+    drawStep1(progress);
+  }
+
+  // Step 2: Arc at M
+  if (currentStep > 1 || (targetStep === 2 && isAnimating)) {
+    let progress = (targetStep === 2 && isAnimating) ? animationProgress : 1;
+    drawStep2(progress);
+  }
+
+  // Step 3: Arc at N
+  if (currentStep > 2 || (targetStep === 3 && isAnimating)) {
+    let progress = (targetStep === 3 && isAnimating) ? animationProgress : 1;
+    drawStep3(progress);
+  }
+
+  // Step 4: Line OP
+  if (currentStep > 3 || (targetStep === 4 && isAnimating)) {
+    let progress = (targetStep === 4 && isAnimating) ? animationProgress : 1;
+    drawStep4(progress);
+  }
+
+  // Draw Labels on top
+  if (chkLabels.checked) {
+    drawLabels();
+  }
+
+  pop();
+}
+
+// --- Drawing Helpers ---
+
+function drawBaseAngle() {
+  stroke(0);
+  strokeWeight(3);
+  line(ptO.x, ptO.y, ptA.x, ptA.y);
+  line(ptO.x, ptO.y, ptB.x, ptB.y);
+  
+  // Vertex Dot
+  fill(0);
+  noStroke();
+  circle(ptO.x, ptO.y, 8);
+}
+
+function drawLabels() {
+  fill(0);
+  noStroke();
+  textSize(16);
+  textStyle(BOLD);
+  
+  text("O", ptO.x - 20, ptO.y + 10);
+  text("A", width - 30, ptO.y + 10); // Approximation
+  
+  // Calculate B label pos
+  let dirB = p5.Vector.sub(ptB, ptO).normalize();
+  let labelB = p5.Vector.add(ptO, p5.Vector.mult(dirB, 250)); // Closer than infinity
+  text("B", labelB.x, labelB.y);
+
+  if (currentStep >= 1 || (targetStep===1 && animationProgress > 0.5)) {
+    text("M", ptM.x + 10, ptM.y + 20);
+    text("N", ptN.x + 10, ptN.y - 10);
+  }
+
+  if (currentStep >= 3 || (targetStep===3 && animationProgress > 0.8)) {
+    text("P", ptP.x + 15, ptP.y);
+  }
+}
+
+// Step 1: Draw Arc centered at O
+function drawStep1(progress) {
+  // Arc parameters
+  let startAngle = -radians(angleVal); // Angle of OB
+  let endAngle = 0; // Angle of OA
+  
+  // Visual style for construction lines
+  if (chkAux.checked) {
+      noFill();
+      stroke(100, 100, 255); // Blue-ish
+      strokeWeight(2);
+      
+      // We only draw the arc up to progress
+      // But purely drawing the arc is boring, let's show the "Compass" metaphor
+      
+      // Lerp angle for arc drawing
+      let currentDrawAngle = lerp(startAngle, endAngle, progress);
+      
+      // Draw the static full arc if completed, or partial if animating
+      if (progress === 1) {
+          arc(ptO.x, ptO.y, baseRadius*2, baseRadius*2, startAngle - 0.1, endAngle + 0.1);
+      } else {
+          arc(ptO.x, ptO.y, baseRadius*2, baseRadius*2, startAngle - 0.1, currentDrawAngle);
+          
+          // Draw Compass Tip
+          let tipX = ptO.x + baseRadius * cos(currentDrawAngle);
+          let tipY = ptO.y + baseRadius * sin(currentDrawAngle);
+          drawCompass(ptO.x, ptO.y, tipX, tipY);
+      }
+  }
+
+  // Draw intersection points
+  if (progress > 0.5) {
+      fill(255, 0, 0);
+      noStroke();
+      circle(ptN.x, ptN.y, 6); // Meets OB first based on angle direction
+  }
+  if (progress > 0.9) {
+      fill(255, 0, 0);
+      noStroke();
+      circle(ptM.x, ptM.y, 6);
+  }
+}
+
+// Step 2: Arc from M
+function drawStep2(progress) {
+  if (!chkAux.checked) return;
+  
+  // M is on horizontal axis. P is "up" and "left" from M relative to M's local coords.
+  // We want to draw a small arc that crosses the bisector.
+  // Angle from M to P.
+  let vecMP = p5.Vector.sub(ptP, ptM);
+  let angleMP = vecMP.heading();
+  
+  let arcSpan = 0.5; // radians span for the mark
+  let startA = angleMP - arcSpan/2;
+  let endA = angleMP + arcSpan/2;
+  
+  let currA = lerp(startA, endA, progress);
+  
+  noFill();
+  stroke(100, 100, 255);
+  strokeWeight(2);
+  
+  if (progress === 1) {
+      arc(ptM.x, ptM.y, secondRadius*2, secondRadius*2, startA, endA);
+  } else {
+      arc(ptM.x, ptM.y, secondRadius*2, secondRadius*2, startA, currA);
+      // Compass
+      let tipX = ptM.x + secondRadius * cos(currA);
+      let tipY = ptM.y + secondRadius * sin(currA);
+      drawCompass(ptM.x, ptM.y, tipX, tipY);
+  }
+}
+
+// Step 3: Arc from N
+function drawStep3(progress) {
+    if (!chkAux.checked) return;
+    
+    // N is on the angled arm.
+    let vecNP = p5.Vector.sub(ptP, ptN);
+    let angleNP = vecNP.heading();
+    
+    // We draw "downwards" or "upwards" depending on relative pos.
+    // Usually construction arcs cross roughly perpendicular.
+    let arcSpan = 0.5; 
+    let startA = angleNP - arcSpan/2;
+    let endA = angleNP + arcSpan/2;
+    
+    let currA = lerp(startA, endA, progress);
+    
+    noFill();
+    stroke(100, 100, 255);
+    strokeWeight(2);
+    
+    if (progress === 1) {
+        arc(ptN.x, ptN.y, secondRadius*2, secondRadius*2, startA, endA);
+        // Draw P point
+        fill(255, 0, 0);
+        noStroke();
+        circle(ptP.x, ptP.y, 8);
+    } else {
+        arc(ptN.x, ptN.y, secondRadius*2, secondRadius*2, startA, currA);
+        let tipX = ptN.x + secondRadius * cos(currA);
+        let tipY = ptN.y + secondRadius * sin(currA);
+        drawCompass(ptN.x, ptN.y, tipX, tipY);
+    }
+}
+
+// Step 4: Line OP
+function drawStep4(progress) {
+  // Ray from O through P.
+  // Draw longer than P.
+  let dir = p5.Vector.sub(ptP, ptO).normalize();
+  let length = Math.max(width, height);
+  let endPt = p5.Vector.add(ptO, p5.Vector.mult(dir, length));
+  
+  // Interpolate end point for animation
+  let currEnd = p5.Vector.lerp(ptO, endPt, progress);
+  
+  stroke(220, 38, 38); // Red for final result
+  strokeWeight(4);
+  
+  // Draw Ruler graphic if animating
+  if (progress < 1 && chkAnim.checked) {
+    // Ruler edge aligns with O -> P
+    // Just simple line drawing for now, ruler visual might clutter
+    line(ptO.x, ptO.y, currEnd.x, currEnd.y);
+    
+    // Visual tip (Pen)
+    fill(50);
+    noStroke();
+    circle(currEnd.x, currEnd.y, 5);
+  } else {
+    line(ptO.x, ptO.y, endPt.x, endPt.y);
+  }
+}
+
+// --- Visual Metaphors ---
+
+function drawCompass(pivotX, pivotY, tipX, tipY) {
+  // Simple representation: V shape
+  // Pivot is the needle, Tip is the lead
+  
+  push();
+  stroke(80);
+  strokeWeight(4);
+  fill(150);
+  
+  // Calculate top handle position (imaginary)
+  // Assume compass height is 100px
+  let h = 100;
+  
+  // Midpoint between pivot and tip
+  let mx = (pivotX + tipX) / 2;
+  let my = (pivotY + tipY) / 2;
+  
+  // Perpendicular vector for height? 
+  // No, compass usually stands somewhat vertically relative to paper, 
+  // but in 2D top-down, the hinge is "above" the midpoint.
+  // Let's fake a 3D perspective projection simply by offsetting Y.
+  // Actually, simplest is just two lines meeting at a "handle".
+  
+  // Let handle be 'above' the midpoint in Y (screen Y is down, so minus Y)
+  // We tilt it slightly to show it's being held
+  let handleX = mx;
+  let handleY = my - h; 
+  
+  // Leg 1 (Needle)
+  line(pivotX, pivotY, handleX, handleY);
+  // Leg 2 (Pencil)
+  line(tipX, tipY, handleX, handleY);
+  
+  // Pivot point
+  fill(0);
+  noStroke();
+  circle(pivotX, pivotY, 4);
+  
+  // Pencil point
+  fill(100, 100, 255);
+  circle(tipX, tipY, 4);
+  
+  // Handle Knob
+  fill(100);
+  circle(handleX, handleY, 8);
+  
+  pop();
+}
+
+</script>
+</body>
+</html>

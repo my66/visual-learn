@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>第11题：“仙女飞天”魔术原理演示</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        canvas { touch-action: none; } /* Prevent scrolling when touching canvas */
+        .slider-thumb { -webkit-appearance: none; appearance: none; width: 15px; height: 15px; background: #3b82f6; border-radius: 50%; cursor: pointer; }
+        .control-panel { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(4px); }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 h-screen flex flex-col overflow-hidden">
+
+    <!-- Header -->
+    <header class="bg-blue-600 text-white p-4 shadow-md flex-none">
+        <h1 class="text-xl font-bold"><i class="fas fa-magic mr-2"></i>物理探究：第11题 “仙女飞天”魔术原理</h1>
+        <p class="text-sm opacity-90 mt-1">拖动或旋转平面镜，使演员的像与“仙女”重合，揭示光路原理。</p>
+    </header>
+
+    <!-- Main Content -->
+    <div class="flex-1 flex flex-col md:flex-row relative overflow-hidden">
+        
+        <!-- Controls (Left/Top) -->
+        <aside class="control-panel w-full md:w-80 p-5 shadow-lg z-10 flex flex-col gap-4 border-r border-slate-200 overflow-y-auto">
+            
+            <!-- Question Description -->
+            <div class="bg-blue-50 p-3 rounded-lg border border-blue-100 text-sm">
+                <h3 class="font-bold text-blue-800 mb-1">题目大意</h3>
+                <p>观众 $P$ 看到空中的仙女 $A'$，实则是挡板后演员 $A$ 在平面镜中的虚像。请找到平面镜 $MN$ 的位置并画出光路。</p>
+            </div>
+
+            <!-- Controls -->
+            <div class="space-y-4">
+                <div class="bg-white p-3 rounded border shadow-sm">
+                    <h4 class="font-bold text-gray-700 mb-2 border-b pb-1">镜子控制</h4>
+                    <p class="text-xs text-gray-500 mb-2">提示：也可以直接在画面中拖动镜子中心和旋转手柄</p>
+                    
+                    <label class="block text-sm font-medium text-gray-700">水平位置 X</label>
+                    <input type="range" id="mirrorX" min="0" max="1000" step="1" value="300" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                    
+                    <label class="block text-sm font-medium text-gray-700 mt-2">垂直位置 Y</label>
+                    <input type="range" id="mirrorY" min="0" max="1000" step="1" value="300" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                    
+                    <label class="block text-sm font-medium text-gray-700 mt-2">旋转角度 Angle</label>
+                    <input type="range" id="mirrorAngle" min="0" max="360" step="1" value="0" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                    
+                    <label class="block text-sm font-medium text-gray-700 mt-2">镜子长度 Length</label>
+                    <input type="range" id="mirrorLength" min="100" max="600" step="10" value="350" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                </div>
+
+                <div class="bg-white p-3 rounded border shadow-sm">
+                    <h4 class="font-bold text-gray-700 mb-2 border-b pb-1">显示选项</h4>
+                    <div class="flex flex-col gap-2">
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="checkbox" id="showRay" class="form-checkbox text-blue-600 rounded">
+                            <span>显示光路图 (Ray Diagram)</span>
+                        </label>
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="checkbox" id="showConstruction" class="form-checkbox text-blue-600 rounded">
+                            <span>显示作图原理 (垂直平分线)</span>
+                        </label>
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="checkbox" id="showNormal" class="form-checkbox text-blue-600 rounded">
+                            <span>显示法线与入射/反射角</span>
+                        </label>
+                    </div>
+                </div>
+
+                <button id="solveBtn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition-colors shadow flex items-center justify-center">
+                    <i class="fas fa-check-circle mr-2"></i> 一键显示正确位置
+                </button>
+                 <button id="resetBtn" class="w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded transition-colors shadow flex items-center justify-center mt-2">
+                    <i class="fas fa-redo mr-2"></i> 重置并居中
+                </button>
+            </div>
+            
+            <div id="statusBox" class="bg-yellow-50 border border-yellow-200 p-2 rounded text-sm text-yellow-800 text-center font-medium transition-all">
+                拖动镜子，让虚像与仙女重合！
+            </div>
+        </aside>
+
+        <!-- Visualization Area -->
+        <main class="flex-1 relative bg-white cursor-crosshair">
+            <canvas id="canvas" class="block w-full h-full"></canvas>
+            
+            <!-- Overlay Labels (Optional for better accessibility, though Canvas handles drawing) -->
+            <div class="absolute top-4 right-4 pointer-events-none text-xs text-gray-400">
+                支持鼠标/触摸拖拽交互
+            </div>
+        </main>
+    </div>
+
+    <script>
+        /**
+         * Physics Interactive Visualization - Magic Mirror Illusion
+         */
+
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // UI Elements
+        const sliderX = document.getElementById('mirrorX');
+        const sliderY = document.getElementById('mirrorY');
+        const sliderAngle = document.getElementById('mirrorAngle');
+        const sliderLength = document.getElementById('mirrorLength');
+        const checkRay = document.getElementById('showRay');
+        const checkConstruction = document.getElementById('showConstruction');
+        const checkNormal = document.getElementById('showNormal');
+        const statusBox = document.getElementById('statusBox');
+        const solveBtn = document.getElementById('solveBtn');
+        const resetBtn = document.getElementById('resetBtn');
+
+        // State
+        let width, height;
+        let isDragging = false;
+        let dragTarget = null; // 'mirrorCenter' or 'mirrorRotateHandle'
+        let hasInitialized = false;
+
+        // Scene Configuration (Normalized coordinates 0-1 initially, scaled on resize)
+        const scene = {
+            actor: { x: 0.7, y: 0.8, label: "A (演员)" },       // Bottom Right
+            observer: { x: 0.2, y: 0.8, label: "P (观众)" },    // Bottom Left
+            target: { x: 0.8, y: 0.2, label: "A' (仙女)" },     // Top Right
+            barrier: { x: 0.55, y: 0.7, w: 0.02, h: 0.3 },      // Wall hiding A
+            mirror: { 
+                x: 0.5, y: 0.5, // Center
+                angle: 0,       // Radians
+                length: 350     // Pixels (Defaults larger now)
+            }
+        };
+
+        // Current real coordinates. 
+        let currentActor = {}, currentObserver = {}, currentTarget = {};
+        let currentMirror = { x: 300, y: 300, angle: 0, length: 350 };
+        
+        // --- Initialization & Resize ---
+        function resize() {
+            width = canvas.parentElement.clientWidth;
+            height = canvas.parentElement.clientHeight;
+            canvas.width = width;
+            canvas.height = height;
+
+            if (width === 0 || height === 0) return; // Wait for layout
+
+            // Map normalized coords to screen
+            currentActor = { x: scene.actor.x * width, y: scene.actor.y * height };
+            currentObserver = { x: scene.observer.x * width, y: scene.observer.y * height };
+            currentTarget = { x: scene.target.x * width, y: scene.target.y * height };
+            
+            // Slider Ranges update
+            sliderX.max = width;
+            sliderY.max = height;
+
+            // Safety check: if mirror is out of bounds, bring it back
+            if (currentMirror.x > width || currentMirror.x < 0 || currentMirror.y > height || currentMirror.y < 0) {
+                currentMirror.x = width * 0.5;
+                currentMirror.y = height * 0.5;
+                updateSlidersFromMirror();
+            }
+
+            // If this is the very first valid resize, force center
+            if (!hasInitialized && width > 100) {
+                currentMirror.x = width * 0.5;
+                currentMirror.y = height * 0.5;
+                currentMirror.angle = -0.2; // Slight tilt
+                updateSlidersFromMirror();
+                hasInitialized = true;
+            }
+            
+            draw();
+        }
+        window.addEventListener('resize', resize);
+
+        // --- Core Geometry Math ---
+        
+        // Calculate reflection of point P across line (defined by point M and angle theta)
+        function getReflection(px, py, mx, my, angle) {
+            // Translate P so M is origin
+            let tx = px - mx;
+            let ty = py - my;
+            
+            // Rotate P by -angle to align line with X-axis
+            let rx = tx * Math.cos(-angle) - ty * Math.sin(-angle);
+            let ry = tx * Math.sin(-angle) + ty * Math.cos(-angle);
+            
+            // Reflect across X-axis (y -> -y)
+            ry = -ry;
+            
+            // Rotate back by +angle
+            let finalX = rx * Math.cos(angle) - ry * Math.sin(angle);
+            let finalY = rx * Math.sin(angle) + ry * Math.cos(angle);
+            
+            // Translate back
+            return { x: finalX + mx, y: finalY + my };
+        }
+
+        function getDistance(p1, p2) {
+            return Math.sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2);
+        }
+
+        // Line intersection
+        function getLineLineIntersection(x1, y1, x2, y2, x3, y3, x4, y4) {
+            const denom = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1);
+            if (denom == 0) return null;
+            const ua = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / denom;
+            return { x: x1 + ua * (x2 - x1), y: y1 + ua * (y2 - y1) };
+        }
+
+        function isPointOnSegment(p, a, b, tolerance = 1) {
+            const distTotal = Math.hypot(b.x - a.x, b.y - a.y);
+            const dist1 = Math.hypot(p.x - a.x, p.y - a.y);
+            const dist2 = Math.hypot(p.x - b.x, p.y - b.y);
+            return Math.abs((dist1 + dist2) - distTotal) < tolerance;
+        }
+
+        // --- Drawing Functions ---
+
+        function drawPoint(p, color, label, iconChar = null) {
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 8, 0, Math.PI * 2); // Bigger dots
+            ctx.fill();
+            
+            ctx.font = "bold 15px Arial"; // Bigger font
+            ctx.fillStyle = "#1e293b";
+            ctx.fillText(label, p.x + 14, p.y + 6);
+
+            if(iconChar) {
+                ctx.font = "16px FontAwesome";
+                ctx.fillStyle = "white";
+                ctx.textAlign = "center";
+                ctx.fillText(iconChar, p.x, p.y + 6);
+                ctx.textAlign = "start";
+            }
+        }
+
+        function drawDashedLine(p1, p2, color = "#888", dash=[5,5]) {
+            ctx.beginPath();
+            ctx.setLineDash(dash);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1;
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        function drawSolidLine(p1, p2, color, width=2) {
+            ctx.beginPath();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = width;
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.stroke();
+        }
+
+        function drawMirror() {
+            const m = currentMirror;
+            // Ensure length is defined
+            const len = m.length || 350;
+            const dx = Math.cos(m.angle) * (len / 2);
+            const dy = Math.sin(m.angle) * (len / 2);
+            
+            const start = { x: m.x - dx, y: m.y - dy };
+            const end = { x: m.x + dx, y: m.y + dy };
+
+            // Glass side (Main body)
+            ctx.beginPath();
+            ctx.strokeStyle = "#a5b4fc";
+            ctx.lineWidth = 12; // Thicker
+            ctx.lineCap = "round";
+            ctx.moveTo(start.x, start.y);
+            ctx.lineTo(end.x, end.y);
+            ctx.stroke();
+            
+            // Reflective side indication (hatching)
+            ctx.beginPath();
+            ctx.strokeStyle = "#4338ca"; // Dark indigo
+            ctx.lineWidth = 2;
+            const steps = Math.floor(len / 20);
+            for(let i=0; i<=steps; i++) {
+                const px = start.x + (end.x - start.x) * (i/steps);
+                const py = start.y + (end.y - start.y) * (i/steps);
+                // Hash marks
+                const hLen = 12;
+                const hAngle = m.angle + Math.PI/2; 
+                ctx.moveTo(px, py);
+                ctx.lineTo(px + Math.cos(hAngle)*hLen, py + Math.sin(hAngle)*hLen);
+            }
+            ctx.stroke();
+            
+            // Center Line for precision
+            ctx.beginPath();
+            ctx.strokeStyle = "white";
+            ctx.lineWidth = 2;
+            ctx.moveTo(start.x, start.y);
+            ctx.lineTo(end.x, end.y);
+            ctx.stroke();
+
+            // Draw center handle (Main Interaction Point)
+            ctx.fillStyle = "#3b82f6"; // Blue
+            ctx.strokeStyle = "#fff";
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(m.x, m.y, 10, 0, Math.PI*2); // Bigger handle
+            ctx.fill();
+            ctx.stroke();
+            
+            // Label for Mirror
+            ctx.fillStyle = "#4338ca";
+            ctx.font = "bold 14px sans-serif";
+            ctx.fillText("平面镜MN", m.x - 40, m.y - 20);
+
+            // Draw Rotation Handle (offset)
+            const rotHandleDist = 70;
+            const rx = m.x + Math.cos(m.angle - Math.PI/2) * rotHandleDist;
+            const ry = m.y + Math.sin(m.angle - Math.PI/2) * rotHandleDist;
+            
+            // Draw connector
+            ctx.beginPath();
+            ctx.setLineDash([4, 4]);
+            ctx.strokeStyle = "#94a3b8";
+            ctx.moveTo(m.x, m.y);
+            ctx.lineTo(rx, ry);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Handle dot
+            ctx.fillStyle = "#ef4444"; // Red for rotation
+            ctx.strokeStyle = "#fff";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(rx, ry, 8, 0, Math.PI*2);
+            ctx.fill();
+            ctx.stroke();
+            
+            // Label for Rotation
+            ctx.fillStyle = "#ef4444";
+            ctx.font = "12px sans-serif";
+            ctx.fillText("旋转", rx + 10, ry + 4);
+            
+            // Save handle pos for hit testing
+            currentMirror.rotateHandle = { x: rx, y: ry };
+            currentMirror.start = start;
+            currentMirror.end = end;
+        }
+
+        function drawScene() {
+            ctx.clearRect(0, 0, width, height);
+
+            // 1. Draw Barrier
+            const bx = scene.barrier.x * width;
+            const by = scene.barrier.y * height;
+            const bw = scene.barrier.w * width;
+            const bh = scene.barrier.h * height;
+            ctx.fillStyle = "#cbd5e1";
+            ctx.fillRect(bx, by, bw, bh);
+            ctx.strokeStyle = "#94a3b8";
+            ctx.strokeRect(bx, by, bw, bh);
+            ctx.fillStyle = "#475569";
+            ctx.font = "12px sans-serif";
+            ctx.fillText("挡板", bx + 5, by + 20);
+
+            // 2. Draw Objects
+            if (currentActor.x) {
+                // Actor A
+                drawPoint(currentActor, "#ef4444", "A (演员)"); // Red
+                // Audience P
+                drawPoint(currentObserver, "#22c55e", "P (观众)"); // Green
+                // Target A'
+                drawPoint(currentTarget, "#f59e0b", "A' (目标仙女)", "?"); // Orange
+            }
+
+            // 3. Draw Mirror
+            drawMirror();
+
+            // 4. Calculate Current Virtual Image
+            const imgA = getReflection(currentActor.x, currentActor.y, currentMirror.x, currentMirror.y, currentMirror.angle);
+            
+            // Draw Ghost Image (Current)
+            ctx.save();
+            ctx.globalAlpha = 0.6;
+            drawPoint(imgA, "#ef4444", "A虚");
+            ctx.restore();
+            
+            // Dashed line from A to A虚 (Object-Image symmetry line)
+            if (checkConstruction.checked) {
+                 drawDashedLine(currentActor, imgA, "#fecaca");
+            }
+
+            // 5. Check Success (Geometry check only)
+            const dist = getDistance(imgA, currentTarget);
+            const isGeometryCorrect = dist < 25; // Tolerance
+
+            // 6. Ray Diagram Calculation
+            // Mirror Line endpoints for mathematical line
+            const mx1 = currentMirror.x - Math.cos(currentMirror.angle) * 3000;
+            const my1 = currentMirror.y - Math.sin(currentMirror.angle) * 3000;
+            const mx2 = currentMirror.x + Math.cos(currentMirror.angle) * 3000;
+            const my2 = currentMirror.y + Math.sin(currentMirror.angle) * 3000;
+
+            const intersectionO = getLineLineIntersection(
+                currentObserver.x, currentObserver.y, 
+                imgA.x, imgA.y, 
+                mx1, my1, mx2, my2
+            );
+
+            // Check if Intersection O is actually ON the mirror segment
+            let onMirror = false;
+            let nearEndpoint = currentMirror.start;
+            if (intersectionO) {
+                onMirror = isPointOnSegment(intersectionO, currentMirror.start, currentMirror.end, 1); // 1px tolerance not enough for float, logic below
+                
+                // Better segment check:
+                // Dot product check or Distance check
+                const d1 = getDistance(intersectionO, currentMirror.start);
+                const d2 = getDistance(intersectionO, currentMirror.end);
+                const len = getDistance(currentMirror.start, currentMirror.end);
+                onMirror = Math.abs((d1 + d2) - len) < 2; // Tolerance
+                
+                nearEndpoint = d1 < d2 ? currentMirror.start : currentMirror.end;
+            }
+
+            // Status Logic
+            if (isGeometryCorrect) {
+                if (onMirror) {
+                    statusBox.textContent = "完美！位置正确，且光线落在镜面上。";
+                    statusBox.className = "bg-green-100 border border-green-300 p-2 rounded text-sm text-green-800 text-center font-bold transition-all";
+                } else {
+                    statusBox.textContent = "位置几何正确，但镜子不够长，像应该在这里，但目前看不见。";
+                    statusBox.className = "bg-orange-100 border border-orange-300 p-2 rounded text-sm text-orange-800 text-center font-bold transition-all";
+                }
+            } else {
+                statusBox.textContent = "拖动蓝色中心点移动镜子，拖动红点旋转，让“A虚”与“A'”重合。";
+                statusBox.className = "bg-yellow-50 border border-yellow-200 p-2 rounded text-sm text-yellow-800 text-center font-medium transition-all";
+            }
+            
+            // 7. Draw Rays & Phantom Mirror
+            if (intersectionO && (checkRay.checked || isGeometryCorrect)) {
+                
+                // Opacity logic: if not on mirror, dim the rays
+                const rayStyle = onMirror ? "#ef4444" : "rgba(239, 68, 68, 0.4)";
+                
+                // Ray 1: A -> O (Incident)
+                drawSolidLine(currentActor, intersectionO, rayStyle, 2); 
+                drawArrow(currentActor, intersectionO, rayStyle);
+
+                // Ray 2: O -> P (Reflected)
+                drawSolidLine(intersectionO, currentObserver, rayStyle, 2); 
+                drawArrow(intersectionO, currentObserver, rayStyle);
+
+                // Ray 3: O -> A_img (Virtual extension)
+                drawDashedLine(intersectionO, imgA, rayStyle);
+
+                // Phantom Mirror Extension if needed
+                if (!onMirror) {
+                    // Draw dashed line from nearest endpoint to O
+                    ctx.beginPath();
+                    ctx.setLineDash([5, 5]);
+                    ctx.strokeStyle = "#9ca3af"; // Gray
+                    ctx.lineWidth = 2;
+                    ctx.moveTo(nearEndpoint.x, nearEndpoint.y);
+                    ctx.lineTo(intersectionO.x, intersectionO.y);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                    
+                    ctx.fillStyle = "#6b7280";
+                    ctx.font = "italic 12px sans-serif";
+                    ctx.fillText("需延长镜面", (nearEndpoint.x + intersectionO.x)/2, (nearEndpoint.y + intersectionO.y)/2 - 10);
+                    
+                    // Draw a temporary point O
+                    drawPoint(intersectionO, "#9ca3af", "O (落空)", null);
+                } else {
+                    // Label O normally
+                    ctx.fillStyle = "#000";
+                    ctx.fillText("O", intersectionO.x + 5, intersectionO.y - 5);
+                }
+
+                // Normal Line
+                if (checkNormal.checked || (isGeometryCorrect && onMirror)) {
+                    const normalLen = 50;
+                    const normalAngle = currentMirror.angle + Math.PI/2;
+                    const nx = intersectionO.x + Math.cos(normalAngle) * normalLen;
+                    const ny = intersectionO.y + Math.sin(normalAngle) * normalLen;
+                    const nx_back = intersectionO.x - Math.cos(normalAngle) * normalLen;
+                    const ny_back = intersectionO.y - Math.sin(normalAngle) * normalLen;
+                    
+                    ctx.beginPath();
+                    ctx.setLineDash([2, 2]);
+                    ctx.strokeStyle = onMirror ? "#475569" : "rgba(71, 85, 105, 0.4)";
+                    ctx.moveTo(nx_back, ny_back);
+                    ctx.lineTo(nx, ny);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                    if(onMirror) {
+                        ctx.fillStyle = "#475569";
+                        ctx.fillText("N (法线)", nx, ny);
+                    }
+                }
+            }
+
+            // 6. Draw Construction Lines (AA' bisector)
+            if (checkConstruction.checked || isGeometryCorrect) {
+                // Connect A and Target A'
+                drawDashedLine(currentActor, currentTarget, "#94a3b8");
+                
+                // Draw perpendicular symbol at midpoint of AA'
+                const midX = (currentActor.x + currentTarget.x) / 2;
+                const midY = (currentActor.y + currentTarget.y) / 2;
+                
+                ctx.fillStyle = "#64748b";
+                ctx.font = "10px sans-serif";
+                ctx.fillText("垂直平分线", midX + 10, midY);
+            }
+        }
+
+        function drawArrow(from, to, color) {
+            const angle = Math.atan2(to.y - from.y, to.x - from.x);
+            const midX = (from.x + to.x) / 2;
+            const midY = (from.y + to.y) / 2;
+            const headlen = 10;
+            
+            ctx.beginPath();
+            ctx.moveTo(midX, midY);
+            ctx.lineTo(midX - headlen * Math.cos(angle - Math.PI / 6), midY - headlen * Math.sin(angle - Math.PI / 6));
+            ctx.moveTo(midX, midY);
+            ctx.lineTo(midX - headlen * Math.cos(angle + Math.PI / 6), midY - headlen * Math.sin(angle + Math.PI / 6));
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+
+        function draw() {
+            if(!width) {
+                 width = canvas.parentElement.clientWidth;
+                 height = canvas.parentElement.clientHeight;
+                 if(width) resize();
+            }
+            drawScene();
+            requestAnimationFrame(draw);
+        }
+
+        // --- Interaction Logic ---
+
+        function updateSlidersFromMirror() {
+            sliderX.value = currentMirror.x;
+            sliderY.value = currentMirror.y;
+            sliderLength.value = currentMirror.length;
+            let deg = (currentMirror.angle * 180 / Math.PI) % 360;
+            if(deg < 0) deg += 360;
+            sliderAngle.value = deg;
+        }
+
+        function updateMirrorFromSliders() {
+            currentMirror.x = parseFloat(sliderX.value);
+            currentMirror.y = parseFloat(sliderY.value);
+            currentMirror.angle = parseFloat(sliderAngle.value) * Math.PI / 180;
+            currentMirror.length = parseFloat(sliderLength.value);
+        }
+
+        // Auto Solver
+        solveBtn.addEventListener('click', () => {
+            const midX = (currentActor.x + currentTarget.x) / 2;
+            const midY = (currentActor.y + currentTarget.y) / 2;
+            const dx = currentTarget.x - currentActor.x;
+            const dy = currentTarget.y - currentActor.y;
+            const slopeAA = Math.atan2(dy, dx);
+            const mirrorSlope = slopeAA + Math.PI/2;
+            
+            currentMirror.x = midX;
+            currentMirror.y = midY;
+            currentMirror.angle = mirrorSlope;
+            // Ensure length is sufficient for demo
+            if(currentMirror.length < 350) currentMirror.length = 350;
+            
+            updateSlidersFromMirror();
+            checkConstruction.checked = true;
+            checkRay.checked = true;
+            checkNormal.checked = true;
+        });
+        
+        resetBtn.addEventListener('click', () => {
+             // Reset to center
+             currentMirror.x = width * 0.5;
+             currentMirror.y = height * 0.5;
+             currentMirror.angle = 0;
+             currentMirror.length = 350;
+             updateSlidersFromMirror();
+             checkConstruction.checked = false;
+             checkRay.checked = false;
+             checkNormal.checked = false;
+        });
+
+        // Sliders Listeners
+        [sliderX, sliderY, sliderAngle, sliderLength].forEach(el => {
+            el.addEventListener('input', updateMirrorFromSliders);
+        });
+
+        // Canvas Dragging
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            // Hit test handles
+            const distCenter = Math.hypot(mouseX - currentMirror.x, mouseY - currentMirror.y);
+            if (distCenter < 30) {
+                isDragging = true;
+                dragTarget = 'center';
+                return;
+            }
+
+            const rh = currentMirror.rotateHandle;
+            if(rh) {
+                const distRotate = Math.hypot(mouseX - rh.x, mouseY - rh.y);
+                if (distRotate < 30) {
+                    isDragging = true;
+                    dragTarget = 'rotate';
+                    return;
+                }
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (!isDragging) {
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+                const distCenter = Math.hypot(mouseX - currentMirror.x, mouseY - currentMirror.y);
+                const rh = currentMirror.rotateHandle;
+                const distRotate = rh ? Math.hypot(mouseX - rh.x, mouseY - rh.y) : 100;
+                
+                if (distCenter < 30) canvas.style.cursor = "move";
+                else if (distRotate < 30) canvas.style.cursor = "pointer";
+                else canvas.style.cursor = "crosshair";
+                return;
+            }
+
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            if (dragTarget === 'center') {
+                currentMirror.x = mouseX;
+                currentMirror.y = mouseY;
+            } else if (dragTarget === 'rotate') {
+                const dx = mouseX - currentMirror.x;
+                const dy = mouseY - currentMirror.y;
+                currentMirror.angle = Math.atan2(dy, dx) + Math.PI/2; 
+            }
+            updateSlidersFromMirror();
+        });
+
+        window.addEventListener('mouseup', () => {
+            isDragging = false;
+            dragTarget = null;
+        });
+        
+        // Touch support
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const touch = e.touches[0];
+            const mouseX = touch.clientX - rect.left;
+            const mouseY = touch.clientY - rect.top;
+            
+            const distCenter = Math.hypot(mouseX - currentMirror.x, mouseY - currentMirror.y);
+            if (distCenter < 40) {
+                isDragging = true;
+                dragTarget = 'center';
+            } else {
+                 const rh = currentMirror.rotateHandle;
+                 if(rh) {
+                    const distRotate = Math.hypot(mouseX - rh.x, mouseY - rh.y);
+                    if (distRotate < 40) {
+                        isDragging = true;
+                        dragTarget = 'rotate';
+                    }
+                 }
+            }
+        }, {passive: false});
+
+        canvas.addEventListener('touchmove', (e) => {
+            if(!isDragging) return;
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const touch = e.touches[0];
+            const mouseX = touch.clientX - rect.left;
+            const mouseY = touch.clientY - rect.top;
+            
+            if (dragTarget === 'center') {
+                currentMirror.x = mouseX;
+                currentMirror.y = mouseY;
+            } else if (dragTarget === 'rotate') {
+                const dx = mouseX - currentMirror.x;
+                const dy = mouseY - currentMirror.y;
+                currentMirror.angle = Math.atan2(dy, dx) + Math.PI/2;
+            }
+            updateSlidersFromMirror();
+        }, {passive: false});
+        
+        window.addEventListener('touchend', () => { isDragging = false; });
+
+        // Init
+        // Use a small delay to ensure container size is ready
+        setTimeout(resize, 50);
+        draw();
+
+    </script>
+</body>
+</html>

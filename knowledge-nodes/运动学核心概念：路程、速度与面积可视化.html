@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>运动学核心概念：路程、速度与面积可视化 v1.3</title>
+    <!-- 引入 p5.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <!-- 引入 MathJax -->
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --accent-color: #3498db;
+            --highlight-color: #e74c3c;
+            --bg-color: #f5f7fa;
+            --panel-width: 340px;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+            background-color: var(--bg-color);
+            color: var(--primary-color);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        /* 顶部标题栏 */
+        header {
+            background-color: #fff;
+            padding: 15px 30px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            flex-shrink: 0;
+            z-index: 10;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 1.4rem;
+            color: var(--primary-color);
+        }
+
+        .subtitle {
+            font-size: 0.95rem;
+            color: #7f8c8d;
+            margin-top: 5px;
+        }
+
+        /* 主容器布局 */
+        #main-container {
+            display: flex;
+            flex-direction: row;
+            flex: 1;
+            min-height: 800px;
+            max-width: 1600px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        /* 左侧控制面板 */
+        #control-panel {
+            width: var(--panel-width);
+            background: #fff;
+            padding: 20px;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.05);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            flex-shrink: 0;
+        }
+
+        /* 右侧画布区域 */
+        #canvas-container {
+            flex: 1;
+            position: relative;
+            background-color: #fff;
+            margin: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* 控件样式 */
+        .control-group {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid var(--accent-color);
+        }
+
+        .control-group h3 {
+            margin-top: 0;
+            margin-bottom: 12px;
+            font-size: 1rem;
+            color: var(--primary-color);
+            font-weight: 600;
+        }
+
+        .btn-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        button {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+        }
+
+        .btn-primary { background-color: var(--accent-color); color: white; }
+        .btn-primary:hover { background-color: #2980b9; }
+        .btn-pause { background-color: #f39c12; color: white; }
+        .btn-pause:hover { background-color: #d68910; }
+        .btn-danger { background-color: var(--highlight-color); color: white; }
+        .btn-danger:hover { background-color: #c0392b; }
+        
+        label {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            margin: 8px 0;
+        }
+
+        input[type="checkbox"] {
+            margin-right: 10px;
+            transform: scale(1.1);
+        }
+
+        input[type="radio"] {
+            margin-right: 8px;
+        }
+
+        .value-display {
+            font-family: "Menlo", monospace;
+            font-size: 0.85rem;
+            color: #666;
+            float: right;
+            font-weight: bold;
+        }
+
+        /* 状态说明与 MathJax 容器 */
+        .info-box {
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: #555;
+            background: #eef2f7;
+            padding: 12px;
+            border-radius: 4px;
+        }
+        
+        .math-content {
+            visibility: hidden; /* 防闪烁：渲染完成后显示 */
+        }
+        
+        /* 微元提示样式 */
+        .micro-element-hint {
+            border-left: 4px solid #9b59b6; 
+            background: #fdf2ff;
+        }
+        
+        /* 状态栏 */
+        #status-bar {
+            padding: 10px 20px;
+            background: #2c3e50;
+            color: #fff;
+            font-size: 0.9rem;
+            text-align: right;
+        }
+
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>运动学核心概念：路程、速度与面积</h1>
+    <div class="subtitle">深度理解 \(v\)-\(t\) 图像面积与路程的关系及平均速度的几何意义</div>
+</header>
+
+<div id="main-container">
+    
+    <!-- 控制面板 -->
+    <aside id="control-panel">
+        
+        <div class="info-box math-content" id="intro-math">
+            <strong>核心概念：</strong><br>
+            1. <strong>速度</strong> \(v\)：位置变化的快慢。<br>
+            2. <strong>路程</strong> \(s\)：\(v\)-\(t\) 图线与时间轴围成的<strong>面积</strong>（积分思想）。<br>
+            3. <strong>平均速度</strong> \(\bar{v}\)：总路程除以总时间，即 \(\bar{v} = \frac{s_{\text{total}}}{t_{\text{total}}}\)。几何上相当于将不规则面积“拍扁”成等底的矩形。
+        </div>
+
+        <div class="control-group">
+            <h3>1. 选择运动场景</h3>
+            <label><input type="radio" name="mode" value="constant" checked> 匀速直线运动</label>
+            <label><input type="radio" name="mode" value="accel"> 匀加速直线运动 (面积=三角形)</label>
+            <label><input type="radio" name="mode" value="step"> 变速运动 (快-慢两段)</label>
+        </div>
+
+        <div class="control-group">
+            <h3>2. 播放控制</h3>
+            <div class="btn-row">
+                <button id="btn-play" class="btn-primary">开始 / 继续</button>
+                <button id="btn-pause" class="btn-pause">暂停</button>
+            </div>
+            <div class="btn-row">
+                <button id="btn-reset" class="btn-danger">重置演示</button>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <h3>3. 参数调节</h3>
+            
+            <div id="slider-speed-container">
+                <label>初速度 \(v_0\) <span id="val-v0" class="value-display">2.0 m/s</span></label>
+                <input type="range" id="slider-v0" min="0" max="8" step="0.5" value="2">
+            </div>
+
+            <div id="slider-acc-container">
+                <label>加速度 \(a\) <span id="val-acc" class="value-display">1.0 m/s²</span></label>
+                <input type="range" id="slider-acc" min="0.1" max="2" step="0.1" value="1">
+            </div>
+        </div>
+
+        <div class="control-group">
+            <h3>4. 可视化辅助</h3>
+            <label><input type="checkbox" id="check-area" checked> 显示路程面积 (积分)</label>
+            <label><input type="checkbox" id="check-avg"> 显示平均速度 (等效矩形)</label>
+            <label><input type="checkbox" id="check-ghost"> 显示“平均速度”影子车</label>
+            
+            <hr style="border:0; border-top:1px solid #ddd; margin:10px 0;">
+            
+            <label style="color:#8e44ad; font-weight:bold;">
+                <input type="checkbox" id="check-micro"> 显示微元分解 (积木原理)
+            </label>
+            <div id="micro-controls" style="display:none; padding-left: 20px;">
+                <label style="font-size:0.85rem; color:#666;" class="math-content" id="dt-label">
+                    时间切片 \(\Delta t\): <span id="val-dt" class="value-display" style="color:#666">0.5s</span>
+                </label>
+                <input type="range" id="slider-dt" min="0.1" max="1.5" step="0.1" value="0.5">
+                <div style="font-size:0.8rem; color:#8e44ad; margin-top:5px;" class="math-content" id="micro-note">
+                    * 每个矩形代表一段微小匀速运动: \(\Delta s \approx v \cdot \Delta t\)
+                </div>
+            </div>
+        </div>
+
+        <div class="info-box micro-element-hint math-content" id="hint-micro" style="display:none;">
+            <strong>为什么是面积？</strong><br>
+            观察右图：我们将变速运动切成了无数个小段。<br>
+            每一小段看作匀速（矩形）。<br>
+            把这些小矩形加起来（积分），就得到了总路程！<br>
+            当切片 \(\Delta t\) 足够小时，矩形顶端就连成了平滑曲线。
+        </div>
+
+    </aside>
+
+    <!-- 画布容器 -->
+    <div id="canvas-container"></div>
+</div>
+
+<script>
+/**
+ * 运动学可视化 v1.3 - p5.js 实现
+ * 修正：
+ * 1. 变速运动模式逻辑，确保全程运动，影子车与实车同时到达。
+ * 2. 引入 MathJax 渲染 HTML 文本。
+ */
+
+// --- 全局变量 ---
+let isPlaying = false;
+let time = 0; // 当前时间 (s)
+const logicDt = 0.05; // 逻辑计算步长 (s)
+const maxTime = 10; // 最大演示时间 (s)
+
+// 物理状态
+let velocity = 0;
+let distance = 0;
+let historyPath = []; // 存储 [t, v, s] 用于绘图
+
+// 场景参数
+let mode = 'constant'; // 'constant', 'accel', 'step'
+let paramV0 = 2;
+let paramAcc = 1;
+
+// 微元法参数
+let visualDt = 0.5;
+
+// 画布尺寸
+let cWidth, cHeight;
+let margin = 60;
+
+// UI 元素引用
+let btnPlay, btnPause, btnReset;
+let sliderV0, sliderAcc, sliderDt;
+let checkArea, checkAvg, checkGhost, checkMicro;
+let valV0, valAcc, valDt;
+let microControls, hintMicro;
+
+// MathJax Helper
+function renderMath() {
+    if (typeof MathJax !== 'undefined') {
+        // 先隐藏，避免闪烁
+        const maths = document.querySelectorAll('.math-content');
+        maths.forEach(el => el.style.visibility = 'hidden');
+        
+        MathJax.typesetPromise().then(() => {
+            maths.forEach(el => el.style.visibility = 'visible');
+        }).catch((err) => console.log('MathJax error:', err));
+    }
+}
+
+// p5.js Setup
+function setup() {
+    const container = document.getElementById('canvas-container');
+    cWidth = container.clientWidth;
+    cHeight = container.clientHeight || 800; 
+
+    const canvas = createCanvas(cWidth, cHeight);
+    canvas.parent('canvas-container');
+    
+    initUI();
+    resetSimulation();
+    
+    // 初始渲染公式
+    renderMath();
+    
+    textFont("PingFang SC, Microsoft YaHei, sans-serif");
+}
+
+function windowResized() {
+    const container = document.getElementById('canvas-container');
+    cWidth = container.clientWidth;
+    cHeight = container.clientHeight || 800;
+    resizeCanvas(cWidth, cHeight);
+}
+
+// UI 初始化绑定
+function initUI() {
+    btnPlay = document.getElementById('btn-play');
+    btnPause = document.getElementById('btn-pause');
+    btnReset = document.getElementById('btn-reset');
+    
+    sliderV0 = document.getElementById('slider-v0');
+    sliderAcc = document.getElementById('slider-acc');
+    sliderDt = document.getElementById('slider-dt');
+    
+    valV0 = document.getElementById('val-v0');
+    valAcc = document.getElementById('val-acc');
+    valDt = document.getElementById('val-dt');
+    
+    checkArea = document.getElementById('check-area');
+    checkAvg = document.getElementById('check-avg');
+    checkGhost = document.getElementById('check-ghost');
+    checkMicro = document.getElementById('check-micro');
+    
+    microControls = document.getElementById('micro-controls');
+    hintMicro = document.getElementById('hint-micro');
+
+    // 模式切换
+    document.querySelectorAll('input[name="mode"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            mode = e.target.value;
+            updateControlsVisibility();
+            resetSimulation();
+        });
+    });
+
+    btnPlay.onclick = () => isPlaying = true;
+    btnPause.onclick = () => isPlaying = false;
+    btnReset.onclick = resetSimulation;
+
+    sliderV0.oninput = () => {
+        paramV0 = parseFloat(sliderV0.value);
+        valV0.innerText = paramV0.toFixed(1) + " m/s";
+        resetSimulation();
+    };
+    sliderAcc.oninput = () => {
+        paramAcc = parseFloat(sliderAcc.value);
+        valAcc.innerText = paramAcc.toFixed(1) + " m/s²";
+        resetSimulation();
+    };
+    sliderDt.oninput = () => {
+        visualDt = parseFloat(sliderDt.value);
+        valDt.innerText = visualDt + "s";
+    };
+
+    checkMicro.addEventListener('change', (e) => {
+        if(e.target.checked) {
+            microControls.style.display = 'block';
+            hintMicro.style.display = 'block';
+            checkArea.checked = false; 
+            renderMath(); // 显示新区域需要重新渲染公式
+        } else {
+            microControls.style.display = 'none';
+            hintMicro.style.display = 'none';
+            checkArea.checked = true;
+        }
+    });
+
+    updateControlsVisibility();
+}
+
+function updateControlsVisibility() {
+    const accContainer = document.getElementById('slider-acc-container');
+    const v0Container = document.getElementById('slider-speed-container');
+    
+    if (mode === 'accel') {
+        accContainer.style.display = 'block';
+        v0Container.style.display = 'block';
+    } else if (mode === 'constant') {
+        accContainer.style.display = 'none';
+        v0Container.style.display = 'block';
+    } else if (mode === 'step') {
+        accContainer.style.display = 'none';
+        v0Container.style.display = 'none';
+    }
+}
+
+function resetSimulation() {
+    isPlaying = false;
+    time = 0;
+    distance = 0;
+    velocity = 0;
+    historyPath = [];
+    
+    let initialV = getVelocityAtTime(0);
+    historyPath.push({t: 0, v: initialV, s: 0});
+}
+
+// --- 核心物理计算 (修复后的逻辑) ---
+function getVelocityAtTime(t) {
+    if (mode === 'constant') {
+        return paramV0;
+    } 
+    else if (mode === 'accel') {
+        return paramV0 + paramAcc * t;
+    } 
+    else if (mode === 'step') {
+        // [修复]：以前是 0-4s 高速，4-8s 低速，8-10s 停止。
+        // 这导致计算 10s 的平均速度时，影子车在 8-10s 继续跑，而真车停了，导致“终点不同时”。
+        // 现在改为：全程运动。0-4s 高速，4-10s 低速。
+        // 总时间 10s，一直有速度，这样影子车和真车会在 t=10 时同时到达计算出的终点。
+        if (t < 4) return 6; // 第一阶段：高速
+        else return 2;       // 第二阶段：低速 (一直持续到结束)
+    }
+    return 0;
+}
+
+function updatePhysics() {
+    if (!isPlaying) return;
+    if (time >= maxTime) {
+        isPlaying = false;
+        return;
+    }
+
+    let currentV = getVelocityAtTime(time);
+    let ds = currentV * logicDt;
+    distance += ds;
+    time += logicDt;
+
+    // 防止微小误差积累导致最后一步出界
+    if (time > maxTime) time = maxTime;
+
+    historyPath.push({
+        t: time,
+        v: currentV,
+        s: distance
+    });
+}
+
+// --- 绘图循环 ---
+function draw() {
+    background(255);
+    
+    // 物理更新 (2倍速计算以平滑)
+    for (let i = 0; i < 2; i++) updatePhysics();
+
+    let splitY = cHeight * 0.45; 
+    
+    drawPhysicalWorld(0, 0, cWidth, splitY);
+    drawGraphWorld(0, splitY, cWidth, cHeight - splitY);
+}
+
+// --- 绘制物理世界 ---
+function drawPhysicalWorld(x, y, w, h) {
+    push();
+    translate(x, y);
+    
+    // 背景
+    noStroke();
+    fill(240, 248, 255);
+    rect(0, 0, w, h);
+    
+    fill(100);
+    textAlign(LEFT, TOP);
+    textSize(14);
+    text("物理场景模拟", 20, 10);
+
+    // 动态公式板
+    drawFormulaBoardHorizontal(20, 35, w - 40, 90);
+
+    let trackY = h / 2 + 60; 
+    let trackStart = margin;
+    let trackEnd = w - margin;
+    
+    // 计算终点路程 (Total Distance at t=10)
+    let totalS_pred = 0;
+    if (mode === 'constant') {
+        totalS_pred = paramV0 * maxTime;
+    } else if (mode === 'accel') {
+        totalS_pred = paramV0 * maxTime + 0.5 * paramAcc * maxTime * maxTime;
+    } else if (mode === 'step') {
+        // [修复]：对应新的 step 逻辑 (6m/s * 4s + 2m/s * 6s)
+        totalS_pred = 6 * 4 + 2 * 6; // 24 + 12 = 36m
+    }
+    
+    // 确定轨道刻度尺的最大值 (稍微留点余量，或者直接等于 totalS_pred)
+    // 为了视觉稳定，最小值设为10
+    let maxDistScale = Math.max(totalS_pred, 10);
+    
+    // 绘制轨道
+    stroke(120);
+    strokeWeight(4);
+    line(trackStart, trackY, trackEnd, trackY);
+    
+    // 刻度
+    strokeWeight(1);
+    fill(100);
+    textAlign(CENTER, TOP);
+    textSize(10);
+    for (let i = 0; i <= 10; i++) {
+        let posX = map(i/10, 0, 1, trackStart, trackEnd);
+        line(posX, trackY, posX, trackY + 8);
+        // 只标起点和终点，避免拥挤
+        if (i===0 || i===10 || i===5) {
+            let distVal = (maxDistScale * (i/10)).toFixed(1);
+            noStroke();
+            text(distVal + "m", posX, trackY + 12);
+            stroke(100);
+        }
+    }
+    
+    // 真实小车位置
+    // map(value, start1, stop1, start2, stop2)
+    let carX = map(distance, 0, maxDistScale, trackStart, trackEnd);
+    
+    // 影子车 (平均速度)
+    if (checkGhost.checked && time > 0) {
+        // 平均速度 = 总路程 / 总时间
+        let avgV_final = totalS_pred / maxTime;
+        
+        // 影子车做匀速运动
+        let ghostDist = avgV_final * time;
+        let ghostX = map(ghostDist, 0, maxDistScale, trackStart, trackEnd);
+        
+        // 绘制影子车
+        fill(200, 200, 200, 100); // 半透明
+        stroke(150, 150, 150, 150);
+        strokeWeight(1);
+        rectMode(CENTER);
+        rect(ghostX, trackY - 25, 40, 20, 4);
+        
+        fill(120);
+        noStroke();
+        textSize(10);
+        textAlign(CENTER);
+        text("平均速度", ghostX, trackY - 40);
+    }
+
+    // 绘制真实小车
+    drawCar(carX, trackY, velocity);
+    
+    // 底部时间
+    fill(150);
+    textAlign(LEFT, CENTER);
+    textSize(12);
+    text(`Time: ${time.toFixed(2)} s`, 20, h - 20);
+
+    pop();
+}
+
+/**
+ * 绘制公式看板 (使用 Canvas 绘制 Unicode 字符，避免高频 DOM 操作)
+ */
+function drawFormulaBoardHorizontal(x, y, w, h) {
+    push();
+    translate(x, y);
+    
+    fill(255);
+    stroke(220);
+    strokeWeight(1);
+    rect(0, 0, w, h, 8);
+    
+    let sectionW = w / 3;
+    let tStr = time.toFixed(2);
+    let sStr = distance.toFixed(2);
+    let vStr = velocity.toFixed(2);
+    
+    // --- 速度栏 ---
+    let vTitle, vCalc;
+    if (mode === 'constant') {
+        vTitle = "① 速度 v = v₀ (恒定)";
+        vCalc = `v = ${paramV0.toFixed(1)}`;
+    } else if (mode === 'accel') {
+        vTitle = "① 速度 v = v₀ + at";
+        vCalc = `v = ${paramV0} + ${paramAcc}×${tStr} = ${vStr}`;
+    } else {
+        vTitle = "① 瞬时速度 v(t)";
+        vCalc = `v = ${vStr}`;
+    }
+    drawFormulaSection(0, 0, sectionW, h, vTitle, vCalc, "#2ecc71");
+        
+    stroke(230);
+    line(sectionW, 15, sectionW, h-15);
+    
+    // --- 位移栏 ---
+    let sTitle, sCalc;
+    if (mode === 'constant') {
+        sTitle = "② 位移 s = v₀t";
+        sCalc = `s = ${paramV0.toFixed(1)} × ${tStr} = ${sStr}`;
+    } else if (mode === 'accel') {
+        sTitle = "② 位移 s = v₀t + ½at²";
+        sCalc = `s = ${paramV0}×${tStr} + 0.5×${paramAcc}×${tStr}² = ${sStr}`;
+    } else {
+        sTitle = "② 位移 s = 面积 (积分)";
+        sCalc = `s = ${sStr}`;
+    }
+    drawFormulaSection(sectionW, 0, sectionW, h, sTitle, sCalc, "#e74c3c");
+
+    stroke(230);
+    line(sectionW * 2, 15, sectionW * 2, h-15);
+
+    // --- 平均速度栏 ---
+    let avgV = time > 0.05 ? (distance / time).toFixed(2) : "0.00";
+    let avgTitle = "③ 平均速度 v̄ = s / t";
+    let avgCalc = `v̄ = ${sStr} / ${tStr} = ${avgV}`;
+    drawFormulaSection(sectionW * 2, 0, sectionW, h, avgTitle, avgCalc, "#9b59b6");
+    
+    pop();
+}
+
+function drawFormulaSection(x, y, w, h, title, formula, colorCode) {
+    push();
+    translate(x, y);
+    textAlign(CENTER, CENTER);
+    
+    fill(colorCode);
+    textStyle(BOLD);
+    textSize(16); 
+    text(title, w/2, h * 0.3);
+    
+    fill(60);
+    textStyle(NORMAL);
+    textSize(18); 
+    if (textWidth(formula) > w - 10) textSize(14); 
+    text(formula, w/2, h * 0.65);
+    
+    pop();
+}
+
+function drawCar(x, y, v) {
+    push();
+    translate(x, y);
+    fill(52, 152, 219);
+    stroke(41, 128, 185);
+    strokeWeight(2);
+    rectMode(CENTER);
+    rect(0, -10, 40, 20, 5);
+    
+    // 车轮
+    fill(50);
+    noStroke();
+    ellipse(-12, 0, 10, 10);
+    ellipse(12, 0, 10, 10);
+    
+    // 速度矢量箭头
+    if (v > 0.1) {
+        let arrowLen = map(v, 0, 10, 0, 80);
+        stroke(46, 204, 113);
+        strokeWeight(3);
+        line(0, -10, arrowLen, -10);
+        noStroke();
+        fill(46, 204, 113);
+        triangle(arrowLen, -15, arrowLen + 8, -10, arrowLen, -5);
+        
+        // 箭头上方文字
+        fill(46, 204, 113);
+        textAlign(CENTER, BOTTOM);
+        textSize(10);
+        text("v", arrowLen/2, -18);
+    }
+    pop();
+}
+
+// --- 绘制图表世界 ---
+function drawGraphWorld(x, y, w, h) {
+    push();
+    translate(x, y);
+    
+    let gLeft = margin + 20;
+    let gRight = w - margin - 20;
+    let gTop = 40;
+    let gBottom = h - 40;
+    let maxVGraph = 10;
+    
+    // 标题
+    fill(50);
+    textAlign(LEFT, TOP);
+    textSize(16);
+    text("v-t 图像 (Velocity-Time Graph)", 20, 10);
+    
+    // 坐标系
+    strokeWeight(1);
+    stroke(230);
+    // 纵网格
+    for (let i = 0; i <= maxTime; i++) {
+        let gx = map(i, 0, maxTime, gLeft, gRight);
+        line(gx, gTop, gx, gBottom);
+    }
+    // 横网格
+    for (let i = 0; i <= maxVGraph; i+=2) {
+        let gy = map(i, 0, maxVGraph, gBottom, gTop);
+        line(gLeft, gy, gRight, gy);
+    }
+    
+    // 轴线
+    stroke(0);
+    strokeWeight(2);
+    line(gLeft, gBottom, gRight + 15, gBottom); // t轴
+    line(gLeft, gBottom, gLeft, gTop - 15); // v轴
+    
+    // 箭头
+    fill(0);
+    triangle(gRight+15, gBottom, gRight+5, gBottom-4, gRight+5, gBottom+4);
+    triangle(gLeft, gTop-15, gLeft-4, gTop-5, gLeft+4, gTop-5);
+    
+    // 标签
+    noStroke();
+    textAlign(CENTER, TOP);
+    text("t (s)", gRight + 10, gBottom + 8);
+    textAlign(RIGHT, CENTER);
+    text("v (m/s)", gLeft - 10, gTop - 10);
+    
+    // 刻度数值
+    textSize(10);
+    fill(100);
+    for (let i = 0; i <= maxTime; i+=1) {
+        let gx = map(i, 0, maxTime, gLeft, gRight);
+        text(i, gx, gBottom + 6);
+    }
+    for (let i = 0; i <= maxVGraph; i+=2) {
+        let gy = map(i, 0, maxVGraph, gBottom, gTop);
+        text(i, gLeft - 6, gy);
+    }
+    
+    // 高亮初速度 v0 (非step模式)
+    if (mode !== 'step') { 
+        let v0Y = map(paramV0, 0, maxVGraph, gBottom, gTop);
+        stroke(230, 126, 34);
+        strokeWeight(2);
+        line(gLeft - 4, v0Y, gLeft, v0Y);
+        noStroke();
+        fill(230, 126, 34);
+        textAlign(RIGHT, CENTER);
+        text(`v₀`, gLeft - 6, v0Y);
+    }
+    
+    // --- 绘制面积与曲线 ---
+
+    // 1. 连续面积
+    if (checkArea.checked && !checkMicro.checked && historyPath.length > 1) {
+        fill(231, 76, 60, 80);
+        noStroke();
+        beginShape();
+        vertex(gLeft, gBottom);
+        for (let p of historyPath) {
+            let px = map(p.t, 0, maxTime, gLeft, gRight);
+            let py = map(p.v, 0, maxVGraph, gBottom, gTop);
+            vertex(px, py);
+        }
+        let lastP = historyPath[historyPath.length-1];
+        let lastX = map(lastP.t, 0, maxTime, gLeft, gRight);
+        vertex(lastX, gBottom);
+        endShape(CLOSE);
+        
+        if (time > 1) {
+            let centerX = map(time/2, 0, maxTime, gLeft, gRight);
+            fill(192, 57, 43);
+            textAlign(CENTER);
+            textSize(14);
+            text("面积 = 路程", centerX, gBottom - 20);
+        }
+    }
+
+    // 2. 微元矩形
+    if (checkMicro.checked) {
+        let steps = Math.floor(time / visualDt);
+        for (let i = 0; i < steps; i++) {
+            let tStart = i * visualDt;
+            let vStart = getVelocityAtTime(tStart);
+            
+            let x1 = map(tStart, 0, maxTime, gLeft, gRight);
+            let x2 = map(tStart + visualDt, 0, maxTime, gLeft, gRight);
+            let rectW = x2 - x1;
+            let yV = map(vStart, 0, maxVGraph, gBottom, gTop);
+            let rectH = gBottom - yV;
+            
+            fill(155, 89, 182, 100);
+            stroke(255);
+            strokeWeight(1);
+            rect(x1, yV, rectW, rectH);
+        }
+        // 最后一个未完成的微元
+        let tLast = steps * visualDt;
+        if (time > tLast) {
+            let vStart = getVelocityAtTime(tLast);
+            let x1 = map(tLast, 0, maxTime, gLeft, gRight);
+            let x2 = map(time, 0, maxTime, gLeft, gRight);
+            let yV = map(vStart, 0, maxVGraph, gBottom, gTop);
+            fill(155, 89, 182, 150);
+            stroke(255);
+            rect(x1, yV, x2 - x1, gBottom - yV);
+        }
+    }
+    
+    // 3. 实时曲线 (蓝色)
+    noFill();
+    stroke(52, 152, 219);
+    strokeWeight(3);
+    beginShape();
+    for (let p of historyPath) {
+        let px = map(p.t, 0, maxTime, gLeft, gRight);
+        let py = map(p.v, 0, maxVGraph, gBottom, gTop);
+        vertex(px, py);
+    }
+    endShape();
+
+    // 4. 平均速度矩形 (绿色虚线)
+    if (checkAvg.checked && time > 0.1) {
+        let avgV = distance / time;
+        let currentX = map(time, 0, maxTime, gLeft, gRight);
+        let avgY = map(avgV, 0, maxVGraph, gBottom, gTop);
+        
+        stroke(46, 204, 113);
+        strokeWeight(2);
+        drawingContext.setLineDash([6, 6]);
+        
+        // 矩形顶边
+        line(gLeft, avgY, currentX, avgY);
+        // 矩形右边
+        line(currentX, gBottom, currentX, avgY);
+        
+        drawingContext.setLineDash([]);
+        
+        // 标记
+        fill(46, 204, 113);
+        noStroke();
+        textAlign(LEFT, BOTTOM);
+        textSize(12);
+        text(`平均速度`, gLeft + 5, avgY - 5);
+    }
+    
+    // 当前时间指示线
+    let nowX = map(time, 0, maxTime, gLeft, gRight);
+    stroke(50, 50, 50, 80);
+    strokeWeight(1);
+    line(nowX, gTop, nowX, gBottom);
+
+    pop();
+}
+
+</script>
+</body>
+</html>

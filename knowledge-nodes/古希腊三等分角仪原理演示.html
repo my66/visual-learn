@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>古希腊三等分角仪原理演示</title>
+<style>
+    body { font-family: 'Segoe UI', sans-serif; background: #f0f4f8; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+    h2 { color: #2c3e50; }
+    .container { bg-color: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 800px; width: 100%; }
+    canvas { background: #fff; border: 1px solid #ddd; border-radius: 8px; cursor: crosshair; }
+    .controls { margin-top: 15px; display: flex; gap: 20px; align-items: center; justify-content: center; background: #eef2f7; padding: 10px; border-radius: 8px;}
+    .stat-box { font-size: 16px; color: #34495e; font-weight: bold; font-family: monospace; }
+    .explanation { margin-top: 20px; padding: 15px; background: #fff8e1; border-left: 5px solid #ffc107; border-radius: 4px; }
+    input[type=range] { width: 200px; }
+    .label { font-weight: bold; color: #2980b9; }
+</style>
+</head>
+<body>
+
+<div class="container">
+    <h2>📐 古希腊三等分角仪原理 (No.12)</h2>
+    
+    <canvas id="canvas" width="700" height="350"></canvas>
+    
+    <div class="controls">
+        <label for="angleX">调整角 ∠COD (x): </label>
+        <input type="range" id="angleX" min="10" max="40" step="0.5" value="25">
+        <span id="angleVal" class="stat-box">x = 25.0°</span>
+    </div>
+
+    <div class="explanation">
+        <p><strong>原理链条：</strong></p>
+        <ol>
+            <li>因为 OC = CD，所以 <span class="label">∠CDO = ∠COD = x</span></li>
+            <li>三角形外角定理：<span class="label">∠DCE = ∠CDO + ∠COD = 2x</span></li>
+            <li>因为 CD = DE，所以 <span class="label">∠DEC = ∠DCE = 2x</span></li>
+            <li>再次利用外角和三角形内角和：最终推出 <span class="label">∠BDE = 3x</span></li>
+        </ol>
+        <p>题目已知 <strong>∠BDE = 75°</strong>，即 3x = 75°，所以 x = 25°。</p>
+        <p>所求 <strong>∠DCE = 2x = 50°</strong>。</p>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const slider = document.getElementById('angleX');
+    const angleDisplay = document.getElementById('angleVal');
+
+    const O = { x: 50, y: 300 };
+    const L = 100; // 棒长单位
+
+    function draw() {
+        const xDeg = parseFloat(slider.value);
+        const xRad = xDeg * Math.PI / 180;
+        angleDisplay.textContent = `x (∠COD) = ${xDeg.toFixed(1)}°`;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Calculate points
+        // C is on OA (angle x). OC = L
+        const C = {
+            x: O.x + L * Math.cos(-xRad),
+            y: O.y + L * Math.sin(-xRad)
+        };
+
+        // D is on OB (horizontal). CD = L
+        // Solving for D.x: (D.x - C.x)^2 + (D.y - C.y)^2 = L^2
+        // D.y = O.y (300). So (D.x - C.x)^2 + (300 - C.y)^2 = L^2
+        const dy = O.y - C.y;
+        const dx = Math.sqrt(L*L - dy*dy);
+        const D = { x: C.x + dx, y: O.y }; // D is to the right of C projection usually
+
+        // E is on OA line extended. DE = L
+        // E lies on line passing through O and C.
+        // Let E distance from O be R_E.
+        // (R_E cos x - D.x)^2 + (R_E sin x - D.y)^2 = L^2
+        // Harder to solve analytically simple. 
+        // Let's use the property derived: Triangle CDE is isosceles CD=DE.
+        // The angle property forces geometry.
+        // Actually, the mechanism slides to satisfy constraints.
+        // If we fix Angle x, and OC=CD=DE=L.
+        // Does E fall on the line OA?
+        // Let's check:
+        // Angle COD = x. OCD is iso. Angle OCD = 180-2x.
+        // Angle DCE must be on line OA? Line OA is straight. 
+        // So Angle OCD + Angle DCE = 180.
+        // Thus Angle DCE = 2x.
+        // Triangle CDE is iso (CD=DE). Apex at D? Or base CE?
+        // Text says OC=CD=DE.
+        // If Angle DCE = 2x. And CD=DE.
+        // Then Angle DEC = 2x.
+        // The third angle CDE = 180 - 4x.
+        // The point E is determined by Angle(DC, DE) = 180-4x.
+        // Let's see if E falls on line OA.
+        // Angle of CD line relative to horizontal:
+        // C is at angle x. D is on axis.
+        // Angle ODC = x. So line DC makes angle (180-x) with OB? No.
+        // In triangle OCD, angle at D is x. So line DC goes 'up' and 'left' from D to C?
+        // No, C is (L cos x, -L sin x). D is (2L cos x, 0)? No.
+        // x + x + (180-2x). Project C to x-axis: L cos x.
+        // D.x = L cos x + L cos x (since triangle is isosceles wrt vertical from C?).
+        // Yes, if OC=CD, projection of C bisects OD. So OD = 2 * L * cos(x).
+        // Coordinates: O(0,0), C(L, x_angle), D(2L cos x, 0).
+        // Now check E.
+        // E is on line OA? Distance OE?
+        // In triangle ODE? No.
+        // In triangle CDE: CD=DE=L. Angle DCE = 2x (exterior of OCD).
+        // If CD=DE, and Angle DCE=2x.
+        // Is E on the line OA?
+        // Angle of line CD relative to OA?
+        // Angle AOD = x. Angle ODC = x.
+        // So line CD makes angle -x relative to OB? No.
+        // Line CD vector: D - C.
+        // Angle of CD vector: 180 - x (relative to OB).
+        // Angle of OA vector: x.
+        // Angle between OA and CD: (180-x) - x = 180-2x.
+        // So Angle OCD = 180-2x. Correct.
+        // Now at C, line OA continues. The angle on the straight line is 180.
+        // Angle OCD = 180-2x.
+        // So Angle DCE = 2x.
+        // Now triangle CDE has CD=DE=L.
+        // If Angle DCE = 2x, then Angle DEC = 2x (Base angles).
+        // Does this place E on OA?
+        // E is defined as being on the slot OA.
+        // So we just DRAW E on the line OA at distance such that DE=L.
+        // Actually, if we fix x, and enforce E on OA and D on OB and OC=CD=DE, it works perfectly with the 2x, 3x logic.
+        // Let's find coordinate E.
+        // Angle DEC = 2x. Angle DOE = x.
+        // In triangle ODE: Angle ODE = 180 - (x + 2x) = 180 - 3x.
+        // By Sine Rule on ODE: OE / sin(180-3x) = DE / sin(x).
+        // OE = L * sin(3x) / sin(x).
+        // Also D is at (sin(180-2x)/sin(x) * L)? No OD = 2 L cos x.
+        // Let's use simple drawing logic based on the angles we know are true.
+        
+        const angleBDE = 3 * xDeg;
+        const angleDCE = 2 * xDeg;
+
+        // Draw Base Line OB
+        ctx.beginPath();
+        ctx.moveTo(O.x, O.y);
+        ctx.lineTo(O.x + 600, O.y);
+        ctx.strokeStyle = "#333";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = "#333";
+        ctx.fillText("B", O.x + 580, O.y - 10);
+        ctx.fillText("O", O.x - 20, O.y + 10);
+
+        // Draw Rod OA
+        // Length enough to hold E
+        // OE approx 2L to 3L
+        const OE_len = L * Math.sin(3 * xRad) / Math.sin(xRad);
+        const E = {
+            x: O.x + OE_len * Math.cos(-xRad),
+            y: O.y + OE_len * Math.sin(-xRad)
+        };
+        
+        ctx.beginPath();
+        ctx.moveTo(O.x, O.y);
+        ctx.lineTo(O.x + 450 * Math.cos(-xRad), O.y + 450 * Math.sin(-xRad));
+        ctx.strokeStyle = "#333";
+        ctx.lineWidth = 4; // Thick rod
+        ctx.lineCap = "round";
+        ctx.stroke();
+        ctx.fillText("A", O.x + 460 * Math.cos(-xRad), O.y + 460 * Math.sin(-xRad));
+
+        // Draw Slot visualization (simple line inside rod)
+        ctx.beginPath();
+        ctx.moveTo(O.x + 60 * Math.cos(-xRad), O.y + 60 * Math.sin(-xRad));
+        ctx.lineTo(O.x + 400 * Math.cos(-xRad), O.y + 400 * Math.sin(-xRad));
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Draw D
+        // OD length derived from Isosceles OCD
+        // OD = 2 * L * cos(x)
+        const OD_len = 2 * L * Math.cos(xRad);
+        // Correct check: In triangle ODE, does OD/sin(2x) = DE/sin(x)?
+        // DE=L. OD = L sin(2x)/sin(x) = L(2sinx cosx)/sinx = 2L cosx. Matches.
+        
+        const D_point = { x: O.x + OD_len, y: O.y };
+
+        // Draw C
+        ctx.beginPath();
+        ctx.arc(C.x, C.y, 5, 0, Math.PI*2);
+        ctx.fillStyle = "#e74c3c"; // Red
+        ctx.fill();
+        ctx.fillText("C", C.x - 10, C.y - 15);
+
+        // Draw D Point
+        ctx.beginPath();
+        ctx.arc(D_point.x, D_point.y, 5, 0, Math.PI*2);
+        ctx.fillStyle = "#e74c3c";
+        ctx.fill();
+        ctx.fillText("D", D_point.x, D_point.y + 20);
+
+        // Draw E Point
+        ctx.beginPath();
+        ctx.arc(E.x, E.y, 5, 0, Math.PI*2);
+        ctx.fillStyle = "#e74c3c";
+        ctx.fill();
+        ctx.fillText("E", E.x - 5, E.y - 15);
+
+        // Draw Links CD and DE
+        ctx.beginPath();
+        ctx.moveTo(C.x, C.y);
+        ctx.lineTo(D_point.x, D_point.y);
+        ctx.lineTo(E.x, E.y);
+        ctx.strokeStyle = "#3498db"; // Blue links
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        // Annotate Angles
+        drawAngleArc(O, 40, 0, -xRad, `x=${xDeg}°`);
+        
+        // Angle DCE (Exterior of OCD at C)
+        // Draw arc at C, from line CD to line CE
+        // Vector CD: dx = D.x - C.x, dy = D.y - C.y
+        const angleCD = Math.atan2(D_point.y - C.y, D_point.x - C.x);
+        const angleCE = -xRad;
+        drawAngleArc(C, 30, angleCD, angleCE, `2x=${(2*xDeg).toFixed(0)}°`, true);
+
+        // Angle BDE (Exterior of ODE at D)
+        // Vector DE:
+        const angleDE = Math.atan2(E.y - D_point.y, E.x - D_point.x);
+        // From Line DB (0) to Line DE
+        drawAngleArc(D_point, 40, Math.PI, angleDE, `3x=${(3*xDeg).toFixed(0)}°`, false);
+
+        // Add Target Marker
+        if (Math.abs(angleBDE - 75) < 1) {
+             ctx.fillStyle = "green";
+             ctx.font = "bold 20px Arial";
+             ctx.fillText("✅ 目标达成! ∠BDE=75°, ∠DCE=50°", 300, 50);
+        }
+    }
+
+    function drawAngleArc(center, radius, startAngle, endAngle, label, isCCW) {
+        ctx.beginPath();
+        ctx.arc(center.x, center.y, radius, startAngle, endAngle, true); // Always draw simplified arc
+        ctx.strokeStyle = "#e67e22";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        // Label pos
+        const midAngle = (startAngle + endAngle) / 2; 
+        // Adjustment for specific quadrants if needed, but basic works
+        // For BDE: Start PI, End negative. Mid is approx PI + small or -PI + small
+        const textX = center.x + (radius + 20) * Math.cos(midAngle);
+        const textY = center.y + (radius + 20) * Math.sin(midAngle);
+        ctx.fillStyle = "#d35400";
+        ctx.font = "14px Arial";
+        ctx.fillText(label, textX, textY);
+    }
+
+    slider.addEventListener('input', draw);
+    draw(); // Initial draw
+
+</script>
+
+</body>
+</html>

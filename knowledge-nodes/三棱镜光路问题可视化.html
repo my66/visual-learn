@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>三棱镜光路传播可视化 - 互动教学演示</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <style>
+    /* CSS Styles */
+    :root {
+      --primary-color: #2196F3;
+      --accent-color: #FF4081;
+      --bg-color: #F5F5F7;
+      --panel-bg: #FFFFFF;
+      --text-color: #333333;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      height: 100vh;
+      overflow: hidden; /* Prevent body scroll, handle inside containers */
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background-color: var(--panel-bg);
+      padding: 10px 20px;
+      border-bottom: 1px solid #ddd;
+      flex-shrink: 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 1.2rem;
+      color: var(--text-color);
+    }
+
+    .main-container {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* Control Panel */
+    .controls {
+      width: 320px;
+      background-color: var(--panel-bg);
+      border-right: 1px solid #ddd;
+      padding: 20px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      box-shadow: 2px 0 5px rgba(0,0,0,0.02);
+      flex-shrink: 0;
+    }
+
+    .control-group {
+      border: 1px solid #eee;
+      padding: 15px;
+      border-radius: 8px;
+      background: #fafafa;
+    }
+
+    .control-group h3 {
+      margin-top: 0;
+      margin-bottom: 12px;
+      font-size: 1rem;
+      color: var(--primary-color);
+      border-bottom: 2px solid var(--primary-color);
+      display: inline-block;
+      padding-bottom: 4px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      margin-bottom: 5px;
+      accent-color: var(--primary-color);
+    }
+
+    .value-display {
+      font-family: "SF Mono", "Monaco", "Consolas", monospace;
+      font-size: 0.85rem;
+      color: #666;
+      float: right;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    button {
+      flex: 1;
+      padding: 8px 12px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: background 0.2s;
+      background-color: #e0e0e0;
+      color: #333;
+    }
+
+    button.active {
+      background-color: var(--primary-color);
+      color: white;
+    }
+
+    button:hover:not(.active) {
+      background-color: #d0d0d0;
+    }
+
+    /* Checkbox list */
+    .checkbox-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+
+    /* Visualization Area */
+    .canvas-container {
+      flex: 1;
+      position: relative;
+      background-color: #fff;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    #p5-canvas {
+      box-shadow: 0 0 20px rgba(0,0,0,0.1);
+    }
+
+    /* Explanation Overlay */
+    .explanation {
+      margin-top: auto;
+      padding: 15px;
+      background: #e3f2fd;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      border-left: 4px solid var(--primary-color);
+    }
+
+    .problem-text {
+      font-size: 0.9rem;
+      color: #555;
+      background: #f0f0f0;
+      padding: 10px;
+      border-radius: 4px;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>📐 三棱镜光路问题可视化 (Prism Ray Tracing)</h1>
+    <div style="font-size: 0.9rem; color: #666;">MathPhysics Interactive</div>
+  </header>
+
+  <div class="main-container">
+    
+    <!-- Left: Controls -->
+    <aside class="controls">
+      
+      <div class="control-group">
+        <h3>题目描述</h3>
+        <div class="problem-text">
+          <strong>原题：</strong>一束红光平行于BC边从S点射入等腰直角三棱镜，经AB面折射后，又在BC面发生反射，最后从P点折射射出。
+        </div>
+      </div>
+
+      <div class="control-group">
+        <h3>1. 核心参数 (Parameters)</h3>
+        
+        <div>
+          <label>折射率 (n) <span id="val-n" class="value-display">1.50</span></label>
+          <input type="range" id="slider-n" min="1.1" max="2.0" step="0.05" value="1.5">
+          <div style="font-size:0.8rem; color:#888;">(玻璃 n≈1.5, 水 n≈1.33, 钻石 n≈2.4)</div>
+        </div>
+
+        <div style="margin-top: 15px;">
+          <label>入射点位置 (S) <span id="val-s" class="value-display">50%</span></label>
+          <input type="range" id="slider-s" min="0.1" max="0.9" step="0.01" value="0.4">
+        </div>
+      </div>
+
+      <div class="control-group">
+        <h3>2. 显示选项 (Display)</h3>
+        <div class="checkbox-list">
+          <label class="checkbox-item"><input type="checkbox" id="check-normal" checked> 显示法线 (Normals)</label>
+          <label class="checkbox-item"><input type="checkbox" id="check-angles" checked> 显示角度数值 (Angles)</label>
+          <label class="checkbox-item"><input type="checkbox" id="check-aux"> 显示辅助线/延长线</label>
+          <label class="checkbox-item"><input type="checkbox" id="check-points" checked> 显示顶点字母 (A,B,C,S,P)</label>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <h3>3. 步骤演示 (Step-by-Step)</h3>
+        <div class="btn-group">
+          <button id="btn-reset">重置</button>
+          <button id="btn-play" class="active">自动播放</button>
+        </div>
+        <div style="margin-top:10px;">
+          <label>当前步骤:</label>
+          <input type="range" id="slider-step" min="0" max="4" step="0.05" value="4">
+        </div>
+      </div>
+
+      <div class="explanation" id="explanation-text">
+        准备就绪。请拖动滑块或观察光路传播。
+      </div>
+
+    </aside>
+
+    <!-- Right: Canvas -->
+    <div class="canvas-container" id="canvas-wrapper">
+      <!-- P5 Canvas will be injected here -->
+    </div>
+
+  </div>
+
+  <script>
+    // --- Global Variables ---
+    let sliderN, sliderS, sliderStep;
+    let checkNormal, checkAngles, checkAux, checkPoints;
+    let btnPlay, btnReset;
+    let valN, valS, explanationText;
+    
+    // State
+    let isPlaying = true;
+    let playTime = 4; // Corresponds to step slider
+    let canvasWidth, canvasHeight;
+    
+    // Geometry Constants
+    const PRISM_SIZE = 300;
+    // Renamed A, B, C to ptA, ptB, ptC to avoid global namespace conflicts
+    let ptA, ptB, ptC; // Vertices
+
+    function setup() {
+      // Calculate canvas size based on container
+      const container = document.getElementById('canvas-wrapper');
+      canvasWidth = container.clientWidth;
+      canvasHeight = container.clientHeight;
+      
+      const cnv = createCanvas(canvasWidth, canvasHeight);
+      cnv.parent('canvas-wrapper');
+      
+      // Initialize UI refs
+      sliderN = document.getElementById('slider-n');
+      sliderS = document.getElementById('slider-s');
+      sliderStep = document.getElementById('slider-step');
+      
+      checkNormal = document.getElementById('check-normal');
+      checkAngles = document.getElementById('check-angles');
+      checkAux = document.getElementById('check-aux');
+      checkPoints = document.getElementById('check-points');
+      
+      valN = document.getElementById('val-n');
+      valS = document.getElementById('val-s');
+      explanationText = document.getElementById('explanation-text');
+      
+      btnPlay = document.getElementById('btn-play');
+      btnReset = document.getElementById('btn-reset');
+      
+      // Event Listeners
+      sliderN.addEventListener('input', () => { valN.innerText = parseFloat(sliderN.value).toFixed(2); });
+      sliderS.addEventListener('input', () => { valS.innerText = Math.round(sliderS.value * 100) + '%'; });
+      
+      sliderStep.addEventListener('input', () => {
+        isPlaying = false;
+        playTime = parseFloat(sliderStep.value);
+        updatePlayButton();
+      });
+      
+      btnPlay.addEventListener('click', () => {
+        isPlaying = !isPlaying;
+        if(isPlaying && playTime >= 4) playTime = 0;
+        updatePlayButton();
+      });
+      
+      btnReset.addEventListener('click', () => {
+        sliderN.value = 1.5;
+        sliderS.value = 0.4;
+        playTime = 0;
+        isPlaying = true;
+        updatePlayButton();
+        valN.innerText = "1.50";
+        valS.innerText = "40%";
+      });
+      
+      textFont('Arial');
+    }
+
+    function windowResized() {
+      const container = document.getElementById('canvas-wrapper');
+      resizeCanvas(container.clientWidth, container.clientHeight);
+    }
+
+    function updatePlayButton() {
+      btnPlay.innerText = isPlaying ? "暂停 (Pause)" : "播放 (Play)";
+      btnPlay.classList.toggle('active', isPlaying);
+    }
+
+    function draw() {
+      background(255);
+      
+      // Update Animation
+      if (isPlaying) {
+        playTime += 0.03;
+        if (playTime > 4.2) {
+          playTime = 4.2;
+          isPlaying = false;
+          updatePlayButton();
+        }
+        sliderStep.value = playTime;
+      } else {
+        playTime = parseFloat(sliderStep.value);
+      }
+
+      // 1. Setup Coordinate System
+      translate(width / 2, height / 2 + 50); // Move origin to center-ish
+      scale(1, -1); // Flip Y so positive is up (standard math coords)
+      
+      // 2. Define Prism Geometry
+      // Base width = PRISM_SIZE
+      // Height = PRISM_SIZE / 2
+      let halfBase = PRISM_SIZE / 2;
+      let heightPrism = halfBase; // Since 45-45-90
+      
+      ptA = createVector(0, heightPrism);
+      ptB = createVector(-halfBase, 0);
+      ptC = createVector(halfBase, 0);
+      
+      // 3. Draw Prism
+      drawPrism();
+      
+      // 4. Ray Tracing Logic
+      let n = parseFloat(sliderN.value);
+      let sPos = parseFloat(sliderS.value); // 0 to 1 along AB
+      
+      // Calculate Point S on AB
+      // B is (-halfBase, 0), A is (0, halfBase)
+      // Vector AB = B - A
+      let vecAB = p5.Vector.sub(ptB, ptA);
+      let ptS = p5.Vector.add(ptA, p5.Vector.mult(vecAB, sPos));
+      
+      // Step 1: Incident Ray (Parallel to BC -> Horizontal)
+      // Comes from left. Direction (1, 0)
+      let dir1 = createVector(1, 0);
+      let startPoint = createVector(-width/2 + 20, ptS.y); // Start far left
+      
+      // Draw Incident
+      if (playTime > 0) {
+        let drawP = playTime >= 1 ? 1 : playTime;
+        let pEnd = p5.Vector.lerp(startPoint, ptS, drawP);
+        drawRay(startPoint, pEnd, "入射光线", drawP > 0.5);
+      }
+      
+      // Step 2: Refraction at AB
+      if (playTime >= 1) {
+        // Normal at AB
+        // Slope of AB is 1. Normal slope is -1.
+        let normalAB = createVector(-1, 1).normalize(); 
+        
+        // Incident Angle
+        let angleI1 = 45;
+        
+        // Snell's Law: n1 * sin(i) = n2 * sin(r)
+        // 1.0 * sin(45) = n * sin(r)
+        let sinR = Math.sin(radians(45)) / n;
+        let angleR1 = degrees(Math.asin(sinR));
+        
+        // Visual Check for Student
+        if (checkNormal.checked) drawNormal(ptS, normalAB, angleI1, angleR1, true); // true for entering
+        
+        // New direction
+        let dir2Angle = angleR1 - 45;
+        let dir2 = p5.Vector.fromAngle(radians(dir2Angle));
+        
+        // Find intersection with BC (y=0)
+        // Ray: P = S + t * dir2
+        // y: S.y + t * dir2.y = 0  => t = -S.y / dir2.y
+        let t2 = -ptS.y / dir2.y;
+        let P2 = p5.Vector.add(ptS, p5.Vector.mult(dir2, t2));
+        
+        let drawP2 = (playTime >= 2) ? 1 : (playTime - 1);
+        let endP2 = p5.Vector.lerp(ptS, P2, drawP2);
+        
+        drawRay(ptS, endP2, "", false);
+        
+        // Update Text
+        if (playTime > 1 && playTime < 2) {
+          updateExplanation(`<b>步骤 2 (折射):</b><br>光线从空气进入玻璃。<br>入射角 i = 45°。<br>折射角 r = ${angleR1.toFixed(1)}°。<br>光线<b>偏向法线</b> (向下弯折)。`);
+        }
+
+        // Step 3: Reflection at BC
+        if (playTime >= 2) {
+          // Check if P2 is actually within segment BC
+          let onBase = (P2.x >= ptB.x && P2.x <= ptC.x);
+          
+          if (!onBase) {
+             fill(255, 0, 0);
+             noStroke();
+             textSize(16);
+             scale(1, -1);
+             text("光线未射在底边上！请调整入射点。", 0, 0);
+             scale(1, -1);
+             return;
+          }
+
+          // Normal at BC is vertical (0, 1)
+          let normalBC = createVector(0, 1);
+          
+          // Reflection: angle of reflection = angle of incidence.
+          // Direction just flips Y component because surface is horizontal.
+          let dir3 = createVector(dir2.x, -dir2.y);
+          
+          // Draw Normal
+          if (checkNormal.checked) drawNormal(P2, normalBC, 0, 0, false, true); // Reflection normal
+          
+          // Intersection with AC
+          // AC goes from (0, h) to (h, 0).
+          // Line AC equation: y = -x + h.  => x + y = h.
+          // Ray: P = P2 + t * dir3
+          // t = (h - P2.x - P2.y) / (dir3.x + dir3.y)
+          
+          let t3 = (halfBase - P2.x - P2.y) / (dir3.x + dir3.y);
+          let P3 = p5.Vector.add(P2, p5.Vector.mult(dir3, t3));
+          
+          let drawP3 = (playTime >= 3) ? 1 : (playTime - 2);
+          let endP3 = p5.Vector.lerp(P2, P3, drawP3);
+          
+          drawRay(P2, endP3, "", false);
+
+          if (playTime > 2 && playTime < 3) {
+            updateExplanation(`<b>步骤 3 (反射):</b><br>光线射到底边 BC。<br>根据<b>反射定律</b>：<br>反射角 = 入射角。<br>光线对称反弹。`);
+          }
+          
+          // Step 4: Refraction out at P (P3)
+          if (playTime >= 3) {
+             // Normal at AC.
+             // AC vector (h, -h). Normal points OUT (top-right).
+             let normalAC = createVector(1, 1).normalize();
+             
+             // Incident angle i3 (inside glass).
+             let incidentAngleGlass = p5.Vector.angleBetween(dir3, normalAC);
+             
+             // Snell's Law OUT: n * sin(i3) = 1.0 * sin(r3)
+             let sinR3 = n * Math.sin(incidentAngleGlass);
+             
+             let totalInternalReflection = false;
+             let r3 = 0;
+             let dir4;
+             
+             if (Math.abs(sinR3) > 1.0) {
+               totalInternalReflection = true;
+               // Draw TIR
+               dir4 = createVector(-dir3.y, dir3.x); 
+             } else {
+               r3 = Math.asin(sinR3); // radians
+               
+               // Calculate new direction
+               // It bends AWAY from normal.
+               let normAngle = normalAC.heading();
+               let rayAngle = dir3.heading();
+               let diff = rayAngle - normAngle; 
+               let newDiff = (diff > 0 ? 1 : -1) * r3;
+               let finalAngle = normAngle + newDiff;
+               dir4 = p5.Vector.fromAngle(finalAngle);
+             }
+             
+             // Draw final ray
+             let drawP4 = (playTime >= 4) ? 1 : (playTime - 3);
+             let PEndFinal = p5.Vector.add(P3, p5.Vector.mult(dir4, 150));
+             let endP4 = p5.Vector.lerp(P3, PEndFinal, drawP4);
+             
+             // Check if TIR happened
+             if (totalInternalReflection) {
+                stroke(255,0,0);
+                line(P3.x, P3.y, P3.x - 20, P3.y - 20);
+                if (playTime > 3) updateExplanation("发生全反射！(角度过大)");
+             } else {
+                drawRay(P3, endP4, "出射光线", drawP4 > 0.5);
+                if (checkNormal.checked) drawNormal(P3, normalAC, degrees(incidentAngleGlass), degrees(r3), false); // false for leaving
+                
+                if (playTime > 3) {
+                  updateExplanation(`<b>步骤 4 (出射):</b><br>光线从玻璃射入空气。<br>光速变快，<b>偏离法线</b>。<br>入射角 i = ${degrees(incidentAngleGlass).toFixed(1)}°。<br>折射角 r = ${degrees(r3).toFixed(1)}°。`);
+                }
+             }
+          }
+        }
+      }
+    }
+
+    // Helper: Update explanation text
+    function updateExplanation(html) {
+      explanationText.innerHTML = html;
+    }
+
+    // Helper: Draw Prism
+    function drawPrism() {
+      stroke(50);
+      strokeWeight(2);
+      fill(220, 240, 255, 150); // Glassy blue
+      triangle(ptA.x, ptA.y, ptB.x, ptB.y, ptC.x, ptC.y);
+      
+      noStroke();
+      fill(0);
+      textSize(14);
+      scale(1, -1); // Flip text back
+      if (checkPoints.checked) {
+        text("A", ptA.x - 5, -ptA.y - 10);
+        text("B", ptB.x - 15, -ptB.y + 20);
+        text("C", ptC.x + 5, -ptC.y + 20);
+      }
+      scale(1, -1);
+    }
+
+    // Helper: Draw Ray
+    function drawRay(p1, p2, label, showArrow) {
+      stroke(255, 50, 50); // Red light
+      strokeWeight(3);
+      line(p1.x, p1.y, p2.x, p2.y);
+      
+      // Arrow
+      if (showArrow) {
+        let angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+        push();
+        translate((p1.x + p2.x)/2, (p1.y + p2.y)/2);
+        rotate(angle);
+        fill(255, 50, 50);
+        noStroke();
+        triangle(0, 0, -8, 4, -8, -4);
+        pop();
+      }
+      
+      // Label
+      if (label && checkAux.checked) {
+        fill(0);
+        noStroke();
+        scale(1, -1);
+        text(label, p1.x, -p1.y - 10);
+        scale(1, -1);
+      }
+    }
+
+    // Helper: Draw Normal and Angles
+    function drawNormal(p, nVec, angle1, angle2, isEntering, isReflection = false) {
+      // Draw Normal Line
+      stroke(100, 100, 100, 150);
+      strokeWeight(1);
+      drawingContext.setLineDash([5, 5]); // Dashed line
+      let len = 60;
+      line(p.x - nVec.x*len, p.y - nVec.y*len, p.x + nVec.x*len, p.y + nVec.y*len);
+      drawingContext.setLineDash([]); // Reset
+      
+      if (!checkAngles.checked) return;
+
+      // Draw Arcs for angles
+      noStroke();
+      fill(50);
+      textSize(12);
+      scale(1, -1);
+      
+      let offset = 25;
+      if (isReflection) {
+        text(`i=${angle1.toFixed(0)}°`, p.x + 10, -p.y - 10);
+        text(`r=${angle1.toFixed(0)}°`, p.x - 30, -p.y - 10);
+      } else if (isEntering) {
+        text(`i=${angle1.toFixed(0)}°`, p.x - 30, -p.y + 20);
+        text(`r=${angle2.toFixed(0)}°`, p.x + 10, -p.y - 10);
+      } else {
+         text(`i=${angle1.toFixed(0)}°`, p.x - 20, -p.y + 10);
+         text(`r=${angle2.toFixed(0)}°`, p.x + 10, -p.y - 20);
+      }
+      scale(1, -1);
+    }
+
+  </script>
+</body>
+</html>

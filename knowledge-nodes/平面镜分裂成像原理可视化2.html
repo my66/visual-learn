@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>物理第8题：镜子破裂分离与错位分析</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: #f8fafc;
+            user-select: none;
+        }
+        canvas {
+            background-image: 
+                linear-gradient(rgba(226, 232, 240, 0.6) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(226, 232, 240, 0.6) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        /* 滑块样式优化 */
+        input[type=range] {
+            height: 4px;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col lg:flex-row overflow-hidden">
+
+    <!-- 左侧控制区 -->
+    <div class="lg:w-96 w-full bg-white border-r border-indigo-100 flex flex-col shadow-xl z-20">
+        <div class="p-6 bg-indigo-600 text-white">
+            <h1 class="text-xl font-bold flex items-center gap-2">
+                <i class="ph ph-intersect-three text-2xl"></i>
+                第8题：破镜重圆？
+            </h1>
+            <p class="text-indigo-100 text-sm mt-2">
+                <strong>探究：</strong>如果镜子不仅上下裂开，还发生了前后错位或旋转，像会变成什么样？
+            </p>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-6 space-y-6">
+            
+            <!-- 1. 基础裂开 -->
+            <div class="space-y-3 p-4 bg-gray-50 rounded-lg border border-gray-100">
+                <div class="flex justify-between items-center">
+                    <label class="font-bold text-gray-700 flex items-center gap-2 text-sm">
+                        <i class="ph ph-arrows-out-line-vertical"></i> 上下分离 (原题情况)
+                    </label>
+                    <span id="gap-val" class="text-xs font-mono bg-white px-2 py-1 rounded border text-gray-600">0 cm</span>
+                </div>
+                <input type="range" id="slider-gap" min="0" max="150" value="0" 
+                    class="w-full bg-gray-200 appearance-none cursor-pointer accent-indigo-600">
+            </div>
+
+            <!-- 2. 进阶错位 -->
+            <div class="space-y-3 p-4 bg-orange-50 rounded-lg border border-orange-100">
+                <div class="flex justify-between items-center">
+                    <label class="font-bold text-gray-800 flex items-center gap-2 text-sm">
+                        <i class="ph ph-arrows-left-right"></i> 上半镜前后错位
+                    </label>
+                    <span id="offset-val" class="text-xs font-mono bg-white px-2 py-1 rounded border text-orange-600">0 cm</span>
+                </div>
+                <input type="range" id="slider-offset" min="-100" max="100" value="0" 
+                    class="w-full bg-gray-200 appearance-none cursor-pointer accent-orange-500">
+                
+                <div class="flex justify-between items-center mt-2">
+                    <label class="font-bold text-gray-800 flex items-center gap-2 text-sm">
+                        <i class="ph ph-arrow-clockwise"></i> 上半镜旋转
+                    </label>
+                    <span id="rotate-val" class="text-xs font-mono bg-white px-2 py-1 rounded border text-orange-600">0°</span>
+                </div>
+                <input type="range" id="slider-rotate" min="-30" max="30" value="0" 
+                    class="w-full bg-gray-200 appearance-none cursor-pointer accent-orange-500">
+                
+                <button id="btn-reset" class="mt-2 text-xs text-orange-600 underline hover:text-orange-800">重置错位与旋转</button>
+            </div>
+
+            <hr class="border-gray-100">
+
+            <!-- 光路开关 -->
+            <div class="space-y-2">
+                <h2 class="font-bold text-gray-700 text-sm">显示设置</h2>
+                <div class="grid grid-cols-2 gap-2">
+                    <label class="flex items-center gap-2 p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                        <input type="checkbox" id="check-top" class="accent-red-500" checked>
+                        <span class="text-xs text-gray-600">上半镜光路(红)</span>
+                    </label>
+                    <label class="flex items-center gap-2 p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                        <input type="checkbox" id="check-bottom" class="accent-blue-500" checked>
+                        <span class="text-xs text-gray-600">下半镜光路(蓝)</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- 状态反馈 -->
+            <div id="status-box" class="p-3 bg-green-50 border border-green-200 rounded text-xs text-green-800 transition-colors">
+                <p><strong>当前状态：</strong>镜面共面</p>
+                <p>像的位置重合，成一个完整的虚像。</p>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- 右侧画布 -->
+    <div class="flex-1 relative bg-gray-50 overflow-hidden" id="canvas-container">
+        <!-- 悬浮图例 -->
+        <div class="absolute top-4 left-4 flex flex-col gap-2 pointer-events-none select-none">
+            <div class="bg-white/90 backdrop-blur px-3 py-1.5 rounded shadow text-xs border-l-4 border-gray-800 text-gray-700">
+                物体 (人)
+            </div>
+            <div class="bg-white/90 backdrop-blur px-3 py-1.5 rounded shadow text-xs border-l-4 border-red-400 border-dashed text-gray-700">
+                上半镜成的像 (红)
+            </div>
+            <div class="bg-white/90 backdrop-blur px-3 py-1.5 rounded shadow text-xs border-l-4 border-blue-400 border-dashed text-gray-700">
+                下半镜成的像 (蓝)
+            </div>
+        </div>
+        
+        <canvas id="splitCanvas"></canvas>
+    </div>
+
+    <script>
+    (function() {
+        const canvas = document.getElementById('splitCanvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('canvas-container');
+        
+        // 状态变量
+        const state = {
+            gap: 0,           // 上下分离距离
+            offset: 0,        // 上半镜前后错位 (X轴)
+            rotation: 0,      // 上半镜旋转角度
+            showTopRays: true,
+            showBottomRays: true,
+            
+            // 场景常量
+            objDist: 150,     // 初始物距
+            mirrorBaseX: 0,   // 镜子基准X (resize计算)
+            baseY: 0          // 垂直中心
+        };
+
+        const G = {
+            mirrorHeight: 100, // 半个镜子高度
+        };
+
+        // --- 几何计算核心 ---
+
+        // 计算点 p 关于直线 (start, end) 的对称点
+        function getReflection(p, start, end) {
+            const x0 = p.x, y0 = p.y;
+            const x1 = start.x, y1 = start.y;
+            const x2 = end.x, y2 = end.y;
+            
+            // 直线 Ax + By + C = 0
+            const A = y2 - y1;
+            const B = x1 - x2;
+            const C = x2*y1 - x1*y2;
+            
+            const den = A*A + B*B;
+            if(den === 0) return {x: x0, y: y0}; // 避免除0
+            
+            const k = -2 * (A*x0 + B*y0 + C) / den;
+            return {
+                x: x0 + k * A,
+                y: y0 + k * B
+            };
+        }
+
+        // --- 绘图逻辑 ---
+
+        function resize() {
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+            state.baseY = canvas.height / 2;
+            state.mirrorBaseX = canvas.width * 0.55; // 稍微靠右放，给左边物体留空间
+            draw();
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 1. 定义几何体位置
+            const objPos = { x: state.mirrorBaseX - state.objDist, y: state.baseY };
+            
+            // 下半镜 (基准镜子，不动，只随gap下移)
+            // 垂直放置
+            const botMirrorY = state.baseY + state.gap/2;
+            const botMirrorStart = { x: state.mirrorBaseX, y: botMirrorY };
+            const botMirrorEnd =   { x: state.mirrorBaseX, y: botMirrorY + G.mirrorHeight };
+            
+            // 上半镜 (可移动、旋转)
+            const topMirrorCy = state.baseY - state.gap/2 - G.mirrorHeight/2; // 中心Y
+            const topMirrorCx = state.mirrorBaseX + state.offset;             // 中心X (错位)
+            
+            // 计算上半镜的两端点 (根据旋转)
+            const rad = state.rotation * Math.PI / 180;
+            const hHalf = G.mirrorHeight / 2;
+            // 旋转：假设原本是垂直的线段 (0, -hHalf) 到 (0, hHalf)
+            // 旋转后坐标变换
+            // 注意 Canvas Y向下。
+            // 0度 = 垂直。
+            const dx = Math.sin(rad) * hHalf; // 稍微有点反直觉，旋转通常相对于垂直轴
+            const dy = Math.cos(rad) * hHalf;
+            
+            const topMirrorStart = { x: topMirrorCx + dx, y: topMirrorCy - dy }; // 上端
+            const topMirrorEnd =   { x: topMirrorCx - dx, y: topMirrorCy + dy }; // 下端
+
+            // 2. 绘制基准面虚线 (原镜面位置)
+            ctx.save();
+            ctx.strokeStyle = "#e2e8f0";
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.moveTo(state.mirrorBaseX, 0);
+            ctx.lineTo(state.mirrorBaseX, canvas.height);
+            ctx.stroke();
+            ctx.restore();
+
+            // 3. 绘制物体
+            drawPerson(objPos.x, objPos.y, 1, "#1f2937", false, "物体");
+
+            // 4. 计算并绘制像
+            
+            // --- 下半镜成像 ---
+            // 因为下半镜垂直，直接对称
+            const imgBotPos = getReflection(objPos, botMirrorStart, botMirrorEnd);
+            
+            // --- 上半镜成像 ---
+            // 可能旋转或错位
+            const imgTopPos = getReflection(objPos, topMirrorStart, topMirrorEnd);
+
+            // 绘制像 (如果重合，画一个混合色；如果不重合，分开放)
+            // 我们总是分别画，利用混合模式或透明度让它们重叠时变深
+            
+            // 下半镜像 (蓝)
+            if (state.showBottomRays) {
+                drawPerson(imgBotPos.x, imgBotPos.y, 0.5, "#3b82f6", true, "像2");
+            }
+            // 上半镜像 (红)
+            if (state.showTopRays) {
+                drawPerson(imgTopPos.x, imgTopPos.y, 0.5, "#ef4444", true, "像1");
+            }
+
+            // 5. 绘制镜子实体
+            drawMirrorShape(botMirrorStart, botMirrorEnd, "#3b82f6"); // 蓝框
+            drawMirrorShape(topMirrorStart, topMirrorEnd, "#ef4444"); // 红框
+
+            // 6. 绘制光路 (Ray Tracing)
+            const headOffset = -30;
+            const objHead = { x: objPos.x, y: objPos.y + headOffset };
+
+            if (state.showBottomRays) {
+                // 取下半镜中点
+                const mid = { x: (botMirrorStart.x + botMirrorEnd.x)/2, y: (botMirrorStart.y + botMirrorEnd.y)/2 };
+                drawComplexRay(objHead, mid, imgBotPos, "#93c5fd"); // Light Blue
+            }
+            
+            if (state.showTopRays) {
+                // 取上半镜中点
+                const mid = { x: (topMirrorStart.x + topMirrorEnd.x)/2, y: (topMirrorStart.y + topMirrorEnd.y)/2 };
+                drawComplexRay(objHead, mid, imgTopPos, "#fca5a5"); // Light Red
+            }
+
+            // 更新状态文字
+            updateStatusText(imgTopPos, imgBotPos);
+        }
+
+        // --- 绘图组件 ---
+
+        function drawMirrorShape(start, end, color) {
+            ctx.save();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 4;
+            ctx.lineCap = "round";
+            ctx.beginPath();
+            ctx.moveTo(start.x, start.y);
+            ctx.lineTo(end.x, end.y);
+            ctx.stroke();
+            
+            // 背纹
+            ctx.strokeStyle = "#cbd5e1"; // Gray
+            ctx.lineWidth = 1;
+            const dx = end.x - start.x;
+            const dy = end.y - start.y;
+            const len = Math.sqrt(dx*dx + dy*dy);
+            const count = 10;
+            const ux = dx/len;
+            const uy = dy/len;
+            // 法向量 (向右)
+            const nx = -uy;
+            const ny = ux; 
+            // 确保法线指向镜子背面 (右侧)
+            // 简单处理：我们画在右侧
+            
+            for(let i=1; i<count; i++) {
+                const px = start.x + ux * (len * i/count);
+                const py = start.y + uy * (len * i/count);
+                ctx.beginPath();
+                ctx.moveTo(px, py);
+                ctx.lineTo(px + 10, py + 5); // 简单的斜线
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        function drawPerson(x, y, alpha, color, isDashed, label) {
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.strokeStyle = color;
+            ctx.fillStyle = color;
+            ctx.lineWidth = 3;
+            if(isDashed) ctx.setLineDash([4, 4]);
+            
+            // 简单火柴人
+            // 头
+            ctx.beginPath();
+            ctx.arc(x, y - 30, 10, 0, Math.PI*2);
+            ctx.stroke();
+            // 身
+            ctx.beginPath();
+            ctx.moveTo(x, y - 20);
+            ctx.lineTo(x, y + 10);
+            ctx.stroke();
+            // 腿
+            ctx.beginPath();
+            ctx.moveTo(x, y + 10);
+            ctx.lineTo(x - 10, y + 35);
+            ctx.moveTo(x, y + 10);
+            ctx.lineTo(x + 10, y + 35);
+            ctx.stroke();
+            // 手
+            ctx.beginPath();
+            ctx.moveTo(x - 10, y - 10);
+            ctx.lineTo(x + 10, y - 10);
+            ctx.stroke();
+
+            // 字
+            if (!isDashed) { // 只标记物体，避免太乱
+                 ctx.font = "12px sans-serif";
+                 ctx.setLineDash([]);
+                 ctx.fillText(label, x - 10, y + 50);
+            }
+            ctx.restore();
+        }
+
+        function drawComplexRay(start, mid, imgHeadPos, color) {
+            ctx.save();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            
+            // 1. 入射 start -> mid
+            ctx.beginPath();
+            ctx.moveTo(start.x, start.y);
+            ctx.lineTo(mid.x, mid.y);
+            ctx.stroke();
+            
+            // 2. 反射 mid -> out
+            // 反射方向 = Image -> Mid 的方向
+            const dx = mid.x - imgHeadPos.x; // imgHeadPos 是像的头顶位置
+            // 这里我们需要算出像的头顶位置。
+            // 传入的 imgPos 是人的基准点 (y)。
+            // 人的头顶在 y - 30。
+            // 所以要重新计算 imgHeadPos
+            const headY = imgHeadPos.y - 30; // 假定传入的是脚底中心
+            // 修正：调用处已经传入了 calculated image pos，但是那是脚底中心。
+            // 我们重新计算一下头顶的像
+            // 为了简单，直接用几何关系：像的头顶 = 脚底中心 + (头顶-脚底的相对变换)。
+            // 对于旋转镜子，这个相对变换很复杂。
+            // 简化：我们在 drawComplexRay 外面算好像的头顶位置传进来?
+            // 或者直接用传入的 imgHeadPos (假设它是像的头顶)。
+            // 调用时：imgTopPos 是脚底中心。
+            // 我们需要 getReflection 算出头顶的像。
+            // 让我们在函数内算一下：
+            // 不，太复杂。
+            // 视觉骗局：直接连线 mid 和 像的头顶。
+            // 像的头顶在哪？
+            // 传入的 imgTopPos 是脚底。对于垂直镜子，头顶 x = 脚底 x, y = 脚底 y - 30。
+            // 对于旋转镜子，人也会歪。
+            // 这是一个细节。
+            // 让我们简化：只画光线反向延长线指向 传入的 imgPos (作为基准)。
+            // 虽然有点不准(指到了脚底)，但能说明问题。
+            // 为了准一点，我们在 draw() 里把头顶的像算出来传进来。
+            // 但太麻烦。
+            // 修正方案：直接用虚线连 mid 和 imgHeadPos。
+            
+            // 我们还是假定传入的是像的头顶坐标吧。
+            // 在 draw 函数里重新算一下头顶像
+            const dy = mid.y - imgHeadPos.y;
+            
+            const len = 150;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            const ux = dx/dist;
+            const uy = dy/dist;
+            
+            ctx.beginPath();
+            ctx.moveTo(mid.x, mid.y);
+            ctx.lineTo(mid.x + ux*len, mid.y + uy*len);
+            ctx.stroke();
+            
+            // 3. 虚线延长 mid -> imgHeadPos
+            ctx.setLineDash([4, 4]);
+            ctx.globalAlpha = 0.5;
+            ctx.beginPath();
+            ctx.moveTo(mid.x, mid.y);
+            ctx.lineTo(imgHeadPos.x, imgHeadPos.y);
+            ctx.stroke();
+            
+            ctx.restore();
+        }
+        
+        // 专门算头顶的像，为了光路准确
+        // 重写 drawComplexRay 的调用逻辑
+        // 太麻烦，我们在 drawComplexRay 内部再算一次镜像？
+        // 否，我们在 draw 主循环里：
+        // const objHead = {x, y-30}
+        // const imgHeadTop = getReflection(objHead, topStart, topEnd)
+        // drawComplexRay(objHead, topMid, imgHeadTop)
+        // 这样最准。
+        
+        // 重写 draw 中的光路调用
+        // (在下面的 draw 函数末尾修正)
+
+        function updateStatusText(p1, p2) {
+            const box = document.getElementById('status-box');
+            const dist = Math.sqrt((p1.x-p2.x)**2 + (p1.y-p2.y)**2);
+            
+            if (dist < 2) {
+                box.className = "p-3 bg-green-50 border border-green-200 rounded text-xs text-green-800 transition-colors";
+                box.innerHTML = `<p><strong>当前状态：</strong>镜面共面</p><p>上下像位置重合，观察者看到一个完整的像。</p>`;
+            } else {
+                box.className = "p-3 bg-red-50 border border-red-200 rounded text-xs text-red-800 transition-colors";
+                box.innerHTML = `<p><strong>当前状态：</strong>镜面不共面！</p><p>像分离了！此时无法看到完整的单一像。</p>`;
+            }
+        }
+
+        // --- 交互绑定 ---
+        const sliderGap = document.getElementById('slider-gap');
+        const sliderOffset = document.getElementById('slider-offset');
+        const sliderRotate = document.getElementById('slider-rotate');
+        
+        sliderGap.addEventListener('input', (e) => {
+            state.gap = parseInt(e.target.value);
+            document.getElementById('gap-val').innerText = (state.gap/2).toFixed(0) + " px";
+            draw();
+        });
+        
+        sliderOffset.addEventListener('input', (e) => {
+            state.offset = parseInt(e.target.value);
+            document.getElementById('offset-val').innerText = state.offset + " px";
+            draw();
+        });
+        
+        sliderRotate.addEventListener('input', (e) => {
+            state.rotation = parseInt(e.target.value);
+            document.getElementById('rotate-val').innerText = state.rotation + "°";
+            draw();
+        });
+
+        document.getElementById('btn-reset').addEventListener('click', () => {
+            state.offset = 0;
+            state.rotation = 0;
+            sliderOffset.value = 0;
+            sliderRotate.value = 0;
+            document.getElementById('offset-val').innerText = "0 px";
+            document.getElementById('rotate-val').innerText = "0°";
+            draw();
+        });
+        
+        document.getElementById('check-top').addEventListener('change', (e) => { state.showTopRays = e.target.checked; draw(); });
+        document.getElementById('check-bottom').addEventListener('change', (e) => { state.showBottomRays = e.target.checked; draw(); });
+
+        window.addEventListener('resize', resize);
+        
+        // 修正 drawComplexRay 逻辑引用
+        // 覆盖 draw 函数中的光路部分
+        const originalDraw = draw;
+        // 我们需要重新定义 draw，为了确保逻辑正确，直接把上面的 draw 逻辑微调一下光路部分
+        // 上面 draw 函数里光路部分调用 drawComplexRay 时传的是 imgPos (脚底)
+        // 我们改成传头顶的像
+        
+        // 重新定义 draw 函数以修复光路准确性
+        this.draw = function() { // 这里的 this 指向 window 或 scope，覆盖上面的
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 1. 定义几何体位置
+            const objPos = { x: state.mirrorBaseX - state.objDist, y: state.baseY };
+            const objHead = { x: objPos.x, y: objPos.y - 30 }; // 头顶
+            
+            // 下半镜
+            const botMirrorY = state.baseY + state.gap/2;
+            const botMirrorStart = { x: state.mirrorBaseX, y: botMirrorY };
+            const botMirrorEnd =   { x: state.mirrorBaseX, y: botMirrorY + G.mirrorHeight };
+            
+            // 上半镜
+            const topMirrorCy = state.baseY - state.gap/2 - G.mirrorHeight/2;
+            const topMirrorCx = state.mirrorBaseX + state.offset;
+            const rad = state.rotation * Math.PI / 180;
+            const hHalf = G.mirrorHeight / 2;
+            const dx = Math.sin(rad) * hHalf;
+            const dy = Math.cos(rad) * hHalf;
+            const topMirrorStart = { x: topMirrorCx + dx, y: topMirrorCy - dy };
+            const topMirrorEnd =   { x: topMirrorCx - dx, y: topMirrorCy + dy };
+
+            // 2. 辅助线
+            ctx.save();
+            ctx.strokeStyle = "#e2e8f0";
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.moveTo(state.mirrorBaseX, 0);
+            ctx.lineTo(state.mirrorBaseX, canvas.height);
+            ctx.stroke();
+            ctx.restore();
+
+            // 3. 物体
+            drawPerson(objPos.x, objPos.y, 1, "#1f2937", false, "物体");
+
+            // 4. 像的位置计算 (脚底)
+            const imgBotPos = getReflection(objPos, botMirrorStart, botMirrorEnd);
+            const imgTopPos = getReflection(objPos, topMirrorStart, topMirrorEnd);
+            
+            // 像的头顶位置 (用于光路和绘图角度)
+            // 下半镜是垂直的，头顶直接平移
+            const imgBotHead = { x: imgBotPos.x, y: imgBotPos.y - 30 };
+            
+            // 上半镜可能旋转，像也会旋转。
+            // 严谨计算头顶的镜像点
+            const imgTopHead = getReflection(objHead, topMirrorStart, topMirrorEnd);
+
+            // 绘制像
+            // 注意：如果镜子旋转，像也会歪。
+            // 这里的 drawPerson 只是简单的画正立小人。
+            // 为了体现旋转，我们需要计算角度。
+            // 像的倾斜角 = -2 * 镜子倾斜角 (大概)
+            // 我们简单处理：根据脚底和头顶的坐标画线作为身体，这样自然就歪了。
+            // 但 drawPerson 封装了。
+            // 改进：drawPerson 接受 rotation 参数?
+            // 计算像的角度：
+            const imgTopAngle = -2 * state.rotation; // 简单的几何光学规律
+            
+            if (state.showBottomRays) {
+                drawPerson(imgBotPos.x, imgBotPos.y, 0.5, "#3b82f6", true, "像2");
+            }
+            if (state.showTopRays) {
+                // 带旋转绘制
+                drawPersonRotated(imgTopPos, imgTopHead, 0.5, "#ef4444", "像1");
+            }
+
+            // 5. 镜子
+            drawMirrorShape(botMirrorStart, botMirrorEnd, "#3b82f6");
+            drawMirrorShape(topMirrorStart, topMirrorEnd, "#ef4444");
+
+            // 6. 光路
+            if (state.showBottomRays) {
+                const mid = { x: (botMirrorStart.x + botMirrorEnd.x)/2, y: (botMirrorStart.y + botMirrorEnd.y)/2 };
+                drawComplexRay(objHead, mid, imgBotHead, "#93c5fd");
+            }
+            
+            if (state.showTopRays) {
+                const mid = { x: (topMirrorStart.x + topMirrorEnd.x)/2, y: (topMirrorStart.y + topMirrorEnd.y)/2 };
+                drawComplexRay(objHead, mid, imgTopHead, "#fca5a5");
+            }
+            
+            updateStatusText(imgTopPos, imgBotPos);
+        }
+        
+        function drawPersonRotated(foot, head, alpha, color, label) {
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.strokeStyle = color;
+            ctx.fillStyle = color;
+            ctx.lineWidth = 3;
+            ctx.setLineDash([4, 4]);
+            
+            // 计算中心和角度
+            const dx = head.x - foot.x;
+            const dy = head.y - foot.y; // 应该是负的
+            const angle = Math.atan2(dy, dx) + Math.PI/2; // 相对于竖直方向的角度
+            
+            ctx.translate(foot.x, foot.y);
+            ctx.rotate(angle);
+            
+            // 现在坐标系原点在脚底，Y轴向下为正(但我们画小人是向上的)
+            // 还是用相对坐标画吧，不用 rotate 上下文，直接根据 head 和 foot 插值画更稳
+            ctx.restore();
+            
+            // 矢量绘图法
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.strokeStyle = color;
+            ctx.fillStyle = color;
+            ctx.lineWidth = 3;
+            ctx.setLineDash([4, 4]);
+            
+            // 身体: foot -> neck
+            // 假设比例：头占 1/4，身 1/3，腿 1/3
+            // 简单点，Head是头圆心
+            // Head (x,y) 半径 10
+            
+            // 头
+            ctx.beginPath();
+            ctx.arc(head.x, head.y, 10, 0, Math.PI*2);
+            ctx.stroke();
+            
+            // 脖子位置 (头圆心下方一点)
+            const vBodyX = foot.x - head.x;
+            const vBodyY = foot.y - head.y;
+            // 身体方向向量
+            const len = Math.sqrt(vBodyX*vBodyX + vBodyY*vBodyY); // 应该是30左右
+            // 归一化
+            const ux = vBodyX / len;
+            const uy = vBodyY / len;
+            
+            // 脖子
+            const neckX = head.x + ux * 10;
+            const neckY = head.y + uy * 10;
+            // 裆部
+            const crotchX = head.x + ux * 40; // 身体长点
+            const crotchY = head.y + uy * 40;
+            
+            // 脊柱
+            ctx.beginPath();
+            ctx.moveTo(neckX, neckY);
+            ctx.lineTo(crotchX, crotchY);
+            ctx.stroke();
+            
+            // 手 (简单垂直于身体)
+            // 法向量
+            const nx = -uy;
+            const ny = ux;
+            const shoulderX = neckX + ux * 5;
+            const shoulderY = neckY + uy * 5;
+            
+            ctx.beginPath();
+            ctx.moveTo(shoulderX - nx*10, shoulderY - ny*10);
+            ctx.lineTo(shoulderX + nx*10, shoulderY + ny*10);
+            ctx.stroke();
+            
+            // 脚 (连到 foot)
+            // foot 传入的是中心，劈叉一下
+            ctx.beginPath();
+            ctx.moveTo(crotchX, crotchY);
+            ctx.lineTo(foot.x - nx*5, foot.y);
+            ctx.moveTo(crotchX, crotchY);
+            ctx.lineTo(foot.x + nx*5, foot.y);
+            ctx.stroke();
+            
+            ctx.restore();
+        }
+
+        // 启动
+        resize();
+
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>全等判定核心演示：SSA "骗局" vs AAS "铁律"</title>
+  
+  <!-- 1. Libraries (CDNs) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  <style>
+    /* 2. CSS Styling */
+    :root {
+      --bg-color: #f8fafc;
+      --panel-bg: #ffffff;
+      --text-color: #1e293b;
+      --accent-color: #2563eb;
+      --border-color: #e2e8f0;
+      --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: var(--font-family);
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      overflow: hidden;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Layout Container */
+    #app-container {
+      display: flex;
+      flex: 1;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    /* Control Panel (Left) */
+    #control-panel {
+      width: 380px;
+      min-width: 320px;
+      background-color: var(--panel-bg);
+      border-right: 1px solid var(--border-color);
+      padding: 24px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      box-shadow: 4px 0 16px rgba(0,0,0,0.05);
+      z-index: 10;
+    }
+
+    /* Main Visualization Area (Right) */
+    #canvas-container {
+      flex: 1;
+      position: relative;
+      background-color: #ffffff;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background-image: radial-gradient(#e2e8f0 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+
+    /* Status Bar */
+    #status-bar {
+      height: 40px;
+      background-color: var(--panel-bg);
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      font-size: 14px;
+      color: #64748b;
+      justify-content: space-between;
+      font-weight: 500;
+    }
+
+    /* UI Elements */
+    h1 {
+      font-size: 22px;
+      margin: 0 0 4px 0;
+      color: #0f172a;
+      font-weight: 700;
+    }
+    
+    .subtitle {
+      font-size: 13px;
+      color: #64748b;
+      margin-bottom: 12px;
+    }
+
+    .mode-switch {
+      display: flex;
+      background: #f1f5f9;
+      border-radius: 8px;
+      padding: 4px;
+      margin-bottom: 12px;
+    }
+
+    .mode-btn {
+      flex: 1;
+      padding: 10px;
+      text-align: center;
+      cursor: pointer;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all 0.2s;
+      border: none;
+      background: transparent;
+      color: #64748b;
+    }
+
+    .mode-btn.active {
+      background: #ffffff;
+      color: var(--accent-color);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    
+    .mode-btn:hover:not(.active) {
+      background: rgba(255,255,255,0.5);
+    }
+
+    .section-title {
+      font-size: 14px;
+      font-weight: 700;
+      margin-top: 12px;
+      margin-bottom: 8px;
+      color: #334155;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    .section-title::before {
+      content: '';
+      display: block;
+      width: 4px;
+      height: 14px;
+      background: var(--accent-color);
+      border-radius: 2px;
+    }
+
+    .description {
+      font-size: 14px;
+      line-height: 1.6;
+      color: #475569;
+      margin-bottom: 10px;
+      background: #f8fafc;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+    }
+
+    .math-container {
+      visibility: hidden; 
+      min-height: 20px;
+    }
+
+    .control-group {
+      margin-bottom: 10px;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      padding: 12px;
+      border-radius: 8px;
+      transition: border-color 0.2s;
+    }
+    
+    .control-group:hover {
+      border-color: #cbd5e1;
+    }
+
+    /* Hide control groups when not in relevant mode */
+    .hidden-group {
+      display: none;
+    }
+
+    label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 14px;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #475569;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      margin: 0;
+      cursor: pointer;
+      accent-color: var(--accent-color);
+    }
+
+    .value-display {
+      font-family: "SF Mono", "Monaco", "Inconsolata", monospace;
+      font-weight: 700;
+      background: #eff6ff;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    
+    /* Specific colors for AAS values in UI */
+    #val-aas-a { color: #2563eb; } /* Blue */
+    #val-aas-angleB { color: #9333ea; } /* Purple */
+    #val-aas-angleA { color: #d97706; } /* Orange */
+
+    .checkbox-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      background: #fff;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+    }
+
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      cursor: pointer;
+      color: #334155;
+    }
+
+    input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--accent-color);
+      cursor: pointer;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    button.action-btn {
+      flex: 1;
+      padding: 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      background-color: #fff;
+      color: #475569;
+      transition: all 0.2s;
+    }
+    button.action-btn:hover { 
+      background-color: #f1f5f9; 
+      border-color: #94a3b8;
+    }
+
+    /* Result Box */
+    #result-container {
+      background: #fff; 
+      padding: 16px; 
+      border: 1px solid #cbd5e1; 
+      border-left: 4px solid #cbd5e1;
+      border-radius: 6px;
+      transition: all 0.3s;
+    }
+    
+    #result-container.success { border-left-color: #10b981; background: #ecfdf5; }
+    #result-container.warning { border-left-color: #f59e0b; background: #fffbeb; }
+    #result-container.error { border-left-color: #ef4444; background: #fef2f2; }
+
+    /* Legend */
+    .legend {
+      font-size: 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding-top: 8px;
+      color: #64748b;
+    }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-weight: 500; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.1); }
+    .line-legend { width: 16px; height: 3px; border-radius: 1px; }
+
+    .mjx-chtml { outline: none; }
+  </style>
+</head>
+<body>
+
+  <div id="app-container">
+    
+    <!-- Control Panel -->
+    <div id="control-panel">
+      <div>
+        <h1>全等判定演示</h1>
+        <div class="subtitle">探索 SSA 二义性与 AAS 唯一性</div>
+      </div>
+
+      <!-- Mode Switcher -->
+      <div class="mode-switch">
+        <button class="mode-btn active" id="mode-ssa" onclick="switchMode('SSA')">SSA (二义性)</button>
+        <button class="mode-btn" id="mode-aas" onclick="switchMode('AAS')">AAS (唯一性)</button>
+      </div>
+      
+      <div class="description">
+        <div id="intro-math" class="math-container"></div>
+      </div>
+
+      <div class="section-title">参数控制</div>
+      
+      <!-- SSA Controls -->
+      <div id="controls-ssa">
+        <div class="control-group">
+          <label><span>固定边 \(b\) (AC)</span><span id="val-b" class="value-display">200</span></label>
+          <input type="range" id="slider-b" min="120" max="280" value="200">
+        </div>
+        <div class="control-group">
+          <label><span>固定角 \(A\)</span><span id="val-angleA" class="value-display">30°</span></label>
+          <input type="range" id="slider-angleA" min="20" max="80" value="30">
+        </div>
+        <div class="control-group">
+          <label><span>摆动边 \(a\) (BC)</span><span id="val-a" class="value-display">130</span></label>
+          <input type="range" id="slider-a" min="60" max="320" value="130">
+        </div>
+      </div>
+
+      <!-- AAS Controls -->
+      <div id="controls-aas" class="hidden-group">
+        <div class="control-group">
+          <label style="color: #2563eb;"><span>已知边 \(a\) (BC)</span><span id="val-aas-a" class="value-display">200</span></label>
+          <input type="range" id="slider-aas-a" min="100" max="300" value="200">
+        </div>
+        <div class="control-group">
+          <label style="color: #9333ea;"><span>已知角 \(B\)</span><span id="val-aas-angleB" class="value-display">45°</span></label>
+          <input type="range" id="slider-aas-angleB" min="20" max="100" value="45">
+        </div>
+        <div class="control-group">
+          <label style="color: #d97706;"><span>已知角 \(A\) (对角)</span><span id="val-aas-angleA" class="value-display">60°</span></label>
+          <input type="range" id="slider-aas-angleA" min="20" max="100" value="60">
+        </div>
+      </div>
+
+      <div class="section-title">可视化选项</div>
+      <div class="checkbox-group">
+        <!-- SSA Options -->
+        <div id="opts-ssa">
+          <label class="checkbox-item"><input type="checkbox" id="check-height" checked>显示垂线 \(h\) (临界值)</label>
+          <label class="checkbox-item"><input type="checkbox" id="check-circle" checked>显示轨迹圆弧</label>
+          <label class="checkbox-item"><input type="checkbox" id="check-solutions" checked>显示所有解 (静态)</label>
+          <label class="checkbox-item" style="color: var(--accent-color); font-weight:700;">
+            <input type="checkbox" id="check-anim">
+            <span>开启摆动演示 (动态构造)</span>
+          </label>
+        </div>
+        <!-- AAS Options -->
+        <div id="opts-aas" class="hidden-group">
+           <label class="checkbox-item"><input type="checkbox" id="check-rays" checked>显示延伸射线</label>
+           <label class="checkbox-item"><input type="checkbox" id="check-calc-c" checked>显示 \(\angle C\) 推导过程</label>
+        </div>
+      </div>
+
+      <div class="button-group">
+        <button id="btn-reset" class="action-btn">重置参数</button>
+      </div>
+
+      <div class="section-title">当前状态与结论</div>
+      <div id="result-container">
+        <div id="result-math" class="math-container"></div>
+      </div>
+
+      <div class="legend" id="legend-container">
+        <!-- Legend dynamically updated via JS -->
+      </div>
+    </div>
+
+    <!-- Canvas -->
+    <div id="canvas-container"></div>
+  </div>
+
+  <!-- Status Bar -->
+  <div id="status-bar">
+    <span id="status-text">准备就绪</span>
+    <span id="status-coords"></span>
+  </div>
+
+  <script>
+    /**
+     * CONFIG & STATE
+     */
+    const CONFIG = {
+      vertexRadius: 5,
+      lineWidth: 2,
+      baseColor: '#1e293b',    // Dark Slate
+      swingColor: '#e11d48',   // Red
+      rayColor: '#3b82f6',     // Blue
+      
+      // AAS Colors
+      aasSideColor: '#2563eb',  // Blue
+      aasAngleBColor: '#9333ea', // Purple
+      aasAngleAColor: '#d97706', // Orange
+      
+      // Solution 1 (Acute/Right usually)
+      sol1Fill: 'rgba(16, 185, 129, 0.2)',
+      sol1Stroke: '#059669',   // Emerald
+      
+      // Solution 2 (Obtuse usually)
+      sol2Fill: 'rgba(245, 158, 11, 0.2)',
+      sol2Stroke: '#d97706',   // Amber
+
+      dynamicColor: 'rgba(225, 29, 72, 0.1)',
+      dynamicStroke: '#e11d48',
+      
+      heightColor: '#94a3b8',
+      circleColor: 'rgba(225, 29, 72, 0.15)',
+    };
+
+    let state = {
+      mode: 'SSA', // 'SSA' or 'AAS'
+      
+      // SSA Params
+      ssa: { 
+        b: 200, 
+        angleA: 30, 
+        a: 130, 
+        h: 0, 
+        solutions: 0, 
+        p1: null, 
+        p2: null, 
+        animTime: 0,
+        tipX: 0,
+        tipY: 0,
+        isAnimating: false,
+        hitSolution: 0 
+      },
+      
+      // AAS Params
+      aas: { a: 200, angleB: 45, angleA: 60, angleC: 0, valid: true }
+    };
+
+    let dom = {};
+
+    /**
+     * P5.js SETUP
+     */
+    function setup() {
+      const container = document.getElementById('canvas-container');
+      const canvas = createCanvas(container.clientWidth, container.clientHeight);
+      canvas.parent('canvas-container');
+      
+      // Improve sharpness on high DPI screens
+      pixelDensity(window.devicePixelRatio || 1);
+      
+      bindUI();
+      switchMode('SSA'); // Init
+    }
+
+    function windowResized() {
+      const container = document.getElementById('canvas-container');
+      resizeCanvas(container.clientWidth, container.clientHeight);
+    }
+
+    function draw() {
+      background(255);
+      
+      // Grid background effect
+      drawGrid();
+
+      if (state.mode === 'SSA') {
+        drawSSA();
+      } else {
+        drawAAS();
+      }
+    }
+    
+    function drawGrid() {
+      stroke(240);
+      strokeWeight(1);
+      for (let x = 0; x < width; x += 40) line(x, 0, x, height);
+      for (let y = 0; y < height; y += 40) line(0, y, width, y);
+    }
+
+    /**
+     * LOGIC: SSA
+     */
+    function updateSSA() {
+      const s = state.ssa;
+      s.b = parseFloat(dom.ssa.sliderB.value);
+      s.angleA = parseFloat(dom.ssa.sliderAngleA.value);
+      s.a = parseFloat(dom.ssa.sliderA.value);
+
+      const radA = radians(s.angleA);
+      s.h = s.b * Math.sin(radA);
+      
+      const Cx = s.b * Math.cos(radA);
+      const Cy = s.h;
+      
+      const discriminant = s.a * s.a - s.h * s.h;
+
+      s.solutions = 0;
+      s.p1 = null; s.p2 = null;
+
+      if (discriminant >= -0.001) {
+        const delta = Math.sqrt(Math.max(0, discriminant));
+        const x1 = Cx - delta;
+        const x2 = Cx + delta;
+        
+        if (Math.abs(discriminant) < 0.1) {
+            s.solutions = 1; s.p1 = x2;
+        } else {
+            if (s.a >= s.b) {
+                s.solutions = 1; s.p1 = x2; 
+            } else {
+                s.solutions = 2; s.p1 = x1; s.p2 = x2;
+            }
+        }
+      }
+
+      // Animation Logic
+      if (s.isAnimating) {
+        s.animTime += 0.03;
+        const swingRange = PI / 3; 
+        const angle = -PI/2 + Math.sin(s.animTime) * swingRange;
+        s.tipX = Cx + s.a * Math.cos(angle);
+        s.tipY = Cy + s.a * Math.sin(angle); 
+        
+        s.hitSolution = 0;
+        if (Math.abs(s.tipY) < 5) {
+            if (s.solutions === 2) {
+               if (Math.abs(s.tipX - s.p1) < 10) s.hitSolution = 1;
+               else if (Math.abs(s.tipX - s.p2) < 10) s.hitSolution = 2;
+            } else if (s.solutions === 1) {
+               if (Math.abs(s.tipX - s.p1) < 10) s.hitSolution = 1;
+            }
+        }
+      } else {
+        s.hitSolution = 0;
+      }
+      
+      updateTextSSA();
+    }
+
+    function drawSSA() {
+      updateSSA(); 
+      
+      push();
+      translate(80, height/2 + 120);
+      scale(1, -1); // Flip Y so positive is UP
+
+      const s = state.ssa;
+      const radA = radians(s.angleA);
+      const Cx = s.b * Math.cos(radA);
+      const Cy = s.b * Math.sin(radA);
+
+      // 1. Draw Base Ray (Ax)
+      stroke(0); strokeWeight(2);
+      line(0, 0, width-100, 0);
+      drawArrowHead(width-100, 0, 0);
+      
+      // Label Ray
+      noStroke(); fill(100); scale(1, -1);
+      text("射线 Ax", width-140, 20);
+      scale(1, -1);
+
+      // 2. Draw Fixed Side b (AC)
+      stroke(CONFIG.baseColor); strokeWeight(3);
+      line(0, 0, Cx, Cy);
+
+      // 3. Draw Angle A
+      drawAngleArc(0, 0, 50, 0, radA, CONFIG.baseColor);
+
+      // 4. Height (Dashed)
+      if (dom.ssa.checkHeight.checked) {
+        stroke(CONFIG.heightColor); strokeWeight(1); drawingContext.setLineDash([5,5]);
+        line(Cx, Cy, Cx, 0);
+        drawingContext.setLineDash([]);
+        // Right angle symbol
+        noFill(); stroke(CONFIG.heightColor);
+        beginShape(); vertex(Cx-10,0); vertex(Cx-10,10); vertex(Cx,10); endShape();
+      }
+
+      // 5. Circle Arc (Trajectory)
+      if (dom.ssa.checkCircle.checked) {
+        noFill(); stroke(CONFIG.circleColor); strokeWeight(2);
+        arc(Cx, Cy, s.a * 2, s.a * 2, PI, 2*PI); 
+      }
+
+      // 6. STATIC SOLUTIONS
+      if (dom.ssa.checkSolutions.checked) {
+        if (s.solutions >= 1) {
+             let isHit = (s.isAnimating && s.hitSolution === 1);
+             drawTriangle(0,0, s.p1,0, Cx,Cy, 
+                CONFIG.sol1Stroke, CONFIG.sol1Fill, isHit);
+             drawLabelAt(s.p1, 0, "B₁", CONFIG.sol1Stroke, 0, -25);
+        }
+        
+        if (s.solutions === 2) {
+             let isHit = (s.isAnimating && s.hitSolution === 2);
+             drawTriangle(0,0, s.p2,0, Cx,Cy, 
+                CONFIG.sol2Stroke, CONFIG.sol2Fill, isHit);
+             drawLabelAt(s.p2, 0, "B₂", CONFIG.sol2Stroke, 0, -25);
+        }
+      }
+
+      // 7. ANIMATION: Dynamic Triangle Construction
+      if (s.isAnimating && dom.ssa.checkAnim.checked) {
+        stroke(CONFIG.dynamicStroke); strokeWeight(3);
+        line(Cx, Cy, s.tipX, s.tipY);
+        
+        stroke(CONFIG.dynamicStroke); strokeWeight(2); 
+        drawingContext.setLineDash([10, 5]);
+        line(0, 0, s.tipX, s.tipY);
+        drawingContext.setLineDash([]);
+
+        fill(CONFIG.dynamicStroke); noStroke();
+        circle(s.tipX, s.tipY, 8);
+        
+        if (s.hitSolution > 0) {
+            noFill(); stroke(CONFIG.dynamicStroke); strokeWeight(2);
+            circle(s.tipX, s.tipY, 20); // Ripple ring
+            
+            // Text feedback
+            scale(1, -1);
+            fill(CONFIG.dynamicStroke); textSize(14); 
+            textStyle(BOLD); 
+            text(s.hitSolution === 1 ? "发现解 ① !" : "发现解 ② !", s.tipX, -s.tipY - 30);
+            textStyle(NORMAL);
+            scale(1, -1);
+        }
+      } else if (!s.isAnimating && s.solutions === 0) {
+        stroke(CONFIG.swingColor); strokeWeight(3);
+        line(Cx, Cy, Cx, Cy - s.a);
+      }
+
+      // Vertices & Static Labels
+      fill(CONFIG.baseColor); noStroke();
+      circle(0, 0, CONFIG.vertexRadius*2); // A
+      circle(Cx, Cy, CONFIG.vertexRadius*2); // C
+      
+      // Labels need un-flip
+      scale(1, -1);
+      noStroke(); fill(0); textSize(16); textAlign(CENTER, CENTER); textStyle(BOLD);
+      text("A", -15, 10);
+      text("C", Cx, -Cy-20);
+      
+      textStyle(NORMAL);
+      text(s.angleA + "°", 40, -10);
+      text("b=" + s.b, Cx/2-10, -Cy/2-15);
+      
+      // Side a label
+      if (s.isAnimating) {
+         let midX = (Cx + s.tipX)/2;
+         let midY = (Cy + s.tipY)/2;
+         fill(CONFIG.swingColor);
+         text("a", midX + 10, -midY);
+      } else {
+         if (s.solutions > 0) {
+             let targetX = (s.solutions===2) ? s.p2 : s.p1;
+             let midX = (Cx + targetX)/2;
+             let midY = Cy/2;
+             fill(CONFIG.swingColor);
+             text("a=" + s.a, midX + 10, -midY);
+         } else {
+             text("a=" + s.a, Cx + 10, -Cy/2 + 20);
+         }
+      }
+      
+      pop();
+    }
+    
+    function drawLabelAt(x, y, txt, col, offX, offY) {
+      push();
+      scale(1, -1);
+      fill(col); noStroke(); textSize(16); textStyle(BOLD);
+      text(txt, x + offX, -y + offY);
+      pop();
+    }
+
+    /**
+     * LOGIC: AAS
+     */
+    function updateAAS() {
+      const s = state.aas;
+      s.a = parseFloat(dom.aas.sliderA.value); 
+      s.angleB = parseFloat(dom.aas.sliderAngleB.value);
+      s.angleA = parseFloat(dom.aas.sliderAngleA.value);
+
+      s.angleC = 180 - s.angleB - s.angleA;
+      s.valid = s.angleC > 0;
+
+      updateTextAAS();
+    }
+
+    function drawAAS() {
+      updateAAS();
+
+      push();
+      translate(width/2 - state.aas.a/2, height/2 + 100);
+      scale(1, -1);
+
+      const s = state.aas;
+      const Bx = 0, By = 0;
+      const Cx = s.a, Cy = 0;
+
+      // Draw Base Side a (Known Side)
+      stroke(CONFIG.aasSideColor); strokeWeight(4);
+      line(Bx, By, Cx, Cy);
+      
+      // Label Side a (FIXED BLUR: call noStroke first)
+      scale(1, -1);
+      noStroke(); fill(CONFIG.aasSideColor); textSize(14);
+      text("已知边 a = " + s.a, s.a/2, 20);
+      scale(1, -1);
+
+      if (s.valid) {
+        // Intersection Calculation
+        const radB = radians(s.angleB);
+        const radC = radians(s.angleC);
+        const radA = radians(s.angleA);
+        
+        const side_c = s.a * Math.sin(radC) / Math.sin(radA);
+        const Ax = side_c * Math.cos(radB);
+        const Ay = side_c * Math.sin(radB);
+
+        // Draw Triangle
+        // Use a generic fill, but strokes are implicit from components
+        fill(CONFIG.sol1Fill); stroke(CONFIG.sol1Stroke); strokeWeight(2);
+        triangle(Bx, By, Cx, Cy, Ax, Ay);
+
+        // Draw Rays (Extensions)
+        if (dom.aas.checkRays.checked) {
+            stroke(CONFIG.rayColor); strokeWeight(1); drawingContext.setLineDash([5,5]);
+            line(Bx, By, Ax + (Ax-Bx)*0.6, Ay + (Ay-By)*0.6);
+            line(Cx, Cy, Ax + (Ax-Cx)*0.6, Ay + (Ay-Cy)*0.6);
+            drawingContext.setLineDash([]);
+            
+            // Labels for Rays (FIXED BLUR)
+            scale(1, -1);
+            noStroke(); fill(CONFIG.rayColor); textSize(12);
+            text("射线 B", Ax + (Ax-Bx)*0.6, -(Ay + (Ay-By)*0.6) - 10);
+            text("射线 C", Ax + (Ax-Cx)*0.6, -(Ay + (Ay-Cy)*0.6) - 10);
+            scale(1, -1);
+        }
+
+        // Angles
+        // Angle B (Known - Purple)
+        drawAngleArc(Bx, By, 40, 0, radB, CONFIG.aasAngleBColor); 
+        // Angle C (Derived - Grey/Black)
+        drawAngleArc(Cx, Cy, 40, PI-radC, PI, '#64748b'); 
+        // Angle A (Known - Orange)
+        drawAngleArc(Ax, Ay, 40, PI+radB, PI+radB+radA, CONFIG.aasAngleAColor); 
+
+        // Vertices
+        noStroke(); fill(0);
+        circle(Ax, Ay, CONFIG.vertexRadius*2);
+        circle(Bx, By, CONFIG.vertexRadius*2);
+        circle(Cx, Cy, CONFIG.vertexRadius*2);
+
+        // Labels
+        scale(1, -1);
+        textSize(16); textAlign(CENTER, CENTER); textStyle(BOLD);
+        
+        // Vertices labels
+        noStroke(); fill(0);
+        text("B", Bx-10, 10);
+        text("C", Cx+10, 10);
+        text("A", Ax, -Ay - 20);
+        
+        textStyle(NORMAL);
+        
+        // Value labels with colors
+        noStroke();
+        
+        // Angle B value
+        fill(CONFIG.aasAngleBColor);
+        text(s.angleB+"°", 30, -10);
+        
+        // Angle C value (Derived)
+        fill('#64748b');
+        text(Number(s.angleC.toFixed(1))+"°", Cx-30, -10);
+        
+        // Angle A value
+        fill(CONFIG.aasAngleAColor);
+        text(s.angleA+"° (对角)", Ax, -Ay + 25);
+
+      } else {
+        // Invalid
+        scale(1, -1);
+        noStroke(); fill('#ef4444'); textSize(18); textStyle(BOLD);
+        text("无法闭合！角和 ≥ 180°", s.a/2, -100);
+      }
+
+      pop();
+    }
+
+    /**
+     * UI HELPERS
+     */
+    function bindUI() {
+      dom.btnSSA = document.getElementById('mode-ssa');
+      dom.btnAAS = document.getElementById('mode-aas');
+      dom.btnReset = document.getElementById('btn-reset');
+      
+      // SSA Elements
+      dom.ssa = {
+        sliderB: document.getElementById('slider-b'),
+        sliderAngleA: document.getElementById('slider-angleA'),
+        sliderA: document.getElementById('slider-a'),
+        checkHeight: document.getElementById('check-height'),
+        checkCircle: document.getElementById('check-circle'),
+        checkSolutions: document.getElementById('check-solutions'),
+        checkAnim: document.getElementById('check-anim'),
+        valB: document.getElementById('val-b'),
+        valAngleA: document.getElementById('val-angleA'),
+        valA: document.getElementById('val-a')
+      };
+
+      // AAS Elements
+      dom.aas = {
+        sliderA: document.getElementById('slider-aas-a'),
+        sliderAngleB: document.getElementById('slider-aas-angleB'),
+        sliderAngleA: document.getElementById('slider-aas-angleA'),
+        checkRays: document.getElementById('check-rays'),
+        checkCalc: document.getElementById('check-calc-c'),
+        valA: document.getElementById('val-aas-a'),
+        valAngleB: document.getElementById('val-aas-angleB'),
+        valAngleA: document.getElementById('val-aas-angleA')
+      };
+
+      // Events
+      const updateSSAUI = () => {
+         dom.ssa.valB.textContent = dom.ssa.sliderB.value;
+         dom.ssa.valAngleA.textContent = dom.ssa.sliderAngleA.value + "°";
+         dom.ssa.valA.textContent = dom.ssa.sliderA.value;
+      };
+
+      const updateAASUI = () => {
+         dom.aas.valA.textContent = dom.aas.sliderA.value;
+         dom.aas.valAngleB.textContent = dom.aas.sliderAngleB.value + "°";
+         dom.aas.valAngleA.textContent = dom.aas.sliderAngleA.value + "°";
+      };
+
+      Object.values(dom.ssa).forEach(el => {
+        if(el && el.tagName === 'INPUT') {
+            el.addEventListener('input', () => { updateSSAUI(); });
+            el.addEventListener('change', (e) => {
+                if(e.target.id === 'check-anim') {
+                    state.ssa.isAnimating = e.target.checked;
+                    state.ssa.animTime = 0;
+                }
+            });
+        }
+      });
+
+      Object.values(dom.aas).forEach(el => {
+        if(el && el.tagName === 'INPUT') el.addEventListener('input', () => { updateAASUI(); });
+      });
+
+      dom.btnReset.addEventListener('click', resetAll);
+    }
+
+    function switchMode(mode) {
+      state.mode = mode;
+      
+      // Toggle UI visibility
+      const isSSA = (mode === 'SSA');
+      
+      dom.btnSSA.className = isSSA ? 'mode-btn active' : 'mode-btn';
+      dom.btnAAS.className = !isSSA ? 'mode-btn active' : 'mode-btn';
+      
+      document.getElementById('controls-ssa').style.display = isSSA ? 'block' : 'none';
+      document.getElementById('controls-aas').style.display = isSSA ? 'none' : 'block';
+      document.getElementById('opts-ssa').style.display = isSSA ? 'block' : 'none';
+      document.getElementById('opts-aas').style.display = isSSA ? 'none' : 'block';
+      
+      if(isSSA) {
+        updateLegend(
+            ['已知条件 (b, ∠A)', '摆动边 a', '解① (钝角)', '解② (锐角)'], 
+            [CONFIG.baseColor, CONFIG.swingColor, CONFIG.sol1Stroke, CONFIG.sol2Stroke]
+        );
+        renderMath(document.getElementById('intro-math'), 
+          String.raw`<strong>SSA 模式：</strong> 已知两边 \(a, b\) 和其中一边的对角 \(\angle A\)。<br>
+          拖动滑块 \(a\)，观察当 \(h < a < b\) 时，边 \(a\) 如同钟摆，可以截出<strong>两个</strong>不同的三角形。`, 
+          "SSA: 边边角，可能有两个解");
+      } else {
+        updateLegend(
+            ['已知边 a', '已知角 B', '已知角 A (对角)'], 
+            [CONFIG.aasSideColor, CONFIG.aasAngleBColor, CONFIG.aasAngleAColor]
+        );
+        renderMath(document.getElementById('intro-math'), 
+          String.raw`<strong>AAS 模式：</strong> 已知两个角 \(\angle A, \angle B\) 和一条对边 \(a\)。<br>
+          两角确定，意味着第三个角 \(\angle C\) 也确定了，所有方向锁定，只能交于唯一一点。`, 
+          "AAS: 角角边，解唯一");
+      }
+    }
+
+    function updateTextSSA() {
+      const s = state.ssa;
+      const h = Math.round(s.h);
+      const statusText = document.getElementById('status-text');
+      const resultBox = document.getElementById('result-math');
+      const container = document.getElementById('result-container');
+      
+      let tex = "";
+      if (s.solutions === 0) {
+        statusText.textContent = `无解：a < h (${s.a} < ${h})`;
+        container.className = 'error';
+        tex = String.raw`
+        \[ a < h \implies \text{太短，无交点} \]
+        \(\text{无法构成三角形。}\)
+        `;
+      } else if (s.solutions === 2) {
+        statusText.textContent = `SSA 二义性：存在两个解`;
+        container.className = 'warning';
+        tex = String.raw`
+        \[ h < a < b \]
+        \[ ${h} < ${s.a} < ${s.b} \]
+        \(\text{存在两个不同三角形：}\)
+        \(\triangle AB_1C\) \(\text{(钝角)}\)
+        \(\triangle AB_2C\) \(\text{(锐角)}\)
+        \(\therefore \text{SSA 不能判定全等}\)
+        `;
+      } else {
+        statusText.textContent = `唯一解`;
+        container.className = 'success';
+        if(Math.abs(s.a - h) < 1) {
+            tex = String.raw`\[ a = h \implies \text{唯一解 (直角)} \]`;
+        } else {
+            tex = String.raw`\[ a \ge b \implies \text{唯一解 (钝角解消失)} \]`;
+        }
+      }
+      renderMath(resultBox, tex, "计算中...");
+    }
+
+    function updateTextAAS() {
+      const s = state.aas;
+      const statusText = document.getElementById('status-text');
+      const resultBox = document.getElementById('result-math');
+      const container = document.getElementById('result-container');
+
+      if (!s.valid) {
+        statusText.textContent = "无效参数";
+        container.className = 'error';
+        renderMath(resultBox, String.raw`\(\angle A + \angle B \ge 180^\circ\)，\(\text{三角形内角和溢出！}\)`, "无效");
+        return;
+      }
+
+      statusText.textContent = "AAS 唯一解";
+      container.className = 'success';
+      
+      let calcStr = "";
+      if(dom.aas.checkCalc.checked) {
+          calcStr = String.raw`\(\angle C = 180^\circ - ${s.angleA}^\circ - ${s.angleB}^\circ = \mathbf{${s.angleC.toFixed(1)}^\circ}\)`;
+      } else {
+          calcStr = String.raw`\(\angle C \text{ 被固定}\)`;
+      }
+
+      let tex = String.raw`
+      ${calcStr}
+      \(\text{两边射线方向被角度锁定，}\)
+      \(\text{必交于唯一一点 A。}\)
+      \[ \triangle ABC \cong \text{Unique} \]
+      `;
+      renderMath(resultBox, tex, "AAS -> 唯一");
+    }
+
+    function resetAll() {
+      // SSA Defaults
+      dom.ssa.sliderB.value = 200;
+      dom.ssa.sliderAngleA.value = 30;
+      dom.ssa.sliderA.value = 130; 
+      dom.ssa.checkAnim.checked = false;
+      state.ssa.isAnimating = false;
+      
+      // AAS Defaults
+      dom.aas.sliderA.value = 200;
+      dom.aas.sliderAngleB.value = 45;
+      dom.aas.sliderAngleA.value = 60;
+      
+      // Update UI Text
+      dom.ssa.valB.textContent = 200;
+      dom.ssa.valAngleA.textContent = "30°";
+      dom.ssa.valA.textContent = 130;
+      dom.aas.valA.textContent = 200;
+      dom.aas.valAngleB.textContent = "45°";
+      dom.aas.valAngleA.textContent = "60°";
+      
+      // Force update
+      if(state.mode === 'SSA') updateTextSSA();
+      else updateTextAAS();
+    }
+
+    /**
+     * UTILS
+     */
+    function drawArrowHead(x, y, angle) {
+      push(); translate(x, y); rotate(angle); fill(0); noStroke();
+      triangle(0, 0, -8, 4, -8, -4); pop();
+    }
+
+    function drawAngleArc(x, y, r, start, end, col) {
+      push(); noFill(); stroke(col); strokeWeight(2);
+      arc(x, y, r, r, start, end); pop();
+    }
+
+    function drawTriangle(ax, ay, bx, by, cx, cy, sCol, fCol, isBold=false) {
+      push(); 
+      stroke(sCol); fill(fCol); 
+      strokeWeight(isBold ? 4 : 2);
+      if(isBold) strokeCap(ROUND);
+      triangle(ax, ay, bx, by, cx, cy); 
+      pop();
+    }
+
+    function updateLegend(labels, colors) {
+      const el = document.getElementById('legend-container');
+      el.innerHTML = '';
+      labels.forEach((lb, i) => {
+        el.innerHTML += `
+          <div class="legend-item">
+            <div class="dot" style="background:${colors[i] || '#ccc'}; border-color:${colors[i]}"></div>
+            ${lb}
+          </div>`;
+      });
+    }
+
+    function renderMath(container, tex, fallback) {
+      container.style.visibility = 'hidden';
+      container.innerHTML = tex;
+      MathJax.typesetPromise([container]).then(() => container.style.visibility = 'visible')
+        .catch(() => { container.textContent = fallback; container.style.visibility = 'visible'; });
+    }
+
+  </script>
+</body>
+</html>

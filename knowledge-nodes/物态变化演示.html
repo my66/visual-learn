@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>物态变化微观互动实验室 v3.0 (Dashboard版)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700;900&display=swap');
+        
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            background-color: #f0f9ff;
+            height: 100vh; /* 强制一屏 */
+            overflow: hidden; /* 隐藏滚动条 */
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 粒子画布容器 */
+        #canvas-container {
+            position: relative;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.05);
+            background: linear-gradient(to bottom, #e0f2fe, #fff);
+            border-radius: 0.75rem;
+            border: 2px solid #93c5fd;
+            overflow: hidden;
+            flex-grow: 1; /* 自适应高度填充 */
+        }
+
+        /* 仪表盘轨道 - 紧凑版 */
+        .meter-track {
+            width: 16px;
+            height: 100%;
+            background: #f3f4f6;
+            border-radius: 8px;
+            position: relative;
+            border: 1px solid #d1d5db;
+        }
+        .thermometer-fill {
+            position: absolute; bottom: 0; left: 0; width: 100%;
+            background: linear-gradient(to top, #3b82f6, #ef4444);
+            border-radius: 0 0 6px 6px; transition: height 0.1s linear;
+        }
+        .pressure-fill {
+            position: absolute; bottom: 0; left: 0; width: 100%;
+            background: linear-gradient(to top, #a855f7, #6366f1);
+            border-radius: 0 0 6px 6px; transition: height 0.1s linear;
+        }
+        
+        .triple-point-line {
+            position: absolute; bottom: 40%; left: -4px; width: 24px; height: 2px;
+            background-color: #ef4444; z-index: 10;
+        }
+
+        /* 状态图样式 - 紧凑版 */
+        .arrow-path {
+            transition: all 0.3s ease; opacity: 0.1; stroke-width: 2; stroke: #9ca3af;
+        }
+        .arrow-path.available { opacity: 0.3; stroke: #6b7280; }
+        .arrow-path.active {
+            opacity: 1; stroke-width: 5;
+            filter: drop-shadow(0 0 4px rgba(0,0,0,0.2));
+        }
+        .path-heat { stroke: #ef4444 !important; }
+        .path-cool { stroke: #3b82f6 !important; }
+        
+        .process-text {
+            font-size: 10px; opacity: 0.3;
+            transition: all 0.3s;
+            fill: #6b7280; font-weight: normal; pointer-events: none; text-anchor: middle;
+        }
+        .process-text.active {
+            opacity: 1; font-size: 14px; font-weight: 900;
+            filter: drop-shadow(0 1px 0px rgba(255,255,255,1));
+        }
+        .process-text.active-heat { fill: #dc2626 !important; }
+        .process-text.active-cool { fill: #2563eb !important; }
+        
+        .state-label { transition: all 0.3s; opacity: 0.3; }
+        .state-label.available { opacity: 0.8; }
+        .state-label.active { opacity: 1; font-weight: bold; transform-origin: center; transform: scale(1.1); }
+
+        .control-btn { transition: all 0.1s; }
+        .control-btn:active { transform: scale(0.95); }
+        .control-btn:disabled { opacity: 0.4; cursor: not-allowed; filter: grayscale(100%); }
+
+        /* 能量指示牌 */
+        @keyframes pulse-heat { 0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.6); } 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); } }
+        @keyframes pulse-cool { 0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.6); } 100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); } }
+        .badge-heat { background-color: #ef4444; color: white; animation: pulse-heat 1.5s infinite; }
+        .badge-cool { background-color: #3b82f6; color: white; animation: pulse-cool 1.5s infinite; }
+
+        /* P-T 图样式 */
+        .axis-line { stroke: #4b5563; stroke-width: 2; marker-end: url(#arrow); }
+        .region-text { font-size: 11px; font-weight: bold; fill: #6b7280; opacity: 0.5; }
+        .phase-point { 
+            fill: #2563eb; stroke: white; stroke-width: 2; 
+            filter: drop-shadow(0 2px 3px rgba(0,0,0,0.3));
+            transition: cx 0.1s linear, cy 0.1s linear;
+        }
+    </style>
+</head>
+<body class="p-2 h-screen flex flex-col overflow-hidden bg-gray-50">
+
+    <!-- 顶部极简标题 -->
+    <header class="flex-none mb-2 px-4 flex justify-between items-end">
+        <div>
+            <h1 class="text-2xl font-bold text-blue-800 leading-none">🧪 物态变化实验室 <span class="text-sm font-normal text-gray-500 ml-2">吸热/放热微观演示</span></h1>
+        </div>
+        <div class="text-xs text-gray-400">v3.0 Dashboard</div>
+    </header>
+
+    <!-- 主内容区：左右分栏，高度填满 -->
+    <div class="flex-1 flex gap-3 min-h-0 px-2 pb-2">
+        
+        <!-- 左侧：主操作区 (70%) -->
+        <div class="flex-[7] flex flex-col gap-3 min-h-0">
+            
+            <!-- 上部：可视化区域 (高度自适应) -->
+            <div class="flex-1 flex gap-2 min-h-0 bg-white p-2 rounded-xl shadow-sm border border-gray-200">
+                
+                <!-- 紧凑型仪表盘列 -->
+                <div class="w-14 flex-none flex flex-col justify-between py-2">
+                    <!-- 温度计 -->
+                    <div class="flex-1 flex flex-col items-center relative mb-2">
+                        <span class="text-red-500 font-bold text-[10px] mb-1">高温</span>
+                        <div class="meter-track flex-1">
+                            <div id="thermometer-fill" class="thermometer-fill" style="height: 10%;"></div>
+                        </div>
+                        <span class="text-blue-500 font-bold text-[10px] mt-1">低温</span>
+                        <div id="temp-display" class="mt-1 font-mono text-[10px] font-bold text-center">-20°C</div>
+                    </div>
+                    
+                    <!-- 分割线 -->
+                    <div class="h-px w-full bg-gray-200 my-1"></div>
+
+                    <!-- 气压计 -->
+                    <div class="flex-1 flex flex-col items-center relative">
+                        <span class="text-purple-600 font-bold text-[10px] mb-1">高压</span>
+                        <div class="meter-track flex-1">
+                            <div class="triple-point-line"></div>
+                            <div id="pressure-fill" class="pressure-fill" style="height: 60%;"></div>
+                        </div>
+                        <span class="text-purple-400 font-bold text-[10px] mt-1">真空</span>
+                        <div id="pressure-display" class="mt-1 font-mono text-[10px] font-bold text-center">1.0a</div>
+                    </div>
+                </div>
+
+                <!-- 粒子画布 -->
+                <div id="canvas-container" class="flex-1 relative">
+                    <canvas id="simulationCanvas"></canvas>
+                    
+                    <!-- 状态显示 (右上) -->
+                    <div id="state-overlay" class="absolute top-3 right-3 bg-white/90 backdrop-blur px-3 py-1.5 rounded-md text-sm font-bold text-blue-900 shadow border border-blue-100 z-20">
+                        固态
+                    </div>
+
+                    <!-- 能量指示 (左上) -->
+                    <div id="energy-indicator" class="absolute top-3 left-3 z-30 px-3 py-2 rounded-lg text-sm font-bold shadow-lg border border-white/50 transition-all duration-200 opacity-0 transform scale-90 flex items-center gap-2 pointer-events-none">
+                    </div>
+                </div>
+            </div>
+
+            <!-- 底部：紧凑控制面板 (固定高度) -->
+            <div class="flex-none h-28 bg-white p-3 rounded-xl shadow-sm border border-blue-100 grid grid-cols-2 gap-4">
+                
+                <!-- 左半部分：滑块控制 -->
+                <div class="space-y-3 flex flex-col justify-center">
+                    <!-- 气压滑块 -->
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-bold text-purple-800 w-16">🎈 气压:</span>
+                        <input type="range" id="pressureSlider" min="1" max="100" value="60" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-600">
+                        <span id="pressure-status" class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 whitespace-nowrap">常压</span>
+                    </div>
+                    <!-- 温度滑块 -->
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-bold text-red-700 w-16">🔥 温度:</span>
+                        <input type="range" id="tempSlider" min="0" max="100" value="10" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-red-500">
+                    </div>
+                </div>
+
+                <!-- 右半部分：一键模式 -->
+                <div class="flex flex-col justify-center border-l border-gray-100 pl-4">
+                    <span class="text-xs font-bold text-gray-400 mb-2 block">快速切换</span>
+                    <div class="flex gap-2 h-10">
+                        <button id="btn-solid" onclick="setTargetTemp(10)" class="control-btn flex-1 bg-blue-100 text-blue-800 rounded font-bold border border-blue-300 text-xs hover:bg-blue-200">❄️ 固态</button>
+                        <button id="btn-liquid" onclick="setTargetTemp(50)" class="control-btn flex-1 bg-cyan-100 text-cyan-800 rounded font-bold border border-cyan-300 text-xs hover:bg-cyan-200">💧 液态</button>
+                        <button id="btn-gas" onclick="setTargetTemp(90)" class="control-btn flex-1 bg-red-100 text-red-800 rounded font-bold border border-red-300 text-xs hover:bg-red-200">💨 气态</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右侧：图表分析区 (30%) -->
+        <div class="flex-[3] flex flex-col gap-3 w-72 min-w-[280px]">
+            
+            <!-- 图1：三角状态图 -->
+            <div class="flex-1 bg-white rounded-xl shadow-sm border border-gray-200 relative min-h-0 overflow-hidden flex flex-col">
+                <div class="absolute top-2 left-3 text-xs font-bold text-gray-500">状态转化路径</div>
+                <div class="flex-1 flex items-center justify-center p-2">
+                    <svg width="100%" height="100%" viewBox="0 0 300 220" preserveAspectRatio="xMidYMid meet">
+                        <defs>
+                            <marker id="arrowhead-r" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#ef4444" /></marker>
+                            <marker id="arrowhead-b" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#3b82f6" /></marker>
+                        </defs>
+                        <text x="150" y="25" class="state-label text-lg fill-red-600 font-bold" id="label-gas" text-anchor="middle">气态</text>
+                        <text x="50" y="200" class="state-label text-lg fill-blue-700 font-bold" id="label-solid" text-anchor="middle">固态</text>
+                        <text x="250" y="200" class="state-label text-lg fill-cyan-600 font-bold" id="label-liquid" text-anchor="middle">液态</text>
+                        <!-- 常压 -->
+                        <g id="group-high-pressure">
+                            <path d="M 70 190 L 230 190" fill="none" class="arrow-path path-heat" id="path-melting" marker-end="url(#arrowhead-r)"/>
+                            <text x="150" y="185" id="text-melting" class="process-text">熔化 (吸热)</text>
+                            <path d="M 230 200 L 70 200" fill="none" class="arrow-path path-cool" id="path-freezing" marker-end="url(#arrowhead-b)"/>
+                            <text x="150" y="215" id="text-freezing" class="process-text">凝固 (放热)</text>
+                            <path d="M 240 180 L 160 40" fill="none" class="arrow-path path-heat" id="path-vaporization" marker-end="url(#arrowhead-r)"/>
+                            <text x="225" y="100" id="text-vaporization" class="process-text">汽化 (吸热)</text>
+                            <path d="M 175 40 L 255 180" fill="none" class="arrow-path path-cool" id="path-condensation" marker-end="url(#arrowhead-b)"/>
+                            <text x="255" y="140" id="text-condensation" class="process-text">液化 (放热)</text>
+                        </g>
+                        <!-- 低压 -->
+                        <g id="group-low-pressure">
+                            <path d="M 125 40 L 45 180" fill="none" class="arrow-path path-cool" id="path-deposition" marker-end="url(#arrowhead-b)"/>
+                            <text x="50" y="120" id="text-deposition" class="process-text">凝华 (放热)</text>
+                            <path d="M 40 170 L 120 30" fill="none" class="arrow-path path-heat" id="path-sublimation" marker-end="url(#arrowhead-r)"/>
+                            <text x="50" y="70" id="text-sublimation" class="process-text">升华 (吸热)</text>
+                        </g>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- 图2：P-T 图 -->
+            <div class="flex-1 bg-white rounded-xl shadow-sm border border-gray-200 relative min-h-0 overflow-hidden flex flex-col">
+                <div class="absolute top-2 left-3 text-xs font-bold text-gray-500">P-T 相图</div>
+                <div class="flex-1 flex items-center justify-center p-2">
+                    <svg width="100%" height="100%" viewBox="0 0 300 200" preserveAspectRatio="xMidYMid meet">
+                        <defs>
+                            <marker id="arrow" markerWidth="8" markerHeight="8" refX="0" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#4b5563" /></marker>
+                        </defs>
+                        <!-- 区域 -->
+                        <rect x="30" y="20" width="78" height="150" fill="#eff6ff" />
+                        <rect x="108" y="20" width="117" height="90" fill="#ecfdf5" />
+                        <rect x="225" y="20" width="65" height="150" fill="#fef2f2" />
+                        <rect x="108" y="110" width="117" height="60" fill="#fef2f2" />
+                        <!-- 轴 -->
+                        <line x1="30" y1="170" x2="290" y2="170" class="axis-line" />
+                        <line x1="30" y1="170" x2="30" y2="10" class="axis-line" />
+                        <!-- 辅助线 -->
+                        <line x1="108" y1="20" x2="108" y2="170" stroke="#9ca3af" stroke-width="1.5" />
+                        <line x1="225" y1="20" x2="225" y2="170" stroke="#9ca3af" stroke-width="1" stroke-dasharray="4" />
+                        <line x1="108" y1="110" x2="225" y2="110" stroke="#9ca3af" stroke-width="1.5" />
+                        <!-- 标签 -->
+                        <text x="280" y="190" font-size="9" text-anchor="end">温度</text>
+                        <text x="10" y="20" font-size="9" text-anchor="middle" writing-mode="tb">气压</text>
+                        <text x="69" y="90" class="region-text" text-anchor="middle">固态</text>
+                        <text x="166" y="65" class="region-text" text-anchor="middle">液态</text>
+                        <text x="250" y="90" class="region-text" text-anchor="middle">气态</text>
+                        <text x="166" y="140" class="region-text" text-anchor="middle">低压气态</text>
+                        <circle cx="108" cy="110" r="3" class="triple-point-marker" />
+                        <!-- 状态点 -->
+                        <circle id="phase-dot" cx="56" cy="150" r="5" class="phase-point" />
+                    </svg>
+                </div>
+            </div>
+
+            <!-- 底部提示 -->
+            <div class="flex-none bg-yellow-50 border border-yellow-200 p-2 rounded-lg text-xs text-yellow-800 leading-tight">
+                <span class="font-bold">💡 知识点：</span> 低于<span class="text-red-600 font-bold">三相点气压</span>时，物质加热无法液化，直接升华。
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('simulationCanvas');
+        const ctx = canvas.getContext('2d');
+        const particles = [];
+        const numParticles = 100;
+        
+        let currentTemp = 10;     
+        let currentPressure = 60; 
+        const TRIPLE_POINT_PRESSURE = 40;
+        const MELTING_TEMP = 30;
+        const BOILING_TEMP = 75;
+        let activeAnimationInterval = null;
+        let oldTempValue = 10;
+
+        // 修复：使用 ResizeObserver 确保画布大小随容器实时变化
+        const resizeObserver = new ResizeObserver(entries => {
+            for (let entry of entries) {
+                canvas.width = entry.contentRect.width;
+                canvas.height = entry.contentRect.height;
+                updateLatticePositions();
+            }
+        });
+        resizeObserver.observe(document.getElementById('canvas-container'));
+
+        class Particle {
+            constructor() {
+                this.radius = 5; // 稍微调小适应紧凑布局
+                this.homeX = 0; this.homeY = 0;
+                this.reset();
+            }
+            reset() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.vx = (Math.random() - 0.5) * 2;
+                this.vy = (Math.random() - 0.5) * 2;
+                this.color = '#3b82f6';
+            }
+            update() {
+                let state = 'gas';
+                const isLowPressure = currentPressure < TRIPLE_POINT_PRESSURE;
+                if (currentTemp < MELTING_TEMP) state = 'solid';
+                else if (currentTemp < BOILING_TEMP) state = isLowPressure ? 'gas' : 'liquid';
+                else state = 'gas';
+
+                if (state === 'solid') this.updateSolid();
+                else if (state === 'liquid') this.updateLiquid();
+                else this.updateGas(isLowPressure);
+
+                this.x += this.vx; this.y += this.vy;
+            }
+            updateSolid() {
+                const energy = currentTemp / MELTING_TEMP; 
+                const dx = this.homeX - this.x;
+                const dy = this.homeY - this.y;
+                this.vx = dx * 0.1 + (Math.random() - 0.5) * (energy * 2);
+                this.vy = dy * 0.1 + (Math.random() - 0.5) * (energy * 2);
+                this.color = '#1d4ed8'; 
+            }
+            updateLiquid() {
+                const liquidEnergy = (currentTemp - MELTING_TEMP) / (BOILING_TEMP - MELTING_TEMP);
+                this.vy += 0.2; 
+                if (this.y + this.radius > canvas.height) { this.y = canvas.height - this.radius; this.vy *= -0.5; this.vx *= 0.9; }
+                else if (this.y - this.radius < 0) { this.y = this.radius; this.vy *= -0.5; }
+                if (this.x - this.radius < 0) { this.x = this.radius; this.vx *= -0.8; }
+                else if (this.x + this.radius > canvas.width) { this.x = canvas.width - this.radius; this.vx *= -0.8; }
+                this.vx += (Math.random() - 0.5) * (0.5 + liquidEnergy);
+                this.vy += (Math.random() - 0.5) * (0.5 + liquidEnergy);
+                this.color = '#06b6d4'; 
+            }
+            updateGas(isLowPressure) {
+                let tempFactor = currentTemp;
+                if (isLowPressure && currentTemp < BOILING_TEMP) tempFactor = BOILING_TEMP + (currentTemp - MELTING_TEMP);
+                const gasEnergy = (tempFactor - BOILING_TEMP) / 20 + 1;
+                const targetSpeed = 3 + gasEnergy * 3;
+                if (Math.random() < 0.15) { this.vx += (Math.random() - 0.5) * 2; this.vy += (Math.random() - 0.5) * 2; }
+                const currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+                if (currentSpeed < 0.1) { this.vx = (Math.random() - 0.5); this.vy = (Math.random() - 0.5); } 
+                else { const scale = targetSpeed / currentSpeed; this.vx = this.vx * 0.9 + (this.vx * scale) * 0.1; this.vy = this.vy * 0.9 + (this.vy * scale) * 0.1; }
+                this.x += this.vx; this.y += this.vy;
+                const padding = this.radius;
+                if (this.x < padding) { this.x = padding; this.vx = Math.abs(this.vx) + Math.random(); } else if (this.x > canvas.width - padding) { this.x = canvas.width - padding; this.vx = -Math.abs(this.vx) - Math.random(); }
+                if (this.y < padding) { this.y = padding; this.vy = Math.abs(this.vy) + Math.random(); } else if (this.y > canvas.height - padding) { this.y = canvas.height - padding; this.vy = -Math.abs(this.vy) - Math.random(); }
+                this.color = '#ef4444'; 
+            }
+            draw() {
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color; ctx.fill();
+                ctx.beginPath(); ctx.arc(this.x - 1.5, this.y - 1.5, this.radius/3, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.fill();
+            }
+        }
+
+        function initParticles() {
+            particles.length = 0;
+            for (let i = 0; i < numParticles; i++) particles.push(new Particle());
+            updateLatticePositions();
+        }
+        function updateLatticePositions() {
+            const pRadius = 5; const gap = 4; const cellSize = (pRadius * 2) + gap;
+            const maxCols = Math.floor((canvas.width - 20) / cellSize);
+            const cols = Math.min(maxCols, 20);
+            const totalWidth = cols * cellSize;
+            const startX = (canvas.width - totalWidth) / 2 + cellSize / 2;
+            particles.forEach((p, index) => {
+                const col = index % cols; const row = Math.floor(index / cols);
+                p.homeX = startX + col * cellSize; p.homeY = canvas.height - 15 - (row * cellSize);
+            });
+        }
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach(p => { p.update(); p.draw(); });
+            requestAnimationFrame(animate);
+        }
+
+        // --- UI 控制 ---
+        const sliderTemp = document.getElementById('tempSlider');
+        const sliderPress = document.getElementById('pressureSlider');
+        const uiTemp = document.getElementById('temp-display');
+        const uiPress = document.getElementById('pressure-display');
+        const fillTemp = document.getElementById('thermometer-fill');
+        const fillPress = document.getElementById('pressure-fill');
+        const overlay = document.getElementById('state-overlay');
+        const indicator = document.getElementById('energy-indicator');
+        const btnLiquid = document.getElementById('btn-liquid');
+        const phaseDot = document.getElementById('phase-dot');
+        
+        const paths = {
+            melting: document.getElementById('path-melting'),
+            freezing: document.getElementById('path-freezing'),
+            vapor: document.getElementById('path-vaporization'),
+            condense: document.getElementById('path-condensation'),
+            sublimate: document.getElementById('path-sublimation'),
+            deposit: document.getElementById('path-deposition')
+        };
+        const texts = {
+            melting: document.getElementById('text-melting'),
+            freezing: document.getElementById('text-freezing'),
+            vapor: document.getElementById('text-vaporization'),
+            condense: document.getElementById('text-condensation'),
+            sublimate: document.getElementById('text-sublimation'),
+            deposit: document.getElementById('text-deposition')
+        };
+
+        function updateUI() {
+            const dispT = Math.floor((currentTemp - 30) * 2);
+            uiTemp.innerText = `${dispT}°C`;
+            uiPress.innerText = `${(currentPressure / 60).toFixed(2)}a`;
+            fillTemp.style.height = `${currentTemp}%`;
+            fillPress.style.height = `${currentPressure}%`;
+
+            // 相图点更新 (适配新viewBox)
+            // X: 30->290, Temp 0-100
+            const plotX = 30 + (currentTemp / 100) * 260;
+            // Y: 170->20, Pressure 0-100
+            const plotY = 170 - (currentPressure / 100) * 150;
+            phaseDot.setAttribute('cx', plotX);
+            phaseDot.setAttribute('cy', plotY);
+
+            const isLowPressure = currentPressure < TRIPLE_POINT_PRESSURE;
+            const pStatus = document.getElementById('pressure-status');
+            if(isLowPressure) {
+                pStatus.innerText = "低压(直升)";
+                pStatus.className = "text-[10px] font-bold px-1 py-0.5 rounded bg-red-100 text-red-800";
+                btnLiquid.disabled = true;
+                document.getElementById('group-high-pressure').style.opacity = '0.1';
+                document.getElementById('group-low-pressure').style.opacity = '1';
+            } else {
+                pStatus.innerText = "常压(可液)";
+                pStatus.className = "text-[10px] font-bold px-1 py-0.5 rounded bg-purple-100 text-purple-800";
+                btnLiquid.disabled = false;
+                document.getElementById('group-high-pressure').style.opacity = '1';
+                document.getElementById('group-low-pressure').style.opacity = '0.1';
+            }
+
+            let mainState = '';
+            if (currentTemp < MELTING_TEMP) mainState = 'Solid';
+            else if (currentTemp < BOILING_TEMP) mainState = isLowPressure ? 'Gas' : 'Liquid';
+            else mainState = 'Gas';
+
+            if (mainState === 'Solid') {
+                overlay.innerText = "❄️ 固态";
+                overlay.className = "absolute top-3 right-3 bg-blue-100/90 px-3 py-1.5 rounded-md text-sm font-bold text-blue-900 shadow border border-blue-200";
+                document.getElementById('label-solid').classList.add('active');
+                document.getElementById('label-liquid').classList.remove('active');
+                document.getElementById('label-gas').classList.remove('active');
+            } else if (mainState === 'Liquid') {
+                overlay.innerText = "💧 液态";
+                overlay.className = "absolute top-3 right-3 bg-cyan-100/90 px-3 py-1.5 rounded-md text-sm font-bold text-cyan-900 shadow border border-cyan-200";
+                document.getElementById('label-solid').classList.remove('active');
+                document.getElementById('label-liquid').classList.add('active');
+                document.getElementById('label-gas').classList.remove('active');
+            } else {
+                overlay.innerText = "💨 气态";
+                overlay.className = "absolute top-3 right-3 bg-red-100/90 px-3 py-1.5 rounded-md text-sm font-bold text-red-900 shadow border border-red-200";
+                document.getElementById('label-solid').classList.remove('active');
+                document.getElementById('label-liquid').classList.remove('active');
+                document.getElementById('label-gas').classList.add('active');
+            }
+
+            // 过程判定
+            const targetVal = parseInt(sliderTemp.value);
+            const isHeating = targetVal > oldTempValue;
+            const isCooling = targetVal < oldTempValue;
+            
+            Object.values(paths).forEach(p => p.classList.remove('active'));
+            Object.values(texts).forEach(t => t.classList.remove('active', 'active-heat', 'active-cool'));
+            
+            let indText = "";
+            let indClass = "";
+            let showInd = false;
+
+            if (isLowPressure) {
+                if (currentTemp > MELTING_TEMP - 10 && currentTemp < BOILING_TEMP) {
+                    if (isHeating) {
+                        indText = "🔥 升华 (吸热)"; indClass = "badge-heat"; showInd = true;
+                        paths.sublimate.classList.add('active'); texts.sublimate.classList.add('active', 'active-heat');
+                    } else if (isCooling) {
+                        indText = "❄️ 凝华 (放热)"; indClass = "badge-cool"; showInd = true;
+                        paths.deposit.classList.add('active'); texts.deposit.classList.add('active', 'active-cool');
+                    }
+                }
+            } else {
+                if (currentTemp > MELTING_TEMP - 10 && currentTemp < MELTING_TEMP + 15) {
+                    if (isHeating) {
+                        indText = "🔥 熔化 (吸热)"; indClass = "badge-heat"; showInd = true;
+                        paths.melting.classList.add('active'); texts.melting.classList.add('active', 'active-heat');
+                    } else if (isCooling) {
+                        indText = "❄️ 凝固 (放热)"; indClass = "badge-cool"; showInd = true;
+                        paths.freezing.classList.add('active'); texts.freezing.classList.add('active', 'active-cool');
+                    }
+                }
+                else if (currentTemp > BOILING_TEMP - 10 && currentTemp < 101) {
+                    if (isHeating) {
+                        indText = "🔥 汽化 (吸热)"; indClass = "badge-heat"; showInd = true;
+                        paths.vapor.classList.add('active'); texts.vapor.classList.add('active', 'active-heat');
+                    } else if (isCooling) {
+                        indText = "💧 液化 (放热)"; indClass = "badge-cool"; showInd = true;
+                        paths.condense.classList.add('active'); texts.condense.classList.add('active', 'active-cool');
+                    }
+                }
+            }
+
+            if (showInd) {
+                indicator.innerHTML = indText;
+                indicator.className = `absolute top-3 left-3 z-30 px-3 py-2 rounded-lg text-sm font-bold shadow-lg border border-white/50 transition-all duration-200 transform scale-100 opacity-100 flex items-center gap-2 pointer-events-none ${indClass}`;
+            } else {
+                indicator.className = "absolute top-3 left-3 z-30 px-3 py-2 rounded-lg text-sm font-bold shadow-lg border border-white/50 transition-all duration-200 opacity-0 transform scale-90 flex items-center gap-2 pointer-events-none";
+            }
+            oldTempValue = targetVal;
+        }
+
+        sliderTemp.addEventListener('input', (e) => {
+            currentTemp = parseInt(e.target.value);
+            updateUI();
+        });
+        sliderPress.addEventListener('input', (e) => {
+            currentPressure = parseInt(e.target.value);
+            updateUI();
+        });
+
+        window.setTargetTemp = function(target) {
+            clearInterval(activeAnimationInterval);
+            activeAnimationInterval = setInterval(() => {
+                if (Math.abs(currentTemp - target) < 1) {
+                    currentTemp = target;
+                    sliderTemp.value = target;
+                    clearInterval(activeAnimationInterval);
+                    updateUI();
+                } else {
+                    currentTemp += (target - currentTemp) * 0.2;
+                    sliderTemp.value = currentTemp; 
+                    updateUI();
+                }
+            }, 30);
+        }
+
+        setTimeout(() => { initParticles(); animate(); updateUI(); }, 100);
+    </script>
+</body>
+</html>

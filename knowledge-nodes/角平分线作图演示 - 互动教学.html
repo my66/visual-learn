@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>角平分线作图演示 - 互动教学</title>
+    <!-- 引入 Tailwind CSS 用于快速美化界面 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 MathJax 用于显示数学公式 -->
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background-color: #f3f4f6;
+            color: #333;
+            overflow-x: hidden;
+        }
+        canvas {
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            cursor: crosshair;
+            touch-action: none; /* 防止触摸屏滚动 */
+        }
+        .control-panel {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .step-active {
+            border-left: 4px solid #3b82f6;
+            background-color: #eff6ff;
+        }
+        .btn {
+            transition: all 0.2s;
+        }
+        .btn:active {
+            transform: scale(0.95);
+        }
+        /* 自定义滑块样式 */
+        input[type=range] {
+            -webkit-appearance: none; 
+            background: transparent; 
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+        }
+        input[type=range]:focus {
+            outline: none; 
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col">
+
+    <!-- 顶部标题栏 -->
+    <header class="bg-blue-600 text-white p-4 shadow-md flex-none">
+        <div class="container mx-auto flex justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-bold">角平分线作图演示</h1>
+                <p class="text-sm opacity-90">互动演示：仅用圆规或仅用刻度尺/三角板平分一个角</p>
+            </div>
+            <div class="text-sm bg-blue-700 px-3 py-1 rounded">
+                数理可视化教学工具
+            </div>
+        </div>
+    </header>
+
+    <!-- 主体内容 -->
+    <main class="flex-grow flex flex-col md:flex-row h-full overflow-hidden">
+        
+        <!-- 左侧：控制与说明区 -->
+        <aside class="w-full md:w-1/3 lg:w-1/4 p-4 overflow-y-auto control-panel z-10 flex flex-col gap-4 border-r border-gray-200">
+            
+            <!-- 题目/原理描述 -->
+            <div class="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                <h3 class="font-bold text-blue-800 mb-2">🏷️ 演示目标</h3>
+                <p class="text-sm text-gray-700 mb-2">
+                    给定一个角 \(\angle AOB\)，演示如何只使用特定工具将其平分。
+                </p>
+                <div class="text-xs text-gray-500">
+                    <span class="font-bold">原理提示：</span><br>
+                    1. 尺规法：利用 SSS 全等判定 (\(\triangle OCP \cong \triangle ODP\))。<br>
+                    2. 刻度尺法：利用等腰三角形“三线合一”性质。
+                </div>
+            </div>
+
+            <!-- 方法选择 -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">选择作图方法</label>
+                <div class="flex rounded-md shadow-sm" role="group">
+                    <button onclick="setMethod('compass')" id="btn-compass" class="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-blue-600 rounded-l-lg hover:bg-blue-700 focus:z-10 focus:ring-2 focus:ring-blue-500">
+                        📐 尺规作图
+                    </button>
+                    <button onclick="setMethod('ruler')" id="btn-ruler" class="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-r-lg hover:bg-gray-50 focus:z-10 focus:ring-2 focus:ring-blue-500">
+                        📏 仅刻度尺
+                    </button>
+                </div>
+            </div>
+
+            <!-- 参数控制 -->
+            <div class="space-y-4 border-t pt-4">
+                <div>
+                    <label class="flex justify-between text-sm font-medium text-gray-700">
+                        <span>∠AOB 角度: <span id="angle-val" class="text-blue-600">60°</span></span>
+                    </label>
+                    <input type="range" id="angle-slider" min="20" max="160" value="60" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer mt-2">
+                </div>
+
+                <!-- 步骤控制 -->
+                <div class="bg-gray-50 p-3 rounded border">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-sm font-bold text-gray-700">演示步骤</span>
+                        <span id="step-indicator" class="text-xs font-mono bg-gray-200 px-2 py-1 rounded">0 / 4</span>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="prevStep()" class="btn flex-1 bg-white border border-gray-300 hover:bg-gray-100 text-gray-800 font-semibold py-1 px-2 rounded text-sm shadow-sm">
+                            ⬅️ 上一步
+                        </button>
+                        <button onclick="nextStep()" class="btn flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-1 px-2 rounded text-sm shadow-sm">
+                            下一步 ➡️
+                        </button>
+                    </div>
+                    <button onclick="resetDemo()" class="btn w-full mt-2 bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 py-1 rounded text-sm">
+                        🔄 重置演示
+                    </button>
+                </div>
+
+                <!-- 标注开关 -->
+                <div>
+                    <h4 class="text-sm font-bold text-gray-700 mb-2">👀 可视化选项</h4>
+                    <div class="space-y-2">
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="checkbox" id="show-labels" checked class="rounded text-blue-600 focus:ring-blue-500">
+                            <span class="text-sm text-gray-600">显示点标签 (A, B, O...)</span>
+                        </label>
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="checkbox" id="show-aux" checked class="rounded text-blue-600 focus:ring-blue-500">
+                            <span class="text-sm text-gray-600">显示辅助轨迹/刻度</span>
+                        </label>
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="checkbox" id="show-principle" class="rounded text-blue-600 focus:ring-blue-500">
+                            <span class="text-sm text-gray-600">显示几何原理 (全等/中线)</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 当前步骤文字说明 -->
+            <div id="step-description" class="mt-auto bg-yellow-50 border-l-4 border-yellow-400 p-3 text-sm text-yellow-800 italic">
+                准备开始：请拖动角度滑块设定初始角，然后点击“下一步”。
+            </div>
+
+        </aside>
+
+        <!-- 右侧：可视化画布 -->
+        <div class="flex-grow bg-gray-100 relative overflow-hidden flex justify-center items-center p-4">
+            <canvas id="geometryCanvas" class="w-full h-full max-w-4xl max-h-[80vh] aspect-video bg-white shadow-lg"></canvas>
+            
+            <!-- 浮动提示：原理公式 -->
+            <div id="math-overlay" class="absolute top-6 right-6 bg-white/90 backdrop-blur p-4 rounded shadow-lg border border-gray-200 hidden max-w-xs">
+                <h4 class="font-bold text-gray-800 border-b pb-1 mb-2">📝 几何原理</h4>
+                <div id="math-content" class="text-sm text-gray-700 leading-relaxed"></div>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        // --- 1. 全局状态管理 ---
+        const state = {
+            method: 'compass', // 'compass' (尺规) 或 'ruler' (刻度尺)
+            angleDeg: 60,
+            step: 0,
+            maxSteps: 4,
+            width: 800,
+            height: 600,
+            center: { x: 400, y: 500 }, // O点位置
+            armLength: 350,
+            
+            // 动画相关
+            progress: 0, // 当前步骤的动画进度 0~1
+            isAnimating: false,
+            
+            // 开关
+            showLabels: true,
+            showAux: true,
+            showPrinciple: false
+        };
+
+        // DOM 元素引用
+        const canvas = document.getElementById('geometryCanvas');
+        const ctx = canvas.getContext('2d');
+        const descEl = document.getElementById('step-description');
+        const indicatorEl = document.getElementById('step-indicator');
+        const mathOverlay = document.getElementById('math-overlay');
+        const mathContent = document.getElementById('math-content');
+
+        // --- 2. 几何计算辅助函数 ---
+        
+        function toRad(deg) { return deg * Math.PI / 180; }
+        
+        // 获取射线端点：以O为原点，angleDeg为偏转角（相对于垂直向上）
+        // 这里我们把角平分线设为垂直向上 (-90度在canvas坐标系)
+        // 这样左右对称更美观
+        function getArmPoint(length, angleOffsetDeg) {
+            const baseAngle = -90; // 垂直向上
+            const rad = toRad(baseAngle + angleOffsetDeg);
+            return {
+                x: state.center.x + length * Math.cos(rad),
+                y: state.center.y + length * Math.sin(rad)
+            };
+        }
+
+        // --- 3. 核心绘图逻辑 ---
+
+        function draw() {
+            // 清空画布
+            ctx.clearRect(0, 0, state.width, state.height);
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            // 计算关键点坐标
+            const O = state.center;
+            const halfAngle = state.angleDeg / 2;
+            const A = getArmPoint(state.armLength, -halfAngle); // 左臂
+            const B = getArmPoint(state.armLength, halfAngle);  // 右臂
+            
+            // 1. 绘制基础角 AOB
+            ctx.beginPath();
+            ctx.moveTo(A.x, A.y);
+            ctx.lineTo(O.x, O.y);
+            ctx.lineTo(B.x, B.y);
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = '#333';
+            ctx.stroke();
+
+            // 绘制点 O 标签
+            if (state.showLabels) {
+                drawLabel('O', O.x, O.y + 25);
+                drawLabel('A', A.x - 10, A.y);
+                drawLabel('B', B.x + 10, B.y);
+            }
+
+            // 根据不同方法绘制步骤
+            if (state.method === 'compass') {
+                drawCompassMethod(O, halfAngle);
+            } else {
+                drawRulerMethod(O, halfAngle);
+            }
+
+            // 绘制原理覆盖层
+            updateMathOverlay();
+        }
+
+        // === 尺规作图法绘制逻辑 ===
+        function drawCompassMethod(O, halfAngle) {
+            const r1 = 180; // 第一步圆弧半径
+            const r2 = 180; // 第二步圆弧半径
+            
+            // 计算 C, D 点 (第一步交点)
+            const C = getArmPoint(r1, -halfAngle);
+            const D = getArmPoint(r1, halfAngle);
+
+            // 计算 P 点 (最终交点 - 其实就在正上方 r1 距离处，稍微远一点)
+            // 严格几何计算：P点是分别以C、D为圆心，r2为半径的交点
+            // 简化：因为对称，P点就在垂直线上。
+            // 距离 O 的长度计算：在等腰三角形OCD中，高 = sqrt(r1^2 - (CD/2)^2) ... 
+            // 简单化：为了演示清晰，我们让P点稍微远一点
+            const distCD = 2 * r1 * Math.sin(toRad(halfAngle));
+            const h = Math.sqrt(r2*r2 - (distCD/2)*(distCD/2));
+            const distOP = r1 * Math.cos(toRad(halfAngle)) + h;
+            const P = { x: O.x, y: O.y - distOP };
+
+
+            // 步骤 1: 以O为圆心画弧
+            if (state.step >= 1) {
+                const drawPercent = state.step === 1 ? state.progress : 1;
+                
+                if (state.showAux) {
+                    ctx.beginPath();
+                    // 画弧: 从 A 边到 B 边
+                    const startAngle = toRad(-90 - halfAngle);
+                    const endAngle = toRad(-90 + halfAngle);
+                    // 如果正在动画，根据进度截断
+                    const currentEnd = startAngle + (endAngle - startAngle) * drawPercent;
+                    
+                    ctx.arc(O.x, O.y, r1, startAngle, currentEnd);
+                    ctx.strokeStyle = '#ef4444'; // 红色轨迹
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([5, 5]);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+
+                // 画交点
+                if (drawPercent > 0.9) {
+                    drawPoint(C);
+                    drawPoint(D);
+                    if (state.showLabels) {
+                        drawLabel('C', C.x - 15, C.y);
+                        drawLabel('D', D.x + 15, D.y);
+                    }
+                }
+            }
+
+            // 步骤 2: 以C为圆心画弧
+            if (state.step >= 2) {
+                const drawPercent = state.step === 2 ? state.progress : 1;
+                
+                if (state.showAux) {
+                    ctx.beginPath();
+                    // 估算弧的角度范围
+                    ctx.arc(C.x, C.y, r2, toRad(-60), toRad(-60) + toRad(90) * drawPercent);
+                    ctx.strokeStyle = '#3b82f6'; // 蓝色
+                    ctx.stroke();
+                }
+            }
+
+            // 步骤 3: 以D为圆心画弧
+            if (state.step >= 3) {
+                const drawPercent = state.step === 3 ? state.progress : 1;
+                
+                if (state.showAux) {
+                    ctx.beginPath();
+                    ctx.arc(D.x, D.y, r2, toRad(240 - 90 * drawPercent), toRad(240)); 
+                    ctx.strokeStyle = '#3b82f6';
+                    ctx.stroke();
+                }
+
+                if (drawPercent > 0.9 || state.step > 3) {
+                    drawPoint(P);
+                    if (state.showLabels) drawLabel('P', P.x, P.y - 15);
+                }
+            }
+
+            // 步骤 4: 连接 OP
+            if (state.step >= 4) {
+                const drawPercent = state.step === 4 ? state.progress : 1;
+                ctx.beginPath();
+                ctx.moveTo(O.x, O.y);
+                const targetX = O.x + (P.x - O.x) * 1.5; // 延长一点
+                const targetY = O.y + (P.y - O.y) * 1.5;
+                
+                // 线性插值
+                const currX = O.x + (targetX - O.x) * drawPercent;
+                const currY = O.y + (targetY - O.y) * drawPercent;
+
+                ctx.lineTo(currX, currY);
+                ctx.strokeStyle = '#10b981'; // 绿色结果
+                ctx.lineWidth = 4;
+                ctx.stroke();
+            }
+
+            // 绘制圆规示意图 (仅在动画进行时)
+            if (state.isAnimating && state.showAux) {
+                let compassCenter, compassRadius;
+                if (state.step === 1) { compassCenter = O; compassRadius = r1; }
+                else if (state.step === 2) { compassCenter = C; compassRadius = r2; }
+                else if (state.step === 3) { compassCenter = D; compassRadius = r2; }
+
+                if (compassCenter) {
+                    drawCompassIcon(compassCenter, compassRadius);
+                }
+            }
+        }
+
+        // === 刻度尺法绘制逻辑 ===
+        function drawRulerMethod(O, halfAngle) {
+            const markDist = 220; // 刻度位置
+            
+            const C = getArmPoint(markDist, -halfAngle);
+            const D = getArmPoint(markDist, halfAngle);
+            const M = { x: (C.x + D.x)/2, y: (C.y + D.y)/2 }; // 中点
+
+            // 步骤 1: 标记C (量取 OC)
+            if (state.step >= 1) {
+                const drawPercent = state.step === 1 ? state.progress : 1;
+                // 模拟尺子移动效果 (淡入)
+                if (state.isAnimating && state.step === 1) {
+                    drawRulerIcon(O, C, drawPercent);
+                }
+                
+                if (!state.isAnimating || state.step > 1) {
+                    drawPoint(C);
+                    if(state.showLabels) drawLabel('C', C.x-20, C.y);
+                    drawTickMark(C, -halfAngle); // 画一个小刻度线
+                }
+            }
+
+            // 步骤 2: 标记D (量取 OD = OC)
+            if (state.step >= 2) {
+                const drawPercent = state.step === 2 ? state.progress : 1;
+                if (state.isAnimating && state.step === 2) {
+                    drawRulerIcon(O, D, drawPercent);
+                }
+                
+                if (!state.isAnimating || state.step > 2) {
+                    drawPoint(D);
+                    if(state.showLabels) drawLabel('D', D.x+20, D.y);
+                    drawTickMark(D, halfAngle);
+                    
+                    // 标记等长符号
+                    if(state.showAux) {
+                        drawDoubleHash(O, C);
+                        drawDoubleHash(O, D);
+                    }
+                }
+            }
+
+            // 步骤 3: 连接 CD 并取中点 M
+            if (state.step >= 3) {
+                const drawPercent = state.step === 3 ? state.progress : 1;
+                
+                // 画虚线连线
+                ctx.beginPath();
+                ctx.moveTo(C.x, C.y);
+                ctx.lineTo(C.x + (D.x - C.x)*drawPercent, C.y + (D.y - C.y)*drawPercent);
+                ctx.strokeStyle = '#9ca3af';
+                ctx.setLineDash([5, 5]);
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                if (drawPercent > 0.8) {
+                    drawPoint(M);
+                    if(state.showLabels) drawLabel('M', M.x, M.y + 20);
+                    // 标记中点相等符号
+                    if(state.showAux) {
+                        drawSingleHash(C, M);
+                        drawSingleHash(M, D);
+                    }
+                }
+            }
+
+            // 步骤 4: 连接 OM
+            if (state.step >= 4) {
+                const drawPercent = state.step === 4 ? state.progress : 1;
+                ctx.beginPath();
+                ctx.moveTo(O.x, O.y);
+                // 延长射线
+                const targetX = O.x + (M.x - O.x) * 2.0; 
+                const targetY = O.y + (M.y - O.y) * 2.0;
+                
+                const currX = O.x + (targetX - O.x) * drawPercent;
+                const currY = O.y + (targetY - O.y) * drawPercent;
+
+                ctx.lineTo(currX, currY);
+                ctx.strokeStyle = '#10b981';
+                ctx.lineWidth = 4;
+                ctx.stroke();
+            }
+        }
+
+        // --- 4. 绘图辅助组件 ---
+
+        function drawPoint(p) {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+            ctx.fillStyle = '#1d4ed8';
+            ctx.fill();
+        }
+
+        function drawLabel(text, x, y) {
+            ctx.fillStyle = '#1f2937';
+            ctx.font = 'bold 16px serif';
+            ctx.fillText(text, x, y);
+        }
+
+        function drawTickMark(p, angleOffsetDeg) {
+            const size = 10;
+            const rad = toRad(-90 + angleOffsetDeg + 90); // 垂直于臂
+            ctx.beginPath();
+            ctx.moveTo(p.x - size*Math.cos(rad), p.y - size*Math.sin(rad));
+            ctx.lineTo(p.x + size*Math.cos(rad), p.y + size*Math.sin(rad));
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+
+        function drawDoubleHash(p1, p2) {
+            // 在线段中间画双杠
+            const mx = (p1.x + p2.x)/2;
+            const my = (p1.y + p2.y)/2;
+            // 简单的画个圈或标记代替，避免复杂旋转计算
+            ctx.fillStyle = 'rgba(239, 68, 68, 0.5)';
+            ctx.beginPath();
+            ctx.arc(mx, my, 5, 0, Math.PI*2);
+            ctx.fill();
+        }
+
+        function drawSingleHash(p1, p2) {
+            const mx = (p1.x + p2.x)/2;
+            const my = (p1.y + p2.y)/2;
+            ctx.fillStyle = 'rgba(59, 130, 246, 0.5)';
+            ctx.beginPath();
+            ctx.fillRect(mx-3, my-3, 6, 6);
+        }
+
+        function drawCompassIcon(center, radius) {
+            // 简单的圆规图标
+            ctx.save();
+            ctx.translate(center.x, center.y);
+            // 旋转圆规以产生画圆感
+            // 这里的旋转逻辑仅作视觉装饰
+            ctx.rotate(Date.now() / 200); 
+            
+            ctx.fillStyle = 'rgba(100, 100, 100, 0.5)';
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(-10, -radius); // 左腿
+            ctx.lineTo(10, -radius);  // 右腿 (实际上圆规是倒过来的，这里简化)
+            ctx.fill();
+            
+            // 笔尖
+            ctx.beginPath();
+            ctx.arc(0, -radius, 3, 0, Math.PI*2);
+            ctx.fillStyle = 'red';
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function drawRulerIcon(p1, p2, progress) {
+            // 在 p1 和 p2 之间画一个半透明矩形代表尺子
+            const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+            const dist = Math.sqrt((p2.x - p1.x)**2 + (p2.y - p1.y)**2);
+            
+            ctx.save();
+            ctx.translate(p1.x, p1.y);
+            ctx.rotate(angle);
+            
+            ctx.fillStyle = 'rgba(255, 200, 0, 0.3)';
+            ctx.fillRect(0, 5, dist * progress, 30); // 尺子在点下方
+            
+            // 刻度线
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 1;
+            for(let i=0; i<dist*progress; i+=20) {
+                ctx.beginPath();
+                ctx.moveTo(i, 5);
+                ctx.lineTo(i, 15);
+                ctx.stroke();
+            }
+
+            ctx.restore();
+        }
+
+        // --- 5. 交互与逻辑控制 ---
+
+        function updateMathOverlay() {
+            if (!state.showPrinciple) {
+                mathOverlay.classList.add('hidden');
+                return;
+            }
+            mathOverlay.classList.remove('hidden');
+            
+            if (state.method === 'compass') {
+                mathContent.innerHTML = `
+                    <ul class="list-disc pl-4 space-y-1">
+                        <li>在 \(\triangle OCP\) 和 \(\triangle ODP\) 中：</li>
+                        <li>\(OC = OD\) (第一步半径)</li>
+                        <li>\(CP = DP\) (第二步半径)</li>
+                        <li>\(OP = OP\) (公共边)</li>
+                        <li>\(\therefore \triangle OCP \cong \triangle ODP\) (SSS)</li>
+                        <li>\(\therefore \angle COP = \angle DOP\)</li>
+                    </ul>
+                `;
+            } else {
+                mathContent.innerHTML = `
+                    <ul class="list-disc pl-4 space-y-1">
+                        <li>构建等腰 \(\triangle OCD\) (\(OC=OD\))</li>
+                        <li>取底边 \(CD\) 中点 \(M\)</li>
+                        <li>由"三线合一"性质：</li>
+                        <li>底边上的中线 \(OM\) 也是顶角的角平分线</li>
+                        <li>\(\therefore OM\) 平分 \(\angle AOB\)</li>
+                    </ul>
+                `;
+            }
+            // 触发 MathJax 渲染
+            if (window.MathJax) {
+                MathJax.typesetPromise([mathContent]);
+            }
+        }
+
+        function updateStepDescription() {
+            const m = state.method;
+            const s = state.step;
+            let text = "";
+
+            if (m === 'compass') {
+                const steps = [
+                    "准备：设定角度，观察角 AOB。",
+                    "第1步：以点 O 为圆心，任意长为半径画弧，交 OA、OB 于点 C、D。",
+                    "第2步：以点 C 为圆心，大于 1/2 CD 长为半径画弧。",
+                    "第3步：以点 D 为圆心，同长为半径画弧，两弧交于点 P。",
+                    "第4步：作射线 OP，则 OP 即为所求的角平分线。"
+                ];
+                text = steps[s];
+            } else {
+                const steps = [
+                    "准备：使用有刻度的直尺。",
+                    "第1步：将尺子0刻度对准 O，在 OA 上量取距离 k，标记点 C。",
+                    "第2步：同样在 OB 上量取相同距离 k，标记点 D (使 OC = OD)。",
+                    "第3步：连接 CD，并用尺子量出 CD 的中点 M。",
+                    "第4步：连接 OM，射线 OM 即为角平分线。"
+                ];
+                text = steps[s];
+            }
+            descEl.textContent = text;
+            indicatorEl.textContent = `${s} / ${state.maxSteps}`;
+            
+            // 更新 MathJax（如果有公式变化）
+        }
+
+        // 动画循环
+        function animate() {
+            if (state.isAnimating) {
+                state.progress += 0.03; // 动画速度
+                if (state.progress >= 1) {
+                    state.progress = 1;
+                    state.isAnimating = false;
+                }
+            }
+            draw();
+            requestAnimationFrame(animate);
+        }
+
+        // --- 事件处理 ---
+
+        function setMethod(m) {
+            state.method = m;
+            state.step = 0;
+            state.progress = 0;
+            state.isAnimating = false;
+            
+            // 更新按钮样式
+            document.getElementById('btn-compass').className = m === 'compass' 
+                ? "flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-blue-600 rounded-l-lg hover:bg-blue-700 focus:z-10 focus:ring-2 focus:ring-blue-500"
+                : "flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-l-lg hover:bg-gray-50 focus:z-10 focus:ring-2 focus:ring-blue-500";
+            
+            document.getElementById('btn-ruler').className = m === 'ruler'
+                ? "flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-blue-600 rounded-r-lg hover:bg-blue-700 focus:z-10 focus:ring-2 focus:ring-blue-500"
+                : "flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-r-lg hover:bg-gray-50 focus:z-10 focus:ring-2 focus:ring-blue-500";
+
+            updateStepDescription();
+        }
+
+        function nextStep() {
+            if (state.step < state.maxSteps) {
+                state.step++;
+                state.progress = 0;
+                state.isAnimating = true;
+                updateStepDescription();
+            }
+        }
+
+        function prevStep() {
+            if (state.step > 0) {
+                state.step--;
+                state.progress = 1; // 回退时直接显示完成态，或者设为0看需求
+                state.isAnimating = false;
+                updateStepDescription();
+            }
+        }
+
+        function resetDemo() {
+            state.step = 0;
+            state.progress = 0;
+            state.isAnimating = false;
+            updateStepDescription();
+        }
+
+        // 监听滑块
+        document.getElementById('angle-slider').addEventListener('input', (e) => {
+            state.angleDeg = parseInt(e.target.value);
+            document.getElementById('angle-val').textContent = state.angleDeg + "°";
+            // 角度改变时，不需要重置步骤，但要重绘
+            draw();
+        });
+
+        // 监听开关
+        document.getElementById('show-labels').addEventListener('change', (e) => state.showLabels = e.target.checked);
+        document.getElementById('show-aux').addEventListener('change', (e) => state.showAux = e.target.checked);
+        document.getElementById('show-principle').addEventListener('change', (e) => {
+            state.showPrinciple = e.target.checked;
+            updateMathOverlay();
+        });
+
+        // 响应式 Canvas 大小
+        function resizeCanvas() {
+            const container = canvas.parentElement;
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+            state.width = canvas.width;
+            state.height = canvas.height;
+            state.center.x = state.width / 2;
+            state.center.y = state.height * 0.85; // O点在下方
+            state.armLength = Math.min(state.width, state.height) * 0.6;
+            draw();
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+
+        // 初始化
+        resizeCanvas();
+        updateStepDescription();
+        animate(); // 启动循环
+
+    </script>
+</body>
+</html>

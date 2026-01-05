@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>初二数学：一次函数动态建模练习场</title>
+    
+    <!-- 引入 React 和 ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <!-- 引入 Babel 用于解析 JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- 简单的自定义样式 -->
+    <style>
+        body {
+            touch-action: manipulation; /* 优化触屏体验 */
+        }
+        /* 隐藏滚动条但允许滚动 */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="bg-slate-50">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- 图标组件 (内联 SVG 以替代 lucide-react 库) ---
+        const Activity = ({ size = 24, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        );
+        const Play = ({ size = 24, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        );
+        const RotateCcw = ({ size = 24, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+        );
+        const CheckCircle = ({ size = 24, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        );
+        const AlertCircle = ({ size = 24, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        );
+        const MousePointer2 = ({ size = 24, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m12 6.246 1.134.623a7 7 0 0 0 3.483 1.131h2.155a3 3 0 0 1 2.872 3.82L19.24 19.56a4 4 0 0 1-3.766 2.44H7a4 4 0 0 1-4-4V11a4 4 0 0 1 4-4h.246"/></svg>
+        );
+
+        // --- 逻辑代码开始 ---
+
+        /**
+         * 数学逻辑核心：解析用户输入的线性函数字符串
+         * 支持格式: y = kx + b, y=kx, y=b, y = x - 1 等
+         */
+        const parseLinearFunction = (input) => {
+            // 移除所有空格并转小写
+            const cleanInput = input.replace(/\s/g, '').toLowerCase();
+
+            // 必须以 y= 开头
+            if (!cleanInput.startsWith('y=')) return null;
+
+            const rightSide = cleanInput.substring(2);
+
+            let k = 0;
+            let b = 0;
+
+            // 情况 1: 包含 x
+            if (rightSide.includes('x')) {
+                const parts = rightSide.split('x');
+                let kPart = parts[0];
+                let bPart = parts[1];
+
+                // 解析 k
+                if (kPart === '' || kPart === '+') k = 1;
+                else if (kPart === '-') k = -1;
+                else k = parseFloat(kPart);
+
+                // 解析 b
+                if (!bPart || bPart === '') b = 0;
+                else b = parseFloat(bPart);
+
+            } else {
+                // 情况 2: 常数函数 y = b
+                k = 0;
+                b = parseFloat(rightSide);
+            }
+
+            if (isNaN(k) || isNaN(b)) return null;
+
+            return { k, b };
+        };
+
+        /**
+         * 随机题目生成器
+         */
+        const generateProblem = () => {
+            // 限制在 -5 到 5 之间，方便初学者计算和绘图
+            let k = 0;
+            while (k === 0) k = Math.floor(Math.random() * 7) - 3; // -3 到 3, 排除0
+            const b = Math.floor(Math.random() * 7) - 3; // -3 到 3
+
+            return {
+                k,
+                b,
+                id: Date.now(),
+                desc: `请写出经过点 (0, ${b}) 且斜率为 ${k} 的直线方程。`,
+                points: [
+                    { x: 0, y: b },
+                    { x: 1, y: k + b }, 
+                    { x: -b/k, y: 0} 
+                ]
+            };
+        };
+
+        const LinearFuncPlayground = () => {
+            // --- State ---
+            const [stage, setStage] = useState('intro'); // intro, practice, report
+            const [problem, setProblem] = useState(null);
+            const [userInput, setUserInput] = useState('');
+            const [feedback, setFeedback] = useState({ type: 'neutral', msg: '观察图象，输入函数公式 (例如: y = 2x + 1)' });
+            const [parsedUserLine, setParsedUserLine] = useState(null);
+            const [history, setHistory] = useState([]);
+            const [attempts, setAttempts] = useState(0);
+            
+            // 探针状态 (Draggable Probe)
+            const [probePos, setProbePos] = useState({ x: 2, y: 2 });
+            const [isDragging, setIsDragging] = useState(false);
+            const svgRef = useRef(null);
+
+            // --- Effects ---
+            
+            // 实时解析用户输入用于预览
+            useEffect(() => {
+                const result = parseLinearFunction(userInput);
+                setParsedUserLine(result);
+            }, [userInput]);
+
+            // --- Handlers ---
+
+            const startPractice = () => {
+                setHistory([]);
+                nextProblem();
+                setStage('practice');
+            };
+
+            const nextProblem = () => {
+                const newProb = generateProblem();
+                setProblem(newProb);
+                setUserInput('y=');
+                setFeedback({ type: 'neutral', msg: '观察图象，拖动探针辅助找点，然后输入公式。' });
+                setAttempts(0);
+                // 重置探针位置到原点附近
+                setProbePos({ x: 0, y: 0 });
+            };
+
+            const handleVerify = () => {
+                if (!parsedUserLine) {
+                    setFeedback({ type: 'error', msg: '公式格式错误，请使用 y = kx + b 的格式。' });
+                    return;
+                }
+
+                const { k: userK, b: userB } = parsedUserLine;
+                const { k: targetK, b: targetB } = problem;
+
+                // 核心比对与引导逻辑
+                // 使用很小的 epsilon 处理浮点数比较
+                const EPSILON = 0.001;
+                const kMatch = Math.abs(userK - targetK) < EPSILON;
+                const bMatch = Math.abs(userB - targetB) < EPSILON;
+
+                if (kMatch && bMatch) {
+                    setFeedback({ type: 'success', msg: '完美！完全正确！' });
+                    // 记录成绩
+                    setHistory(prev => [...prev, { id: problem.id, result: 'success', attempts: attempts + 1 }]);
+                    
+                    // 延迟后进入下一题或报告
+                    if (history.length >= 4) { // 5题一轮
+                        setTimeout(() => setStage('report'), 1500);
+                    } else {
+                        setTimeout(nextProblem, 1500);
+                    }
+                } else {
+                    setAttempts(prev => prev + 1);
+                    
+                    // 针对性错误提示
+                    let tips = [];
+                    
+                    // 检查截距
+                    if (!bMatch) {
+                        tips.push("截距(b)不对。请观察直线与 Y 轴的交点。");
+                    }
+                    
+                    // 检查斜率
+                    if (!kMatch) {
+                        if (Math.sign(userK) !== Math.sign(targetK)) {
+                            tips.push("方向反了！注意看直线是上升(k>0)还是下降(k<0)。");
+                        } else if (Math.abs(userK) > Math.abs(targetK)) {
+                            tips.push("太陡了。尝试减小 x 的系数绝对值。");
+                        } else {
+                            tips.push("太缓了。尝试增大 x 的系数绝对值。");
+                        }
+                    }
+                    
+                    setFeedback({ type: 'error', msg: tips.join(' ') });
+                }
+            };
+
+            // --- SVG Interaction Logic ---
+            
+            // 坐标转换：数学坐标 -> 像素坐标
+            const gridSize = 10; // -10 to 10
+            const width = 300;
+            const height = 300;
+            
+            const mapX = (x) => (x + gridSize) * (width / (gridSize * 2));
+            const mapY = (y) => height - (y + gridSize) * (height / (gridSize * 2));
+            
+            const mapXInverse = (px) => (px / (width / (gridSize * 2))) - gridSize;
+            const mapYInverse = (py) => ((height - py) / (height / (gridSize * 2))) - gridSize;
+
+            const handlePointerDown = (e) => {
+                setIsDragging(true);
+                e.target.setPointerCapture(e.pointerId);
+            };
+
+            const handlePointerMove = (e) => {
+                if (!isDragging || !svgRef.current) return;
+                
+                const rect = svgRef.current.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                
+                // Snap to grid
+                const mathX = Math.round(mapXInverse(x) * 2) / 2; 
+                const mathY = Math.round(mapYInverse(y) * 2) / 2;
+                
+                // Clamp
+                const clampedX = Math.max(-gridSize, Math.min(gridSize, mathX));
+                const clampedY = Math.max(-gridSize, Math.min(gridSize, mathY));
+
+                setProbePos({ x: clampedX, y: clampedY });
+            };
+
+            const handlePointerUp = (e) => {
+                setIsDragging(false);
+                if(e.target.releasePointerCapture) {
+                    e.target.releasePointerCapture(e.pointerId);
+                }
+            };
+
+            // --- Render Helpers ---
+
+            const renderGrid = () => {
+                const lines = [];
+                for (let i = -gridSize; i <= gridSize; i++) {
+                    // Vertical
+                    lines.push(
+                        <line 
+                            key={`v${i}`} x1={mapX(i)} y1={0} x2={mapX(i)} y2={height} 
+                            stroke={i === 0 ? "#000" : "#e5e7eb"} strokeWidth={i === 0 ? 2 : 1} 
+                        />
+                    );
+                    // Horizontal
+                    lines.push(
+                        <line 
+                            key={`h${i}`} x1={0} y1={mapY(i)} x2={width} y2={mapY(i)} 
+                            stroke={i === 0 ? "#000" : "#e5e7eb"} strokeWidth={i === 0 ? 2 : 1} 
+                        />
+                    );
+                }
+                return lines;
+            };
+
+            const renderLine = (k, b, color, isDashed = false) => {
+                const x1 = -gridSize;
+                const y1 = k * x1 + b;
+                const x2 = gridSize;
+                const y2 = k * x2 + b;
+                
+                return (
+                    <line 
+                        x1={mapX(x1)} y1={mapY(y1)} 
+                        x2={mapX(x2)} y2={mapY(y2)} 
+                        stroke={color} 
+                        strokeWidth={3}
+                        strokeDasharray={isDashed ? "8,4" : "0"}
+                        opacity={0.8}
+                    />
+                );
+            };
+
+            // --- Main Render ---
+
+            return (
+                <div className="min-h-screen bg-slate-50 font-sans text-slate-800 p-4 flex flex-col items-center">
+                    <header className="w-full max-w-2xl mb-6 flex justify-between items-center bg-white p-4 rounded-xl shadow-sm">
+                        <div className="flex items-center gap-2">
+                            <Activity className="text-blue-600" />
+                            <h1 className="text-lg font-bold text-slate-800">初二数学：函数建模挑战</h1>
+                        </div>
+                        {stage === 'practice' && (
+                            <div className="text-sm font-medium text-slate-500">
+                                进度: {history.length + 1} / 5
+                            </div>
+                        )}
+                    </header>
+
+                    {/* STAGE: INTRO */}
+                    {stage === 'intro' && (
+                        <div className="max-w-md w-full bg-white p-8 rounded-2xl shadow-lg text-center space-y-6">
+                            <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto">
+                                <Activity size={40} className="text-blue-600" />
+                            </div>
+                            <div>
+                                <h2 className="text-2xl font-bold mb-2">准备好了吗？</h2>
+                                <p className="text-slate-600">
+                                    我们将随机生成一条直线。你需要通过观察图象，计算出它的解析式 
+                                    <span className="font-mono bg-slate-100 px-1 mx-1 rounded">y = kx + b</span>
+                                </p>
+                            </div>
+                            <div className="bg-blue-50 p-4 rounded-lg text-left text-sm text-blue-800 space-y-2">
+                                <p>🎯 <b>目标：</b> 根据图象输入正确的公式。</p>
+                                <p>🔧 <b>工具：</b> 拖动图中红色的“探针”来查看坐标。</p>
+                                <p>💡 <b>提示：</b> 先找截距 b，再算斜率 k。</p>
+                            </div>
+                            <button 
+                                onClick={startPractice}
+                                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold flex items-center justify-center gap-2 transition-colors"
+                            >
+                                <Play size={20} /> 开始挑战
+                            </button>
+                        </div>
+                    )}
+
+                    {/* STAGE: PRACTICE */}
+                    {stage === 'practice' && problem && (
+                        <div className="w-full max-w-4xl grid md:grid-cols-2 gap-6">
+                            
+                            {/* Left: Visualization */}
+                            <div className="bg-white p-4 rounded-2xl shadow-lg flex flex-col items-center relative select-none">
+                                <h3 className="absolute top-4 left-4 text-xs font-bold text-slate-400 uppercase tracking-wider">坐标视窗</h3>
+                                
+                                <div className="relative cursor-crosshair mt-4">
+                                    <svg 
+                                        ref={svgRef}
+                                        width={width} 
+                                        height={height} 
+                                        className="bg-white border border-slate-200 rounded shadow-inner touch-none"
+                                        onPointerDown={handlePointerDown}
+                                        onPointerMove={handlePointerMove}
+                                        onPointerUp={handlePointerUp}
+                                        onPointerLeave={handlePointerUp}
+                                    >
+                                        {/* Grid & Axes */}
+                                        {renderGrid()}
+
+                                        {/* Target Line (Blue) */}
+                                        {renderLine(problem.k, problem.b, "#2563eb")}
+                                        
+                                        {/* Key Points on Target Line */}
+                                        <circle cx={mapX(0)} cy={mapY(problem.b)} r={5} fill="#2563eb" />
+                                        <circle cx={mapX(1)} cy={mapY(problem.k + problem.b)} r={4} fill="#2563eb" opacity={0.5} />
+
+                                        {/* User's Current Input Line (Orange Dashed) */}
+                                        {parsedUserLine && (
+                                            renderLine(parsedUserLine.k, parsedUserLine.b, "#f97316", true)
+                                        )}
+
+                                        {/* Draggable Probe */}
+                                        <g transform={`translate(${mapX(probePos.x)}, ${mapY(probePos.y)})`}>
+                                            <circle r={8} fill="rgba(239, 68, 68, 0.2)" />
+                                            <circle r={4} fill="#ef4444" />
+                                            {/* Tooltip for Probe */}
+                                            <rect x={8} y={-30} width={60} height={24} rx={4} fill="rgba(0,0,0,0.8)" />
+                                            <text x={38} y={-14} textAnchor="middle" fill="white" fontSize="12" fontWeight="bold">
+                                                ({probePos.x}, {probePos.y})
+                                            </text>
+                                        </g>
+                                    </svg>
+                                </div>
+                                
+                                <div className="mt-4 flex gap-4 text-sm text-slate-500">
+                                    <div className="flex items-center gap-1">
+                                        <div className="w-4 h-1 bg-blue-600 rounded"></div> 目标图象
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <div className="w-4 h-1 border-t-2 border-dashed border-orange-500"></div> 你的公式
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <div className="w-2 h-2 rounded-full bg-red-500"></div> 坐标探针 (可拖动)
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Right: Controls & Logic */}
+                            <div className="flex flex-col gap-4">
+                                
+                                {/* Instruction Card */}
+                                <div className="bg-white p-6 rounded-2xl shadow-md border-l-4 border-blue-500">
+                                    <h3 className="font-bold text-lg mb-1">任务 #{history.length + 1}</h3>
+                                    <p className="text-slate-600">
+                                        观察左侧蓝色直线。请写出它的函数解析式。
+                                        <br/>
+                                        <span className="text-xs text-slate-400">提示：如果直线经过 (0, b)，则 b 就是截距。</span>
+                                    </p>
+                                </div>
+
+                                {/* Input Area */}
+                                <div className="bg-white p-6 rounded-2xl shadow-lg flex-1 flex flex-col justify-center">
+                                    <label className="block text-sm font-medium text-slate-700 mb-2">函数公式</label>
+                                    <div className="flex gap-2">
+                                        <input 
+                                            type="text" 
+                                            value={userInput}
+                                            onChange={(e) => setUserInput(e.target.value)}
+                                            className="flex-1 text-2xl font-mono border-2 border-slate-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:outline-none transition-colors"
+                                            placeholder="y = kx + b"
+                                            onKeyDown={(e) => e.key === 'Enter' && handleVerify()}
+                                        />
+                                    </div>
+                                    
+                                    {/* Feedback Area */}
+                                    <div className={`mt-4 p-4 rounded-lg flex items-start gap-3 transition-all duration-300 ${
+                                        feedback.type === 'error' ? 'bg-red-50 text-red-800' :
+                                        feedback.type === 'success' ? 'bg-green-50 text-green-800' :
+                                        'bg-slate-50 text-slate-600'
+                                    }`}>
+                                        {feedback.type === 'error' && <AlertCircle className="shrink-0 mt-0.5" size={18} />}
+                                        {feedback.type === 'success' && <CheckCircle className="shrink-0 mt-0.5" size={18} />}
+                                        {feedback.type === 'neutral' && <MousePointer2 className="shrink-0 mt-0.5" size={18} />}
+                                        <p className="text-sm font-medium leading-relaxed">{feedback.msg}</p>
+                                    </div>
+
+                                    {/* Action Button */}
+                                    <button 
+                                        onClick={handleVerify}
+                                        disabled={feedback.type === 'success'}
+                                        className={`mt-6 w-full py-3 rounded-xl font-bold text-lg transition-all shadow-lg active:scale-95 ${
+                                            feedback.type === 'success' 
+                                                ? 'bg-green-500 text-white cursor-default'
+                                                : 'bg-blue-600 hover:bg-blue-700 text-white'
+                                        }`}
+                                    >
+                                        {feedback.type === 'success' ? '验证通过！即将跳转...' : '验证公式'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* STAGE: REPORT */}
+                    {stage === 'report' && (
+                        <div className="max-w-md w-full bg-white p-8 rounded-2xl shadow-lg space-y-6 animate-in fade-in zoom-in duration-500">
+                            <div className="text-center">
+                                <h2 className="text-3xl font-bold text-slate-800 mb-2">挑战完成!</h2>
+                                <p className="text-slate-500">所有的题目都已解决。</p>
+                            </div>
+
+                            <div className="space-y-3">
+                                {history.map((record, idx) => (
+                                    <div key={idx} className="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                        <span className="font-bold text-slate-700">第 {idx + 1} 题</span>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm text-slate-500">{record.attempts === 1 ? '一次通过' : `${record.attempts} 次尝试`}</span>
+                                            {record.attempts === 1 ? <CheckCircle size={16} className="text-green-500" /> : <div className="w-4 h-4 rounded-full bg-yellow-400" />}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="bg-blue-50 p-4 rounded-xl text-center">
+                                <p className="text-sm text-blue-900 mb-1">综合评分</p>
+                                <p className="text-4xl font-bold text-blue-600">
+                                    {Math.round(history.reduce((acc, curr) => acc + (100 / Math.max(1, curr.attempts)), 0) / history.length)}
+                                </p>
+                            </div>
+
+                            <button 
+                                onClick={() => {
+                                    setStage('intro');
+                                    setHistory([]);
+                                }}
+                                className="w-full py-3 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-colors"
+                            >
+                                <RotateCcw size={18} /> 再来一轮
+                            </button>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<LinearFuncPlayground />);
+    </script>
+</body>
+</html>

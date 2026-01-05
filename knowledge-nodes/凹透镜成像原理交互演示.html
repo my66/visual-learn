@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>凹透镜成像原理交互演示</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <style>
+    /* 全局重置与字体 */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+      background-color: #f0f2f5;
+      color: #333;
+      height: 100vh;
+      overflow-y: hidden; /* 防止整页滚动，内容在内部滚动 */
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* 顶部标题栏 */
+    header {
+      background-color: #ffffff;
+      padding: 15px 20px;
+      border-bottom: 1px solid #e0e0e0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    h1 {
+      font-size: 1.2rem;
+      color: #1a73e8;
+      font-weight: 600;
+    }
+    .status-bar {
+      font-size: 0.9rem;
+      color: #666;
+    }
+
+    /* 主布局容器 */
+    #main-container {
+      display: flex;
+      flex: 1;
+      overflow: hidden; /* 只有特定区域滚动 */
+    }
+
+    /* 左侧控制面板 */
+    #sidebar {
+      width: 380px;
+      background-color: #fff;
+      border-right: 1px solid #e0e0e0;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      flex-shrink: 0;
+      padding: 20px;
+      box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+      z-index: 10;
+    }
+
+    /* 面板内部组件样式 */
+    .panel-section {
+      margin-bottom: 25px;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 15px;
+    }
+    .panel-section:last-child {
+      border-bottom: none;
+    }
+    .section-title {
+      font-weight: bold;
+      margin-bottom: 10px;
+      display: block;
+      color: #333;
+      font-size: 1rem;
+    }
+    .control-group {
+      margin-bottom: 15px;
+    }
+    .control-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.9rem;
+      color: #555;
+      margin-bottom: 5px;
+    }
+    input[type=range] {
+      width: 100%;
+      cursor: pointer;
+    }
+    
+    /* 教学步骤导航 */
+    .step-nav {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 15px;
+    }
+    button {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: background 0.2s;
+      opacity: 1; /* 默认不透明 */
+    }
+    .btn-primary {
+      background-color: #1a73e8;
+      color: white;
+    }
+    .btn-primary:hover {
+      background-color: #1557b0;
+    }
+    .btn-primary:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+    .btn-outline {
+      background-color: white;
+      border: 1px solid #ccc;
+      color: #333;
+    }
+    .btn-outline:hover {
+      background-color: #f5f5f5;
+    }
+    .btn-outline:disabled {
+      color: #aaa;
+      border-color: #eee;
+      cursor: not-allowed;
+    }
+
+    /* 说明文本 */
+    .explanation-box {
+      background-color: #e8f0fe;
+      border-left: 4px solid #1a73e8;
+      padding: 12px;
+      font-size: 0.95rem;
+      line-height: 1.6;
+      color: #2c3e50;
+      margin-bottom: 20px;
+      border-radius: 0 4px 4px 0;
+    }
+    .highlight {
+      color: #d93025;
+      font-weight: bold;
+    }
+
+    /* 概念开关 */
+    .toggle-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .toggle-item {
+      display: flex;
+      align-items: center;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+    .toggle-item input {
+      margin-right: 6px;
+    }
+
+    /* 右侧画布容器 */
+    #canvas-container {
+      flex: 1;
+      background-color: #f5f7fa;
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+    }
+    
+    /* 图例 */
+    .legend {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      background: rgba(255,255,255,0.9);
+      padding: 10px;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+      font-size: 0.8rem;
+      pointer-events: none;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+    .legend-color {
+      width: 15px;
+      height: 3px;
+      margin-right: 8px;
+    }
+
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>MathPhysics: 凹透镜成像分步详解</h1>
+    <div class="status-bar">目标：理解光路与虚像形成</div>
+  </header>
+
+  <div id="main-container">
+    <!-- 左侧控制与讲解 -->
+    <aside id="sidebar">
+      
+      <!-- 1. 步骤导航 -->
+      <div class="panel-section">
+        <span class="section-title">教学步骤演示</span>
+        <div class="step-nav">
+          <button id="btn-prev" class="btn-outline">上一步</button>
+          <button id="btn-next" class="btn-primary">下一步</button>
+        </div>
+        <div class="explanation-box" id="step-desc">
+          <!-- JS将在此处动态插入说明文字 -->
+        </div>
+      </div>
+
+      <!-- 2. 实验参数 -->
+      <div class="panel-section">
+        <span class="section-title">实验参数调节</span>
+        
+        <div class="control-group">
+          <div class="control-label">
+            <span>物距 (蜡烛位置)</span>
+            <span id="val-u">300mm</span>
+          </div>
+          <input type="range" id="slider-u" min="50" max="500" value="300">
+        </div>
+
+        <div class="control-group">
+          <div class="control-label">
+            <span>焦距 (发散能力)</span>
+            <span id="val-f">150mm</span>
+          </div>
+          <input type="range" id="slider-f" min="80" max="300" value="150">
+        </div>
+
+        <div class="control-group">
+          <div class="control-label">
+            <span>蜡烛高度</span>
+            <span id="val-h">100mm</span>
+          </div>
+          <input type="range" id="slider-h" min="40" max="180" value="100">
+        </div>
+      </div>
+
+      <!-- 3. 显示选项 -->
+      <div class="panel-section">
+        <span class="section-title">辅助显示开关</span>
+        <div class="toggle-group">
+          <label class="toggle-item">
+            <input type="checkbox" id="check-grid" checked> 网格背景
+          </label>
+          <label class="toggle-item">
+            <input type="checkbox" id="check-ray1" checked> 平行光线 (①)
+          </label>
+          <label class="toggle-item">
+            <input type="checkbox" id="check-ray2" checked> 过心光线 (②)
+          </label>
+          <label class="toggle-item">
+            <input type="checkbox" id="check-virtual" checked> 反向延长线
+          </label>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- 右侧绘图区 -->
+    <main id="canvas-container">
+      <!-- p5.js canvas will be injected here -->
+      <div class="legend">
+        <div class="legend-item"><div class="legend-color" style="background:#FFA500"></div> 入射光线</div>
+        <div class="legend-item"><div class="legend-color" style="background:#00BFFF"></div> 折射光线</div>
+        <div class="legend-item"><div class="legend-color" style="background:#999; border-top: 1px dashed #999; height:0;"></div> 辅助/虚像光线</div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    /**
+     * 凹透镜成像可视化 - 核心逻辑
+     * 引擎: p5.js (纯几何计算，不使用物理引擎)
+     */
+
+    // --- 全局变量 ---
+    let canvasWidth, canvasHeight;
+    let mainColor = '#1a73e8';
+    
+    // 物理/几何参数 (单位: 像素，假设 1px = 1mm 以方便理解)
+    let params = {
+      u: 300,  // 物距 (正值，表示在透镜左侧距离)
+      f: 150,  // 焦距 (绝对值)
+      h: 100,  // 物体高度
+    };
+
+    // 教学步骤状态
+    // 0: 器材介绍, 1: 光线1(平行), 2: 光线2(过心), 3: 确定像点, 4: 完整成像, 5: 焦距影响
+    let currentStep = 0;
+    const TOTAL_STEPS = 6;
+
+    // 步骤描述文本库
+    const stepDescriptions = [
+      {
+        title: "步骤 1: 认识器材",
+        text: "首先放置好<b>凹透镜</b>和<b>主光轴</b>。凹透镜中间薄、边缘厚。图中 <b>F</b> 为焦点，<b>O</b> 为光心。左侧的蜡烛是物体。请注意：凹透镜对光线有<b>发散</b>作用。"
+      },
+      {
+        title: "步骤 2: 第一条光线 (平行过焦)",
+        text: "从蜡烛火焰尖端发出一条<b>平行于主光轴</b>的光线。经过凹透镜折射后，光线会<b>发散</b>。重点：发散光线的<b>反向延长线</b>（虚线）一定经过入射侧的焦点 <b>F</b>。"
+      },
+      {
+        title: "步骤 3: 第二条光线 (过心不折)",
+        text: "从火焰尖端发出第二条光线，直接穿过透镜中心 <b>O</b>。根据光学原理，经过光心的光线<b>传播方向不变</b>。这条线是直线传播的。"
+      },
+      {
+        title: "步骤 4: 确定像的位置",
+        text: "人的眼睛在右侧观察。大脑会认为光线是沿直线传播的。两条折射光线无法在右侧相交，但它们的<b>反向延长线</b>在左侧相交于一点。这个交点就是火焰尖端的<b>虚像</b>点。"
+      },
+      {
+        title: "步骤 5: 完整成像",
+        text: "同理，蜡烛底部的光线沿主光轴传播，像点也在主光轴上。连接尖端像点与主轴，就得到了完整的像。你可以看到：凹透镜成的像永远是<b>正立</b>、<b>缩小</b>的<b>虚像</b>。"
+      },
+      {
+        title: "步骤 6: 焦距的作用",
+        text: "试着拖动“焦距”滑块。<b>焦距越小</b>，透镜曲率越大，折光能力越强，像离透镜越近且越小；<b>焦距越大</b>，透镜越平缓，像越接近物体大小。凹透镜常用于矫正近视眼。"
+      }
+    ];
+
+    // --- p5.js 标准函数 ---
+
+    function setup() {
+      // 初始化画布，适配容器大小
+      const container = document.getElementById('canvas-container');
+      canvasWidth = container.clientWidth;
+      canvasHeight = container.clientHeight;
+      let cnv = createCanvas(canvasWidth, canvasHeight);
+      cnv.parent('canvas-container');
+      
+      // 绑定UI控件事件
+      bindEvents();
+      
+      // 初始化文字说明
+      updateStepUI();
+    }
+
+    function windowResized() {
+      const container = document.getElementById('canvas-container');
+      canvasWidth = container.clientWidth;
+      canvasHeight = container.clientHeight;
+      resizeCanvas(canvasWidth, canvasHeight);
+    }
+
+    function draw() {
+      background('#f5f7fa');
+      
+      // 坐标系变换：将原点移至画布中心
+      push();
+      translate(width / 2, height / 2);
+      
+      // 1. 绘制环境 (网格, 轴)
+      if(select('#check-grid').checked()) drawGrid();
+      drawPrincipalAxis();
+      
+      // 2. 绘制透镜 & 焦点
+      drawLens(params.f);
+      
+      // 3. 绘制物体 (蜡烛)
+      // 物体在左侧，x = -u
+      let objX = -params.u;
+      let objY = 0; // 底部在轴上
+      drawCandle(objX, objY, params.h, 1.0); // 1.0 = 不透明
+      
+      // 4. 计算像的位置 (高斯公式: 1/v - 1/u = 1/-f => 1/v = 1/-f + 1/u)
+      // 注意：这里 u 是正数距离。公式里 u 取 -u，f 取 -f (凹透镜)。
+      // 简化版计算 (直接用距离)：
+      // 1/v_dist = 1/f + 1/u_dist => v_dist = (u*f)/(u+f)
+      // 因为是虚像，像在左侧，所以 x坐标为负。
+      let v_dist = (params.u * params.f) / (params.u + params.f);
+      let imgX = -v_dist;
+      let magnification = v_dist / params.u;
+      let imgH = params.h * magnification;
+      
+      // 5. 根据步骤绘制光路
+      if (currentStep >= 1) {
+        drawRayDiagram(objX, -params.h, imgX, -imgH, params.f);
+      }
+      
+      // 6. 绘制像 (蜡烛)
+      if (currentStep >= 3) {
+        // 虚像：半透明
+        drawCandle(imgX, 0, imgH, 0.5, true); 
+        
+        // 绘制标签
+        noStroke();
+        fill(50);
+        textSize(14);
+        textAlign(CENTER);
+        text("物", objX, 20);
+        text("像", imgX, 20);
+        
+        // 显示数值?
+        fill('#1a73e8');
+        text(`v = ${Math.round(v_dist)}`, imgX, -imgH - 15);
+      }
+
+      // 7. 绘制眼睛 (观察者)
+      if (currentStep >= 4) {
+        drawEye(350, -50);
+      }
+
+      pop();
+    }
+
+    // --- 绘图辅助函数 ---
+
+    function drawGrid() {
+      stroke(220);
+      strokeWeight(1);
+      // 竖线
+      for (let x = 0; x < width/2; x+=50) {
+        line(x, -height/2, x, height/2);
+        line(-x, -height/2, -x, height/2);
+      }
+      // 横线
+      for (let y = 0; y < height/2; y+=50) {
+        line(-width/2, y, width/2, y);
+        line(-width/2, -y, width/2, -y);
+      }
+    }
+
+    function drawPrincipalAxis() {
+      stroke(100);
+      strokeWeight(2);
+      line(-width / 2, 0, width / 2, 0); // 主光轴
+      
+      // 标记光心
+      fill(0);
+      noStroke();
+      textSize(12);
+      text("O", 5, 15);
+    }
+
+    function drawLens(f) {
+      // 绘制凹透镜符号
+      stroke('#007bff');
+      strokeWeight(3);
+      let h = 200; // 透镜高度
+      line(0, -h/2, 0, h/2); // 垂直中心线
+      
+      // 凹透镜符号 (两头箭头倒置 >-<)
+      noFill();
+      // 上端 V
+      beginShape();
+      vertex(-10, -h/2 - 10);
+      vertex(0, -h/2);
+      vertex(10, -h/2 - 10);
+      endShape();
+      // 下端 ^
+      beginShape();
+      vertex(-10, h/2 + 10);
+      vertex(0, h/2);
+      vertex(10, h/2 + 10);
+      endShape();
+
+      // 绘制焦点 F
+      stroke('#d93025');
+      strokeWeight(2);
+      // 左焦点
+      line(-f, -5, -f, 5);
+      // 右焦点
+      line(f, -5, f, 5);
+      
+      noStroke();
+      fill('#d93025');
+      textAlign(CENTER);
+      text("F", -f, 20);
+      text("F'", f, 20);
+    }
+
+    function drawCandle(x, y, h, alpha, isImage = false) {
+      let w = 20; // 蜡烛宽度
+      let flameH = 20;
+      let bodyH = h - flameH;
+      
+      // 蜡烛主体
+      stroke(100, 100, 100, 255 * alpha);
+      strokeWeight(1);
+      fill(200, 50, 50, 255 * alpha); // 红色蜡烛
+      if (isImage) fill(100, 100, 200, 150 * alpha); // 像是蓝色的以便区分
+      
+      rectMode(CORNER);
+      // y is bottom (0 on axis). In p5 y grows down. So top is y - h.
+      // But we are translated. y=0 is center.
+      // Up is negative Y.
+      // Candle bottom at y=0. Top at -h.
+      rect(x - w/2, -bodyH, w, bodyH);
+      
+      // 蜡烛火焰
+      noStroke();
+      fill(255, 165, 0, 255 * alpha); // Orange
+      if (isImage) fill(255, 165, 0, 150 * alpha);
+      
+      // 简单的火焰形状 (椭圆)
+      ellipse(x, -h + flameH/2, w * 0.8, flameH);
+      
+      // 火焰中心
+      fill(255, 255, 0, 255 * alpha);
+      ellipse(x, -h + flameH/2 + 3, w * 0.4, flameH * 0.5);
+    }
+
+    function drawRayDiagram(objX, objTopY, imgX, imgTopY, f) {
+      let showRay1 = select('#check-ray1').checked();
+      let showRay2 = select('#check-ray2').checked();
+      let showVirtual = select('#check-virtual').checked();
+
+      // 1. 平行光线 (Ray 1)
+      if (showRay1 && currentStep >= 1) {
+        // 入射部分: 物体 -> 透镜
+        stroke('#FFA500'); // Orange
+        strokeWeight(2);
+        arrowLine(objX, objTopY, 0, objTopY);
+
+        // 折射部分: 透镜 -> 发散
+        // 计算斜率：从左焦点 (-f, 0) 到 入射点 (0, objTopY)
+        // 实际上光线是沿着这条线的延长线往右跑
+        // 斜率 k = (objTopY - 0) / (0 - (-f)) = objTopY / f
+        // 方程 y = k(x + f)
+        stroke('#00BFFF'); // Blue
+        let farX = width/2;
+        let farY = (objTopY / f) * (farX + f); // 向右延伸
+        arrowLine(0, objTopY, farX, farY);
+
+        // 虚像延长线 (虚线): 透镜 -> 左焦点
+        if (showVirtual && currentStep >= 3) {
+          drawingContext.setLineDash([5, 5]);
+          stroke(150);
+          line(0, objTopY, -f, 0); // 连接入射点和左焦点
+          drawingContext.setLineDash([]);
+        }
+      }
+
+      // 2. 过心光线 (Ray 2)
+      if (showRay2 && currentStep >= 2) {
+        // 直线传播：从物体顶点 -> 原点 -> 远处
+        // 斜率 k = objTopY / objX
+        let k = objTopY / objX;
+        let farX = width/2;
+        let farY = k * farX;
+
+        stroke('#FFA500'); // 入射色
+        if(currentStep >= 3) stroke('#00BFFF'); // 混合色或统一处理
+        strokeWeight(2);
+        
+        // 为了分段画箭头，我们分两段
+        stroke('#FFA500');
+        arrowLine(objX, objTopY, 0, 0); // 物 -> 心
+        
+        stroke('#00BFFF');
+        arrowLine(0, 0, farX, farY);   // 心 -> 远
+        
+        // 注意：过心光线的“反向延长线”其实就是它自己左半部分，
+        // 但为了强调虚像，我们在步骤3及以上可以把 (0,0) 到 (objX, objTopY) 这段再画一遍虚线样式?
+        // 其实不需要，因为实光线已经覆盖了。但在像点处可以画个点强调。
+      }
+
+      // 3. 强调交点 (像点)
+      if (currentStep >= 3) {
+        fill('#2ecc71');
+        noStroke();
+        circle(imgX, imgTopY, 8);
+      }
+    }
+
+    // 画带箭头的线
+    function arrowLine(x1, y1, x2, y2) {
+      line(x1, y1, x2, y2);
+      push();
+      translate((x1 + x2) / 2, (y1 + y2) / 2);
+      rotate(atan2(y2 - y1, x2 - x1));
+      let arrowSize = 7;
+      line(0, 0, -arrowSize, arrowSize / 2);
+      line(0, 0, -arrowSize, -arrowSize / 2);
+      pop();
+    }
+
+    function drawEye(x, y) {
+      push();
+      translate(x, y);
+      noFill();
+      stroke(50);
+      strokeWeight(2);
+      // 眼睛轮廓
+      arc(0, 0, 40, 20, PI + QUARTER_PI, TWO_PI - QUARTER_PI);
+      arc(0, 0, 40, 20, QUARTER_PI, PI - QUARTER_PI);
+      // 瞳孔
+      fill(0);
+      circle(0, 0, 10);
+      
+      // 视线引导 (虚线指向透镜)
+      drawingContext.setLineDash([2, 4]);
+      stroke(150);
+      strokeWeight(1);
+      line(-25, 0, -100, 20); // 示意视线
+      line(-25, 0, -100, -20);
+      drawingContext.setLineDash([]);
+      pop();
+    }
+
+    // --- 交互逻辑 ---
+
+    function bindEvents() {
+      // 步骤导航
+      select('#btn-next').mousePressed(() => {
+        if (currentStep < TOTAL_STEPS - 1) {
+          currentStep++;
+          updateStepUI();
+        }
+      });
+      select('#btn-prev').mousePressed(() => {
+        if (currentStep > 0) {
+          currentStep--;
+          updateStepUI();
+        }
+      });
+
+      // 滑块事件
+      select('#slider-u').input(() => {
+        params.u = parseInt(select('#slider-u').value());
+        select('#val-u').html(params.u + 'mm');
+      });
+      select('#slider-f').input(() => {
+        params.f = parseInt(select('#slider-f').value());
+        select('#val-f').html(params.f + 'mm');
+      });
+      select('#slider-h').input(() => {
+        params.h = parseInt(select('#slider-h').value());
+        select('#val-h').html(params.h + 'mm');
+      });
+    }
+
+    function updateStepUI() {
+      // 更新文字
+      let data = stepDescriptions[currentStep];
+      let descDiv = select('#step-desc');
+      descDiv.html(`
+        <div style="font-weight:bold; margin-bottom:5px;">${data.title}</div>
+        <div>${data.text}</div>
+      `);
+
+      // 按钮状态 - 修复 Bug: 直接使用 DOM 属性控制禁用状态
+      select('#btn-prev').elt.disabled = (currentStep === 0);
+      select('#btn-next').elt.disabled = (currentStep === TOTAL_STEPS - 1);
+
+      // 自动控制开关（为了配合教学步骤，自动打开/关闭某些图层）
+      if(currentStep === 0) {
+        select('#check-ray1').checked(false);
+        select('#check-ray2').checked(false);
+        select('#check-virtual').checked(false);
+      } else if (currentStep === 1) {
+        select('#check-ray1').checked(true);
+        select('#check-ray2').checked(false);
+        select('#check-virtual').checked(true);
+      } else if (currentStep === 2) {
+        select('#check-ray1').checked(true);
+        select('#check-ray2').checked(true);
+      } else {
+        select('#check-ray1').checked(true);
+        select('#check-ray2').checked(true);
+        select('#check-virtual').checked(true);
+      }
+    }
+
+  </script>
+</body>
+</html>

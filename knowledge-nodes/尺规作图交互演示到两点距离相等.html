@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>尺规作图交互演示：求直线上一点到两点距离相等</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; user-select: none; }
+        canvas { touch-action: none; }
+        .control-panel { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(4px); }
+        .slider-thumb::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 16px; height: 16px; background: #3b82f6; border-radius: 50%; cursor: pointer; }
+        .step-active { background-color: #e0f2fe; border-left: 4px solid #3b82f6; }
+    </style>
+</head>
+<body class="bg-slate-100 h-screen flex flex-col overflow-hidden">
+
+    <!-- 顶部标题区 -->
+    <header class="bg-white shadow-sm p-4 z-10 flex justify-between items-center shrink-0">
+        <div>
+            <h1 class="text-xl font-bold text-slate-800">📐 交互演示：在直线上确定一点 P，使 PA = PB</h1>
+            <p class="text-sm text-slate-500 mt-1">拖动点 A、B 或直线上的点 C、D 改变题目条件</p>
+        </div>
+        <div class="hidden md:block text-xs text-slate-400">
+            原理：垂直平分线上的点到线段两端距离相等
+        </div>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden relative">
+        <!-- 左侧控制面板 -->
+        <aside class="control-panel w-full md:w-80 border-r border-slate-200 p-4 flex flex-col gap-4 overflow-y-auto absolute md:relative z-20 h-full transform transition-transform duration-300" id="sidebar">
+            
+            <!-- 步骤控制器 -->
+            <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-100">
+                <h2 class="font-semibold text-slate-700 mb-3">作图步骤</h2>
+                <div class="flex justify-between gap-2 mb-4">
+                    <button onclick="changeStep(-1)" class="px-3 py-1 bg-slate-200 hover:bg-slate-300 rounded text-sm font-medium transition">上一步</button>
+                    <span id="step-indicator" class="self-center font-bold text-blue-600">0 / 4</span>
+                    <button onclick="changeStep(1)" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium transition">下一步</button>
+                </div>
+                
+                <div class="space-y-2 text-sm">
+                    <div id="desc-step-0" class="step-desc p-2 rounded transition-colors step-active">
+                        <strong>Step 0: 题目条件</strong><br>
+                        已知线段 AB 和一条直线 L。目标是在 L 上找一点 P。
+                    </div>
+                    <div id="desc-step-1" class="step-desc p-2 rounded transition-colors text-slate-500">
+                        <strong>Step 1: 作圆弧</strong><br>
+                        分别以 A、B 为圆心，大于 1/2 AB 长为半径画弧。
+                    </div>
+                    <div id="desc-step-2" class="step-desc p-2 rounded transition-colors text-slate-500">
+                        <strong>Step 2: 作垂直平分线</strong><br>
+                        连接两弧交点，得到线段 AB 的垂直平分线（中垂线）。
+                    </div>
+                    <div id="desc-step-3" class="step-desc p-2 rounded transition-colors text-slate-500">
+                        <strong>Step 3: 确定交点 P</strong><br>
+                        垂直平分线与直线 L 的交点即为所求点 P。
+                    </div>
+                    <div id="desc-step-4" class="step-desc p-2 rounded transition-colors text-slate-500">
+                        <strong>Step 4: 验证结果</strong><br>
+                        连接 PA 和 PB，测量长度验证 PA = PB。
+                    </div>
+                </div>
+            </div>
+
+            <!-- 可视化开关 -->
+            <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-100">
+                <h2 class="font-semibold text-slate-700 mb-3">图层开关</h2>
+                <div class="space-y-2">
+                    <label class="flex items-center space-x-2 cursor-pointer">
+                        <input type="checkbox" id="check-grid" checked onchange="requestRender()" class="rounded text-blue-600 focus:ring-blue-500">
+                        <span class="text-sm text-slate-600">显示网格背景</span>
+                    </label>
+                    <label class="flex items-center space-x-2 cursor-pointer">
+                        <input type="checkbox" id="check-measure" checked onchange="requestRender()" class="rounded text-blue-600 focus:ring-blue-500">
+                        <span class="text-sm text-slate-600">显示距离数值</span>
+                    </label>
+                    <label class="flex items-center space-x-2 cursor-pointer">
+                        <input type="checkbox" id="check-perp-mark" checked onchange="requestRender()" class="rounded text-blue-600 focus:ring-blue-500">
+                        <span class="text-sm text-slate-600">显示垂直/相等符号</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- 原理说明区域 -->
+            <div class="bg-indigo-50 p-4 rounded-lg shadow-sm border border-indigo-100">
+                <h2 class="font-semibold text-indigo-800 mb-2 flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
+                    原理揭秘：为什么这样画？
+                </h2>
+                <div class="text-sm text-indigo-900 space-y-3 leading-relaxed">
+                    
+                    <div class="bg-white p-2 rounded border border-indigo-100 shadow-sm">
+                        <strong class="text-indigo-700 block mb-1 text-xs uppercase tracking-wide">核心定理 (判定依据)</strong>
+                        <p>到线段两端点距离相等的点，均在线段的<strong>垂直平分线</strong>上。</p>
+                    </div>
+
+                    <ul class="list-disc pl-4 space-y-2 text-indigo-800 text-xs">
+                        <li>
+                            <strong>构造等距点：</strong>
+                            我们以 A、B 为圆心，<span class="font-mono bg-indigo-100 px-1 rounded">R > ½AB</span> 为半径画弧。
+                        </li>
+                        <li>
+                            <strong>交点的性质：</strong>
+                            两弧的交点（设为 M）到 A 和 B 的距离都是 R，即 <span class="font-mono bg-indigo-100 px-1 rounded">MA = MB</span>。
+                        </li>
+                        <li>
+                            <strong>结论：</strong>
+                            根据核心定理，点 M 必定在 AB 的垂直平分线上。连接两个这样的交点，即确定了整条垂直平分线。
+                        </li>
+                    </ul>
+
+                    <div class="pt-2 border-t border-indigo-200 mt-2">
+                        <span class="text-xs text-indigo-500 font-semibold">深层几何逻辑 (SSS)：</span>
+                        <p class="text-xs text-indigo-700 mt-1">
+                            构造出的三角形 <span class="font-serif italic">△AMB</span> 是等腰三角形。若有两个交点 M、N，则四边形 <span class="font-serif italic">AMBN</span> 是菱形，菱形的对角线互相垂直平分。
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-auto pt-4 border-t border-slate-200">
+                <button onclick="resetView()" class="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded text-sm transition flex items-center justify-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    重置位置
+                </button>
+            </div>
+        </aside>
+
+        <!-- 移动端侧边栏切换按钮 -->
+        <button class="md:hidden absolute top-4 left-4 z-30 bg-white p-2 rounded shadow text-slate-600" onclick="document.getElementById('sidebar').classList.toggle('-translate-x-full')">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+        </button>
+
+        <!-- 主绘图区 -->
+        <main class="flex-1 bg-slate-50 relative cursor-crosshair h-full w-full">
+            <canvas id="canvas" class="block w-full h-full"></canvas>
+            
+            <!-- 悬浮提示 -->
+            <div id="status-tooltip" class="absolute bottom-4 right-4 bg-white/90 backdrop-blur px-4 py-2 rounded shadow-lg text-sm font-mono hidden border border-slate-200 pointer-events-none text-slate-700">
+                PA: 0.00 | PB: 0.00
+            </div>
+        </main>
+    </div>
+
+<script>
+/**
+ * 数学与物理互动演示引擎
+ * 角色：前端可视化工程师
+ */
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+let width, height;
+
+// 状态管理
+const state = {
+    step: 0, // 0: Start, 1: Arcs, 2: Bisector, 3: Intersection, 4: Verify
+    points: {
+        A: { x: 0, y: 0, label: 'A', color: '#1e40af', isDragging: false },
+        B: { x: 0, y: 0, label: 'B', color: '#1e40af', isDragging: false },
+        C: { x: 0, y: 0, label: '', color: '#334155', isDragging: false }, // Line L control point 1
+        D: { x: 0, y: 0, label: '直线 L', color: '#334155', isDragging: false }  // Line L control point 2
+    },
+    intersectionP: null,
+    draggedPointKey: null
+};
+
+// 样式配置
+const style = {
+    pointRadius: 6,
+    touchRadius: 20,
+    lineColor: '#334155', // Slate 700 (Darker for visibility)
+    lineWidth: 3,         // Thicker line
+    bisectorColor: '#f97316', // Orange 500
+    constructionColor: '#94a3b8', // Slate 400 (Faint)
+    resultColor: '#dc2626', // Red 600
+    verifyColor: '#16a34a', // Green 600
+    font: '14px sans-serif'
+};
+
+// --- 初始化与事件监听 ---
+
+function init() {
+    window.addEventListener('resize', resize);
+    resize();
+    resetView();
+    
+    // 鼠标事件
+    canvas.addEventListener('mousedown', handleStart);
+    canvas.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleEnd);
+    
+    // 触摸事件
+    canvas.addEventListener('touchstart', (e) => handleStart(e.touches[0]));
+    canvas.addEventListener('touchmove', (e) => { e.preventDefault(); handleMove(e.touches[0]); }, { passive: false });
+    window.addEventListener('touchend', handleEnd);
+    
+    requestRender();
+}
+
+function resize() {
+    width = canvas.parentElement.clientWidth;
+    height = canvas.parentElement.clientHeight;
+    // 防止初始高度为0导致计算错误
+    if (!width) width = window.innerWidth;
+    if (!height) height = window.innerHeight;
+
+    canvas.width = width * window.devicePixelRatio;
+    canvas.height = height * window.devicePixelRatio;
+    ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    requestRender();
+}
+
+function resetView() {
+    // 默认位置：将点放在屏幕相对位置，确保适应不同屏幕
+    const cx = width / 2;
+    const cy = height / 2;
+    
+    // 确保线段 AB 在屏幕下方
+    state.points.A = { x: cx - 100, y: cy + height * 0.15, label: 'A', color: '#1e40af' };
+    state.points.B = { x: cx + 100, y: cy + height * 0.15 + 30, label: 'B', color: '#1e40af' };
+    
+    // 直线 L 的位置 (上方水平线)，使用相对高度避免出界
+    const lineY = cy - height * 0.25; 
+    state.points.C = { x: cx - 180, y: lineY, label: '', color: '#334155' };
+    state.points.D = { x: cx + 180, y: lineY, label: '直线 L', color: '#334155' };
+    
+    state.step = 0;
+    updateUI();
+    requestRender();
+}
+
+// --- 核心交互逻辑 ---
+
+function handleStart(e) {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    // 寻找最近的点
+    let minDist = style.touchRadius;
+    let target = null;
+    
+    for (const key in state.points) {
+        const p = state.points[key];
+        const d = Math.hypot(p.x - x, p.y - y);
+        if (d < minDist) {
+            minDist = d;
+            target = key;
+        }
+    }
+    
+    if (target) {
+        state.draggedPointKey = target;
+        canvas.style.cursor = 'grabbing';
+    }
+}
+
+function handleMove(e) {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    if (state.draggedPointKey) {
+        state.points[state.draggedPointKey].x = x;
+        state.points[state.draggedPointKey].y = y;
+        requestRender();
+    } else {
+        // 悬停效果
+        let hovering = false;
+        for (const key in state.points) {
+            const p = state.points[key];
+            if (Math.hypot(p.x - x, p.y - y) < style.touchRadius) {
+                hovering = true;
+            }
+        }
+        canvas.style.cursor = hovering ? 'grab' : 'crosshair';
+    }
+}
+
+function handleEnd() {
+    state.draggedPointKey = null;
+    canvas.style.cursor = 'default';
+}
+
+function changeStep(delta) {
+    state.step = Math.max(0, Math.min(4, state.step + delta));
+    updateUI();
+    requestRender();
+}
+
+function updateUI() {
+    // 更新步骤文字高亮
+    document.querySelectorAll('.step-desc').forEach((el, idx) => {
+        if (idx === state.step) {
+            el.classList.add('step-active', 'text-slate-900');
+            el.classList.remove('text-slate-500');
+        } else {
+            el.classList.remove('step-active', 'text-slate-900');
+            el.classList.add('text-slate-500');
+        }
+    });
+    
+    document.getElementById('step-indicator').innerText = `${state.step} / 4`;
+    
+    // 自动打开/关闭某些图层开关以配合步骤
+    if (state.step >= 1) document.getElementById('check-perp-mark').checked = true;
+    if (state.step >= 4) document.getElementById('check-measure').checked = true;
+}
+
+// --- 几何计算与绘图 ---
+
+function requestRender() {
+    window.requestAnimationFrame(draw);
+}
+
+function draw() {
+    // 清空画布
+    ctx.clearRect(0, 0, width, height);
+    
+    const showGrid = document.getElementById('check-grid').checked;
+    const showMeasure = document.getElementById('check-measure').checked;
+    const showMarks = document.getElementById('check-perp-mark').checked;
+    
+    // 1. 绘制网格背景
+    if (showGrid) drawGrid();
+    
+    const A = state.points.A;
+    const B = state.points.B;
+    const C = state.points.C;
+    const D = state.points.D;
+    
+    // 计算中点和距离
+    const midAB = { x: (A.x + B.x)/2, y: (A.y + B.y)/2 };
+    const distAB = Math.hypot(B.x - A.x, B.y - A.y);
+    const radius = distAB * 0.7; // 作图半径
+    
+    // 2. 绘制直线 L (无限延伸) - 加粗显示
+    drawLineExtended(C, D, style.lineColor, style.lineWidth);
+    
+    // 绘制控制点 C, D (隐形或淡色，为了方便拖拽)
+    drawPoint(C, style.lineColor, 5, false);
+    drawPoint(D, style.lineColor, 5, true, '  直线 L'); // 增加空格避免文字重叠
+    
+    // 3. 绘制线段 AB
+    ctx.beginPath();
+    ctx.moveTo(A.x, A.y);
+    ctx.lineTo(B.x, B.y);
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    
+    // 4. 根据步骤绘制
+    
+    // Step 1: 画弧线
+    if (state.step >= 1) {
+        ctx.strokeStyle = style.constructionColor;
+        ctx.setLineDash([5, 5]);
+        ctx.lineWidth = 1;
+        
+        // 弧 A
+        ctx.beginPath();
+        ctx.arc(A.x, A.y, radius, 0, Math.PI * 2);
+        ctx.stroke();
+        
+        // 弧 B
+        ctx.beginPath();
+        ctx.arc(B.x, B.y, radius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
+    
+    // 计算垂直平分线参数
+    // 斜率 k_AB = (By - Ay) / (Bx - Ax)
+    // 垂直平分线斜率 k_perp = -1 / k_AB
+    // 通式 Ax + By + C = 0
+    // 为了稳健性，使用向量法计算交点
+    
+    // Step 2: 垂直平分线
+    let bisectorP1, bisectorP2;
+    // 向量 AB = (dx, dy)
+    const dx = B.x - A.x;
+    const dy = B.y - A.y;
+    // 垂直向量 (-dy, dx)
+    // 中垂线过中点 midAB，方向为 (-dy, dx)
+    // 为了画线，取足够远的两个点
+    bisectorP1 = { x: midAB.x - dy * 10, y: midAB.y + dx * 10 };
+    bisectorP2 = { x: midAB.x + dy * 10, y: midAB.y - dx * 10 };
+    
+    if (state.step >= 2) {
+        drawLineExtended(bisectorP1, bisectorP2, style.bisectorColor, 2, true);
+        
+        // 垂直符号
+        if (showMarks) drawRightAngleMark(midAB, Math.atan2(dy, dx));
+        // 相等符号
+        if (showMarks) {
+            drawTickMark({x: (A.x+midAB.x)/2, y: (A.y+midAB.y)/2}, Math.atan2(dy, dx));
+            drawTickMark({x: (B.x+midAB.x)/2, y: (B.y+midAB.y)/2}, Math.atan2(dy, dx));
+        }
+    }
+    
+    // Step 3 & 4: 计算交点 P
+    // 直线 L 由 C, D 定义
+    // 中垂线由 midAB 和 (midAB + (-dy, dx)) 定义
+    const P = getLineIntersection(C, D, bisectorP1, bisectorP2);
+    state.intersectionP = P;
+    
+    if (state.step >= 3) {
+        if (P) {
+            // 绘制 P 点
+            drawPoint(P, style.resultColor, 8, true, 'P');
+            
+            // 标记 P 点坐标或高亮
+            ctx.beginPath();
+            ctx.arc(P.x, P.y, 12, 0, Math.PI * 2);
+            ctx.strokeStyle = style.resultColor;
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        } else {
+            // 平行无解情况
+            ctx.fillStyle = 'red';
+            ctx.font = '16px sans-serif';
+            ctx.fillText('无解：直线 L 与垂直平分线平行', width/2 - 100, 50);
+        }
+    }
+    
+    // Step 4: 验证连线
+    if (state.step >= 4 && P) {
+        ctx.beginPath();
+        ctx.moveTo(P.x, P.y);
+        ctx.lineTo(A.x, A.y);
+        ctx.moveTo(P.x, P.y);
+        ctx.lineTo(B.x, B.y);
+        ctx.strokeStyle = style.verifyColor;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([2, 2]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        
+        // 显示距离文本
+        if (showMeasure) {
+            const distPA = Math.hypot(P.x - A.x, P.y - A.y).toFixed(0);
+            const distPB = Math.hypot(P.x - B.x, P.y - B.y).toFixed(0);
+            
+            drawLabel(`PA = ${distPA}`, {x: (P.x+A.x)/2, y: (P.y+A.y)/2}, style.verifyColor);
+            drawLabel(`PB = ${distPB}`, {x: (P.x+B.x)/2, y: (P.y+B.y)/2}, style.verifyColor);
+            
+            // 更新悬浮窗
+            const tooltip = document.getElementById('status-tooltip');
+            tooltip.style.display = 'block';
+            tooltip.innerHTML = `PA: <span style="color:${style.verifyColor}">${distPA}</span> | PB: <span style="color:${style.verifyColor}">${distPB}</span>`;
+        }
+    } else {
+        document.getElementById('status-tooltip').style.display = 'none';
+    }
+    
+    // 绘制可拖动点 (放在最上层)
+    drawPoint(A, A.color, style.pointRadius, true, 'A');
+    drawPoint(B, B.color, style.pointRadius, true, 'B');
+}
+
+// --- 辅助绘图函数 ---
+
+function drawGrid() {
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 1;
+    const step = 50;
+    
+    ctx.beginPath();
+    for (let x = 0; x < width; x += step) {
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, height);
+    }
+    for (let y = 0; y < height; y += step) {
+        ctx.moveTo(0, y);
+        ctx.lineTo(width, y);
+    }
+    ctx.stroke();
+}
+
+function drawPoint(p, color, r, showLabel, labelText) {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    
+    if (showLabel) {
+        ctx.fillStyle = '#1e293b';
+        ctx.font = 'bold 16px sans-serif';
+        const txt = labelText || p.label;
+        ctx.fillText(txt, p.x + 12, p.y - 12);
+    }
+}
+
+function drawLineExtended(p1, p2, color, lineWidth, dashed=false) {
+    // 简单的从屏幕边缘延伸算法
+    // y - y1 = m(x - x1)
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
+    
+    if (Math.abs(dx) < 0.001) { // 垂直线
+        ctx.beginPath();
+        ctx.moveTo(p1.x, 0);
+        ctx.lineTo(p1.x, height);
+    } else {
+        const m = dy / dx;
+        const b = p1.y - m * p1.x;
+        // x = 0, y = b
+        // x = width, y = m*width + b
+        ctx.beginPath();
+        ctx.moveTo(0, b);
+        ctx.lineTo(width, m * width + b);
+    }
+    
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
+    if (dashed) ctx.setLineDash([8, 6]);
+    else ctx.setLineDash([]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+}
+
+function drawLabel(text, p, color) {
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+    const w = ctx.measureText(text).width;
+    ctx.fillRect(p.x - w/2 - 4, p.y - 10, w + 8, 20);
+    ctx.fillStyle = color;
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, p.x, p.y);
+    ctx.textAlign = 'start';
+    ctx.textBaseline = 'alphabetic';
+}
+
+function drawRightAngleMark(center, angle) {
+    const size = 10;
+    ctx.save();
+    ctx.translate(center.x, center.y);
+    ctx.rotate(angle);
+    ctx.beginPath();
+    ctx.moveTo(-size, 0); // 实际上需要根据中垂线方向偏移
+    // 简单起见，画一个方框
+    // 中垂线方向是 angle + 90deg
+    ctx.moveTo(0, 0);
+    ctx.lineTo(size, 0);
+    ctx.lineTo(size, size); // 向下
+    ctx.lineTo(0, size);
+    ctx.strokeStyle = '#64748b';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+}
+
+function drawTickMark(center, angle) {
+    const len = 6;
+    ctx.save();
+    ctx.translate(center.x, center.y);
+    ctx.rotate(angle);
+    ctx.beginPath();
+    ctx.moveTo(0, -len);
+    ctx.lineTo(0, len);
+    // 双线
+    ctx.moveTo(4, -len);
+    ctx.lineTo(4, len);
+    ctx.strokeStyle = '#64748b';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+}
+
+// --- 数学计算工具 ---
+
+// 计算两条直线的交点 (P1-P2) 和 (P3-P4)
+function getLineIntersection(p1, p2, p3, p4) {
+    const x1 = p1.x, y1 = p1.y;
+    const x2 = p2.x, y2 = p2.y;
+    const x3 = p3.x, y3 = p3.y;
+    const x4 = p4.x, y4 = p4.y;
+
+    const denom = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1);
+    if (denom === 0) return null; // 平行
+
+    const ua = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / denom;
+    
+    return {
+        x: x1 + ua * (x2 - x1),
+        y: y1 + ua * (y2 - y1)
+    };
+}
+
+// 启动
+init();
+
+</script>
+</body>
+</html>

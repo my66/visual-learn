@@ -1,0 +1,1280 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>高清物理实验室：多透镜组合成像系统 (v4.7 真实孔径版)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <style>
+        /* --- 基础布局 --- */
+        body, html {
+            margin: 0; padding: 0;
+            width: 100%; height: 100%;
+            overflow: hidden;
+            background-color: #f8fafc;
+            font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+            color: #334155;
+            user-select: none;
+        }
+
+        #app-container {
+            display: flex;
+            width: 100vw; height: 100vh;
+        }
+
+        /* --- 侧边栏 --- */
+        #sidebar {
+            width: 400px;
+            background: #ffffff;
+            border-right: 1px solid #e2e8f0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            z-index: 20;
+            box-shadow: 4px 0 16px rgba(0,0,0,0.05);
+        }
+
+        .sidebar-header {
+            padding: 20px 20px 15px 20px;
+            border-bottom: 1px solid #f1f5f9;
+            background: #fff;
+        }
+        .sidebar-header h1 {
+            margin: 0; font-size: 18px; color: #0f172a;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .badge {
+            font-size: 10px; background: #3b82f6; color: white;
+            padding: 2px 6px; border-radius: 4px; font-weight: bold;
+        }
+
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex; flex-direction: column; gap: 20px;
+        }
+
+        /* --- 控件样式 --- */
+        .control-section {
+            display: flex; flex-direction: column; gap: 10px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .control-section:last-child { border-bottom: none; }
+
+        h2 {
+            font-size: 12px; font-weight: 700; color: #64748b;
+            text-transform: uppercase; letter-spacing: 0.5px; margin: 0;
+        }
+
+        /* 按钮组 */
+        .btn-group { display: flex; gap: 8px; }
+        .btn {
+            flex: 1; padding: 8px;
+            border: 1px solid #cbd5e1; background: #f8fafc;
+            border-radius: 6px; cursor: pointer;
+            font-size: 13px; color: #475569;
+            transition: all 0.2s;
+            text-align: center;
+        }
+        .btn:hover { background: #e2e8f0; }
+        .btn.active {
+            background: #3b82f6; color: white; border-color: #3b82f6; font-weight: 600;
+        }
+        
+        .btn-primary {
+            background: #3b82f6; color: white; border-color: #2563eb;
+        }
+        .btn-primary:hover { background: #2563eb; }
+
+        .btn-add {
+            background: #ecfdf5; color: #059669; border-color: #a7f3d0;
+            display: flex; align-items: center; justify-content: center; gap: 5px;
+            font-weight: 600;
+        }
+        .btn-add:hover { background: #d1fae5; }
+        
+        .btn-danger {
+            background: #fff1f2; color: #e11d48; border-color: #fecdd3;
+            padding: 4px 8px; font-size: 11px; width: auto; flex: none;
+        }
+        .btn-danger:hover { background: #ffe4e6; }
+
+        /* 场景按钮网格 */
+        .scenario-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+        }
+        .scenario-btn {
+            background: #fff; border: 1px solid #e2e8f0;
+            border-radius: 6px; padding: 8px 10px;
+            text-align: left; cursor: pointer;
+            transition: all 0.2s; display: flex; flex-direction: column;
+        }
+        .scenario-btn:hover { border-color: #3b82f6; background: #eff6ff; }
+        .scenario-btn .stitle { font-weight: bold; font-size: 12px; color: #334155; margin-bottom: 2px; }
+        .scenario-btn .sdesc { font-size: 10px; color: #64748b; }
+
+        /* 新增透镜面板 */
+        #add-lens-panel {
+            background: #fff7ed; border: 1px solid #fed7aa;
+            border-radius: 8px; padding: 15px;
+            display: none; /* 默认隐藏 */
+            flex-direction: column; gap: 10px;
+            animation: fadeIn 0.3s ease;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* 透镜列表卡片 */
+        .lens-list { display: flex; flex-direction: column; gap: 10px; margin-top: 5px; }
+        .lens-card {
+            background: #f8fafc; border: 1px solid #e2e8f0;
+            border-left: 3px solid #94a3b8;
+            border-radius: 6px; padding: 10px;
+            transition: border-color 0.2s;
+        }
+        .lens-card.is-main { border-left-color: #3b82f6; background: #eff6ff; }
+        .lens-card:hover { border-color: #cbd5e1; }
+        
+        .card-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 8px; font-size: 12px; font-weight: bold; color: #334155;
+        }
+        
+        /* 滑块 */
+        input[type="range"] {
+            width: 100%; height: 4px; background: #cbd5e1;
+            border-radius: 2px; outline: none; appearance: none; margin: 10px 0;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            appearance: none; width: 14px; height: 14px;
+            background: #3b82f6; border: 2px solid white; border-radius: 50%;
+            cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+
+        /* 数据面板 */
+        .data-panel {
+            background: #1e293b; color: #e2e8f0;
+            border-radius: 8px; padding: 15px;
+            font-family: 'Consolas', monospace; font-size: 12px;
+            margin-top: auto;
+        }
+        .data-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+        .data-val { color: #38bdf8; font-weight: bold; }
+
+        /* 复选框 */
+        .checkbox-group { display: flex; flex-wrap: wrap; gap: 10px; }
+        .checkbox-label {
+            display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer;
+        }
+        input[type="checkbox"] { accent-color: #3b82f6; }
+
+        /* 画布 */
+        #canvas-container {
+            flex: 1; position: relative;
+            background-color: #fff;
+            overflow: hidden;
+        }
+
+        #toast {
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(15,23,42,0.9); color: white;
+            padding: 8px 16px; border-radius: 20px; font-size: 13px;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s;
+            z-index: 100; text-align: center; white-space: pre-line;
+        }
+    </style>
+</head>
+<body>
+
+<div id="app-container">
+    <div id="sidebar">
+        <div class="sidebar-header">
+            <h1>光学实验室 <span class="badge">v4.7 Aperture</span></h1>
+        </div>
+
+        <div class="sidebar-content">
+            <!-- 1. 主透镜控制 -->
+            <div class="control-section">
+                <h2>主透镜设置 (Main Lens)</h2>
+                <div class="btn-group">
+                    <button class="btn active" id="btn-main-convex" onclick="setMainLensType('convex')">凸透镜</button>
+                    <button class="btn" id="btn-main-concave" onclick="setMainLensType('concave')">凹透镜</button>
+                </div>
+                <div style="display:flex; justify-content:space-between; font-size:11px; color:#64748b; margin-top:8px;">
+                    <span>焦距 / 厚度</span>
+                    <span id="main-f-val">f=160</span>
+                </div>
+                <input type="range" id="slider-main-f" min="50" max="400" step="5" value="160">
+            </div>
+
+            <!-- 2. 经典场景 -->
+            <div class="control-section">
+                <h2>一键演示 (经典考点)</h2>
+                <div class="scenario-grid">
+                    <button class="scenario-btn" onclick="setScenario(1)">
+                        <span class="stitle">u > 2f</span>
+                        <span class="sdesc">照相机 (缩小实像)</span>
+                    </button>
+                    <button class="scenario-btn" onclick="setScenario(2)">
+                        <span class="stitle">u = 2f</span>
+                        <span class="sdesc">测焦距 (等大实像)</span>
+                    </button>
+                    <button class="scenario-btn" onclick="setScenario(3)">
+                        <span class="stitle">f < u < 2f</span>
+                        <span class="sdesc">投影仪 (放大实像)</span>
+                    </button>
+                    <button class="scenario-btn" onclick="setScenario(4)">
+                        <span class="stitle">u = f</span>
+                        <span class="sdesc">探照灯 (不成像)</span>
+                    </button>
+                    <button class="scenario-btn" onclick="setScenario(5)">
+                        <span class="stitle">u < f</span>
+                        <span class="sdesc">放大镜 (放大虚像)</span>
+                    </button>
+                    <button class="scenario-btn" onclick="setScenario(6)">
+                        <span class="stitle">凹透镜</span>
+                        <span class="sdesc">近视镜 (缩小虚像)</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 3. 透镜管理 -->
+            <div class="control-section">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <h2>光学元件列表</h2>
+                    <button id="btn-start-add" class="btn btn-add" onclick="startAddLens()" style="width:auto; padding:5px 10px;">
+                        <span>+</span> 准备添加透镜
+                    </button>
+                </div>
+
+                <!-- 预览/添加面板 -->
+                <div id="add-lens-panel">
+                    <div style="font-weight:bold; color:#c2410c; font-size:13px; margin-bottom:5px;">配置新透镜 (预览模式)</div>
+                    <div style="font-size:11px; color:#9a3412; margin-bottom:10px;">
+                        拖动虚线透镜到目标位置，调整焦距。
+                    </div>
+                    
+                    <div class="btn-group">
+                        <button class="btn active" id="btn-prev-convex" onclick="updatePreviewLens('type', 'convex')">凸透镜</button>
+                        <button class="btn" id="btn-prev-concave" onclick="updatePreviewLens('type', 'concave')">凹透镜</button>
+                    </div>
+                    
+                    <div style="display:flex; justify-content:space-between; font-size:11px; color:#64748b; margin-top:10px;">
+                        <span>焦距 f</span>
+                        <span id="preview-f-val">150</span>
+                    </div>
+                    <input type="range" min="50" max="400" value="150" oninput="updatePreviewLens('f', this.value)">
+
+                    <div class="btn-group" style="margin-top:10px;">
+                        <button class="btn" onclick="cancelAddLens()">取消</button>
+                        <button class="btn btn-primary" onclick="confirmAddLens()">确认加入</button>
+                    </div>
+                </div>
+                
+                <div id="lens-list-container" class="lens-list">
+                    <!-- 列表 -->
+                </div>
+            </div>
+
+            <!-- 4. 物体控制 -->
+            <div class="control-section">
+                <h2>光源物体 (Object)</h2>
+                <div style="display:flex; justify-content:space-between; font-size:11px; color:#64748b; margin-top:5px;">
+                    <span>高度 (Height)</span>
+                    <span id="obj-h-val">120</span>
+                </div>
+                <input type="range" id="slider-obj-h" min="-150" max="150" step="10" value="120">
+            </div>
+
+            <!-- 5. 显示设置 -->
+            <div class="control-section">
+                <h2>显示选项</h2>
+                <div class="checkbox-group">
+                    <label class="checkbox-label"><input type="checkbox" id="chk-rays" checked> 显示光束</label>
+                    <label class="checkbox-label"><input type="checkbox" id="chk-grid" checked> 网格/标尺</label>
+                    <label class="checkbox-label"><input type="checkbox" id="chk-values" checked> 数值标注 (F/2F)</label>
+                    <label class="checkbox-label"><input type="checkbox" id="chk-eye" checked> 观察者人眼</label>
+                    <label class="checkbox-label" style="color:#059669; font-weight:bold;">
+                        <input type="checkbox" id="chk-focal-planes"> 显示焦平面
+                    </label>
+                    <label class="checkbox-label" style="color:#7c3aed; font-weight:bold;">
+                        <input type="checkbox" id="chk-thick"> 真实光心侧移(示意)
+                    </label>
+                    <label class="checkbox-label" style="color:#e11d48; font-weight:bold;">
+                        <input type="checkbox" id="chk-block"> 遮挡实验(主透镜)
+                    </label>
+                    <label class="checkbox-label" style="color:#64748b;">
+                        <input type="checkbox" id="chk-ghost" checked> 显示添加前原像
+                    </label>
+                    <!-- 新增功能开关 -->
+                    <label class="checkbox-label" style="color:#2563eb; font-weight:bold;">
+                        <input type="checkbox" id="chk-aperture"> 真实孔径限制 (进阶)
+                    </label>
+                    <label class="checkbox-label"><input type="checkbox" id="chk-debug"> 调试数据</label>
+                </div>
+            </div>
+
+            <!-- 6. 系统复位 -->
+            <div class="control-section">
+                <button class="btn" onclick="resetSystem()">🔄 重置系统 (Reset)</button>
+            </div>
+
+            <!-- 7. 数据面板 -->
+            <div class="data-panel">
+                <div style="border-bottom:1px solid #334155; padding-bottom:5px; margin-bottom:8px; font-weight:bold;">系统成像分析</div>
+                <div class="data-row"><span>透镜数量:</span> <span class="data-val" id="val-count">1</span></div>
+                <div class="data-row"><span>总放大率:</span> <span class="data-val" id="val-m">--</span></div>
+                <div class="data-row"><span>最终像坐标X:</span> <span class="data-val" id="val-img-x">--</span></div>
+                <div style="margin-top:10px; color:#cbd5e1; font-size:11px; line-height:1.4;" id="val-desc">
+                    --
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="canvas-container">
+        <div id="toast">提示信息</div>
+    </div>
+</div>
+
+<script>
+    // --- 核心状态 ---
+    const STATE = {
+        mode: 'view', // 'view' | 'adding'
+        lenses: [],
+        nextId: 1,
+        previewLens: null, 
+        referenceImage: null,
+        objX: -300,  
+        objH: 120,   
+        view: { zoom: 1.0, panX: 0, panY: 0 },
+        dragging: null, 
+        panStart: null,
+        showRays: true,
+        showGrid: true,
+        showValues: true,
+        showEye: true,
+        showThick: false, 
+        showGhost: true,
+        showFocalPlanes: false, 
+        showDebug: false,
+        useRealAperture: false, // 新增：真实孔径开关
+        isBlocked: false 
+    };
+
+    // --- 核心算法：物理计算 ---
+    function calculateSystem(lensesToCalc) {
+        let sortedLenses = [...lensesToCalc].sort((a, b) => a.x - b.x);
+        let currImg = { x: STATE.objX, h: STATE.objH };
+        let totalM = 1;
+        let isLastReal = true;
+        let valid = true;
+        let isParallel = false;
+
+        for (let lens of sortedLenses) {
+            let u = lens.x - currImg.x;
+            let f = lens.type === 'convex' ? lens.f : -lens.f;
+            
+            if (Math.abs(u - f) < 1.0) { 
+                valid = false; isParallel = true; break; 
+            }
+
+            let v = (u * f) / (u - f);
+            let m = -v / u; 
+            currImg.x = lens.x + v;
+            currImg.h = currImg.h * m;
+            totalM *= m;
+            isLastReal = v > 0;
+        }
+
+        let finalImage = valid ? { x: currImg.x, h: currImg.h, isReal: isLastReal } : null;
+        return { sortedLenses, finalImage, totalM, isParallel };
+    }
+
+    // p5.js 实例
+    let sketch = (p) => {
+        let cvs;
+
+        p.setup = () => {
+            let container = document.getElementById('canvas-container');
+            cvs = p.createCanvas(container.offsetWidth, container.offsetHeight);
+            cvs.parent('canvas-container');
+            p.textFont('Segoe UI');
+            resetSystem();
+        };
+
+        p.windowResized = () => {
+            let container = document.getElementById('canvas-container');
+            p.resizeCanvas(container.offsetWidth, container.offsetHeight);
+        };
+
+        const screenToWorld = (sx, sy) => {
+            let cx = p.width / 2;
+            let cy = p.height / 2;
+            return {
+                x: (sx - cx - STATE.view.panX) / STATE.view.zoom,
+                y: (sy - cy - STATE.view.panY) / STATE.view.zoom
+            };
+        };
+
+        p.draw = () => {
+            p.background(255);
+            
+            let cx = p.width / 2;
+            let cy = p.height / 2;
+
+            p.push();
+            p.translate(cx + STATE.view.panX, cy + STATE.view.panY);
+            p.scale(STATE.view.zoom);
+
+            if (STATE.showGrid) {
+                drawGridLines(p);
+                drawRuler(p);
+            } else {
+                drawAxis(p);
+            }
+
+            if (STATE.showGhost && STATE.referenceImage) {
+                drawGhostImage(p, STATE.referenceImage);
+            }
+
+            STATE.lenses.forEach(lens => drawLens(p, lens, false));
+            
+            if (STATE.mode === 'adding' && STATE.previewLens) {
+                drawLens(p, STATE.previewLens, true); 
+            }
+
+            drawObject(p);
+
+            if (STATE.isBlocked) drawBlocker(p);
+
+            if (STATE.showFocalPlanes) drawFocalPlanes(p);
+
+            let systemResult = calculateSystem(STATE.lenses);
+            
+            if (STATE.showRays) {
+                let imgToDraw = systemResult.isParallel ? null : systemResult.finalImage;
+                traceAndDrawRays(p, systemResult.sortedLenses, imgToDraw);
+            }
+
+            if (systemResult.finalImage) {
+                drawFinalImage(p, systemResult.finalImage);
+                if (STATE.showEye && !systemResult.finalImage.isReal) {
+                    drawEye(p); 
+                }
+            }
+
+            if (STATE.showValues) {
+                drawDimensions(p, systemResult);
+            }
+
+            p.pop();
+
+            drawStatusOverlay(p, systemResult);
+
+            handleCursor(p);
+            updateDataPanel(systemResult);
+        };
+
+        // --- 绘图辅助函数 ---
+
+        function drawGridLines(p) {
+            p.push();
+            p.stroke(230); p.strokeWeight(1 / STATE.view.zoom);
+            let left = -3000; let right = 3000;
+            let top = -2000; let bottom = 2000;
+            for (let x = left; x <= right; x += 50) p.line(x, top, x, bottom);
+            for (let y = top; y <= bottom; y += 50) p.line(left, y, right, y);
+            p.pop();
+        }
+
+        function drawRuler(p) {
+            p.push();
+            p.stroke(100); p.strokeWeight(1.5 / STATE.view.zoom);
+            p.line(-10000, 0, 10000, 0); 
+            p.fill(150); p.noStroke(); p.textAlign(p.CENTER, p.TOP);
+            p.textSize(10 / STATE.view.zoom);
+            for (let x = -3000; x <= 3000; x += 100) {
+                p.stroke(150); p.strokeWeight(1 / STATE.view.zoom);
+                p.line(x, 0, x, 5);
+                if (x !== 0 && Math.abs(x)%200===0) { p.noStroke(); p.text(x, x, 8); }
+            }
+            p.fill(50); p.textStyle(p.BOLD); p.textSize(12 / STATE.view.zoom);
+            p.text("O", 0, 8);
+            p.pop();
+        }
+
+        function drawAxis(p) {
+            p.stroke(100); p.strokeWeight(1.5 / STATE.view.zoom);
+            p.line(-10000, 0, 10000, 0);
+        }
+
+        function drawFocalPlanes(p) {
+            let mainLens = STATE.lenses.find(l => l.isMain);
+            if (!mainLens) return;
+            p.push();
+            p.stroke(255, 100, 100, 100); 
+            p.strokeWeight(1 / STATE.view.zoom);
+            p.drawingContext.setLineDash([5, 5]);
+            let f1 = mainLens.x - mainLens.f;
+            let f2 = mainLens.x + mainLens.f;
+            p.line(f1, -2000, f1, 2000);
+            p.line(f2, -2000, f2, 2000);
+            p.noStroke();
+            p.fill(255, 100, 100);
+            p.textSize(11 / STATE.view.zoom);
+            p.textAlign(p.LEFT, p.TOP);
+            p.text("焦平面", f1 + 5, -200);
+            p.text("焦平面", f2 + 5, -200);
+            p.pop();
+        }
+
+        function drawLens(p, lens, isPreview) {
+            p.push();
+            p.translate(lens.x, 0);
+            
+            let isHover = false;
+            if (STATE.dragging && STATE.dragging.id === lens.id) isHover = true;
+            
+            let baseColor;
+            if (isPreview) {
+                baseColor = [249, 115, 22]; 
+                p.drawingContext.setLineDash([5, 5]);
+            } else {
+                baseColor = lens.isMain ? [59, 130, 246] : [100, 116, 139]; 
+                p.drawingContext.setLineDash([]);
+            }
+            if (isHover) baseColor = [245, 158, 11];
+
+            p.stroke(baseColor); 
+            p.strokeWeight(isPreview ? 1.5/STATE.view.zoom : 2/STATE.view.zoom);
+            p.fill(baseColor[0], baseColor[1], baseColor[2], isPreview ? 10 : 30);
+
+            let thickness = p.map(lens.f, 50, 500, 40, 10);
+            let h = 200;
+
+            if (lens.type === 'convex') {
+                p.ellipse(0, 0, thickness, h);
+                p.line(0, -h/2 + 10, 0, h/2 - 10);
+            } else {
+                p.beginShape();
+                p.vertex(-thickness/2, -h/2); p.vertex(thickness/2, -h/2);
+                p.quadraticVertex(5, 0, thickness/2, h/2);
+                p.vertex(-thickness/2, h/2);
+                p.quadraticVertex(-5, 0, -thickness/2, -h/2);
+                p.endShape(p.CLOSE);
+                p.line(0, -h/2 + 10, 0, h/2 - 10);
+            }
+
+            p.fill(baseColor); p.noStroke();
+            let r = 5 / STATE.view.zoom; 
+            p.circle(-lens.f, 0, r); 
+            p.circle(lens.f, 0, r);  
+            
+            if (!isPreview && (lens.isMain || lens.type === 'convex')) {
+                p.circle(-lens.f * 2, 0, r);
+                p.circle(lens.f * 2, 0, r);
+            }
+            
+            if (STATE.showValues || isPreview) {
+                p.textSize(10 / STATE.view.zoom);
+                p.textAlign(p.CENTER, p.TOP);
+                p.fill(baseColor);
+                
+                if (isPreview || lens.isMain || lens.type === 'convex') {
+                    p.text("F", -lens.f, 8);
+                    p.text("F'", lens.f, 8);
+                }
+                
+                if (!isPreview && (lens.isMain || lens.type === 'convex')) {
+                    p.text("2F", -lens.f * 2, 8);
+                    p.text("2F'", lens.f * 2, 8);
+                }
+
+                let label = isPreview ? "预览位置" : (lens.isMain ? "主透镜" : `透镜 ${lens.id}`);
+                p.text(label, 0, -h/2 - 15);
+                p.text(`f=${lens.f}`, 0, h/2 + 5);
+            }
+            p.pop();
+        }
+
+        function drawObject(p) {
+            p.push();
+            p.translate(STATE.objX, 0);
+            let color = [220, 38, 38];
+            p.stroke(color); p.strokeWeight(3 / STATE.view.zoom);
+            p.line(0, 0, 0, -STATE.objH);
+            p.fill(color); p.noStroke();
+            let yTip = -STATE.objH;
+            let dir = STATE.objH > 0 ? 1 : -1;
+            let arrowSize = 10 / STATE.view.zoom;
+            p.triangle(-arrowSize/2, yTip + arrowSize*dir, arrowSize/2, yTip + arrowSize*dir, 0, yTip);
+            
+            if (STATE.showValues) {
+                p.textAlign(p.CENTER, STATE.objH > 0 ? p.BOTTOM : p.TOP);
+                p.textSize(14 / STATE.view.zoom);
+                p.text("物体", 0, yTip - 12 * dir);
+                p.textSize(10 / STATE.view.zoom);
+                p.text(`u=${Math.abs(Math.round(STATE.objX))}`, 0, 5 * dir);
+            }
+            p.pop();
+        }
+
+        function drawBlocker(p) {
+            let mainLens = STATE.lenses.find(l => l.isMain) || {x:0};
+            p.push();
+            p.translate(mainLens.x, 0);
+            p.fill(50, 50, 50, 200); p.noStroke();
+            p.rect(-5, -200, 10, 200); 
+            p.fill(255); p.textSize(12 / STATE.view.zoom);
+            p.textAlign(p.CENTER, p.CENTER); p.text("遮挡", 0, -100);
+            p.pop();
+        }
+
+        function drawFinalImage(p, img) {
+            if (Math.abs(img.x) > 20000 || Math.abs(img.h) > 10000) return;
+            p.push();
+            p.translate(img.x, 0);
+            let color = img.isReal ? "#10b981" : "#8b5cf6"; 
+            if (STATE.isBlocked && img.isReal) color = "#6ee7b7"; 
+            
+            // 新增：真实孔径模式下，成像变暗（透明度降低）
+            if (STATE.useRealAperture) {
+                // p5 color with alpha
+                let c = p.color(color);
+                c.setAlpha(120); // 变暗/半透明
+                p.stroke(c);
+                p.fill(c);
+            } else {
+                p.stroke(color);
+                p.fill(color);
+            }
+
+            p.strokeWeight(3 / STATE.view.zoom);
+            if (!img.isReal) p.drawingContext.setLineDash([5, 5]);
+            p.line(0, 0, 0, -img.h);
+            p.noStroke(); // Fill for triangle uses same color
+            p.drawingContext.setLineDash([]);
+            let yTip = -img.h;
+            let dir = img.h > 0 ? 1 : -1;
+            let arrowSize = 10 / STATE.view.zoom;
+            p.triangle(-arrowSize/2, yTip + arrowSize*dir, arrowSize/2, yTip + arrowSize*dir, 0, yTip);
+            
+            if (STATE.showValues) {
+                p.textAlign(p.CENTER, img.h > 0 ? p.BOTTOM : p.TOP);
+                p.textSize(14 / STATE.view.zoom);
+                p.text(img.isReal ? "最终像" : "最终虚像", 0, yTip - 10 * dir);
+            }
+            p.pop();
+        }
+
+        function drawGhostImage(p, img) {
+            if (Math.abs(img.x) > 20000) return;
+            p.push();
+            p.translate(img.x, 0);
+            let color = [150, 150, 150, 100]; 
+            p.stroke(color); p.strokeWeight(2 / STATE.view.zoom);
+            if (!img.isReal) p.drawingContext.setLineDash([5, 5]);
+            p.line(0, 0, 0, -img.h);
+            p.fill(color); p.noStroke(); p.drawingContext.setLineDash([]);
+            let yTip = -img.h;
+            let dir = img.h > 0 ? 1 : -1;
+            let arrowSize = 8 / STATE.view.zoom;
+            p.triangle(-arrowSize/2, yTip + arrowSize*dir, arrowSize/2, yTip + arrowSize*dir, 0, yTip);
+            p.textAlign(p.CENTER, img.h > 0 ? p.TOP : p.BOTTOM); 
+            p.textSize(11 / STATE.view.zoom);
+            p.fill(150);
+            p.text("原像", 0, 5);
+            p.pop();
+        }
+
+        function drawDimensions(p, res) {
+            p.push();
+            let yLevel = 180;
+            p.strokeWeight(1 / STATE.view.zoom);
+            p.textSize(11 / STATE.view.zoom);
+            p.textAlign(p.CENTER, p.BOTTOM);
+
+            let mainLens = STATE.lenses.find(l => l.isMain) || {x:0};
+            let mx = mainLens.x;
+            
+            let fColor = "#3b82f6";
+            drawDimLine(p, mx, mx - mainLens.f, yLevel + 12, `f=${mainLens.f}`, fColor);
+
+            let uColor = "#ef4444";
+            drawDimLine(p, STATE.objX, mx, yLevel, `u=${Math.abs(Math.round(mx - STATE.objX))}`, uColor);
+
+            if (res.finalImage) {
+                let vColor = res.finalImage.isReal ? "#10b981" : "#8b5cf6";
+                drawDimLine(p, mx, res.finalImage.x, yLevel + 25, `x(像坐标)=${Math.round(res.finalImage.x - mx)}`, vColor);
+            }
+            p.pop();
+        }
+
+        function drawDimLine(p, x1, x2, y, label, color) {
+            if (Math.abs(x1 - x2) < 2) return;
+            p.stroke(color); p.fill(color);
+            p.line(x1, y, x2, y);
+            let h = 3 / STATE.view.zoom;
+            p.line(x1, y-h, x1, y+h);
+            p.line(x2, y-h, x2, y+h);
+            p.noStroke();
+            let mid = (x1 + x2) / 2;
+            p.text(label, mid, y - 2);
+            p.strokeWeight(1 / STATE.view.zoom); 
+        }
+
+        function drawEye(p) {
+            p.push();
+            let rightmostX = 0;
+            STATE.lenses.forEach(l => { if(l.x > rightmostX) rightmostX = l.x; });
+            if (STATE.mode === 'adding' && STATE.previewLens && STATE.previewLens.x > rightmostX) {
+                rightmostX = STATE.previewLens.x;
+            }
+            let eyeX = Math.max(500, rightmostX + 400);
+            p.translate(eyeX, 0);
+            p.scale(1 / STATE.view.zoom); 
+            p.stroke(50); p.strokeWeight(2); p.fill(255);
+            p.beginShape();
+            p.vertex(15, -10); p.quadraticVertex(-15, 0, 15, 10);
+            p.endShape(p.CLOSE);
+            p.fill(0); p.circle(0, 0, 6);
+            p.noStroke(); p.fill(80); p.textAlign(p.CENTER, p.TOP);
+            p.textSize(12);
+            p.text("观察方向", 0, 15);
+            p.pop();
+        }
+
+        function drawStatusOverlay(p, res) {
+            if (!res) return;
+            let text = "", subText = "", color = [50, 50, 50];
+            let isSingleLens = (STATE.lenses.length === 1);
+
+            if (res.isParallel) {
+                text = "光线平行 · 不成像";
+                subText = isSingleLens ? "原理：探照灯 / 平行光源 (u = f)" : "系统射出平行光";
+                color = [234, 88, 12];
+            } else if (res.finalImage) {
+                let m = res.totalM;
+                let isReal = res.finalImage.isReal;
+                let absM = Math.abs(m);
+
+                if (isReal) {
+                    if (Math.abs(absM - 1.0) < 0.05) {
+                        text = "倒立 · 等大 · 实像";
+                        subText = isSingleLens ? "原理：测焦距 (u = 2f)" : "放大率 |M| ≈ 1";
+                        color = [16, 185, 129];
+                    } else if (absM < 1.0) {
+                        text = "倒立 · 缩小 · 实像";
+                        subText = isSingleLens ? "原理：照相机 (u > 2f)" : "起缩小作用";
+                        color = [16, 185, 129];
+                    } else {
+                        text = "倒立 · 放大 · 实像";
+                        subText = isSingleLens ? "原理：投影仪 (f < u < 2f)" : "起放大作用";
+                        color = [16, 185, 129];
+                    }
+                } else {
+                    if (absM > 1.0) {
+                        text = "正立 · 放大 · 虚像";
+                        subText = isSingleLens ? "原理：放大镜 (u < f)" : "起放大作用";
+                        color = [139, 92, 246];
+                    } else {
+                        text = "正立 · 缩小 · 虚像";
+                        subText = isSingleLens ? "原理：近视眼镜" : "起缩小作用";
+                        color = [139, 92, 246];
+                    }
+                }
+            } else { return; }
+            
+            if(STATE.isBlocked && res.finalImage && res.finalImage.isReal) {
+                subText += " (遮挡提示：像完整，亮度变暗)";
+            }
+            // 新增：真实孔径提示
+            if(STATE.useRealAperture) {
+                subText += " | 真实孔径开启";
+            }
+
+            p.push();
+            p.resetMatrix(); 
+            p.translate(p.width / 2, 45); 
+            p.rectMode(p.CENTER);
+            p.noStroke(); p.fill(0, 0, 0, 20); p.rect(2, 2, 320, 56, 28);
+            p.fill(255, 255, 255, 240); p.stroke(220); p.strokeWeight(1); p.rect(0, 0, 320, 56, 28);
+            p.textAlign(p.CENTER, p.CENTER); p.noStroke(); p.fill(color);
+            p.textSize(18); p.textStyle(p.BOLD); p.text(text, 0, -8);
+            p.fill(100, 116, 139); p.textSize(12); p.textStyle(p.NORMAL); p.text(subText, 0, 12);
+            p.pop();
+        }
+
+        function traceAndDrawRays(p, sortedLenses, finalImage) {
+            let startX = STATE.objX;
+            let startY = -STATE.objH;
+            
+            let firstLensX = sortedLenses.length > 0 ? sortedLenses[0].x : startX + 200;
+            if (firstLensX <= startX) firstLensX = startX + 200; 
+
+            let slopes = [0]; 
+            slopes.push((0 - startY) / (firstLensX - startX)); 
+            if (sortedLenses.length > 0) {
+                let l1 = sortedLenses[0];
+                let targetFX = l1.type === 'convex' ? (l1.x - l1.f) : (l1.x + l1.f);
+                if (Math.abs(targetFX - startX) > 1) slopes.push((0 - startY) / (targetFX - startX));
+            }
+            for(let i = -0.15; i <= 0.15; i+=0.06) {
+                if (Math.abs(i) > 0.01) slopes.push(Math.atan2(-startY, firstLensX-startX) + i);
+            }
+
+            p.noFill();
+            p.strokeWeight(1 / STATE.view.zoom);
+
+            slopes.forEach(k => {
+                p.stroke(245, 158, 11, 150); 
+                if (Math.abs(k) < 0.001) p.stroke(245, 158, 11, 200); 
+
+                p.beginShape();
+                p.vertex(startX, startY);
+
+                let currX = startX;
+                let currY = startY;
+                let currK = k; 
+                let rayStopped = false;
+
+                for (let lens of sortedLenses) {
+                    if (lens.x <= currX + 0.1) continue;
+
+                    let dx = lens.x - currX;
+                    let dy = dx * currK; 
+                    let hitY = currY + dy;
+
+                    // 遮挡判断 (主透镜上半部)
+                    if (STATE.isBlocked && lens.isMain && hitY < 0) {
+                         p.vertex(lens.x, hitY); rayStopped = true; break; 
+                    }
+
+                    // --- 新增：真实孔径逻辑 (Aperture) ---
+                    // 假设透镜物理高度限制为 ±100 (即可视化的 h=200)
+                    if (STATE.useRealAperture && Math.abs(hitY) > 100) {
+                        // 光线打在透镜外，直接穿过，不发生折射
+                        // 绘制到透镜平面的点
+                        p.vertex(lens.x, hitY);
+                        currX = lens.x;
+                        currY = hitY;
+                        // currK 保持不变 (直线传播)
+                        continue; 
+                    }
+
+                    if (STATE.showThick) {
+                        let thickness = p.map(lens.f, 50, 500, 40, 10);
+                        let halfT = thickness / 2;
+                        let entryX = lens.x - halfT;
+                        let exitX = lens.x + halfT;
+                        let entryY = hitY - halfT * currK; 
+                        let kIn = currK / 1.5;
+                        let exitY = entryY + thickness * kIn;
+                        p.vertex(entryX, entryY); p.vertex(exitX, exitY);
+                        hitY = exitY; currX = exitX;
+                    } else {
+                        p.vertex(lens.x, hitY); currX = lens.x;
+                    }
+
+                    let f = lens.type === 'convex' ? lens.f : -lens.f;
+                    let dk = -hitY / f;
+                    currK += dk; currY = hitY;
+                }
+
+                if (!rayStopped) {
+                    let endX = currX + 2000;
+                    let endY = currY + (endX - currX) * currK;
+                    p.vertex(endX, endY);
+                    
+                    if (finalImage && !finalImage.isReal) {
+                        // 如果开启了真实孔径且光线没打中透镜，这条光线不应该参与虚像的反向延长
+                        // 简化处理：依然画反向延长，但物理上其实它不构成像
+                        // 为了教学清晰，保持现有逻辑
+                        p.endShape(); 
+                        p.push();
+                        p.stroke(147, 51, 234, 80); 
+                        p.strokeWeight(1 / STATE.view.zoom);
+                        p.drawingContext.setLineDash([5, 5]);
+                        p.beginShape();
+                        p.vertex(currX, currY); 
+                        p.vertex(finalImage.x, finalImage.h * -1); 
+                        p.endShape();
+                        p.pop();
+                        return; 
+                    }
+                }
+                p.endShape();
+            });
+        }
+
+        // --- 交互逻辑 ---
+
+        function handleCursor(p) {
+            if (p.mouseX < 0 || p.mouseX > p.width || p.mouseY < 0 || p.mouseY > p.height) return;
+            let wm = screenToWorld(p.mouseX, p.mouseY);
+            
+            let cursorStyle = 'default';
+            
+            // 1. 物体
+            if (Math.abs(wm.x - STATE.objX) < 40 && wm.y < 50 && wm.y > -Math.abs(STATE.objH)*1.5) cursorStyle = 'grab';
+            
+            // 2. 主透镜焦点 (Left F or Right F)
+            let mainLens = STATE.lenses.find(l => l.isMain);
+            if (mainLens) {
+                if (Math.abs(wm.x - (mainLens.x - mainLens.f)) < 20 && Math.abs(wm.y) < 20) cursorStyle = 'ew-resize';
+                if (Math.abs(wm.x - (mainLens.x + mainLens.f)) < 20 && Math.abs(wm.y) < 20) cursorStyle = 'ew-resize';
+            }
+
+            // 3. 其他透镜
+            let hitLens = STATE.lenses.find(l => Math.abs(wm.x - l.x) < 40 && Math.abs(wm.y) < 150);
+            if (hitLens) cursorStyle = 'grab';
+            
+            if (STATE.mode === 'adding' && STATE.previewLens) {
+                if (Math.abs(wm.x - STATE.previewLens.x) < 40 && Math.abs(wm.y) < 150) cursorStyle = 'grab';
+            }
+
+            if (STATE.dragging || STATE.panStart) cursorStyle = 'grabbing';
+            p.cursor(cursorStyle);
+        }
+
+        p.mousePressed = () => {
+            if (p.mouseX < 0 || p.mouseX > p.width || p.mouseY < 0 || p.mouseY > p.height) return;
+            let wm = screenToWorld(p.mouseX, p.mouseY);
+            
+            // 1. 拖动物体
+            if (Math.abs(wm.x - STATE.objX) < 40 && wm.y < 50 && wm.y > -Math.abs(STATE.objH)*1.5) {
+                STATE.dragging = { type: 'obj', startX: STATE.objX, offsetX: STATE.objX - wm.x };
+                return;
+            }
+
+            // 2. 拖动主透镜焦点 (调节焦距) - 优先级高
+            let mainLens = STATE.lenses.find(l => l.isMain);
+            if (mainLens) {
+                // 左焦点
+                if (Math.abs(wm.x - (mainLens.x - mainLens.f)) < 20 && Math.abs(wm.y) < 20) {
+                    STATE.dragging = { type: 'focus', lens: mainLens, side: -1 }; // side -1 = left
+                    return;
+                }
+                // 右焦点
+                if (Math.abs(wm.x - (mainLens.x + mainLens.f)) < 20 && Math.abs(wm.y) < 20) {
+                    STATE.dragging = { type: 'focus', lens: mainLens, side: 1 }; // side 1 = right
+                    return;
+                }
+            }
+
+            // 3. 拖动预览透镜 (优先)
+            if (STATE.mode === 'adding' && STATE.previewLens) {
+                if (Math.abs(wm.x - STATE.previewLens.x) < 40 && Math.abs(wm.y) < 150) {
+                    STATE.dragging = { type: 'preview', offsetX: STATE.previewLens.x - wm.x };
+                    return;
+                }
+            }
+
+            // 4. 拖动现有透镜 (非添加模式)
+            if (STATE.mode !== 'adding') {
+                let hitLens = STATE.lenses.find(l => Math.abs(wm.x - l.x) < 40 && Math.abs(wm.y) < 150);
+                if (hitLens) {
+                    // 如果拖动的是主透镜本体，暂时不允许移动位置（通常固定0点），只允许非主透镜移动
+                    if (!hitLens.isMain) {
+                        STATE.dragging = { type: 'lens', id: hitLens.id, startX: hitLens.x, offsetX: hitLens.x - wm.x };
+                        return;
+                    }
+                }
+            }
+
+            // 5. 平移画布
+            STATE.panStart = { x: p.mouseX, y: p.mouseY, viewX: STATE.view.panX, viewY: STATE.view.panY };
+        };
+
+        p.mouseDragged = () => {
+            if (STATE.dragging) {
+                let wm = screenToWorld(p.mouseX, p.mouseY);
+                let d = STATE.dragging;
+                
+                if (d.type === 'obj') {
+                    STATE.objX = wm.x + d.offsetX;
+                    if (STATE.objX > -20) STATE.objX = -20; 
+                } else if (d.type === 'focus') {
+                    // 调节焦距
+                    // 距离 = |MouseX - LensX|
+                    let newF = Math.abs(wm.x - d.lens.x);
+                    newF = Math.max(50, Math.min(newF, 400));
+                    d.lens.f = newF;
+                    // 同步到 UI
+                    updateMainLensUI();
+                } else if (d.type === 'lens') {
+                    let lens = STATE.lenses.find(l => l.id === d.id);
+                    if (lens) {
+                        lens.x = wm.x + d.offsetX;
+                        renderLensList();
+                    }
+                } else if (d.type === 'preview') {
+                    if (STATE.previewLens) {
+                        STATE.previewLens.x = wm.x + d.offsetX;
+                    }
+                }
+                return; 
+            }
+            if (STATE.panStart) {
+                let dx = p.mouseX - STATE.panStart.x;
+                let dy = p.mouseY - STATE.panStart.y;
+                STATE.view.panX = STATE.panStart.viewX + dx;
+                STATE.view.panY = STATE.panStart.viewY + dy;
+            }
+        };
+
+        p.mouseReleased = () => { STATE.dragging = null; STATE.panStart = null; };
+        p.mouseWheel = (e) => {
+            let s = e.delta > 0 ? 0.9 : 1.1;
+            STATE.view.zoom = p.constrain(STATE.view.zoom * s, 0.2, 5);
+            return false;
+        };
+    };
+
+    let myp5 = new p5(sketch);
+
+    // --- 业务与控制逻辑 ---
+
+    function resetSystem(keepLens = false) {
+        if (!keepLens) {
+            STATE.lenses = [{ id: 1, x: 0, f: 160, type: 'convex', isMain: true }];
+            STATE.nextId = 2;
+        }
+        STATE.objX = -320; 
+        STATE.objH = 120;
+        STATE.view = { zoom: 1.0, panX: -100, panY: 0 }; // 默认略微左移
+        STATE.mode = 'view';
+        STATE.previewLens = null;
+        STATE.referenceImage = null;
+        
+        // 重置所有选项
+        STATE.showThick = false;
+        STATE.isBlocked = false;
+        STATE.showFocalPlanes = false;
+        STATE.useRealAperture = false;
+        document.getElementById('chk-thick').checked = false;
+        document.getElementById('chk-block').checked = false;
+        document.getElementById('chk-focal-planes').checked = false;
+        document.getElementById('chk-aperture').checked = false;
+        
+        toggleAddModeUI(false);
+        renderLensList();
+        updateUI();
+        showToast("系统已重置");
+    }
+
+    // --- 主透镜控制 (新增) ---
+    window.setMainLensType = (type) => {
+        let mainLens = STATE.lenses.find(l => l.isMain);
+        if(mainLens) {
+            mainLens.type = type;
+            updateMainLensUI();
+        }
+    };
+
+    // 焦距滑块事件监听
+    document.getElementById('slider-main-f').addEventListener('input', (e) => {
+        let val = parseInt(e.target.value);
+        let mainLens = STATE.lenses.find(l => l.isMain);
+        if(mainLens) {
+            mainLens.f = val;
+            updateMainLensUI(true); // true = skip slider update to avoid feedback loop
+        }
+    });
+
+    function updateMainLensUI(skipSlider = false) {
+        let mainLens = STATE.lenses.find(l => l.isMain);
+        if(!mainLens) return;
+
+        // 更新按钮状态
+        document.getElementById('btn-main-convex').className = `btn ${mainLens.type==='convex'?'active':''}`;
+        document.getElementById('btn-main-concave').className = `btn ${mainLens.type==='concave'?'active':''}`;
+        
+        // 更新数值显示
+        document.getElementById('main-f-val').innerText = `f=${Math.round(mainLens.f)}`;
+        
+        // 更新滑块位置 (如果是拖动F点触发的，需要同步滑块)
+        if(!skipSlider) {
+            document.getElementById('slider-main-f').value = mainLens.f;
+        }
+    }
+
+    // --- 场景设置 ---
+    window.setScenario = (id) => {
+        STATE.referenceImage = null;
+        STATE.lenses = [{ id: 1, x: 0, f: 160, type: 'convex', isMain: true }];
+        STATE.nextId = 2;
+        
+        // 重置选项
+        STATE.showThick = false;
+        STATE.isBlocked = false;
+        STATE.showFocalPlanes = false;
+        STATE.useRealAperture = false;
+        document.getElementById('chk-thick').checked = false;
+        document.getElementById('chk-block').checked = false;
+        document.getElementById('chk-focal-planes').checked = false;
+        document.getElementById('chk-aperture').checked = false;
+
+        let f = 160;
+        let lens = STATE.lenses[0];
+
+        switch(id) {
+            case 1: STATE.objX = -2.5 * f; break;
+            case 2: STATE.objX = -2.0 * f; break;
+            case 3: STATE.objX = -1.5 * f; break;
+            case 4: STATE.objX = -1.0 * f; break;
+            case 5: STATE.objX = -0.6 * f; break;
+            case 6: lens.type = 'concave'; STATE.objX = -2.0 * f; break;
+        }
+        
+        STATE.view.panX = -100; // 微调视图，留出右侧空间
+        STATE.view.zoom = 1.0;
+        renderLensList();
+        updateUI();
+    };
+
+    // --- 添加透镜流程 ---
+    window.startAddLens = () => {
+        STATE.mode = 'adding';
+        STATE.previewLens = { 
+            id: -1, x: STATE.objX / 2, f: 150, type: 'convex', isMain: false 
+        };
+        toggleAddModeUI(true);
+        updatePreviewUI();
+        showToast("拖动虚线透镜到目标位置\n观察F点，确认后生效");
+    };
+
+    window.cancelAddLens = () => {
+        STATE.mode = 'view';
+        STATE.previewLens = null;
+        toggleAddModeUI(false);
+    };
+
+    window.confirmAddLens = () => {
+        if (!STATE.previewLens) return;
+        
+        let currentRes = calculateSystem(STATE.lenses);
+        if (currentRes.finalImage) {
+            STATE.referenceImage = { ...currentRes.finalImage }; 
+        } else {
+            STATE.referenceImage = null; 
+        }
+
+        let newLens = { ...STATE.previewLens, id: STATE.nextId++ };
+        STATE.lenses.push(newLens);
+        STATE.mode = 'view';
+        STATE.previewLens = null;
+        
+        toggleAddModeUI(false);
+        renderLensList();
+        showToast("透镜已添加\n灰色虚像为添加前的位置");
+    };
+
+    window.updatePreviewLens = (prop, val) => {
+        if (!STATE.previewLens) return;
+        if (prop === 'f') STATE.previewLens.f = parseInt(val);
+        if (prop === 'type') STATE.previewLens.type = val;
+        updatePreviewUI();
+    };
+
+    function updatePreviewUI() {
+        if (!STATE.previewLens) return;
+        document.getElementById('preview-f-val').innerText = STATE.previewLens.f;
+        document.getElementById('btn-prev-convex').className = `btn ${STATE.previewLens.type==='convex'?'active':''}`;
+        document.getElementById('btn-prev-concave').className = `btn ${STATE.previewLens.type==='concave'?'active':''}`;
+    }
+
+    function toggleAddModeUI(isAdding) {
+        document.getElementById('add-lens-panel').style.display = isAdding ? 'flex' : 'none';
+        document.getElementById('btn-start-add').style.display = isAdding ? 'none' : 'flex';
+    }
+
+    function addLens() { startAddLens(); } 
+
+    function removeLens(id) {
+        STATE.lenses = STATE.lenses.filter(l => l.id !== id);
+        STATE.referenceImage = null;
+        renderLensList();
+    }
+
+    function renderLensList() {
+        let container = document.getElementById('lens-list-container');
+        container.innerHTML = '';
+        STATE.lenses.forEach((lens) => {
+            let isMain = lens.isMain;
+            // 主透镜不显示在移除列表中
+            if (isMain) return; 
+
+            let title = `透镜 L${lens.id}`;
+            let card = document.createElement('div');
+            card.className = `lens-card`;
+            let html = `
+                <div class="card-header">
+                    <span>${title}</span>
+                    <button class="btn btn-danger" onclick="removeLens(${lens.id})">移除</button>
+                </div>
+                <div style="display:flex; justify-content:space-between; font-size:11px; color:#64748b;">
+                    <span>f: ${lens.f}</span>
+                    <span>x: ${Math.round(lens.x)}</span>
+                </div>
+            `;
+            card.innerHTML = html;
+            container.appendChild(card);
+        });
+        
+        updateMainLensUI();
+    }
+
+    document.getElementById('slider-obj-h').addEventListener('input', (e) => {
+        STATE.objH = parseInt(e.target.value);
+        document.getElementById('obj-h-val').innerText = STATE.objH;
+    });
+
+    ['chk-rays', 'chk-values', 'chk-thick', 'chk-ghost', 'chk-grid', 'chk-eye', 'chk-block', 'chk-debug', 'chk-focal-planes', 'chk-aperture'].forEach(id => {
+        document.getElementById(id).addEventListener('change', (e) => {
+            let key = id.replace('chk-', '');
+            if(key === 'block') STATE.isBlocked = e.target.checked;
+            else if(key === 'thick') STATE.showThick = e.target.checked;
+            else if(key === 'ghost') STATE.showGhost = e.target.checked;
+            else if(key === 'grid') STATE.showGrid = e.target.checked;
+            else if(key === 'eye') STATE.showEye = e.target.checked;
+            else if(key === 'debug') STATE.showDebug = e.target.checked;
+            else if(key === 'rays') STATE.showRays = e.target.checked;
+            else if(key === 'values') STATE.showValues = e.target.checked;
+            else if(key === 'focal-planes') STATE.showFocalPlanes = e.target.checked;
+            else if(key === 'aperture') STATE.useRealAperture = e.target.checked; // 新增
+        });
+    });
+
+    function updateDataPanel(res) {
+        if (!res) return;
+        document.getElementById('val-count').innerText = STATE.lenses.length;
+        if (res.finalImage) {
+            document.getElementById('val-m').innerText = res.totalM.toFixed(2) + "x";
+            document.getElementById('val-img-x').innerText = res.finalImage.x.toFixed(0);
+            let nature = res.finalImage.isReal ? "实像" : "虚像";
+            document.getElementById('val-desc').innerText = nature;
+        } else {
+            document.getElementById('val-m').innerText = "--";
+            document.getElementById('val-img-x').innerText = "∞";
+            document.getElementById('val-desc').innerText = "未成像";
+        }
+    }
+
+    function updateUI() {
+        document.getElementById('slider-obj-h').value = STATE.objH;
+        document.getElementById('obj-h-val').innerText = STATE.objH;
+        updateMainLensUI();
+    }
+
+    function showToast(msg) {
+        let t = document.getElementById('toast');
+        t.innerText = msg;
+        t.style.opacity = 1; t.style.top = "40px";
+        setTimeout(() => { t.style.opacity = 0; t.style.top = "20px"; }, 2000);
+    }
+</script>
+</body>
+</html>

@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>虚像原理可视化实验室 - 物理光学教学</title>
+  
+  <!-- p5.js CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+
+  <style>
+    /* 全局重置与字体 */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+    }
+
+    body {
+      background-color: #f0f2f5;
+      color: #333;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* 顶部标题栏 */
+    header {
+      background-color: #2c3e50;
+      color: white;
+      padding: 15px 20px;
+      flex-shrink: 0;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header-content h1 {
+      font-size: 1.2rem;
+      margin-bottom: 5px;
+    }
+
+    .concept-box {
+      background: rgba(255,255,255,0.1);
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      line-height: 1.4;
+      border-left: 4px solid #3498db;
+      max-width: 800px;
+    }
+
+    .concept-highlight {
+      color: #ffd700;
+      font-weight: bold;
+    }
+
+    /* 主布局容器 */
+    #main-container {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      max-width: 100%;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    /* 左侧控制面板 */
+    #sidebar {
+      width: 340px;
+      background: white;
+      padding: 20px;
+      overflow-y: auto;
+      border-right: 1px solid #ddd;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      flex-shrink: 0;
+      box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+      z-index: 10;
+    }
+
+    /* 右侧画布区域 */
+    #canvas-wrapper {
+      flex: 1;
+      position: relative;
+      background-color: #ffffff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+      /* 网格背景微调 */
+      background-image: 
+        linear-gradient(#f0f0f0 1px, transparent 1px),
+        linear-gradient(90deg, #f0f0f0 1px, transparent 1px);
+      background-size: 50px 50px;
+    }
+
+    /* UI 组件样式 */
+    .control-group {
+      background: #f8f9fa;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #e1e4e8;
+    }
+
+    .group-title {
+      font-weight: bold;
+      margin-bottom: 10px;
+      font-size: 0.95rem;
+      color: #2c3e50;
+      border-bottom: 2px solid #3498db;
+      padding-bottom: 3px;
+      display: block;
+    }
+
+    .scene-selector {
+      display: flex;
+      gap: 5px;
+      margin-bottom: 5px;
+    }
+
+    .scene-btn {
+      flex: 1;
+      padding: 10px 5px;
+      background: #e0e0e0;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: all 0.2s;
+      font-weight: 500;
+    }
+
+    .scene-btn:hover {
+      background: #d0d0d0;
+    }
+
+    .scene-btn.active {
+      background: #3498db;
+      color: white;
+      box-shadow: 0 2px 4px rgba(52, 152, 219, 0.3);
+    }
+
+    .control-item {
+      margin-bottom: 15px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #555;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      cursor: pointer;
+      accent-color: #3498db;
+    }
+
+    .value-display {
+      float: right;
+      color: #3498db;
+      font-weight: bold;
+      font-family: monospace;
+    }
+
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      margin-bottom: 6px;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+
+    .checkbox-item input {
+      margin-right: 10px;
+      transform: scale(1.1);
+      accent-color: #3498db;
+    }
+
+    .legend {
+      font-size: 0.8rem;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 5px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+    }
+
+    .color-box {
+      width: 12px;
+      height: 12px;
+      margin-right: 6px;
+      border-radius: 2px;
+    }
+
+    /* 滚动条美化 */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #ccc;
+      border-radius: 3px;
+    }
+
+    /* 提示文本 */
+    .scene-desc {
+      font-size: 0.85rem;
+      color: #666;
+      margin-top: 8px;
+      background: #fff;
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px dashed #ccc;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="header-content">
+      <h1>虚像 (Virtual Image) 可视化实验室</h1>
+    </div>
+    <div class="concept-box">
+      <strong>核心机制：</strong>
+      眼睛接收发散光线 → 大脑逆向反推路径 → 
+      在<span class="concept-highlight">反向延长线</span>交点处“脑补”出虚像。
+      <br>
+      <small style="color:#ddd">提示：拖动滑块或物体，观察光线如何进入眼睛。</small>
+    </div>
+  </header>
+
+  <div id="main-container">
+    
+    <!-- 左侧控制面板 -->
+    <aside id="sidebar">
+      
+      <!-- 场景选择 -->
+      <div class="control-group">
+        <div class="group-title">1. 选择实验场景</div>
+        <div class="scene-selector">
+          <button class="scene-btn active" onclick="switchScene(0)">平面镜</button>
+          <button class="scene-btn" onclick="switchScene(1)">水中的鱼</button>
+          <button class="scene-btn" onclick="switchScene(2)">放大镜</button>
+        </div>
+        <div id="scene-desc" class="scene-desc">
+          平面镜成像：物像对称，是最基础的虚像模型。
+        </div>
+      </div>
+
+      <!-- 参数调节 -->
+      <div class="control-group">
+        <div class="group-title">2. 调整实验参数</div>
+        
+        <!-- 场景0：平面镜 -->
+        <div id="controls-mirror">
+          <div class="control-item">
+            <label>操作提示：</label>
+            <p style="font-size: 0.85rem; color: #555;">请用鼠标拖动画面中的红色“物体”<br>观察虚像位置和进入眼睛的光线变化。</p>
+          </div>
+        </div>
+
+        <!-- 场景1：折射 -->
+        <div id="controls-refraction" style="display:none;">
+          <div class="control-item">
+            <label>水的折射率 (n) <span id="val-n" class="value-display">1.33</span></label>
+            <input type="range" id="slider-n" min="1.0" max="2.0" step="0.01" value="1.33">
+          </div>
+          <div class="control-item">
+            <label>鱼的深度 <span id="val-depth" class="value-display">200px</span></label>
+            <input type="range" id="slider-depth" min="50" max="300" step="1" value="200">
+          </div>
+        </div>
+
+        <!-- 场景2：放大镜 -->
+        <div id="controls-lens" style="display:none;">
+          <div class="control-item">
+            <label>透镜焦距 (f) <span id="val-f" class="value-display">150px</span></label>
+            <input type="range" id="slider-f" min="100" max="250" step="10" value="150">
+          </div>
+          <div class="control-item">
+            <label>物距 (u) <span id="val-u" class="value-display">80px</span></label>
+            <input type="range" id="slider-u" min="30" max="140" step="1" value="80">
+            <div style="font-size: 0.8rem; color: #e74c3c; margin-top:4px;">* 物距需小于焦距才能成虚像</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 可视化开关 -->
+      <div class="control-group">
+        <div class="group-title">3. 视觉辅助线开关</div>
+        
+        <label class="checkbox-item">
+          <input type="checkbox" id="check-rays" checked> 
+          <span>显示真实光线 (Real Rays)</span>
+        </label>
+        <label class="checkbox-item">
+          <input type="checkbox" id="check-extensions" checked> 
+          <span>显示反向延长线 (Extensions)</span>
+        </label>
+        <label class="checkbox-item">
+          <input type="checkbox" id="check-image" checked> 
+          <span>显示虚像 (Virtual Image)</span>
+        </label>
+        <label class="checkbox-item">
+          <input type="checkbox" id="check-normal" checked> 
+          <span>显示法线/光轴</span>
+        </label>
+      </div>
+
+      <!-- 图例 -->
+      <div class="control-group">
+        <div class="group-title">图例</div>
+        <div class="legend">
+          <div class="legend-item"><div class="color-box" style="background:#e74c3c;"></div> 实物</div>
+          <div class="legend-item"><div class="color-box" style="background:#f1c40f;"></div> 入眼光线</div>
+          <div class="legend-item"><div class="color-box" style="background:transparent; border:1px dashed #3498db;"></div> 大脑脑补线</div>
+          <div class="legend-item"><div class="color-box" style="background:rgba(52, 152, 219, 0.5);"></div> 虚像</div>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- 绘图区 -->
+    <div id="canvas-wrapper">
+      <!-- p5 canvas injected here -->
+    </div>
+
+  </div>
+
+  <script>
+    /**
+     * Physics & Visualization Logic
+     * Role: Expert STEM Visualization Architect
+     * Tech: p5.js (Pure Geometry Mode)
+     */
+
+    // Global State
+    let currentScene = 0; // 0: Mirror, 1: Refraction, 2: Lens
+    let canvas;
+    
+    // UI Elements
+    let sliderN, sliderDepth, sliderF, sliderU;
+    let checkRays, checkExtensions, checkImage, checkNormal;
+    
+    // Interactive Objects
+    let dragging = false;
+    let animTime = 0; // Global animation time
+    
+    // Scene Variables
+    let mirrorObjPos;
+    let lensEyePos;
+    
+    function setup() {
+      const wrapper = document.getElementById('canvas-wrapper');
+      canvas = createCanvas(wrapper.clientWidth, wrapper.clientHeight);
+      canvas.parent('canvas-wrapper');
+      
+      rectMode(CENTER);
+      imageMode(CENTER);
+      textSize(16);
+      
+      // Init Variables
+      mirrorObjPos = createVector(-150, 50);
+      lensEyePos = createVector(350, 0); // Fixed eye position for Lens scene
+
+      // Get UI references
+      sliderN = document.getElementById('slider-n');
+      sliderDepth = document.getElementById('slider-depth');
+      sliderF = document.getElementById('slider-f');
+      sliderU = document.getElementById('slider-u');
+      
+      checkRays = document.getElementById('check-rays');
+      checkExtensions = document.getElementById('check-extensions');
+      checkImage = document.getElementById('check-image');
+      checkNormal = document.getElementById('check-normal');
+
+      // Add Input Listeners
+      sliderN.addEventListener('input', (e) => document.getElementById('val-n').innerText = e.target.value);
+      sliderDepth.addEventListener('input', (e) => document.getElementById('val-depth').innerText = e.target.value + 'px');
+      sliderF.addEventListener('input', (e) => document.getElementById('val-f').innerText = e.target.value + 'px');
+      sliderU.addEventListener('input', (e) => document.getElementById('val-u').innerText = e.target.value + 'px');
+    }
+
+    function windowResized() {
+      const wrapper = document.getElementById('canvas-wrapper');
+      resizeCanvas(wrapper.clientWidth, wrapper.clientHeight);
+    }
+
+    function draw() {
+      background(255);
+      
+      // Update Animation Time
+      animTime += 0.03;
+      
+      // Coordinate System
+      translate(width / 2, height / 2);
+      
+      // Dispatch Scene
+      if (currentScene === 0) drawMirrorScene();
+      else if (currentScene === 1) drawRefractionScene();
+      else if (currentScene === 2) drawLensScene();
+
+      resetMatrix();
+    }
+
+    // --- Scene 0: Plane Mirror ---
+    function drawMirrorScene() {
+      const showRays = checkRays.checked;
+      const showExt = checkExtensions.checked;
+      const showImg = checkImage.checked;
+      const showNorm = checkNormal.checked;
+
+      // Interaction
+      if (dragging && currentScene === 0) {
+        mirrorObjPos.x = min(mouseX - width/2, -20);
+        mirrorObjPos.y = mouseY - height/2;
+      }
+      
+      // Draw Mirror
+      stroke(80);
+      strokeWeight(4);
+      line(0, -350, 0, 350);
+      // Hatching
+      strokeWeight(1);
+      stroke(180);
+      for(let y = -340; y < 350; y+=20) {
+        line(0, y, 10, y+10);
+      }
+      noStroke(); fill(80);
+      text("平面镜", 15, -330);
+
+      // Object
+      drawDragHandle(mirrorObjPos.x, mirrorObjPos.y, "物");
+
+      // Image
+      let imgPos = createVector(-mirrorObjPos.x, mirrorObjPos.y);
+      if (showImg) {
+        drawVirtualImageIndicator(imgPos.x, imgPos.y, 20);
+        fill(52, 152, 219); noStroke();
+        text("虚像", imgPos.x, imgPos.y + 35);
+        
+        if (showNorm) {
+          stroke(200); drawingContext.setLineDash([5, 5]);
+          line(mirrorObjPos.x, mirrorObjPos.y, imgPos.x, imgPos.y);
+          drawingContext.setLineDash([]);
+        }
+      }
+
+      // Eye & Rays
+      let eyePos = createVector(-250, -100); 
+      drawEye(eyePos.x, eyePos.y, atan2(0 - eyePos.y, 0 - eyePos.x));
+
+      // Calculate vision rays (Eye -> Image -> Mirror -> Object)
+      let pupilPoints = [
+        createVector(eyePos.x, eyePos.y - 10),
+        createVector(eyePos.x, eyePos.y + 10)
+      ];
+
+      pupilPoints.forEach(pEye => {
+        // Intersection with mirror (x=0)
+        // Line from Eye to Image
+        let t = -pEye.x / (imgPos.x - pEye.x);
+        let pMirror = p5.Vector.add(pEye, p5.Vector.mult(p5.Vector.sub(imgPos, pEye), t));
+
+        if (showRays) {
+          stroke(241, 196, 15); strokeWeight(2);
+          line(mirrorObjPos.x, mirrorObjPos.y, pMirror.x, pMirror.y); // Obj -> Mirror
+          line(pMirror.x, pMirror.y, pEye.x, pEye.y); // Mirror -> Eye
+          drawArrow(mirrorObjPos, pMirror, 0.6);
+          drawArrow(pMirror, pEye, 0.6);
+        }
+
+        if (showExt) {
+          stroke(52, 152, 219); strokeWeight(1);
+          drawingContext.setLineDash([5, 5]);
+          line(pMirror.x, pMirror.y, imgPos.x, imgPos.y);
+          drawingContext.setLineDash([]);
+        }
+
+        if (showNorm) {
+          stroke(200); strokeWeight(1);
+          line(0, pMirror.y, -30, pMirror.y);
+        }
+      });
+    }
+
+    // --- Scene 1: Refraction (Water) ---
+    function drawRefractionScene() {
+      const showRays = checkRays.checked;
+      const showExt = checkExtensions.checked;
+      const showImg = checkImage.checked;
+      const showNorm = checkNormal.checked;
+      
+      const n = parseFloat(sliderN.value);
+      const depth = parseFloat(sliderDepth.value);
+      const waterY = 50;
+
+      // Draw Water with simple wave animation
+      noStroke();
+      fill(220, 240, 255);
+      beginShape();
+      vertex(-width, height);
+      vertex(-width, waterY);
+      for(let x = -width; x <= width; x+=50) {
+        let yOff = sin(x * 0.01 + animTime) * 3;
+        vertex(x, waterY + yOff);
+      }
+      vertex(width, height);
+      endShape(CLOSE);
+
+      fill(52, 152, 219);
+      text("空气 (n=1.0)", -350, waterY - 30);
+      text(`水 (n=${n})`, -350, waterY + 40);
+
+      // Fish (Object)
+      let fishPos = createVector(100, waterY + depth);
+      drawFishShape(fishPos.x, fishPos.y, true);
+      fill(0); noStroke(); text("实物", fishPos.x, fishPos.y + 30);
+
+      // Eye
+      let eyePos = createVector(-250, -150);
+      drawEye(eyePos.x, eyePos.y, PI/5);
+
+      // Calculate Visual Image Position (Approximate: d' = d/n)
+      // Visually, the image is directly above the object at depth/n
+      let apparentDepth = depth / n;
+      let imgPos = createVector(fishPos.x, waterY + apparentDepth);
+
+      // We need to find the specific point on surface where light bends to hit the eye.
+      // This is a Boundary Value Problem. We approximate using the Image Position.
+      // Ray Logic: Eye looks at Image -> Hits Surface -> Bends to Object.
+      // This geometric approximation (Image at d/n) is valid for paraxial rays (small angles).
+      
+      // Let's trace rays from Eye towards Image to find surface intersection.
+      let pupilPoints = [
+        createVector(eyePos.x, eyePos.y - 8),
+        createVector(eyePos.x, eyePos.y + 8)
+      ];
+
+      pupilPoints.forEach(pEye => {
+        // Line Eye -> Image Intersection with Water Surface (y = waterY roughly)
+        // Note: The surface is wavy visually, but we compute physics on flat y=waterY
+        let t = (waterY - pEye.y) / (imgPos.y - pEye.y);
+        let pSurf = p5.Vector.add(pEye, p5.Vector.mult(p5.Vector.sub(imgPos, pEye), t));
+
+        if (showRays) {
+          stroke(241, 196, 15); strokeWeight(2);
+          line(fishPos.x, fishPos.y, pSurf.x, pSurf.y); // Fish -> Surface
+          line(pSurf.x, pSurf.y, pEye.x, pEye.y); // Surface -> Eye
+          drawArrow(fishPos, pSurf, 0.6);
+          drawArrow(pSurf, pEye, 0.6);
+        }
+
+        if (showExt) {
+          stroke(52, 152, 219); strokeWeight(1);
+          drawingContext.setLineDash([5, 5]);
+          line(pSurf.x, pSurf.y, imgPos.x, imgPos.y);
+          drawingContext.setLineDash([]);
+        }
+
+        if (showNorm) {
+          stroke(180); strokeWeight(1); drawingContext.setLineDash([2, 2]);
+          line(pSurf.x, waterY-40, pSurf.x, waterY+40);
+          drawingContext.setLineDash([]);
+        }
+      });
+
+      if (showImg) {
+        // Draw Ghost Fish
+        push();
+        translate(imgPos.x, imgPos.y);
+        // Breathing effect
+        let s = 1 + sin(animTime*3)*0.05;
+        scale(s);
+        drawFishShape(0, 0, false);
+        pop();
+        fill(52, 152, 219); noStroke();
+        text("虚像 (变浅)", imgPos.x + 35, imgPos.y);
+      }
+    }
+
+    // --- Scene 2: Magnifying Glass (Lens) ---
+    function drawLensScene() {
+      const showRays = checkRays.checked;
+      const showExt = checkExtensions.checked;
+      const showImg = checkImage.checked;
+      
+      const f = parseFloat(sliderF.value);
+      const u = parseFloat(sliderU.value);
+      
+      // Draw Optical Axis
+      stroke(200); strokeWeight(1);
+      line(-width, 0, width, 0);
+
+      // Draw Lens
+      drawLens(f);
+
+      // Object (Arrow)
+      let objH = -50; 
+      let objX = -u;
+      drawObjectArrow(objX, objH, "物");
+
+      // Check condition
+      if (u >= f) {
+        fill(231, 76, 60); noStroke(); textAlign(CENTER);
+        text("⚠️ 当前物距 u > f，成实像（倒立），无法作为放大镜使用。", 0, -180);
+        text("请减小物距 u 或增大焦距 f", 0, -150);
+        return;
+      }
+
+      // 1. Calculate Virtual Image Position
+      // 1/v = 1/f - 1/u  => v = uf / (u-f)
+      let v = (u * f) / (u - f); 
+      let m = v / u; // Magnification (v is negative)
+      // Since our x-axis for object is negative (-u), and v comes out negative, 
+      // the image x coordinate is simply v (e.g. -150).
+      
+      let imgX = v; 
+      let imgHeight = objH * (v / -u); // Similar triangles ratio
+      let imgTip = createVector(imgX, imgHeight);
+
+      // 2. Draw Eye (Fixed position for clarity)
+      let eyePos = lensEyePos; // (350, 0)
+      drawEye(eyePos.x, eyePos.y, PI); // Looking left
+
+      // 3. KEY: Ray Tracing Logic "Into the Eye"
+      // We want to show rays that ENTER the eye.
+      // These rays *physically* come from the lens, but *appear* to come from the Virtual Image.
+      // So we trace: Eye -> Virtual Image -> Intersection with Lens -> Object.
+
+      // Define pupil range (top, center, bottom)
+      let pupilPoints = [
+        createVector(eyePos.x, eyePos.y - 15),
+        createVector(eyePos.x, eyePos.y),
+        createVector(eyePos.x, eyePos.y + 15)
+      ];
+
+      pupilPoints.forEach(pEye => {
+        // A. Find intersection point on Lens (x=0)
+        // Line equation from pEye to imgTip
+        // t = (0 - pEye.x) / (imgTip.x - pEye.x)
+        let t = -pEye.x / (imgTip.x - pEye.x);
+        let pLens = p5.Vector.add(pEye, p5.Vector.mult(p5.Vector.sub(imgTip, pEye), t));
+
+        // Limit rays to lens physical size
+        if (Math.abs(pLens.y) < 110) {
+          
+          if (showRays) {
+            // Path 1: Object Tip -> Lens Point (Real Ray)
+            stroke(241, 196, 15); strokeWeight(2);
+            line(objX, objH, pLens.x, pLens.y);
+            drawArrow(createVector(objX, objH), pLens, 0.5);
+
+            // Path 2: Lens Point -> Eye (Real Ray Refracted)
+            line(pLens.x, pLens.y, pEye.x, pEye.y);
+            drawArrow(pLens, pEye, 0.7);
+          }
+
+          if (showExt) {
+            // Extension: Lens Point -> Virtual Image (Dashed)
+            stroke(52, 152, 219); strokeWeight(1);
+            drawingContext.setLineDash([5, 5]);
+            line(pLens.x, pLens.y, imgTip.x, imgTip.y);
+            drawingContext.setLineDash([]);
+          }
+        }
+      });
+
+      // 4. Draw Virtual Image (Ghost Arrow)
+      if (showImg) {
+        push();
+        // Add "breathing" animation to emphasize it's a virtual projection
+        let pulse = 1 + sin(animTime * 4) * 0.02;
+        translate(imgX, 0);
+        scale(pulse);
+        
+        stroke(52, 152, 219); strokeWeight(3);
+        drawingContext.setLineDash([8, 6]);
+        line(0, 0, 0, imgHeight);
+        // Arrow Head
+        line(0, imgHeight, -10, imgHeight+10);
+        line(0, imgHeight, 10, imgHeight+10);
+        drawingContext.setLineDash([]);
+        
+        fill(52, 152, 219); noStroke(); textAlign(CENTER);
+        text("正立放大虚像", 0, imgHeight - 20);
+        pop();
+      }
+    }
+
+    // --- Components ---
+
+    function drawLens(f) {
+      stroke(100); strokeWeight(2);
+      line(0, -120, 0, 120);
+      // Convex symbols
+      line(0, -120, -10, -110); line(0, -120, 10, -110);
+      line(0, 120, -10, 110); line(0, 120, 10, 110);
+      
+      fill(0); noStroke();
+      circle(-f, 0, 4); text("F", -f, 20);
+      circle(f, 0, 4); text("F'", f, 20);
+    }
+
+    function drawObjectArrow(x, y, label) {
+      stroke(231, 76, 60); strokeWeight(3);
+      line(x, 0, x, y);
+      line(x, y, x-6, y+6);
+      line(x, y, x+6, y+6);
+      noStroke(); fill(231, 76, 60); textAlign(CENTER);
+      text(label, x, 25);
+    }
+
+    function drawDragHandle(x, y, label) {
+      // Hover effect
+      let d = dist(mouseX - width/2, mouseY - height/2, x, y);
+      let isHover = d < 15;
+      
+      if(isHover) cursor('grab');
+      else cursor('default');
+
+      if(isHover) {
+        fill(255, 200, 200);
+        circle(x, y, 30);
+      }
+
+      fill(231, 76, 60); noStroke();
+      circle(x, y, 20);
+      fill(255); textAlign(CENTER, CENTER);
+      textSize(12); text("物", x, y);
+      
+      fill(50); textSize(16);
+      text(label, x, y + 35);
+    }
+
+    function drawVirtualImageIndicator(x, y, r) {
+      // Animated glow ring
+      noFill(); stroke(52, 152, 219, 100);
+      let ringSize = r + sin(animTime * 5) * 5;
+      circle(x, y, ringSize);
+      
+      fill(52, 152, 219, 150); noStroke();
+      circle(x, y, r);
+    }
+
+    function drawFishShape(x, y, isReal) {
+      push();
+      translate(x, y);
+      if(!isReal) {
+        // ERROR WAS HERE: drawingContext.setGlobalAlpha(0.6);
+        drawingContext.globalAlpha = 0.6; // FIXED
+      }
+      fill(isReal ? '#e74c3c' : '#3498db'); noStroke();
+      ellipse(0, 0, 40, 20);
+      triangle(-15, 0, -30, -10, -30, 10);
+      fill(255); circle(10, -3, 5);
+      fill(0); circle(11, -3, 2);
+      pop();
+    }
+
+    function drawEye(x, y, angle) {
+      push();
+      translate(x, y);
+      rotate(angle);
+      scale(0.8);
+      
+      // Sclera
+      fill(255); stroke(50); strokeWeight(2);
+      beginShape();
+      vertex(-30, 0);
+      bezierVertex(-15, -22, 15, -22, 30, 0);
+      bezierVertex(15, 22, -15, 22, -30, 0);
+      endShape();
+      
+      // Pupil (looking at center)
+      fill(50); noStroke();
+      circle(0, 0, 14);
+      fill(255);
+      circle(-4, -4, 4);
+      
+      pop();
+    }
+
+    function drawArrow(p1, p2, ratio) {
+      push();
+      let v = p5.Vector.sub(p2, p1);
+      let pos = p5.Vector.add(p1, p5.Vector.mult(v, ratio));
+      translate(pos.x, pos.y);
+      rotate(v.heading());
+      fill(241, 196, 15); noStroke();
+      triangle(0, 0, -10, 4, -10, -4);
+      pop();
+    }
+
+    function switchScene(idx) {
+      currentScene = idx;
+      
+      // UI Update
+      document.querySelectorAll('.scene-btn').forEach((btn, i) => {
+        if(i === idx) btn.classList.add('active');
+        else btn.classList.remove('active');
+      });
+
+      document.getElementById('controls-mirror').style.display = idx === 0 ? 'block' : 'none';
+      document.getElementById('controls-refraction').style.display = idx === 1 ? 'block' : 'none';
+      document.getElementById('controls-lens').style.display = idx === 2 ? 'block' : 'none';
+
+      const desc = document.getElementById('scene-desc');
+      if(idx === 0) desc.innerText = "平面镜成像：观察光线如何反射进入眼睛，大脑逆向追溯形成虚像。";
+      if(idx === 1) desc.innerText = "折射成像（视深）：光从水进入空气折射进入人眼，大脑反向直线追溯，觉得鱼变浅了。";
+      if(idx === 2) desc.innerText = "放大镜原理：物体在焦点内，发散光线经透镜折射后进入眼睛，大脑反向延长得到正立放大的像。";
+      
+      // Reset interaction states
+      dragging = false;
+    }
+
+    function mouseDragged() { dragging = true; }
+    function mouseReleased() { dragging = false; }
+
+  </script>
+</body>
+</html>

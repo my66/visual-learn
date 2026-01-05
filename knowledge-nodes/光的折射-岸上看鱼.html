@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>光的折射：岸上看鱼 (Apparent Depth)</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #f0f2f5;
+            font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            overflow-y: auto; /* 允许垂直滚动 */
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 顶部标题栏 */
+        header {
+            background-color: #ffffff;
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            z-index: 10;
+            flex-shrink: 0;
+        }
+
+        h1 {
+            margin: 0;
+            color: #1a73e8;
+            font-size: 1.5rem;
+        }
+
+        p.subtitle {
+            margin: 0.5rem 0 0;
+            color: #5f6368;
+            font-size: 0.9rem;
+        }
+
+        /* 主布局容器 */
+        #main-container {
+            display: flex;
+            flex-direction: row;
+            flex: 1;
+            overflow: hidden; /* 内部滚动 */
+            height: calc(100vh - 80px); /* 减去头部高度 */
+        }
+
+        /* 左侧控制面板 */
+        #controls {
+            width: 320px;
+            background-color: #ffffff;
+            padding: 20px;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+            overflow-y: auto;
+            flex-shrink: 0;
+            border-right: 1px solid #e0e0e0;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .control-group {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+
+        .control-group h3 {
+            margin: 0 0 10px 0;
+            font-size: 1rem;
+            color: #202124;
+            border-bottom: 2px solid #1a73e8;
+            padding-bottom: 5px;
+            display: inline-block;
+        }
+
+        .control-item {
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .control-item label {
+            font-size: 0.9rem;
+            color: #3c4043;
+            user-select: none;
+        }
+
+        /* 自定义滑块 */
+        input[type=range] {
+            width: 120px;
+            accent-color: #1a73e8;
+        }
+
+        /* 自定义复选框 */
+        input[type=checkbox] {
+            transform: scale(1.2);
+            accent-color: #1a73e8;
+            cursor: pointer;
+        }
+
+        /* 状态显示区 */
+        #status-display {
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            background: #202124;
+            color: #4caf50;
+            padding: 10px;
+            border-radius: 4px;
+            line-height: 1.4;
+        }
+
+        /* 右侧画布容器 */
+        #canvas-container {
+            flex: 1;
+            position: relative;
+            background-color: #ffffff;
+            overflow: hidden;
+            cursor: crosshair;
+        }
+        
+        /* 提示浮层 */
+        .overlay-hint {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px 15px;
+            border-radius: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            pointer-events: none;
+            font-size: 0.9rem;
+            color: #1a73e8;
+            font-weight: bold;
+        }
+
+        /* 针对小屏幕的简单适配 */
+        @media (max-width: 800px) {
+            #main-container {
+                flex-direction: column;
+                overflow-y: auto;
+            }
+            #controls {
+                width: 100%;
+                border-right: none;
+                border-bottom: 1px solid #e0e0e0;
+            }
+            #canvas-container {
+                height: 500px; /* 移动端固定高度 */
+            }
+        }
+    </style>
+    <!-- 引入 p5.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+</head>
+<body>
+
+<header>
+    <h1>光的折射：岸上看鱼 (Apparent Depth)</h1>
+    <p class="subtitle">互动演示：光从水中射入空气发生折射，导致鱼看起来变浅（视深现象）</p>
+</header>
+
+<div id="main-container">
+    <div id="controls">
+        <div class="control-group">
+            <h3>原理解析</h3>
+            <p style="font-size: 0.85rem; color: #555; line-height: 1.5;">
+                如图所示，光线从水（光密介质）射向空气（光疏介质）。<br><br>
+                1. <b>折射规律</b>：折射角 &gt; 入射角（远离法线）。<br>
+                2. <b>成像原理</b>：人眼逆着折射光线看去，光线的反向延长线交汇点即为<b>虚像 B</b>。<br>
+                3. <b>结果</b>：看到的鱼 B 比实际的鱼 A 位置更浅。
+            </p>
+        </div>
+
+        <div class="control-group">
+            <h3>显示设置</h3>
+            <div class="control-item">
+                <label for="toggle-normal">显示法线 (Normal)</label>
+                <input type="checkbox" id="toggle-normal" checked>
+            </div>
+            <div class="control-item">
+                <label for="toggle-angles">显示角度 (Angles)</label>
+                <input type="checkbox" id="toggle-angles" checked>
+            </div>
+            <div class="control-item">
+                <label for="toggle-virtual">显示虚像与视深 (Virtual Image)</label>
+                <input type="checkbox" id="toggle-virtual" checked>
+            </div>
+            <div class="control-item">
+                <label for="toggle-rays">显示辅助光束 (Ray Beam)</label>
+                <input type="checkbox" id="toggle-rays">
+            </div>
+        </div>
+
+        <div class="control-group">
+            <h3>环境参数</h3>
+            <div class="control-item">
+                <label>水的折射率 (n): <span id="val-n">1.33</span></label>
+                <input type="range" id="slider-n" min="1.0" max="2.0" step="0.01" value="1.33">
+            </div>
+        </div>
+
+        <div id="status-display">
+            等待操作...
+        </div>
+        
+        <div style="margin-top: auto; font-size: 0.8rem; color: #999;">
+            操作提示：直接拖动画面中的“鱼”或“眼睛”改变位置。
+        </div>
+    </div>
+
+    <div id="canvas-container">
+        <div class="overlay-hint">💡 试一试：拖动水中的鱼或空中的眼睛</div>
+    </div>
+</div>
+
+<script>
+/**
+ * 视深现象互动仿真
+ * 引擎：p5.js (无物理引擎，纯几何计算)
+ * 核心算法：使用二分法/牛顿迭代求解费马原理（寻找光程极值点/满足斯涅尔定律的入射点）
+ */
+
+// 全局变量
+let fishPos, eyePos;
+let waterLevel; // 水面 Y 坐标
+let draggingFish = false;
+let draggingEye = false;
+
+// 物理常量
+let nAir = 1.00;
+let nWater = 1.33;
+
+// UI 状态
+let showNormal = true;
+let showAngles = true;
+let showVirtual = true;
+let showRays = false; // 是否显示一束光（而不只是一条线）
+
+// 鱼和眼睛的图标绘制参数
+const fishSize = 40;
+const eyeSize = 30;
+
+function setup() {
+    // 创建画布并放入容器
+    let container = document.getElementById('canvas-container');
+    let w = container.offsetWidth;
+    let h = container.offsetHeight;
+    let canvas = createCanvas(w, h);
+    canvas.parent('canvas-container');
+    
+    // 初始化位置
+    waterLevel = height * 0.45; // 水面位置
+    fishPos = createVector(width * 0.3, height * 0.75); // 初始鱼在左下
+    eyePos = createVector(width * 0.7, height * 0.2);  // 初始眼在右上
+
+    // 绑定 UI 事件
+    select('#slider-n').input(e => {
+        nWater = parseFloat(e.target.value);
+        select('#val-n').html(nWater.toFixed(2));
+    });
+    
+    select('#toggle-normal').changed(e => showNormal = e.target.checked);
+    select('#toggle-angles').changed(e => showAngles = e.target.checked);
+    select('#toggle-virtual').changed(e => showVirtual = e.target.checked);
+    select('#toggle-rays').changed(e => showRays = e.target.checked);
+}
+
+function windowResized() {
+    let container = document.getElementById('canvas-container');
+    resizeCanvas(container.offsetWidth, container.offsetHeight);
+    waterLevel = height * 0.45;
+    // 限制鱼和眼不跑出屏幕
+    clampPositions();
+}
+
+function draw() {
+    background(255);
+    
+    // 1. 绘制环境 (水和空气)
+    drawEnvironment();
+
+    // 2. 计算光路交点 (界面上的折射点)
+    // 问题：已知点 A(鱼) 和 B(眼)，求界面上的点 P(x, waterLevel)，使得满足斯涅尔定律。
+    // 这是一个求根问题。函数 f(x) = n1 * sin(theta1) - n2 * sin(theta2) = 0
+    let incidenceX = solveSnell(fishPos, eyePos, waterLevel, nWater, nAir);
+    let incidencePoint = createVector(incidenceX, waterLevel);
+
+    // 3. 计算虚像位置 (Image B)
+    // 虚像是折射光线反向延长线与 鱼所在的垂直线的交点 (简化模型) 
+    // 或者更准确地：由微小光束反向延长交汇点。
+    // 在单眼观察模型中，通常认为虚像在折射光线的反向延长线上，且与物体在同一垂直线上（这是旁轴近似下的结果）。
+    // 但为了更严谨的几何作图，展示“视深”，我们取折射光线的反向延长线，与“鱼的垂直线”的交点作为虚像位置。
+    // (实际上，双眼视觉会有视差，但在2D示意图中，教科书通常定义为：h' = h / n)
+    
+    // 计算折射光线（界面->眼）的方向向量
+    let rayDir = p5.Vector.sub(eyePos, incidencePoint).normalize();
+    
+    // 计算虚像坐标
+    // 虚像 X 坐标近似等于 实物 X 坐标 (垂直入射时)，但在斜射时，像会发生侧移。
+    // 为了符合教科书图示 (通常只画深度变化，忽略侧移，或者画出侧移)，我们用反向延长线法。
+    // 虚像点 V 满足： V 在直线 (incidencePoint + t * rayDir) 上。
+    // 且 V.x = fishPos.x (这是近似，实际上会有侧移，教科书图 C 中 鱼B 和 鱼A 在同一垂直线上吗？
+    // 仔细看题目图，B 略微偏左。
+    // 正确的物理做法：虚像位置取决于观察角度。
+    // 我们用反向延长线与 x = fishPos.x 的交点作为“视位置”。
+    
+    // 修正：实际上，人眼看到的虚像是由进入瞳孔的微小光束决定的。
+    // 对单条光线而言，虚像就在反向延长线上任何地方。
+    // 但为了确定深度，我们通常求两条微小光线的交点，或者简单地求反向延长线与 x=fishX 的交点。
+    // 为了演示效果最佳，我们计算反向延长线与 x=fishX 的交点。
+    
+    let slope = (eyePos.y - incidencePoint.y) / (eyePos.x - incidencePoint.x);
+    // 直线方程: y - y0 = k(x - x0)  =>  y = k(x - x0) + y0
+    // 令 x = fishPos.x
+    let virtualY = slope * (fishPos.x - incidencePoint.x) + incidencePoint.y;
+    let virtualPos = createVector(fishPos.x, virtualY); 
+    
+    // 如果眼和鱼在同一侧（不可能，已被限制），或者垂直（slope无穷大），做特殊处理
+    if (Math.abs(fishPos.x - eyePos.x) < 1) {
+        // 垂直观看
+        // 视深 h' = h / n
+        let realDepth = Math.abs(fishPos.y - waterLevel);
+        let apparentDepth = realDepth / (nWater / nAir);
+        virtualPos = createVector(fishPos.x, waterLevel + apparentDepth);
+    }
+
+    // 4. 绘制光路
+    drawLightPath(fishPos, incidencePoint, eyePos, virtualPos);
+
+    // 5. 绘制物体 (鱼和眼)
+    drawFish(fishPos, 'A', false); // 实物 A
+    if (showVirtual) {
+        drawFish(virtualPos, 'B', true);  // 虚像 B
+    }
+    drawEye(eyePos);
+
+    // 6. 更新数据面板
+    updateStatus(fishPos, incidencePoint, eyePos, virtualPos);
+
+    // 7. 处理交互逻辑
+    handleDrag();
+}
+
+/**
+ * 绘制环境背景
+ */
+function drawEnvironment() {
+    noStroke();
+    
+    // 空气
+    fill(250, 250, 255);
+    rect(0, 0, width, waterLevel);
+    
+    // 水
+    // 使用渐变效果会更好，但 p5 默认不支持简便的渐变，用纯色即可
+    fill(220, 240, 255);
+    rect(0, waterLevel, width, height - waterLevel);
+
+    // 分界线
+    stroke(0, 100, 200);
+    strokeWeight(2);
+    line(0, waterLevel, width, waterLevel);
+
+    // 文字标签
+    noStroke();
+    fill(100, 100, 100);
+    textSize(16);
+    textAlign(LEFT, BOTTOM);
+    text("空气 (Air) n≈1.0", 20, waterLevel - 10);
+    fill(0, 100, 180);
+    textAlign(LEFT, TOP);
+    text(`水 (Water) n=${nWater}`, 20, waterLevel + 10);
+}
+
+/**
+ * 绘制光路
+ */
+function drawLightPath(pFish, pIncidence, pEye, pVirtual) {
+    // 1. 入射光线 (鱼 -> 界面)
+    stroke(255, 100, 0); // 橙色光线
+    strokeWeight(3);
+    line(pFish.x, pFish.y, pIncidence.x, pIncidence.y);
+    drawArrow(pFish, pIncidence, 0.6); // 箭头
+
+    // 2. 折射光线 (界面 -> 眼)
+    stroke(255, 100, 0);
+    line(pIncidence.x, pIncidence.y, pEye.x, pEye.y);
+    drawArrow(pIncidence, pEye, 0.5);
+
+    // 3. 辅助光束（可选，增强视觉效果）
+    if (showRays) {
+        stroke(255, 150, 0, 50);
+        strokeWeight(10);
+        line(pFish.x, pFish.y, pIncidence.x, pIncidence.y);
+        line(pIncidence.x, pIncidence.y, pEye.x, pEye.y);
+    }
+
+    // 4. 虚像反向延长线
+    if (showVirtual) {
+        stroke(100, 100, 100);
+        strokeWeight(1);
+        drawingContext.setLineDash([5, 5]); // 虚线
+        line(pVirtual.x, pVirtual.y, pIncidence.x, pIncidence.y);
+        
+        // 绘制垂直辅助线 (显示深度)
+        stroke(0, 0, 0, 50);
+        line(pFish.x, pFish.y, pFish.x, waterLevel);
+        
+        // 标注深度 h 和 h'
+        noStroke();
+        fill(0);
+        drawingContext.setLineDash([]);
+        textSize(12);
+        textAlign(RIGHT, CENTER);
+        
+        // 真实深度
+        text("H (实深)", pFish.x - 5, (pFish.y + waterLevel)/2);
+        // 视深
+        text("h' (视深)", pVirtual.x - 5, (pVirtual.y + waterLevel)/2);
+    }
+    drawingContext.setLineDash([]); // 恢复实线
+
+    // 5. 法线
+    if (showNormal) {
+        stroke(80);
+        strokeWeight(1);
+        drawingContext.setLineDash([2, 4]);
+        line(pIncidence.x, pIncidence.y - 100, pIncidence.x, pIncidence.y + 100);
+        drawingContext.setLineDash([]);
+    }
+
+    // 6. 角度标注
+    if (showAngles) {
+        drawAngle(pIncidence, -PI/2, Math.atan2(pFish.y - pIncidence.y, pFish.x - pIncidence.x), "i", color(200, 0, 0)); // 入射角
+        drawAngle(pIncidence, -PI/2, Math.atan2(pEye.y - pIncidence.y, pEye.x - pIncidence.x), "r", color(0, 150, 0)); // 折射角
+    }
+}
+
+/**
+ * 求解斯涅尔定律的入射点 X 坐标
+ * 使用二分法逼近
+ * y1 > 0 (水中), y2 < 0 (空气中), 界面 y=0
+ */
+function solveSnell(pos1, pos2, boundaryY, n1, n2) {
+    // 坐标变换：以界面上的点为原点
+    // 设入射点 x 在 pos1.x 和 pos2.x 之间
+    let x1 = Math.min(pos1.x, pos2.x);
+    let x2 = Math.max(pos1.x, pos2.x);
+    let y1 = Math.abs(pos1.y - boundaryY); // 深度
+    let y2 = Math.abs(pos2.y - boundaryY); // 高度
+    
+    // 如果两点垂直对齐，直接返回 x
+    if (Math.abs(pos1.x - pos2.x) < 0.1) return pos1.x;
+
+    // 目标函数： n1 * sin(theta1) - n2 * sin(theta2) = 0
+    // sin(theta) = opposite / hypotenuse
+    // 对于点 P(x)，theta1 是与法线的夹角 => sin(theta1) = (x - x_fish) / dist1
+    // 注意方向。这里我们简化模型，求解时间极值点导数为0，或者直接用 Snell。
+    // 设 x 为变量，x 从 fishX 到 eyeX。
+    // sin1 = (x - x_fish_real) / sqrt(...)
+    // sin2 = (x_eye_real - x) / sqrt(...)
+    
+    // 确保 x_left 是鱼一侧的 x，x_right 是眼一侧的 x，方便计算
+    let fishLeft = pos1.x < pos2.x;
+    let start = fishLeft ? pos1.x : pos2.x;
+    let end = fishLeft ? pos2.x : pos1.x;
+    
+    // 迭代 20 次足够精确
+    for (let i = 0; i < 20; i++) {
+        let mid = (start + end) / 2;
+        
+        let d1 = Math.sqrt(Math.pow(mid - pos1.x, 2) + Math.pow(y1, 2));
+        let sin1 = Math.abs(mid - pos1.x) / d1;
+        
+        let d2 = Math.sqrt(Math.pow(mid - pos2.x, 2) + Math.pow(y2, 2));
+        let sin2 = Math.abs(mid - pos2.x) / d2;
+        
+        let val = n1 * sin1 - n2 * sin2;
+        
+        // 这里的 val 符号取决于 mid 偏向哪边。
+        // 如果 mid 靠近 pos1，则 sin1 小，sin2 大，n1*sin1 - n2*sin2 < 0 (假设 n1 n2 差不多)
+        // 我们需要找到零点。
+        
+        if (val < 0) {
+            // 需要增大 sin1，即 mid 远离 pos1
+            if (fishLeft) start = mid; else end = mid;
+        } else {
+            if (fishLeft) end = mid; else start = mid;
+        }
+    }
+    return (start + end) / 2;
+}
+
+/**
+ * 绘制角度弧线和标签
+ */
+function drawAngle(center, baseAngle, targetAngle, label, col) {
+    noFill();
+    stroke(col);
+    strokeWeight(2);
+    let r = 40;
+    
+    // 确保角度在正确的象限
+    // baseAngle 是法线方向 (-PI/2 指向上，PI/2 指向下)
+    // 我们的入射点在界面，法线是垂直的。
+    // 入射角：光线与法线(向下)夹角？不，入射角是入射光线与法线夹角。
+    // 简单的画法：计算两个角度，画中间的弧。
+    
+    // 既然 p5 arc 比较麻烦处理顺逆时针，我们用简单的插值画线
+    beginShape();
+    // 法线方向
+    let normalDir = (center.y < fishPos.y) ? PI/2 : -PI/2; 
+    // 这里法线是固定的：垂直线。
+    // 区分上下：
+    // 如果是入射角（在水中），法线是垂直向上还是向下？通常定义法线是垂直界面的线。
+    // 入射光线来自下方，所以入射角是光线与垂直线的夹角。
+    
+    let angle1 = PI/2; // 下法线
+    let angle2 = targetAngle; // 光线角度
+    
+    // 如果是空气侧（上方）
+    if (targetAngle < 0) {
+        angle1 = -PI/2; // 上法线
+    }
+
+    // 绘制弧线
+    let startA = Math.min(angle1, angle2);
+    let endA = Math.max(angle1, angle2);
+    arc(center.x, center.y, r, r, startA, endA);
+    
+    // 文字
+    noStroke();
+    fill(col);
+    textSize(14);
+    let midA = (startA + endA) / 2;
+    text(label, center.x + (r + 15) * cos(midA), center.y + (r + 15) * sin(midA));
+}
+
+function drawFish(pos, label, isVirtual) {
+    push();
+    translate(pos.x, pos.y);
+    if (isVirtual) {
+        tint(255, 128); // 半透明
+    }
+    
+    // 绘制简单的鱼
+    noStroke();
+    if (isVirtual) fill(100, 100, 100);
+    else fill(255, 100, 100); // 红色实体鱼
+    
+    // 鱼身
+    ellipse(0, 0, fishSize, fishSize * 0.6);
+    // 鱼尾
+    triangle(-fishSize/2, 0, -fishSize*0.8, -10, -fishSize*0.8, 10);
+    
+    // 标签 A 或 B
+    fill(0);
+    textAlign(CENTER, CENTER);
+    textStyle(BOLD);
+    text(label, 10, -15);
+    
+    // 鱼眼
+    fill(255);
+    circle(fishSize/4, -5, 5);
+    fill(0);
+    circle(fishSize/4, -5, 2);
+    
+    pop();
+}
+
+function drawEye(pos) {
+    push();
+    translate(pos.x, pos.y);
+    
+    // 绘制眼睛图标
+    stroke(0);
+    strokeWeight(2);
+    fill(255);
+    // 眼球轮廓
+    beginShape();
+    vertex(-eyeSize/2, 0);
+    bezierVertex(-eyeSize/4, -eyeSize/2, eyeSize/4, -eyeSize/2, eyeSize/2, 0);
+    bezierVertex(eyeSize/4, eyeSize/2, -eyeSize/4, eyeSize/2, -eyeSize/2, 0);
+    endShape(CLOSE);
+    
+    // 瞳孔 (看向入射点方向，稍微动一下很有趣，这里简化居中)
+    fill(0);
+    circle(0, 0, eyeSize/3);
+    
+    noStroke();
+    fill(0);
+    textAlign(CENTER, TOP);
+    text("人眼", 0, eyeSize/2 + 5);
+    
+    pop();
+}
+
+function drawArrow(p1, p2, ratio) {
+    let x = lerp(p1.x, p2.x, ratio);
+    let y = lerp(p1.y, p2.y, ratio);
+    let angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+    
+    push();
+    translate(x, y);
+    rotate(angle);
+    fill(255, 100, 0);
+    noStroke();
+    triangle(-5, 3, -5, -3, 5, 0);
+    pop();
+}
+
+function updateStatus(pFish, pIncidence, pEye, pVirtual) {
+    let dy = Math.abs(pFish.y - waterLevel);
+    let dy_prime = Math.abs(pVirtual.y - waterLevel);
+    
+    // 计算入射角 i 和折射角 r
+    // 向量 vectorFishToSurface
+    let v1 = createVector(pFish.x - pIncidence.x, pFish.y - pIncidence.y); // 指向下方
+    let normalDown = createVector(0, 1);
+    let angleI = degrees(v1.angleBetween(normalDown)); 
+    
+    // 向量 vectorSurfaceToEye
+    let v2 = createVector(pEye.x - pIncidence.x, pEye.y - pIncidence.y); // 指向上方
+    let normalUp = createVector(0, -1);
+    let angleR = degrees(v2.angleBetween(normalUp));
+
+    let html = `
+        <span style="color:#d32f2f">实深 (H): ${dy.toFixed(0)} px</span><br>
+        <span style="color:#757575">视深 (h'): ${dy_prime.toFixed(0)} px</span><br>
+        -----------------<br>
+        入射角 i: ${Math.abs(angleI).toFixed(1)}°<br>
+        折射角 r: ${Math.abs(angleR).toFixed(1)}°<br>
+        <br>
+        <b>结论:</b> 视深 < 实深<br>
+        (鱼看起来变浅了)
+    `;
+    select('#status-display').html(html);
+}
+
+/**
+ * 交互逻辑：拖动检测
+ */
+function mousePressed() {
+    // 检测是否点击了鱼
+    if (dist(mouseX, mouseY, fishPos.x, fishPos.y) < fishSize) {
+        draggingFish = true;
+        return;
+    }
+    // 检测是否点击了眼
+    if (dist(mouseX, mouseY, eyePos.x, eyePos.y) < eyeSize) {
+        draggingEye = true;
+        return;
+    }
+}
+
+function mouseReleased() {
+    draggingFish = false;
+    draggingEye = false;
+}
+
+function handleDrag() {
+    if (draggingFish) {
+        fishPos.x = constrain(mouseX, 50, width - 50);
+        fishPos.y = constrain(mouseY, waterLevel + 20, height - 20); // 必须在水中
+        cursor('grabbing');
+    } else if (draggingEye) {
+        eyePos.x = constrain(mouseX, 50, width - 50);
+        eyePos.y = constrain(mouseY, 20, waterLevel - 20); // 必须在空气中
+        cursor('grabbing');
+    } else {
+        // 鼠标悬停检测改变光标
+        if (dist(mouseX, mouseY, fishPos.x, fishPos.y) < fishSize || 
+            dist(mouseX, mouseY, eyePos.x, eyePos.y) < eyeSize) {
+            cursor('grab');
+        } else {
+            cursor('default');
+        }
+    }
+}
+
+function clampPositions() {
+    fishPos.x = constrain(fishPos.x, 50, width - 50);
+    fishPos.y = constrain(fishPos.y, waterLevel + 20, height - 20);
+    eyePos.x = constrain(eyePos.x, 50, width - 50);
+    eyePos.y = constrain(eyePos.y, 20, waterLevel - 20);
+}
+</script>
+
+</body>
+</html>

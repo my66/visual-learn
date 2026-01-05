@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>面镜光学性质互动演示 - 第8题 (最终完美修复版)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        canvas { touch-action: none; cursor: crosshair; }
+        .control-group { background: #f3f4f6; padding: 12px; border-radius: 8px; margin-bottom: 12px; }
+        .label-text { font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 6px; display: block; }
+        .interactive-highlight { border: 2px solid #3b82f6; background-color: #eff6ff; }
+        input[type=range] { width: 100%; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 h-screen flex flex-col">
+
+    <!-- 顶部：题目描述 -->
+    <header class="bg-white shadow-sm p-4 z-10">
+        <div class="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center">
+            <div>
+                <h1 class="text-xl font-bold text-blue-700">第8题：面镜的光学性质互动演示</h1>
+                <p class="text-sm text-gray-600 mt-1">
+                    原题：下列关于平面镜、凸面镜和凹面镜的说法正确的是？<br>
+                    核心考察：反射定律(B)、视野扩大原理(C)、车灯原理(D)。
+                </p>
+            </div>
+            <div class="mt-2 md:mt-0 text-sm bg-yellow-50 text-yellow-800 px-3 py-1 rounded border border-yellow-200">
+                提示：拖动画面中的<span class="font-bold">蓝色手柄</span>来改变光线或位置
+            </div>
+        </div>
+    </header>
+
+    <!-- 主体内容 -->
+    <main class="flex-1 flex flex-col md:flex-row overflow-hidden max-w-6xl mx-auto w-full">
+        
+        <!-- 左侧：控制面板 -->
+        <aside class="w-full md:w-80 bg-white border-r border-gray-200 p-4 overflow-y-auto">
+            
+            <!-- 镜面选择 -->
+            <div class="control-group interactive-highlight">
+                <span class="label-text">1. 选择镜面类型</span>
+                <div class="flex gap-2">
+                    <button onclick="setMirrorType('plane')" id="btn-plane" class="flex-1 py-2 px-2 bg-blue-600 text-white rounded text-sm transition hover:bg-blue-700">平面镜</button>
+                    <button onclick="setMirrorType('convex')" id="btn-convex" class="flex-1 py-2 px-2 bg-gray-200 text-gray-700 rounded text-sm transition hover:bg-gray-300">凸面镜</button>
+                    <button onclick="setMirrorType('concave')" id="btn-concave" class="flex-1 py-2 px-2 bg-gray-200 text-gray-700 rounded text-sm transition hover:bg-gray-300">凹面镜</button>
+                </div>
+                <p id="mirror-desc" class="text-xs text-gray-500 mt-2">平面镜：反射面平直。</p>
+            </div>
+
+            <!-- 实验模式 -->
+            <div class="control-group">
+                <span class="label-text">2. 选择实验模式</span>
+                <select id="mode-select" onchange="setMode(this.value)" class="w-full p-2 border rounded bg-white">
+                    <option value="reflection">模式A：验证反射定律 (选项B)</option>
+                    <option value="fov">模式B：视野范围对比 (选项C)</option>
+                    <option value="headlight">模式C：车灯/平行光 (选项D)</option>
+                </select>
+                <div id="mode-desc" class="text-xs text-blue-600 mt-2 p-2 bg-blue-50 rounded">
+                    拖动光源，观察单根光线的反射情况。
+                </div>
+            </div>
+
+            <!-- 可视化开关 -->
+            <div class="control-group">
+                <span class="label-text">3. 辅助显示开关</span>
+                <div class="space-y-2">
+                    <label class="flex items-center space-x-2 cursor-pointer">
+                        <input type="checkbox" id="check-normal" checked onchange="updateVisibility()" class="rounded text-blue-600">
+                        <span class="text-sm">显示法线 (Normal)</span>
+                    </label>
+                    <label class="flex items-center space-x-2 cursor-pointer">
+                        <input type="checkbox" id="check-angles" checked onchange="updateVisibility()" class="rounded text-blue-600">
+                        <span class="text-sm">显示角度数值 (i = r)</span>
+                    </label>
+                    <label class="flex items-center space-x-2 cursor-pointer">
+                        <input type="checkbox" id="check-extensions" onchange="updateVisibility()" class="rounded text-blue-600">
+                        <span class="text-sm">显示反向延长线 / 虚像</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- 参数调整 -->
+            <div class="control-group" id="curvature-control">
+                <span class="label-text">曲率半径 / 弯曲程度</span>
+                <input type="range" id="curvature-slider" min="160" max="800" value="300" oninput="updateCurvature(this.value)">
+                <div class="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>更弯 (半径小)</span>
+                    <span>更平 (半径大)</span>
+                </div>
+            </div>
+
+            <!-- 结论与解析 -->
+            <div class="mt-4 p-3 bg-green-50 border border-green-200 rounded text-sm text-green-800">
+                <strong>当前结论：</strong>
+                <p id="conclusion-text">所有镜面反射都遵循光的反射定律：入射角等于反射角。</p>
+            </div>
+
+        </aside>
+
+        <!-- 右侧：可视化画布 -->
+        <div class="flex-1 relative bg-gray-100 flex items-center justify-center p-4">
+            <canvas id="opticalCanvas" width="800" height="600" class="bg-white shadow-lg rounded max-w-full max-h-full"></canvas>
+            
+            <!-- 浮动标签 -->
+            <div class="absolute bottom-6 right-6 bg-white/90 p-2 rounded shadow text-xs pointer-events-none text-gray-500">
+                x: <span id="debug-x">0</span>, y: <span id="debug-y">0</span>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // --- 核心变量 ---
+        const canvas = document.getElementById('opticalCanvas');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+        
+        // 状态变量
+        let currentMirror = 'plane'; // plane, convex, concave
+        let currentMode = 'reflection'; // reflection, fov, headlight
+        let mirrorRadius = 300; // 曲率半径
+        
+        // 交互点
+        const source = { x: 100, y: 300, isDragging: false }; // 光源位置
+        const observer = { x: 100, y: 300, isDragging: false }; // 观察者位置 (FOV模式)
+        
+        // 辅助开关
+        let showNormal = true;
+        let showAngles = true;
+        let showExtensions = false;
+
+        // 初始化
+        function init() {
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+            
+            // 鼠标/触摸事件
+            canvas.addEventListener('mousedown', handleStart);
+            canvas.addEventListener('mousemove', handleMove);
+            canvas.addEventListener('mouseup', handleEnd);
+            canvas.addEventListener('touchstart', handleStart, {passive: false});
+            canvas.addEventListener('touchmove', handleMove, {passive: false});
+            canvas.addEventListener('touchend', handleEnd);
+
+            // 初始位置
+            resetPositions();
+            requestAnimationFrame(draw);
+        }
+
+        function resizeCanvas() {
+            const container = canvas.parentElement;
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+            width = canvas.width;
+            height = canvas.height;
+            draw();
+        }
+
+        function resetPositions() {
+            source.x = width * 0.2;
+            source.y = height * 0.3;
+            observer.x = width * 0.2;
+            observer.y = height * 0.5;
+        }
+
+        // --- 交互逻辑 ---
+        function getPointerPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return {
+                x: clientX - rect.left,
+                y: clientY - rect.top
+            };
+        }
+
+        function handleStart(e) {
+            const pos = getPointerPos(e);
+            if (currentMode === 'reflection' || currentMode === 'headlight') {
+                if (dist(pos, source) < 30) source.isDragging = true;
+            } else if (currentMode === 'fov') {
+                if (dist(pos, observer) < 30) observer.isDragging = true;
+            }
+        }
+
+        function handleMove(e) {
+            const pos = getPointerPos(e);
+            
+            // 更新Debug坐标
+            document.getElementById('debug-x').innerText = Math.round(pos.x);
+            document.getElementById('debug-y').innerText = Math.round(pos.y);
+
+            if (source.isDragging) {
+                e.preventDefault();
+                source.x = Math.max(20, Math.min(width - 20, pos.x));
+                source.y = Math.max(20, Math.min(height - 20, pos.y));
+                if (source.x > width * 0.6) source.x = width * 0.6; 
+            }
+            if (observer.isDragging) {
+                e.preventDefault();
+                observer.x = Math.max(20, Math.min(width - 20, pos.x));
+                observer.y = Math.max(20, Math.min(height - 20, pos.y));
+                 if (observer.x > width * 0.6) observer.x = width * 0.6;
+            }
+            draw();
+        }
+
+        function handleEnd() {
+            source.isDragging = false;
+            observer.isDragging = false;
+        }
+
+        // --- 物理计算 ---
+        function dist(p1, p2) {
+            return Math.sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2);
+        }
+
+        // 获取镜面几何信息
+        function getMirrorParams() {
+            const mx = width * 0.7; // 镜子顶点/中心 X
+            const my = height / 2;  // 镜子中心 Y
+            const mh = height * 0.5; // 镜子高度
+            
+            // 基础属性
+            const base = { x: mx, y: my, h: mh };
+            
+            if (currentMirror === 'plane') {
+                return { type: 'plane', ...base, mx: mx, cx: null, cy: null };
+            } else if (currentMirror === 'convex') {
+                // 凸面镜：圆心在右
+                return { type: 'convex', ...base, mx: mx, cx: mx + mirrorRadius, cy: my, r: mirrorRadius };
+            } else if (currentMirror === 'concave') {
+                // 凹面镜：圆心在左
+                return { type: 'concave', ...base, mx: mx, cx: mx - mirrorRadius, cy: my, r: mirrorRadius };
+            }
+        }
+
+        // 射线与镜面求交 (鲁棒版)
+        function rayIntersect(rayStart, rayDir, mirror) {
+            if (mirror.type === 'plane') {
+                if (rayDir.x <= 0) return null; // 光往左跑
+                
+                const t = (mirror.x - rayStart.x) / rayDir.x;
+                const y = rayStart.y + t * rayDir.y;
+                
+                if (Math.abs(y - mirror.y) <= mirror.h / 2) {
+                    return { x: mirror.x, y: y, nx: -1, ny: 0, t: t };
+                }
+            } else {
+                // 圆方程: (x-cx)^2 + (y-cy)^2 = r^2
+                const L = { x: rayStart.x - mirror.cx, y: rayStart.y - mirror.cy };
+                const a = 1;
+                const b = 2 * (rayDir.x * L.x + rayDir.y * L.y);
+                const c = (L.x**2 + L.y**2) - mirror.r**2;
+                
+                const delta = b*b - 4*a*c;
+                if (delta < 0) return null;
+                
+                const t1 = (-b - Math.sqrt(delta)) / (2*a);
+                const t2 = (-b + Math.sqrt(delta)) / (2*a);
+                
+                const hits = [];
+                // 过滤掉反向的交点 (t < epsilon)
+                if (t1 > 0.1) hits.push({t: t1, x: rayStart.x + t1*rayDir.x, y: rayStart.y + t1*rayDir.y});
+                if (t2 > 0.1) hits.push({t: t2, x: rayStart.x + t2*rayDir.x, y: rayStart.y + t2*rayDir.y});
+                
+                hits.sort((a,b) => a.t - b.t);
+                
+                // 寻找有效的交点
+                let bestHit = null;
+                for (let hit of hits) {
+                    let validSide = false;
+                    
+                    if (mirror.type === 'convex') {
+                        // 凸面镜：圆心在右。镜面是圆的左弧。有效交点 x < cx
+                        if (hit.x < mirror.cx + 2) validSide = true;
+                    } else if (mirror.type === 'concave') {
+                        // 凹面镜：圆心在左。镜面是圆的右弧。有效交点 x > cx
+                        if (hit.x > mirror.cx - 2) validSide = true;
+                    }
+                    
+                    if (validSide) {
+                         // 高度限制 (近似)
+                         // 稍微放宽一点限制，确保边缘也能检测到
+                         if (Math.abs(hit.y - mirror.cy) <= mirror.h / 2 + 15) {
+                             bestHit = hit;
+                             break; 
+                         }
+                    }
+                }
+                
+                if (bestHit) {
+                    let nx = bestHit.x - mirror.cx;
+                    let ny = bestHit.y - mirror.cy;
+                    const len = Math.sqrt(nx*nx + ny*ny);
+                    nx /= len; ny /= len;
+                    
+                    // 凹面镜法线指向圆心，即向右（从边缘到圆心），需要反向使其向左指向空气
+                    if (mirror.type === 'concave') {
+                        nx = -nx; ny = -ny;
+                    }
+                    // 凸面镜法线原本就指向外（向左），无需反向
+                    
+                    return { x: bestHit.x, y: bestHit.y, nx: nx, ny: ny, t: bestHit.t };
+                }
+            }
+            return null;
+        }
+
+        // --- 绘图函数 ---
+        function draw() {
+            ctx.clearRect(0, 0, width, height);
+            
+            const mirror = getMirrorParams();
+            drawMirror(mirror);
+            
+            if (currentMode === 'reflection') {
+                drawReflectionMode(mirror);
+            } else if (currentMode === 'fov') {
+                drawFOVMode(mirror);
+            } else if (currentMode === 'headlight') {
+                drawHeadlightMode(mirror);
+            }
+        }
+
+        function drawMirror(m) {
+            ctx.beginPath();
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = '#3b82f6';
+            
+            if (m.type === 'plane') {
+                ctx.moveTo(m.x, m.y - m.h/2);
+                ctx.lineTo(m.x, m.y + m.h/2);
+                ctx.stroke();
+                drawHatching(m.x, m.y - m.h/2, m.x, m.y + m.h/2, 10);
+            } else {
+                // 计算弧度 (增加安全限制，防止 asin 崩溃)
+                // 如果 r 很小，h/2 可能大于 r，导致 asin NaN。
+                // 限制比例在 -1 到 1 之间。
+                const ratio = (m.h / 2) / m.r;
+                const safeRatio = Math.max(-1, Math.min(1, ratio));
+                const angle = Math.asin(safeRatio);
+                
+                let startAngle, endAngle;
+                
+                if (m.type === 'convex') {
+                    startAngle = Math.PI - angle;
+                    endAngle = Math.PI + angle;
+                    ctx.arc(m.cx, m.cy, m.r, startAngle, endAngle);
+                } else {
+                    startAngle = -angle;
+                    endAngle = angle;
+                    ctx.arc(m.cx, m.cy, m.r, startAngle, endAngle);
+                }
+                ctx.stroke();
+                
+                // 绘制焦点 F
+                ctx.fillStyle = '#ef4444';
+                let fx, fy = m.cy;
+                if (m.type === 'concave') {
+                    fx = m.cx + m.r/2;
+                } else {
+                    fx = m.cx - m.r/2;
+                }
+                
+                ctx.beginPath();
+                ctx.arc(fx, fy, 3, 0, Math.PI*2);
+                ctx.fill();
+                
+                if (showExtensions || currentMode === 'headlight') {
+                    ctx.font = '12px Arial';
+                    ctx.fillText('F', fx, fy - 8);
+                }
+            }
+        }
+        
+        function drawHatching(x1, y1, x2, y2, len) {
+            ctx.beginPath();
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = '#9ca3af';
+            const count = 20;
+            const dx = (x2-x1)/count;
+            const dy = (y2-y1)/count;
+            for(let i=0; i<=count; i++) {
+                const px = x1 + dx*i;
+                const py = y1 + dy*i;
+                ctx.moveTo(px, py);
+                ctx.lineTo(px + len, py + len);
+            }
+            ctx.stroke();
+        }
+
+        // 模式A
+        function drawReflectionMode(m) {
+            drawSource(source.x, source.y);
+            // 默认目标向着镜子中心
+            const target = { x: m.mx || m.x, y: height/2 };
+            const dx = target.x - source.x;
+            const dy = target.y - source.y;
+            const distLen = Math.sqrt(dx*dx + dy*dy);
+            const rayDir = { x: dx/distLen, y: dy/distLen };
+            
+            const hit = rayIntersect(source, rayDir, m);
+            
+            ctx.beginPath();
+            ctx.strokeStyle = '#ef4444'; 
+            ctx.lineWidth = 2;
+            ctx.moveTo(source.x, source.y);
+            if (hit) {
+                ctx.lineTo(hit.x, hit.y);
+                ctx.stroke();
+                drawArrow(source.x, source.y, hit.x, hit.y);
+                
+                const dot = rayDir.x * hit.nx + rayDir.y * hit.ny;
+                const rx = rayDir.x - 2 * dot * hit.nx;
+                const ry = rayDir.y - 2 * dot * hit.ny;
+                
+                const endRx = hit.x + rx * 500;
+                const endRy = hit.y + ry * 500;
+                
+                ctx.beginPath();
+                ctx.strokeStyle = '#ef4444';
+                ctx.moveTo(hit.x, hit.y);
+                ctx.lineTo(endRx, endRy);
+                ctx.stroke();
+                drawArrow(hit.x, hit.y, hit.x + rx*100, hit.y + ry*100);
+                
+                if (showNormal) {
+                    ctx.beginPath();
+                    ctx.setLineDash([5, 5]);
+                    ctx.strokeStyle = '#4b5563';
+                    ctx.lineWidth = 1;
+                    ctx.moveTo(hit.x, hit.y);
+                    ctx.lineTo(hit.x + hit.nx * 100, hit.y + hit.ny * 100);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                    ctx.fillText('法线', hit.x + hit.nx * 110, hit.y + hit.ny * 110);
+                }
+                
+                if (showAngles) {
+                    const incidentAngleRad = Math.acos( -(rayDir.x * hit.nx + rayDir.y * hit.ny) );
+                    const deg = (incidentAngleRad * 180 / Math.PI).toFixed(1);
+                    if (!isNaN(deg)) {
+                        ctx.fillStyle = '#000';
+                        ctx.font = '14px Arial';
+                        ctx.fillText(`i = ${deg}°`, hit.x - 40, hit.y - 40);
+                        ctx.fillText(`r = ${deg}°`, hit.x - 40, hit.y + 50);
+                    }
+                }
+                
+                if (showExtensions) {
+                    ctx.beginPath();
+                    ctx.setLineDash([2, 4]);
+                    ctx.strokeStyle = '#fbbf24';
+                    ctx.moveTo(hit.x, hit.y);
+                    ctx.lineTo(hit.x - rx * 300, hit.y - ry * 300);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+
+            } else {
+                ctx.lineTo(source.x + rayDir.x * 1000, source.y + rayDir.y * 1000);
+                ctx.stroke();
+            }
+        }
+
+        // 模式B：视野范围 (FOV) - 修复向量方向错误
+        function drawFOVMode(m) {
+            drawEye(observer.x, observer.y);
+            
+            const topEdgeY = m.y - m.h/2;
+            const botEdgeY = m.y + m.h/2;
+            
+            const rays = [];
+            const samples = 20; 
+            
+            for(let i=0; i<=samples; i++) {
+                const f = i/samples;
+                const targetY = topEdgeY + (botEdgeY - topEdgeY) * f;
+                let targetX = m.x; 
+                
+                if (m.type === 'convex') {
+                    // 圆心在右，左表面：cx - sqrt
+                    const val = m.r**2 - (targetY - m.cy)**2;
+                    if (val < 0) continue; 
+                    targetX = m.cx - Math.sqrt(val);
+                } else if (m.type === 'concave') {
+                     // 圆心在左，右表面：cx + sqrt
+                     const val = m.r**2 - (targetY - m.cy)**2;
+                     if (val < 0) continue;
+                     targetX = m.cx + Math.sqrt(val);
+                }
+                
+                const dx = targetX - observer.x;
+                const dy = targetY - observer.y;
+                const len = Math.sqrt(dx*dx + dy*dy);
+                const dir = { x: dx/len, y: dy/len };
+                
+                const hit = rayIntersect(observer, dir, m);
+                
+                if (hit) {
+                    const dot = dir.x * hit.nx + dir.y * hit.ny;
+                    // 反射向量 (指向空气/左侧)
+                    const rx = dir.x - 2 * dot * hit.nx;
+                    const ry = dir.y - 2 * dot * hit.ny;
+                    rays.push({ start: hit, dir: {x: rx, y: ry} });
+                }
+            }
+            
+            // 绘制绿色区域
+            ctx.globalAlpha = 0.15;
+            ctx.fillStyle = '#10b981';
+            ctx.beginPath();
+            if (rays.length > 0) {
+                ctx.moveTo(rays[0].start.x, rays[0].start.y);
+                const far = 800;
+                // 修复：这里是 +，因为 rx 本身是指向左侧的(负值)，加上负值就是向左画。
+                // 之前用了 -，导致向右画到了镜子背后。
+                ctx.lineTo(rays[0].start.x + rays[0].dir.x * far, rays[0].start.y + rays[0].dir.y * far);
+                const last = rays[rays.length-1];
+                ctx.lineTo(last.start.x + last.dir.x * far, last.start.y + last.dir.y * far);
+                ctx.lineTo(last.start.x, last.start.y);
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1.0;
+            
+            // 绘制射线边界
+            ctx.strokeStyle = '#10b981';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            rays.forEach(r => {
+                ctx.moveTo(observer.x, observer.y);
+                ctx.lineTo(r.start.x, r.start.y);
+                const len = 800;
+                // 绘制反向延长线（实际是看到的视野方向）
+                ctx.moveTo(r.start.x, r.start.y);
+                // 修复：同上，使用 + 号
+                ctx.lineTo(r.start.x + r.dir.x * len, r.start.y + r.dir.y * len);
+            });
+            ctx.stroke();
+
+            // 说明文字
+            ctx.fillStyle = '#065f46';
+            ctx.font = 'bold 16px Arial';
+            ctx.fillText('绿色区域 = 可见视野范围', 50, height - 50);
+            if (m.type === 'convex') {
+                ctx.fillText('凸面镜：视野发散，看到范围最大 (如后视镜)', 50, height - 30);
+            } else if (m.type === 'plane') {
+                ctx.fillText('平面镜：视野范围适中', 50, height - 30);
+            } else if (m.type === 'concave') {
+                ctx.fillText('凹面镜：视野收缩/翻转 (通常不用作扩大视野)', 50, height - 30);
+            }
+        }
+
+        // 模式C：车灯
+        function drawHeadlightMode(m) {
+            drawSource(source.x, source.y);
+            ctx.fillStyle = '#f59e0b';
+            ctx.font = '14px Arial';
+            ctx.fillText("拖动光源寻找焦点!", source.x + 20, source.y);
+
+            const rayCount = 12;
+            const spread = Math.PI / 2.5;
+            
+            ctx.beginPath();
+            ctx.strokeStyle = '#f59e0b';
+            ctx.lineWidth = 2;
+            
+            for (let i = -rayCount/2; i <= rayCount/2; i++) {
+                const angle = (i / (rayCount/2)) * spread * 0.5;
+                const dirX = Math.cos(angle);
+                const dirY = Math.sin(angle);
+                
+                const hit = rayIntersect(source, {x: dirX, y: dirY}, m);
+                
+                ctx.moveTo(source.x, source.y);
+                if (hit) {
+                    ctx.lineTo(hit.x, hit.y);
+                    const dot = dirX * hit.nx + dirY * hit.ny;
+                    const rx = dirX - 2 * dot * hit.nx;
+                    const ry = dirY - 2 * dot * hit.ny;
+                    // 反射光线
+                    ctx.lineTo(hit.x + rx * 800, hit.y + ry * 800);
+                } else {
+                    ctx.lineTo(source.x + dirX * 300, source.y + dirY * 300);
+                }
+            }
+            ctx.stroke();
+            
+            if (m.type === 'concave') {
+                const fx = m.cx + m.r/2;
+                const fy = m.cy;
+                if (dist(source, {x: fx, y: fy}) < 15) {
+                    ctx.fillStyle = '#dc2626';
+                    ctx.font = 'bold 20px Arial';
+                    ctx.fillText("★ 光源在焦点 -> 射出平行光!", width/2 - 150, 80);
+                }
+            }
+        }
+
+        // 辅助绘制
+        function drawSource(x, y) {
+            ctx.beginPath();
+            ctx.arc(x, y, 8, 0, Math.PI*2);
+            ctx.fillStyle = '#f59e0b';
+            ctx.fill();
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.fillStyle = '#333';
+            ctx.font = '12px Arial';
+            ctx.fillText('光源', x - 15, y - 15);
+        }
+        
+        function drawEye(x, y) {
+            ctx.beginPath();
+            ctx.arc(x, y, 10, 0, Math.PI, true);
+            ctx.arc(x, y, 10, 0, Math.PI, false);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(x, y, 4, 0, Math.PI*2);
+            ctx.fillStyle = '#000';
+            ctx.fill();
+            ctx.fillText('人眼', x-10, y-15);
+        }
+
+        function drawArrow(x1, y1, x2, y2) {
+            const angle = Math.atan2(y2-y1, x2-x1);
+            const midX = (x1+x2)/2;
+            const midY = (y1+y2)/2;
+            const headlen = 10;
+            ctx.beginPath();
+            ctx.moveTo(midX, midY);
+            ctx.lineTo(midX - headlen * Math.cos(angle - Math.PI / 6), midY - headlen * Math.sin(angle - Math.PI / 6));
+            ctx.moveTo(midX, midY);
+            ctx.lineTo(midX - headlen * Math.cos(angle + Math.PI / 6), midY - headlen * Math.sin(angle + Math.PI / 6));
+            ctx.stroke();
+        }
+
+        // UI
+        function setMirrorType(type) {
+            currentMirror = type;
+            ['plane', 'convex', 'concave'].forEach(t => {
+                const btn = document.getElementById(`btn-${t}`);
+                if (t === type) {
+                    btn.classList.remove('bg-gray-200', 'text-gray-700');
+                    btn.classList.add('bg-blue-600', 'text-white');
+                } else {
+                    btn.classList.add('bg-gray-200', 'text-gray-700');
+                    btn.classList.remove('bg-blue-600', 'text-white');
+                }
+            });
+            document.getElementById('curvature-control').style.display = (type === 'plane') ? 'none' : 'block';
+            updateConclusion();
+            draw();
+        }
+
+        function setMode(mode) {
+            currentMode = mode;
+            const desc = document.getElementById('mode-desc');
+            const map = {
+                'reflection': '拖动光源，观察入射角(i)与反射角(r)。',
+                'fov': '保持观察者不动，切换不同镜面，对比绿色视野区域大小。',
+                'headlight': '将光源拖动到红色焦点(F)处，观察凹面镜的平行光。'
+            };
+            desc.innerText = map[mode];
+            
+            if (mode === 'headlight' && currentMirror === 'plane') setMirrorType('concave');
+            if (mode === 'fov' && currentMirror === 'concave') setMirrorType('convex');
+
+            draw();
+        }
+
+        function updateCurvature(val) {
+            mirrorRadius = parseInt(val);
+            draw();
+        }
+        
+        function updateVisibility() {
+            showNormal = document.getElementById('check-normal').checked;
+            showAngles = document.getElementById('check-angles').checked;
+            showExtensions = document.getElementById('check-extensions').checked;
+            draw();
+        }
+
+        function updateConclusion() {
+            const el = document.getElementById('conclusion-text');
+            if (currentMirror === 'plane') {
+                el.innerText = "平面镜：成像大小相等，左右对称。";
+            } else if (currentMirror === 'convex') {
+                el.innerText = "凸面镜：对光发散，扩大视野 (正确选项B原理的延伸，选项C的对比)。";
+            } else if (currentMirror === 'concave') {
+                el.innerText = "凹面镜：对光会聚，光源在焦点可产生平行光 (纠正选项D的错误)。";
+            }
+        }
+
+        init();
+
+    </script>
+</body>
+</html>

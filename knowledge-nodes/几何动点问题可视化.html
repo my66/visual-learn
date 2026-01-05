@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>几何动点问题可视化 - Q22演示</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <style>
+    body {
+      font-family: "Microsoft YaHei", sans-serif;
+      background-color: #f4f4f9;
+      color: #333;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+    header {
+      background: #fff;
+      padding: 20px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+    h1 { margin: 0; font-size: 1.5rem; color: #2c3e50; }
+    .container {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 20px;
+      padding: 20px;
+      width: 100%;
+      max-width: 1280px;
+    }
+    .controls {
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      width: 300px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    label { font-weight: bold; font-size: 0.9rem; }
+    input[type=range] { width: 100%; cursor: pointer; }
+    .value-display { font-size: 0.85rem; color: #666; text-align: right; }
+    .btn-toggle {
+      padding: 10px;
+      background: #3498db;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: background 0.2s;
+    }
+    .btn-toggle:hover { background: #2980b9; }
+    .btn-toggle.active { background: #27ae60; }
+    #canvas-container {
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+      padding: 10px;
+    }
+    .legend {
+      margin-top: 10px;
+      font-size: 0.85rem;
+      line-height: 1.5;
+      color: #555;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>几何动点与极值演示 (试卷 Q22)</h1>
+</header>
+
+<div class="container">
+  <div class="controls">
+    <div class="control-group">
+      <label>拖动点 F 的位置 (在 AC 上)</label>
+      <input type="range" id="sliderF" min="0" max="1" step="0.01" value="0.5">
+      <div class="value-display">F 距离 C 的比例: <span id="valF">0.50</span></div>
+    </div>
+
+    <button id="btnParallel" class="btn-toggle">设置 EF // BC (第一问状态)</button>
+    <button id="btnShowAux" class="btn-toggle">显示辅助线 (全等旋转)</button>
+    
+    <div class="legend">
+      <p><strong>已知条件：</strong><br>
+      Rt△ABC, AB=AC, AD⊥BC<br>
+      动点满足 AE = CF</p>
+      <hr>
+      <p><strong>当前数据：</strong><br>
+      ∠EBD = <span id="valAngle">--</span>°<br>
+      BE + BF = <span id="valLen">--</span> (单位)</p>
+    </div>
+  </div>
+
+  <div id="canvas-container"></div>
+</div>
+
+<script>
+let canvasWidth = 600;
+let canvasHeight = 500;
+
+// Geometry points
+let A, B, C, D, E, F;
+let G; // Auxiliary point for rotation
+
+// State
+let fRatio = 0.5; // 0 means at C, 1 means at A
+let showAux = false;
+
+// Scale
+let scaleFactor = 300; // side length of triangle
+let offsetX = 300;
+let offsetY = 100;
+
+function setup() {
+  let canvas = createCanvas(canvasWidth, canvasHeight);
+  canvas.parent('canvas-container');
+  rectMode(CENTER);
+  textAlign(CENTER, CENTER);
+  
+  // Initialize controls
+  let slider = select('#sliderF');
+  slider.input(() => {
+    fRatio = parseFloat(slider.value());
+    select('#valF').html(fRatio.toFixed(2));
+  });
+
+  select('#btnParallel').mousePressed(() => {
+    fRatio = 0.5; // When EF // BC, F is midpoint of AC because AEF is isosceles right
+    slider.value(0.5);
+    select('#valF').html("0.50");
+  });
+
+  select('#btnShowAux').mousePressed(() => {
+    showAux = !showAux;
+    let btn = select('#btnShowAux');
+    if(showAux) {
+      btn.addClass('active');
+      btn.html("隐藏辅助线");
+    } else {
+      btn.removeClass('active');
+      btn.html("显示辅助线 (全等旋转)");
+    }
+  });
+
+  // Calculate static points
+  // Let A = (0, 0) relative to logic, but we position it nicely
+  // Wait, standard orientation: BC horizontal at bottom. A at top.
+  // Triangle ABC is Isosceles Right at A.
+  // Let's put D (midpoint of BC) at (0, 0) for symmetry logic?
+  // No, let's stick to screen coords.
+  
+  updateGeometry();
+}
+
+function updateGeometry() {
+  // Define Triangle ABC
+  // A at top, BC at bottom. AD vertical.
+  // Angle BAC = 90. AB=AC.
+  // Let AD height = h. Then BD = CD = h.
+  // Let h = 180.
+  let h = 180;
+  
+  A = createVector(offsetX, offsetY);
+  D = createVector(offsetX, offsetY + h);
+  B = createVector(offsetX - h, offsetY + h);
+  C = createVector(offsetX + h, offsetY + h);
+  
+  // Calculate F on AC
+  // AC vector: C - A = (h, h)
+  // F = C + (A-C) * fRatio?
+  // User slider: 0 is at C (AE=CF=0), 1 is at A (AE=CF=AC).
+  // "AE = CF".
+  // Length AC = sqrt(h*h + h*h) = h*sqrt(2).
+  // Length AE = fRatio * AC.
+  // Length CF = fRatio * AC. (Wait, let's align with the slider meaning)
+  // Let slider value `t` represent CF / AC.
+  // So F is at distance `t*AC` from C.
+  // F = C + (A-C) * t. (Vector lerp).
+  
+  // E is on AD. AE = CF.
+  // Length AD = h. Length AC = h*sqrt(2).
+  // AE = t * h * sqrt(2).
+  // E = A + (D-A).normalize() * AE.
+  
+  // BUT: AE must be <= AD for E to be on segment?
+  // AD = AC / sqrt(2).
+  // If AE = CF, max AE = AC. E would go past D.
+  // Question says "Ray AD". So E can be outside.
+  // Let's calculate.
+  
+  F = p5.Vector.lerp(C, A, fRatio); // F starts at C when fRatio=0
+  
+  let lenAC = p5.Vector.dist(A, C);
+  let lenCF = fRatio * lenAC;
+  let lenAE = lenCF;
+  
+  // Direction A to D is (0, 1)
+  E = createVector(A.x, A.y + lenAE);
+  
+  // Auxiliary construction for Q22(2)②
+  // Rotate Triangle ABE 90 degrees counter-clockwise around A.
+  // AB maps to AC.
+  // E maps to a point G on the extension of AC? No.
+  // AB is perpendicular to AC.
+  // Rotate ABE 90 deg so AB overlaps AC?
+  // Then E (on AD) will rotate to G.
+  // AD is perp to BC. AD bisects angle A (45 deg from AB).
+  // Rotate 90 deg?
+  // Angle BAD = 45. Angle DAC = 45.
+  // Rotate -90 deg (Move AB to AC)? No, AB to AC is +90 (CCW) if B is left.
+  // Vector AB = (-h, h). Vector AC = (h, h).
+  // Rotate AB 90 deg CCW: (-h, h) -> (-h, -h)? No.
+  // Let's just find G geometrically.
+  // Triangle AB G congruent to Triangle AC something?
+  // Classic approach: Rotate triangle ABF around A?
+  // Let's use the standard "Huarong Road" trick for BE + BF.
+  // Construct G such that triangle AB G is congruent to triangle ...?
+  // Actually, usually we rotate one segment to connect with the other.
+  // Rotate ABE 90 degrees?
+  // Let's Construct G on line passing through C perpendicular to BC.
+  // Such that CG = AB. Then G, F, B are collinear for min?
+  // Let's implement the specific construction from the answer key[cite: 147].
+  // "Cross C draw CM perp BC, take CG=AB".
+  // Wait, AB is constant.
+  // So G is fixed. C is fixed.
+  // G is at (C.x, C.y - AB).
+  // Connect G and B. Intersection with AC is the optimal F.
+  // Let's calculate G pos.
+  let lenAB = p5.Vector.dist(A, B);
+  G = createVector(C.x, C.y - lenAB);
+}
+
+function draw() {
+  background(255);
+  updateGeometry();
+  
+  // Draw Coordinate/Geometry
+  noFill(); stroke(0); strokeWeight(2);
+  triangle(A.x, A.y, B.x, B.y, C.x, C.y); // ABC
+  line(A.x, A.y, D.x, D.y + 50); // Ray AD extended a bit
+  
+  // Draw Points E, F
+  fill(255, 0, 0); noStroke();
+  circle(E.x, E.y, 8);
+  circle(F.x, F.y, 8);
+  fill(0); text("E", E.x - 15, E.y);
+  text("F", F.x + 15, F.y - 10);
+  
+  // Draw fixed labels
+  text("A", A.x, A.y - 15);
+  text("B", B.x - 15, B.y);
+  text("C", C.x + 15, C.y);
+  text("D", D.x, D.y + 15);
+
+  // Draw Lines of interest: BE and BF
+  stroke(50, 100, 200); strokeWeight(2);
+  line(B.x, B.y, E.x, E.y);
+  line(B.x, B.y, F.x, F.y);
+  
+  // Connection EF (for question 1)
+  if (abs(fRatio - 0.5) < 0.02) {
+      stroke(0, 150, 0); drawingContext.setLineDash([5, 5]);
+      line(E.x, E.y, F.x, F.y);
+      drawingContext.setLineDash([]);
+      noStroke(); fill(0, 150, 0);
+      text("EF // BC", (E.x+F.x)/2, (E.y+F.y)/2 - 10);
+  }
+
+  // Calculate and display values
+  // Angle EBD
+  let vBE = p5.Vector.sub(E, B);
+  let vBD = p5.Vector.sub(D, B);
+  let angRad = vBE.angleBetween(vBD); 
+  // angleBetween is unsigned or signed?
+  // In p5, it's strictly geometric usually.
+  // Manually: atan2.
+  let angDeg = degrees(abs(angRad));
+  // Note: p5 angleBetween might utilize full vectors.
+  // BE points up-right. BD points right.
+  // Check atan2 differences.
+  let a1 = atan2(E.y - B.y, E.x - B.x);
+  let a2 = atan2(D.y - B.y, D.x - B.x);
+  let diff = abs(a1 - a2);
+  angDeg = degrees(diff);
+  
+  select('#valAngle').html(angDeg.toFixed(1));
+  
+  let lenSum = p5.Vector.dist(B, E) + p5.Vector.dist(B, F);
+  select('#valLen').html(Math.round(lenSum));
+
+  // Aux Visualization
+  if (showAux) {
+      drawAuxiliary();
+  }
+}
+
+function drawAuxiliary() {
+    // Show the "Transformation" logic
+    // Construct G such that CG = AB.
+    stroke(150); drawingContext.setLineDash([3, 3]);
+    line(C.x, C.y, G.x, G.y); // CG vertical
+    line(G.x, G.y, B.x, B.y); // GB connection
+    drawingContext.setLineDash([]);
+    
+    fill(100); text("G", G.x, G.y - 15);
+    
+    // Prove BE = GF
+    // Triangle ABE congruent to Triangle CGF?
+    // AB = CG (constructed).
+    // AE = CF (given).
+    // Angle BAE = 45. Angle GCF = ?
+    // G is directly above C (perp to BC). C is 45 deg from AC?
+    // In Isosceles Right triangle ABC, Angle C = 45.
+    // Line BC is horizontal. Line CG is vertical.
+    // Angle GCA = 90 - 45 = 45.
+    // So Angle BAE = Angle GCF = 45.
+    // SAS Congruence -> Triangle ABE ~= Triangle CGF.
+    // So BE = GF.
+    // Therefore BE + BF = GF + BF.
+    // Minimized when G, F, B are collinear.
+    
+    // Draw Triangle CGF
+    stroke(200, 100, 100);
+    line(C.x, C.y, G.x, G.y);
+    line(C.x, C.y, F.x, F.y);
+    line(G.x, G.y, F.x, F.y); // GF
+    
+    // Text Logic
+    noStroke(); fill(200, 100, 100);
+    text("BE = GF", (G.x+E.x)/2 + 20, 100);
+    
+    // Highlight Collinearity if near optimal
+    // Optimal F is intersection of GB and AC.
+    // Check cross product of GB and GF approx 0.
+    // Or just check lengths.
+    let distStraight = p5.Vector.dist(G, B);
+    let distBroken = p5.Vector.dist(G, F) + p5.Vector.dist(F, B);
+    
+    if (abs(distStraight - distBroken) < 1) {
+        fill(0, 180, 0); fontStyle = "bold";
+        text("最小值达成！(三点共线)", width/2, height - 30);
+    }
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>负号与分式的本质 - 交互式教学演示</title>
+    
+    <!-- Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        /* Modern Reset & Typography */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+            background-color: #f4f6f8;
+            color: #333;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto; /* Allow full page scroll */
+        }
+
+        /* Header */
+        header {
+            background-color: #2c3e50;
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        
+        h1 { font-size: 1.2rem; font-weight: 600; }
+        .subtitle { font-size: 0.9rem; opacity: 0.8; }
+
+        /* Main Layout */
+        .main-container {
+            display: flex;
+            flex: 1;
+            padding: 20px;
+            gap: 20px;
+            max-width: 1600px;
+            margin: 0 auto;
+            width: 100%;
+            min-height: 600px;
+        }
+
+        /* Control Panel */
+        .controls {
+            width: 320px;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            flex-shrink: 0;
+            overflow-y: auto;
+            max-height: 85vh;
+        }
+
+        .panel-section {
+            border-bottom: 1px solid #eee;
+            padding-bottom: 15px;
+        }
+        .panel-section:last-child { border-bottom: none; }
+
+        h2 { font-size: 1rem; margin-bottom: 10px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 8px; }
+        
+        label { display: block; margin-bottom: 5px; font-size: 0.9rem; color: #555; }
+        
+        .slider-group { margin-bottom: 15px; }
+        input[type=range] { width: 100%; cursor: pointer; }
+        .value-display { font-size: 0.85rem; color: #7f8c8d; text-align: right; }
+
+        button {
+            width: 100%;
+            padding: 10px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            transition: background 0.2s;
+            margin-bottom: 8px;
+        }
+        button:hover { background-color: #2980b9; }
+        button.secondary { background-color: #95a5a6; }
+        button.secondary:hover { background-color: #7f8c8d; }
+        button.danger { background-color: #e74c3c; }
+        button.danger:hover { background-color: #c0392b; }
+        
+        .radio-group { display: flex; flex-direction: column; gap: 8px; }
+        .radio-item { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.9rem;}
+
+        /* Canvas Area */
+        .canvas-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            min-width: 600px;
+        }
+
+        #p5-canvas-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            overflow: hidden;
+            flex: 1;
+            position: relative;
+            min-height: 500px;
+        }
+
+        /* Theory/Status Box */
+        .theory-box {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 5px solid #27ae60;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            min-height: 120px;
+        }
+        .theory-content { font-size: 1rem; line-height: 1.6; }
+        .math-display { margin-top: 10px; background: #f9f9f9; padding: 10px; border-radius: 4px; }
+
+        /* Responsive */
+        @media (max-width: 1000px) {
+            .main-container { flex-direction: column; }
+            .controls { width: 100%; max-height: none; }
+            .canvas-wrapper { min-width: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div>
+        <h1>负号与分式可视化 (Math & Physics Visualizer)</h1>
+        <span class="subtitle">针对初二学生的负数与分式陷阱解析</span>
+    </div>
+    <div style="font-size: 0.8rem; color: #bdc3c7;">v1.5</div>
+</header>
+
+<div class="main-container">
+    <!-- Controls -->
+    <aside class="controls">
+        <div class="panel-section">
+            <h2>1. 选择教学阶段</h2>
+            <div class="radio-group">
+                <label class="radio-item">
+                    <input type="radio" name="level" value="1" checked onchange="updateLevel(1)">
+                    <span>阶段一：负号是“翻转指令”</span>
+                </label>
+                <label class="radio-item">
+                    <input type="radio" name="level" value="2" onchange="updateLevel(2)">
+                    <span>阶段二：括号是“保护盾”</span>
+                </label>
+                <label class="radio-item">
+                    <input type="radio" name="level" value="3" onchange="updateLevel(3)">
+                    <span>阶段三：分式中的隐形括号</span>
+                </label>
+                <label class="radio-item">
+                    <input type="radio" name="level" value="4" onchange="updateLevel(4)">
+                    <span>阶段四：分式符号的“搬家”</span>
+                </label>
+                <label class="radio-item">
+                    <input type="radio" name="level" value="5" onchange="updateLevel(5)">
+                    <span>阶段五：复杂分式减法</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Dynamic Controls populated by JS -->
+        <div id="dynamic-controls" class="panel-section">
+            <!-- Will be filled by updateLevelControls() -->
+        </div>
+
+        <div class="panel-section">
+            <h2>状态监控</h2>
+            <p id="status-text" style="font-size: 0.9rem; color: #555;">准备就绪</p>
+        </div>
+    </aside>
+
+    <!-- Visualizer -->
+    <div class="canvas-wrapper">
+        <div id="p5-canvas-container"></div>
+        
+        <div class="theory-box">
+            <h2>核心原理 (The Core Principle)</h2>
+            <div id="theory-content" class="theory-content">
+                <!-- MathJax content goes here -->
+                \[ -1 \times a = -a \]
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+/**
+ * Global State & Constants
+ */
+let currentLevel = 1;
+let myCanvas; 
+let cvsWidth, cvsHeight;
+
+// Constants
+const COLOR_BG = '#FFFFFF';
+const COLOR_AXIS = '#333333';
+const COLOR_POS = '#2980b9'; // Blue
+const COLOR_NEG = '#c0392b'; // Red
+const COLOR_NEUTRAL = '#7f8c8d';
+const COLOR_HIGHLIGHT = '#f1c40f';
+const FONT_MAIN = 'sans-serif';
+
+// Level 1 State
+let lvl1_val = 5;
+let lvl1_isNegative = false;
+let lvl1_anim = 0; // 0 to 1
+
+// Level 2 State
+let lvl2_a = 3;
+let lvl2_b = 2;
+let lvl2_state = 'init'; // init, animating_wrong, done_wrong, animating_right, done_right
+let lvl2_anim_progress = 0;
+
+// Level 3 State
+let lvl3_a = 2;
+let lvl3_b = 3;
+let lvl3_c = 5;
+let lvl3_step = 0; 
+
+// Level 4 State
+let lvl4_a = 6;
+let lvl4_b = 2;
+let lvl4_sign_pos = 'front'; // 'front', 'top', 'bottom'
+let lvl4_anim_t = 1; 
+let lvl4_prev_pos = 'front';
+
+// Level 5 State
+let lvl5_a = 'a';
+let lvl5_b = 'b';
+let lvl5_x = 'x';
+let lvl5_y = 'y';
+let lvl5_d = 'd';
+let lvl5_step = 0; // 0: Start, 1: Bracket, 2: Combine, 3: Distribute
+
+/**
+ * P5.js Setup & Draw
+ */
+function setup() {
+    const container = document.getElementById('p5-canvas-container');
+    cvsWidth = container.clientWidth;
+    cvsHeight = container.clientHeight;
+    myCanvas = createCanvas(cvsWidth, cvsHeight);
+    myCanvas.parent('p5-canvas-container');
+    
+    textFont(FONT_MAIN);
+    rectMode(CENTER);
+    imageMode(CENTER);
+    
+    updateLevelControls(); // Init UI
+}
+
+function windowResized() {
+    const container = document.getElementById('p5-canvas-container');
+    cvsWidth = container.clientWidth;
+    cvsHeight = container.clientHeight;
+    resizeCanvas(cvsWidth, cvsHeight);
+}
+
+function draw() {
+    background(COLOR_BG);
+    drawGrid();
+
+    push();
+    if (currentLevel === 1) drawLevel1();
+    else if (currentLevel === 2) drawLevel2();
+    else if (currentLevel === 3) drawLevel3();
+    else if (currentLevel === 4) drawLevel4();
+    else if (currentLevel === 5) drawLevel5();
+    pop();
+}
+
+/**
+ * Utility Functions
+ */
+function drawGrid() {
+    stroke(240);
+    strokeWeight(1);
+    for (let x = 0; x < width; x += 50) line(x, 0, x, height);
+    for (let y = 0; y < height; y += 50) line(0, y, width, y);
+}
+
+function drawArrow(x1, y1, x2, y2, color, label) {
+    push();
+    stroke(color);
+    strokeWeight(3);
+    fill(color);
+    line(x1, y1, x2, y2);
+    let angle = atan2(y2 - y1, x2 - x1);
+    translate(x2, y2);
+    rotate(angle);
+    triangle(0, 0, -10, 5, -10, -5);
+    pop();
+    
+    if (label) {
+        push();
+        fill(color);
+        noStroke();
+        textSize(16);
+        textAlign(CENTER, BOTTOM);
+        text(label, (x1+x2)/2, (y1+y2)/2 - 10);
+        pop();
+    }
+}
+
+/**
+ * Level 1: The Number Line Flipper
+ */
+function drawLevel1() {
+    let centerX = width / 2;
+    let centerY = height / 2;
+    let scaleUnit = 40;
+
+    stroke(COLOR_AXIS);
+    strokeWeight(2);
+    line(50, centerY, width - 50, centerY);
+    
+    textAlign(CENTER, TOP);
+    textSize(14);
+    fill(COLOR_AXIS);
+    for (let i = -10; i <= 10; i++) {
+        let x = centerX + i * scaleUnit;
+        if (x > 50 && x < width - 50) {
+            line(x, centerY - 5, x, centerY + 5);
+            text(i, x, centerY + 15);
+        }
+    }
+
+    let targetVal = lvl1_isNegative ? -lvl1_val : lvl1_val;
+    let currentVal = lerp(lvl1_isNegative ? lvl1_val : -lvl1_val, targetVal, lvl1_anim);
+    
+    if (lvl1_anim < 1) {
+        lvl1_anim += 0.05;
+    } else {
+        lvl1_anim = 1;
+        currentVal = targetVal;
+    }
+
+    let endX = centerX + currentVal * scaleUnit;
+    let col = currentVal >= 0 ? COLOR_POS : COLOR_NEG;
+    
+    drawArrow(centerX, centerY - 30, endX, centerY - 30, col, "");
+    
+    if (lvl1_anim < 1) {
+        noFill();
+        stroke(COLOR_NEUTRAL);
+        strokeWeight(1);
+        drawingContext.setLineDash([5, 5]);
+        let r = abs(lvl1_val * scaleUnit);
+        arc(centerX, centerY - 30, r*2, r*2, PI, 0); 
+        drawingContext.setLineDash([]);
+    }
+
+    textSize(32);
+    fill(col);
+    textAlign(CENTER, CENTER);
+    let displayNum = currentVal.toFixed(1);
+    if (currentVal % 1 === 0) displayNum = currentVal.toFixed(0);
+    text(displayNum, width/2, height/2 - 120);
+    
+    textSize(18);
+    fill(50);
+    text("负号本质：乘以 -1 = 关于原点翻转 180°", width/2, height - 50);
+}
+
+/**
+ * Level 2: The Shield
+ */
+function drawLevel2() {
+    let cx = width / 2;
+    let cy = height / 2;
+    let boxW = 240;
+    
+    if (lvl2_state === 'init' || lvl2_state.includes('animating')) {
+        noFill();
+        stroke(COLOR_AXIS);
+        strokeWeight(3);
+        arc(cx - boxW/2, cy, 40, 100, PI/2, -PI/2);
+        arc(cx + boxW/2, cy, 40, 100, -PI/2, PI/2);
+    }
+
+    let term1 = lvl2_a;
+    let term2 = lvl2_b;
+    let c1 = COLOR_POS;
+    let c2 = COLOR_POS;
+    let sign1 = ""; 
+    let sign2 = "+";
+
+    if (lvl2_state === 'animating_wrong') {
+        lvl2_anim_progress += 0.02;
+        if (lvl2_anim_progress >= 1) { lvl2_anim_progress = 1; lvl2_state = 'done_wrong'; }
+        c1 = lerpColor(color(COLOR_POS), color(COLOR_NEG), lvl2_anim_progress);
+        sign1 = "-"; 
+        
+    } else if (lvl2_state === 'done_wrong') {
+        c1 = COLOR_NEG;
+        c2 = COLOR_POS;
+        sign1 = "-";
+        sign2 = "+"; 
+    } 
+    else if (lvl2_state === 'animating_right') {
+        lvl2_anim_progress += 0.02;
+        if (lvl2_anim_progress >= 1) { lvl2_anim_progress = 1; lvl2_state = 'done_right'; }
+        c1 = lerpColor(color(COLOR_POS), color(COLOR_NEG), lvl2_anim_progress);
+        c2 = lerpColor(color(COLOR_POS), color(COLOR_NEG), lvl2_anim_progress);
+        
+        let signX = cx - boxW/2 - 50;
+        fill(COLOR_NEG);
+        textSize(40);
+        textAlign(CENTER, CENTER);
+        let p = lvl2_anim_progress;
+        text("-", lerp(signX, cx - 50, p), cy);
+        text("-", lerp(signX, cx + 50, p), cy); 
+        
+    } else if (lvl2_state === 'done_right') {
+        c1 = COLOR_NEG;
+        c2 = COLOR_NEG;
+        sign1 = "-";
+        sign2 = "-"; 
+    }
+
+    textAlign(CENTER, CENTER);
+    textSize(40);
+    fill(c1);
+    if (lvl2_state === 'init') text(term1, cx - 50, cy);
+    else if (lvl2_state.includes('wrong')) text(sign1 + term1, cx - 50, cy);
+    else if (lvl2_state === 'done_right') text(sign1 + term1, cx - 50, cy);
+    else if (lvl2_state === 'animating_right') text(term1, cx - 50, cy); 
+
+    fill(c2);
+    if (lvl2_state === 'done_right') text(sign2 + term2, cx + 50, cy);
+    else text("+" + term2, cx + 50, cy);
+
+    if (lvl2_state === 'init') {
+        fill(COLOR_NEG);
+        textSize(50);
+        text("-", cx - boxW/2 - 40, cy);
+        textSize(16);
+        fill(COLOR_NEUTRAL);
+        text("负号在括号外等待...", cx, cy + 80);
+    }
+
+    if (lvl2_state === 'done_wrong') {
+        fill(COLOR_NEG);
+        textSize(24);
+        text("错误！后面的 +b 没有变号！", cx, cy + 100);
+    } else if (lvl2_state === 'done_right') {
+        fill(27, 158, 60); 
+        textSize(24);
+        text("正确！负号分配给了每一项！", cx, cy + 100);
+    }
+}
+
+/**
+ * Level 3: Fraction Combiner
+ */
+function drawLevel3() {
+    let cx = width / 2;
+    let cy = height / 2;
+    textSize(30);
+    textAlign(CENTER, CENTER);
+    
+    let termA = `${lvl3_a}x`;
+    let termB = `${lvl3_b}`;
+    let termC = `${lvl3_c}`;
+    let yNum = cy - 30;
+    let yDenom = cy + 30;
+    let yLine = cy;
+
+    if (lvl3_step === 0) {
+        fill(COLOR_AXIS);
+        text("问题：化简", cx, cy - 120);
+        fill(COLOR_NEG);
+        text("-", cx - 80, cy);
+        fill(COLOR_AXIS);
+        stroke(COLOR_AXIS);
+        strokeWeight(2);
+        line(cx - 50, yLine, cx + 50, yLine);
+        text(termA + " + " + termB, cx, yNum); 
+        text(termC, cx, yDenom); 
+        noStroke();
+        textSize(16);
+        fill(COLOR_NEUTRAL);
+        text("负号在分数线前面", cx, cy + 80);
+        
+    } else if (lvl3_step === 1) {
+        fill(COLOR_AXIS);
+        stroke(COLOR_AXIS);
+        strokeWeight(2);
+        line(cx - 60, yLine, cx + 60, yLine);
+        text(termC, cx, yDenom);
+        fill(COLOR_NEG);
+        text("-", cx - 70, yNum);
+        fill(COLOR_POS);
+        text(`( ${termA} + ${termB} )`, cx, yNum);
+        noStroke();
+        textSize(16);
+        fill(COLOR_HIGHLIGHT);
+        text("关键一步：分数线相当于括号！", cx, cy + 80);
+        text("先把分子包起来，再把负号拿上去。", cx, cy + 105);
+
+    } else if (lvl3_step === 2) {
+        fill(COLOR_AXIS);
+        stroke(COLOR_AXIS);
+        strokeWeight(2);
+        line(cx - 60, yLine, cx + 60, yLine);
+        text(termC, cx, yDenom);
+        fill(COLOR_NEG);
+        text("-", cx - 70, yNum);
+        fill(COLOR_POS);
+        text(`( ${termA} + ${termB} )`, cx, yNum);
+        stroke(COLOR_NEG);
+        strokeWeight(2);
+        noFill();
+        arc(cx - 65, yNum - 10, 30, 30, PI, 0);
+        arc(cx - 40, yNum - 20, 80, 50, PI, 0);
+        fill(COLOR_NEG);
+        noStroke();
+        textSize(16);
+        text("负号要乘以括号里的每一项", cx, cy + 80);
+
+    } else if (lvl3_step === 3) {
+        fill(COLOR_AXIS);
+        stroke(COLOR_AXIS);
+        strokeWeight(2);
+        line(cx - 60, yLine, cx + 60, yLine);
+        text(termC, cx, yDenom);
+        fill(COLOR_NEG);
+        text(`-${lvl3_a}x - ${lvl3_b}`, cx, yNum);
+        noStroke();
+        textSize(18);
+        fill(27, 158, 60);
+        text("完成：每一项都变号了", cx, cy + 80);
+    }
+}
+
+/**
+ * Level 4: Moving Negative Sign
+ */
+function drawLevel4() {
+    let cx = width / 2;
+    let cy = height / 2;
+    
+    if (lvl4_anim_t < 1) {
+        lvl4_anim_t += 0.05;
+    } else {
+        lvl4_anim_t = 1;
+    }
+
+    let yNum = cy - 40;
+    let yDenom = cy + 40;
+    let yLine = cy;
+    let xSignFront = cx - 80;
+    let ySignFront = cy; 
+    let xSignTop = cx - 35; 
+    let ySignTop = yNum; 
+    let xSignBottom = cx - 35; 
+    let ySignBottom = yDenom; 
+
+    let startX = xSignFront, startY = ySignFront;
+    let endX = xSignFront, endY = ySignFront;
+
+    if (lvl4_prev_pos === 'top') { startX = xSignTop; startY = ySignTop; }
+    else if (lvl4_prev_pos === 'bottom') { startX = xSignBottom; startY = ySignBottom; }
+
+    if (lvl4_sign_pos === 'top') { endX = xSignTop; endY = ySignTop; }
+    else if (lvl4_sign_pos === 'bottom') { endX = xSignBottom; endY = ySignBottom; }
+
+    let curX = lerp(startX, endX, lvl4_anim_t);
+    let curY = lerp(startY, endY, lvl4_anim_t);
+
+    textAlign(CENTER, CENTER);
+    stroke(COLOR_AXIS);
+    strokeWeight(3);
+    line(cx - 50, yLine, cx + 50, yLine);
+
+    noStroke();
+    textSize(50);
+    fill(COLOR_AXIS);
+    text(lvl4_a, cx, yNum);
+    text(lvl4_b, cx, yDenom);
+
+    textSize(60);
+    fill(COLOR_NEG);
+    text("-", curX, curY - 5); 
+
+    textSize(24);
+    fill(COLOR_AXIS);
+    let res = -(lvl4_a / lvl4_b);
+    let resStr = res.toFixed(1);
+    if (res % 1 === 0) resStr = res.toFixed(0);
+
+    if (lvl4_sign_pos === 'front') {
+        text(`式子含义： - (${lvl4_a} ÷ ${lvl4_b})`, cx, cy + 120);
+    } else if (lvl4_sign_pos === 'top') {
+        text(`式子含义： (${-lvl4_a}) ÷ ${lvl4_b}`, cx, cy + 120);
+    } else if (lvl4_sign_pos === 'bottom') {
+        text(`式子含义： ${lvl4_a} ÷ (${-lvl4_b})`, cx, cy + 120);
+    }
+
+    fill(COLOR_HIGHLIGHT);
+    rect(cx + 200, cy, 120, 80, 10);
+    fill(COLOR_AXIS);
+    textSize(16);
+    text("计算结果", cx + 200, cy - 20);
+    textSize(30);
+    fill(COLOR_NEG);
+    text(resStr, cx + 200, cy + 15);
+    
+    stroke(COLOR_NEUTRAL);
+    strokeWeight(1);
+    drawingContext.setLineDash([5, 5]);
+    line(cx + 60, cy, cx + 140, cy);
+    drawingContext.setLineDash([]);
+}
+
+/**
+ * Level 5: Complex Subtraction
+ */
+function drawLevel5() {
+    let cx = width / 2;
+    let cy = height / 2;
+    
+    textSize(30);
+    textAlign(CENTER, CENTER);
+    
+    let yLine = cy;
+    let yNum = cy - 35;
+    let yDenom = cy + 35;
+
+    // Terms
+    let t1 = `${lvl5_a}+${lvl5_b}`;
+    let t2 = `${lvl5_x}+${lvl5_y}`;
+    let d = lvl5_d;
+
+    if (lvl5_step === 0) {
+        // Step 0: Initial
+        // Term 1
+        fill(COLOR_NEG); text("-", cx - 180, cy);
+        fill(COLOR_AXIS); stroke(COLOR_AXIS); strokeWeight(2);
+        line(cx - 150, yLine, cx - 70, yLine);
+        noStroke(); text(t1, cx - 110, yNum); text(d, cx - 110, yDenom);
+
+        // Operator
+        fill(COLOR_NEG); textSize(40); text("-", cx - 30, cy);
+
+        // Term 2
+        fill(COLOR_AXIS); stroke(COLOR_AXIS); strokeWeight(2);
+        line(cx + 10, yLine, cx + 90, yLine);
+        noStroke(); textSize(30); text(t2, cx + 50, yNum); text(d, cx + 50, yDenom);
+        
+        textSize(18); fill(COLOR_NEUTRAL);
+        text("两个负的分式相加减（同分母）", cx, cy + 100);
+
+    } else if (lvl5_step === 1) {
+        // Step 1: Shields Up
+        fill(COLOR_NEG); text("-", cx - 190, cy);
+        fill(COLOR_AXIS); stroke(COLOR_AXIS); strokeWeight(2);
+        line(cx - 160, yLine, cx - 60, yLine);
+        
+        // Numerator 1 with parens
+        noStroke(); fill(COLOR_POS); text(`(${t1})`, cx - 110, yNum);
+        fill(COLOR_AXIS); text(d, cx - 110, yDenom);
+
+        // Operator
+        fill(COLOR_NEG); textSize(40); text("-", cx - 30, cy);
+
+        // Term 2
+        fill(COLOR_AXIS); stroke(COLOR_AXIS); strokeWeight(2);
+        line(cx + 10, yLine, cx + 110, yLine);
+        // Numerator 2 with parens
+        noStroke(); textSize(30); fill(COLOR_POS); text(`(${t2})`, cx + 60, yNum);
+        fill(COLOR_AXIS); text(d, cx + 60, yDenom);
+
+        textSize(18); fill(COLOR_HIGHLIGHT);
+        text("第一步：分子是整体，加上括号（保护盾）", cx, cy + 100);
+
+    } else if (lvl5_step === 2) {
+        // Step 2: Combine to single bar
+        stroke(COLOR_AXIS); strokeWeight(2);
+        line(cx - 150, yLine, cx + 150, yLine); // Long bar
+        
+        noStroke(); 
+        fill(COLOR_AXIS); text(d, cx, yDenom); // Center denom
+
+        // Top Content
+        // First part: -(a+b)
+        let xStart = cx - 100;
+        fill(COLOR_NEG); text("-", xStart - 30, yNum);
+        fill(COLOR_POS); text(`(${t1})`, xStart + 20, yNum);
+
+        // Second part: - (x+y)
+        // Crucial highlight: The big minus becomes the operator for the second group
+        let xMid = cx + 50;
+        fill(COLOR_NEG); textSize(40); text("-", xMid - 50, yNum); // The subtraction sign moved up
+        textSize(30); fill(COLOR_POS); text(`(${t2})`, xMid + 20, yNum);
+
+        // Arrows to emphasize the middle minus
+        stroke(COLOR_NEG); noFill(); strokeWeight(2);
+        line(cx - 30, cy + 10, cx - 10, yNum + 20); // visualizing move? maybe just text
+        
+        noStroke(); textSize(18); fill(COLOR_NEG);
+        text("第二步：合并分母，减号搬家到分子，变成减去整个括号！", cx, cy + 100);
+
+    } else if (lvl5_step === 3) {
+        // Step 3: Expansion
+        stroke(COLOR_AXIS); strokeWeight(2);
+        line(cx - 150, yLine, cx + 150, yLine);
+        noStroke(); fill(COLOR_AXIS); text(d, cx, yDenom);
+
+        // -a - b - x - y
+        let spacing = 40;
+        let startX = cx - 120;
+        
+        fill(COLOR_NEG); text("-", startX, yNum); fill(COLOR_AXIS); text(lvl5_a, startX + 20, yNum);
+        fill(COLOR_NEG); text("-", startX + 50, yNum); fill(COLOR_AXIS); text(lvl5_b, startX + 70, yNum);
+        
+        // The second part
+        fill(COLOR_NEG); text("-", startX + 110, yNum); fill(COLOR_AXIS); text(lvl5_x, startX + 130, yNum);
+        
+        // The most critical sign
+        push();
+        fill(COLOR_NEG); textSize(40); text("-", startX + 160, yNum); 
+        pop();
+        fill(COLOR_AXIS); text(lvl5_y, startX + 190, yNum);
+
+        // Highlight bubble
+        stroke(COLOR_HIGHLIGHT); noFill(); rect(startX + 160, yNum, 40, 50, 5);
+        
+        noStroke(); textSize(18); fill(27, 158, 60);
+        text("第三步：去括号。注意：减去 (x+y) 等于减 x 再减 y！", cx, cy + 100);
+    }
+}
+
+
+/**
+ * UI Interaction Logic
+ */
+function updateLevel(lvl) {
+    currentLevel = lvl;
+    updateLevelControls();
+    updateExplanation();
+    
+    // Reset internal states
+    lvl1_isNegative = false;
+    lvl1_anim = 1;
+    lvl2_state = 'init';
+    lvl2_anim_progress = 0;
+    lvl3_step = 0;
+    lvl5_step = 0;
+    
+    // Lvl 4 init
+    if (lvl === 4) {
+        lvl4_sign_pos = 'front';
+        lvl4_prev_pos = 'front';
+        lvl4_anim_t = 1;
+    }
+}
+
+function updateLevelControls() {
+    const container = document.getElementById('dynamic-controls');
+    container.innerHTML = '';
+    
+    if (currentLevel === 1) {
+        container.innerHTML = `
+            <h3>控制数值</h3>
+            <div class="slider-group">
+                <label>数值 x: <span id="val1-disp">${lvl1_val}</span></label>
+                <input type="range" min="1" max="9" step="1" value="${lvl1_val}" oninput="updateLvl1Val(this.value)">
+            </div>
+            <button onclick="toggleLvl1Sign()">乘以 -1 (施加负号)</button>
+            <button class="secondary" onclick="resetLvl1()">重置</button>
+        `;
+    } else if (currentLevel === 2) {
+        container.innerHTML = `
+            <h3>设置表达式 - (a + b)</h3>
+            <div class="slider-group">
+                <label>a: <span id="val2a-disp">${lvl2_a}</span></label>
+                <input type="range" min="1" max="9" value="${lvl2_a}" oninput="updateLvl2Vars('a', this.value)">
+            </div>
+            <div class="slider-group">
+                <label>b: <span id="val2b-disp">${lvl2_b}</span></label>
+                <input type="range" min="1" max="9" value="${lvl2_b}" oninput="updateLvl2Vars('b', this.value)">
+            </div>
+            <button class="danger" onclick="playLvl2Wrong()">演示常见错误 (只变第一个)</button>
+            <button onclick="playLvl2Right()">演示正确展开 (分配律)</button>
+            <button class="secondary" onclick="resetLvl2()">重置</button>
+        `;
+    } else if (currentLevel === 3) {
+        container.innerHTML = `
+            <h3>分式参数</h3>
+            <div class="slider-group">
+                <label>系数 a (ax): <span id="val3a-disp">${lvl3_a}</span></label>
+                <input type="range" min="1" max="9" value="${lvl3_a}" oninput="updateLvl3Vars('a', this.value)">
+            </div>
+            <div class="slider-group">
+                <label>常数 b: <span id="val3b-disp">${lvl3_b}</span></label>
+                <input type="range" min="1" max="9" value="${lvl3_b}" oninput="updateLvl3Vars('b', this.value)">
+            </div>
+            <hr style="border:0; border-top:1px solid #eee; margin:10px 0;">
+            <button onclick="stepLvl3()">下一步 (Step by Step)</button>
+            <button class="secondary" onclick="resetLvl3()">重置</button>
+        `;
+    } else if (currentLevel === 4) {
+        container.innerHTML = `
+            <h3>负号位置移动</h3>
+            <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:15px;">
+                <button onclick="setLvl4Pos('front')" ${lvl4_sign_pos === 'front' ? 'style="background:#2980b9"' : ''}>放在分数线前 (-a/b)</button>
+                <button onclick="setLvl4Pos('top')" ${lvl4_sign_pos === 'top' ? 'style="background:#2980b9"' : ''}>放在分子上 (-a / b)</button>
+                <button onclick="setLvl4Pos('bottom')" ${lvl4_sign_pos === 'bottom' ? 'style="background:#2980b9"' : ''}>放在分母上 (a / -b)</button>
+            </div>
+            <div class="slider-group">
+                <label>分子 a: <span id="val4a-disp">${lvl4_a}</span></label>
+                <input type="range" min="1" max="10" value="${lvl4_a}" oninput="updateLvl4Vars('a', this.value)">
+            </div>
+            <div class="slider-group">
+                <label>分母 b: <span id="val4b-disp">${lvl4_b}</span></label>
+                <input type="range" min="1" max="10" value="${lvl4_b}" oninput="updateLvl4Vars('b', this.value)">
+            </div>
+        `;
+    } else if (currentLevel === 5) {
+        container.innerHTML = `
+            <h3>同分母分式减法演示</h3>
+            <p style="font-size:0.8rem; color:#666; margin-bottom:10px;">目标：$-\\frac{a+b}{d} - \\frac{x+y}{d}$</p>
+            <button onclick="stepLvl5()">下一步 (Step by Step)</button>
+            <button class="secondary" onclick="resetLvl5()">重置</button>
+        `;
+    }
+}
+
+function updateExplanation() {
+    const theoryDiv = document.getElementById('theory-content');
+    let content = "";
+    
+    // NOTE: In JS strings, backslashes for MathJax delimiters must be doubled: \\( ... \\)
+    
+    if (currentLevel === 1) {
+        content = `
+            <p><strong>负号的本质：</strong> 负号不仅仅代表“小于零”，它是一个操作指令。</p>
+            <p>在数轴上，乘以 \\(-1\\) 意味着<strong>“向后转”</strong>。原来的正数（向右）变成了负数（向左）。</p>
+            <div class="math-display">\\[ 5 \\xrightarrow{\\times -1} -5 \\]</div>
+        `;
+    } else if (currentLevel === 2) {
+        content = `
+            <p><strong>分配律陷阱：</strong> 当负号在括号外面时，它像是一个要把括号里所有人都变号的“病毒”。</p>
+            <p><strong>常见错误：</strong> \\(- (a + b) = -a + b\\) （错！b 逃跑了）</p>
+            <p><strong>正确原则：</strong> \\(- (a + b) = -1 \\cdot (a + b) = (-1)a + (-1)b = -a - b\\)</p>
+            <div class="math-display">\\[ -(a+b) = -a - b \\]</div>
+        `;
+    } else if (currentLevel === 3) {
+        content = `
+            <p><strong>分式中的负号：</strong> 分数线 \\(\\frac{\\quad}{\\quad}\\) 本身就自带了“括号”的功能。</p>
+            <p>遇到 \\(-\\frac{a+b}{c}\\) 时，第一步必须是<strong>给分子加括号</strong>，变成 \\(\\frac{-(a+b)}{c}\\)。</p>
+            <p>然后再用分配律去括号，保证每一项都变号。</p>
+            <div class="math-display">\\[ -\\frac{a+b}{c} = \\frac{-a-b}{c} \\]</div>
+        `;
+    } else if (currentLevel === 4) {
+        content = `
+            <p><strong>分式符号法则：</strong> 负号可以在分数线前、分子、分母之间自由移动，结果不变。</p>
+            <p><strong>原理：</strong> 分式即除法。</p>
+            <ul>
+                <li>前：\\(-(a \\div b)\\)</li>
+                <li>上：\\((-a) \\div b\\)</li>
+                <li>下：\\(a \\div (-b)\\)</li>
+            </ul>
+            <p>结果都是负数。通常为了书写美观，我们习惯把负号放在<strong>分数线前面</strong>或<strong>分子</strong>上。</p>
+            <div class="math-display">\\[ -\\frac{a}{b} = \\frac{-a}{b} = \\frac{a}{-b} \\]</div>
+        `;
+    } else if (currentLevel === 5) {
+        content = `
+            <p><strong>复杂减法大合战：</strong> 两个分母相同的分式相减，最容易在合并时出错。</p>
+            <p><strong>关键点：</strong> 减号 \\(-\\) 是针对后面整个分数的，也就是针对后面整个分子的。</p>
+            <p>合并时，减号变为分子的系数： \\(-1 \\times (x+y)\\)。</p>
+            <p><strong>结果：</strong> \\(- (x+y) = -x - y\\)。注意 \\(y\\) 也要变号！</p>
+            <div class="math-display">\\[ - \\frac{x+y}{d} = \\frac{-(x+y)}{d} = \\frac{-x-y}{d} \\]</div>
+        `;
+    }
+    
+    theoryDiv.innerHTML = content;
+    MathJax.typesetPromise([theoryDiv]);
+}
+
+/**
+ * Level 1 Handlers
+ */
+function updateLvl1Val(v) {
+    lvl1_val = parseInt(v);
+    document.getElementById('val1-disp').innerText = v;
+}
+function toggleLvl1Sign() {
+    lvl1_isNegative = !lvl1_isNegative;
+    lvl1_anim = 0;
+    
+    let status = lvl1_isNegative ? "乘以 -1，翻转到左侧" : "乘以 -1，翻转回右侧";
+    document.getElementById('status-text').innerText = status;
+}
+function resetLvl1() {
+    lvl1_isNegative = false;
+    lvl1_anim = 1;
+    document.getElementById('status-text').innerText = "重置完成";
+}
+
+/**
+ * Level 2 Handlers
+ */
+function updateLvl2Vars(which, v) {
+    if (which === 'a') { lvl2_a = v; document.getElementById('val2a-disp').innerText = v; }
+    if (which === 'b') { lvl2_b = v; document.getElementById('val2b-disp').innerText = v; }
+    resetLvl2();
+}
+function playLvl2Wrong() {
+    lvl2_state = 'animating_wrong';
+    lvl2_anim_progress = 0;
+    document.getElementById('status-text').innerText = "演示错误：只改变了第一项的符号，这是不对的。";
+}
+function playLvl2Right() {
+    lvl2_state = 'animating_right';
+    lvl2_anim_progress = 0;
+    document.getElementById('status-text').innerText = "演示正确：负号“雨露均沾”，所有项都变号。";
+}
+function resetLvl2() {
+    lvl2_state = 'init';
+    document.getElementById('status-text').innerText = "重置完成";
+}
+
+/**
+ * Level 3 Handlers
+ */
+function updateLvl3Vars(which, v) {
+    if (which === 'a') { lvl3_a = v; document.getElementById('val3a-disp').innerText = v; }
+    if (which === 'b') { lvl3_b = v; document.getElementById('val3b-disp').innerText = v; }
+}
+function stepLvl3() {
+    if (lvl3_step < 3) {
+        lvl3_step++;
+        let msg = "";
+        if (lvl3_step === 1) msg = "第一步：把分数线看作括号，给分子整体加保护罩。";
+        if (lvl3_step === 2) msg = "第二步：准备去括号，负号即将分配进入。";
+        if (lvl3_step === 3) msg = "第三步：负号进入，分子每一项都变号。";
+        document.getElementById('status-text').innerText = msg;
+    } else {
+        document.getElementById('status-text').innerText = "演示结束，点击重置再试一次。";
+    }
+}
+function resetLvl3() {
+    lvl3_step = 0;
+    document.getElementById('status-text').innerText = "回到初始状态。";
+}
+
+/**
+ * Level 4 Handlers
+ */
+function updateLvl4Vars(which, v) {
+    if (which === 'a') { lvl4_a = parseInt(v); document.getElementById('val4a-disp').innerText = v; }
+    if (which === 'b') { lvl4_b = parseInt(v); document.getElementById('val4b-disp').innerText = v; }
+}
+
+function setLvl4Pos(pos) {
+    if (pos !== lvl4_sign_pos) {
+        lvl4_prev_pos = lvl4_sign_pos;
+        lvl4_sign_pos = pos;
+        lvl4_anim_t = 0; // Start animation
+        updateLevelControls();
+        
+        let msg = "";
+        if(pos === 'front') msg = "标准形式：负号在分数线前";
+        if(pos === 'top') msg = "分子吸纳：分子变成了负数";
+        if(pos === 'bottom') msg = "分母吸纳：分母变成了负数";
+        document.getElementById('status-text').innerText = msg;
+    }
+}
+
+/**
+ * Level 5 Handlers
+ */
+function stepLvl5() {
+    if (lvl5_step < 3) {
+        lvl5_step++;
+        let msg = "";
+        if (lvl5_step === 1) msg = "第一步：无论多复杂，先给分子加上括号保护起来。";
+        if (lvl5_step === 2) msg = "第二步：同分母合并。小心！中间的减号变成了针对后面整个括号的负号。";
+        if (lvl5_step === 3) msg = "第三步：去括号。分配律再次生效，x和y都要变号！";
+        document.getElementById('status-text').innerText = msg;
+    } else {
+        document.getElementById('status-text').innerText = "演示结束。这是考试最容易丢分的地方！";
+    }
+}
+function resetLvl5() {
+    lvl5_step = 0;
+    document.getElementById('status-text').innerText = "回到初始题目。";
+}
+
+</script>
+</body>
+</html>

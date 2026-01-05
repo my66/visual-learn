@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三角形的“四心”与欧拉线</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: "Inter", sans-serif; background-color: #f8fafc; }
+        canvas { touch-action: none; cursor: crosshair; }
+        .btn-mode {
+            transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+        .btn-mode.active {
+            background-color: #eff6ff;
+            border-color: #3b82f6;
+            color: #1d4ed8;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(59, 130, 246, 0.1);
+        }
+        .legend-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+    </style>
+</head>
+<body class="h-screen flex flex-col items-center p-4 md:p-6 overflow-hidden">
+
+    <header class="w-full max-w-4xl flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                <span class="text-blue-600">📐</span> 三角形的奇妙“心”
+            </h1>
+            <p class="text-sm text-slate-500 mt-1">拖动三角形顶点，观察重心的变化</p>
+        </div>
+        
+        <div class="flex flex-wrap gap-2 bg-white p-2 rounded-lg shadow-sm border border-slate-200">
+            <button class="btn-mode px-3 py-1.5 rounded text-sm text-slate-600 hover:bg-slate-50" onclick="setMode('centroid')">重心 (中线)</button>
+            <button class="btn-mode px-3 py-1.5 rounded text-sm text-slate-600 hover:bg-slate-50" onclick="setMode('circumcenter')">外心 (中垂线)</button>
+            <button class="btn-mode px-3 py-1.5 rounded text-sm text-slate-600 hover:bg-slate-50" onclick="setMode('incenter')">内心 (角平分线)</button>
+            <button class="btn-mode px-3 py-1.5 rounded text-sm text-slate-600 hover:bg-slate-50" onclick="setMode('orthocenter')">垂心 (高线)</button>
+            <div class="w-px bg-slate-200 mx-1"></div>
+            <button class="btn-mode px-3 py-1.5 rounded text-sm text-purple-600 hover:bg-purple-50" onclick="setMode('euler')">✨ 欧拉线</button>
+        </div>
+    </header>
+
+    <div class="relative w-full max-w-4xl flex-1 bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
+        <canvas id="geoCanvas" class="w-full h-full block"></canvas>
+        
+        <div id="info-card" class="absolute top-4 left-4 bg-white/90 backdrop-blur-sm p-4 rounded-xl border border-slate-100 shadow-lg max-w-xs pointer-events-none transition-all duration-300">
+            <h3 id="info-title" class="font-bold text-slate-800 mb-2 text-lg">重心 (Centroid)</h3>
+            <p id="info-desc" class="text-sm text-slate-600 leading-relaxed">
+                三角形三条<b>中线</b>的交点。<br>
+                它是三角形的几何中心，将每条中线分为 2:1 的两部分。
+            </p>
+            <div id="legend-container" class="mt-3 text-xs text-slate-500 space-y-1"></div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('geoCanvas');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+        
+        // 状态
+        let mode = 'centroid'; // centroid, circumcenter, incenter, orthocenter, euler
+        let draggingPoint = null;
+
+        // 颜色定义
+        const COLORS = {
+            triangle: '#334155', // slate-700
+            fill: 'rgba(241, 245, 249, 0.5)', // slate-100
+            vertex: '#3b82f6', // blue-500
+            line_main: '#94a3b8', // slate-400 (辅助线)
+            center_dot: '#ef4444', // red-500
+            euler_line: '#8b5cf6' // purple-500
+        };
+
+        // 初始三角形顶点 (相对坐标 0-1，适配 resize)
+        const points = [
+            { x: 0.5, y: 0.2 }, // A
+            { x: 0.2, y: 0.8 }, // B
+            { x: 0.8, y: 0.8 }  // C
+        ];
+
+        // --- 初始化与事件 ---
+
+        function resize() {
+            const dpr = window.devicePixelRatio || 1;
+            const rect = canvas.getBoundingClientRect();
+            width = rect.width;
+            height = rect.height;
+            
+            canvas.width = width * dpr;
+            canvas.height = height * dpr;
+            ctx.scale(dpr, dpr);
+            draw();
+        }
+
+        window.addEventListener('resize', resize);
+
+        // 鼠标/触摸事件处理 (支持拖拽)
+        function getPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return {
+                x: clientX - rect.left,
+                y: clientY - rect.top
+            };
+        }
+
+        function isNear(p1, p2, dist = 20) {
+            return Math.hypot(p1.x - p2.x, p1.y - p2.y) < dist;
+        }
+
+        canvas.addEventListener('mousedown', e => {
+            const pos = getPos(e);
+            // 检查点击了哪个顶点
+            const absPoints = points.map(p => ({ x: p.x * width, y: p.y * height }));
+            const idx = absPoints.findIndex(p => isNear(pos, p));
+            if (idx !== -1) draggingPoint = idx;
+        });
+
+        window.addEventListener('mousemove', e => {
+            if (draggingPoint !== null) {
+                const pos = getPos(e);
+                // 限制在画布内，留点边距
+                const padding = 20;
+                points[draggingPoint].x = Math.max(padding/width, Math.min(1 - padding/width, pos.x / width));
+                points[draggingPoint].y = Math.max(padding/height, Math.min(1 - padding/height, pos.y / height));
+                draw();
+            } else {
+                // 悬停效果
+                const pos = getPos(e);
+                const absPoints = points.map(p => ({ x: p.x * width, y: p.y * height }));
+                const idx = absPoints.findIndex(p => isNear(pos, p));
+                canvas.style.cursor = idx !== -1 ? 'move' : 'default';
+            }
+        });
+
+        window.addEventListener('mouseup', () => draggingPoint = null);
+        // 简单的触摸支持
+        canvas.addEventListener('touchstart', e => {
+            const pos = getPos(e);
+            const absPoints = points.map(p => ({ x: p.x * width, y: p.y * height }));
+            const idx = absPoints.findIndex(p => isNear(pos, p));
+            if (idx !== -1) { draggingPoint = idx; e.preventDefault(); }
+        }, {passive: false});
+        
+        canvas.addEventListener('touchmove', e => {
+            if (draggingPoint !== null) {
+                const pos = getPos(e);
+                e.preventDefault();
+                const padding = 20;
+                points[draggingPoint].x = Math.max(padding/width, Math.min(1 - padding/width, pos.x / width));
+                points[draggingPoint].y = Math.max(padding/height, Math.min(1 - padding/height, pos.y / height));
+                draw();
+            }
+        }, {passive: false});
+
+
+        // --- 几何计算 ---
+
+        // 点加减乘
+        const add = (p1, p2) => ({x: p1.x + p2.x, y: p1.y + p2.y});
+        const sub = (p1, p2) => ({x: p1.x - p2.x, y: p1.y - p2.y});
+        const mult = (p, s) => ({x: p.x * s, y: p.y * s});
+        const dist = (p1, p2) => Math.hypot(p1.x - p2.x, p1.y - p2.y);
+        const mid = (p1, p2) => mult(add(p1, p2), 0.5);
+
+        // 获取三边长度
+        function getSides(A, B, C) {
+            return {
+                a: dist(B, C), // 对应角A的边
+                b: dist(A, C),
+                c: dist(A, B)
+            };
+        }
+
+        // 1. 重心 (Centroid) = (A+B+C)/3
+        function getCentroid(A, B, C) {
+            return { x: (A.x+B.x+C.x)/3, y: (A.y+B.y+C.y)/3 };
+        }
+
+        // 2. 外心 (Circumcenter)
+        function getCircumcenter(A, B, C) {
+            const D = 2 * (A.x * (B.y - C.y) + B.x * (C.y - A.y) + C.x * (A.y - B.y));
+            const Ux = (1/D) * ((A.x**2 + A.y**2)*(B.y - C.y) + (B.x**2 + B.y**2)*(C.y - A.y) + (C.x**2 + C.y**2)*(A.y - B.y));
+            const Uy = (1/D) * ((A.x**2 + A.y**2)*(C.x - B.x) + (B.x**2 + B.y**2)*(A.x - C.x) + (C.x**2 + C.y**2)*(B.x - A.x));
+            return { x: Ux, y: Uy };
+        }
+
+        // 3. 内心 (Incenter) = (aA + bB + cC) / (a+b+c)
+        function getIncenter(A, B, C) {
+            const { a, b, c } = getSides(A, B, C);
+            const P = a + b + c;
+            return {
+                x: (a*A.x + b*B.x + c*C.x) / P,
+                y: (a*A.y + b*B.y + c*C.y) / P
+            };
+        }
+
+        // 4. 垂心 (Orthocenter)
+        // 利用欧拉线性质：H = 3G - 2O (G重心, O外心) 
+        // 或者矢量法：OH = OA + OB + OC (如果O是原点). 这里直接用几何解法太复杂，用欧拉线性质最快
+        function getOrthocenter(A, B, C) {
+            const G = getCentroid(A, B, C);
+            const O = getCircumcenter(A, B, C);
+            // Vector OG
+            const vOG = sub(G, O);
+            // OH = 3 * OG => H = O + 3*vOG
+            return add(O, mult(vOG, 3));
+        }
+
+        // 求垂足 (Projection of P onto line AB)
+        function getProjection(P, A, B) {
+            const vAB = sub(B, A);
+            const vAP = sub(P, A);
+            const len2 = vAB.x**2 + vAB.y**2;
+            const dot = vAP.x*vAB.x + vAP.y*vAB.y;
+            const t = dot / len2;
+            return add(A, mult(vAB, t));
+        }
+
+
+        // --- 绘图 ---
+
+        function drawLine(p1, p2, color, dashed=false, width=1) {
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = width;
+            ctx.setLineDash(dashed ? [5, 5] : []);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        function drawDot(p, color, r=4) {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, r, 0, Math.PI*2);
+            ctx.fillStyle = color;
+            ctx.fill();
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+
+        function drawLabel(text, p, offset={x:0, y:-10}) {
+            ctx.fillStyle = COLORS.triangle;
+            ctx.font = 'bold 12px Inter';
+            ctx.textAlign = 'center';
+            ctx.fillText(text, p.x + offset.x, p.y + offset.y);
+        }
+
+        function draw() {
+            if (!width || !height) return;
+            ctx.clearRect(0, 0, width, height);
+
+            // 转换绝对坐标
+            const A = { x: points[0].x * width, y: points[0].y * height };
+            const B = { x: points[1].x * width, y: points[1].y * height };
+            const C = { x: points[2].x * width, y: points[2].y * height };
+
+            // 1. 绘制三角形底色
+            ctx.beginPath();
+            ctx.moveTo(A.x, A.y);
+            ctx.lineTo(B.x, B.y);
+            ctx.lineTo(C.x, C.y);
+            ctx.closePath();
+            ctx.fillStyle = COLORS.fill;
+            ctx.fill();
+            ctx.strokeStyle = COLORS.triangle;
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            // 绘制顶点标签
+            drawLabel('A', A);
+            drawLabel('B', B);
+            drawLabel('C', C);
+
+            // 2. 根据模式绘制辅助线和点
+            if (mode === 'centroid') {
+                const mA = mid(B, C);
+                const mB = mid(A, C);
+                const mC = mid(A, B);
+                
+                drawLine(A, mA, COLORS.line_main, true);
+                drawLine(B, mB, COLORS.line_main, true);
+                drawLine(C, mC, COLORS.line_main, true);
+                
+                const G = getCentroid(A, B, C);
+                drawDot(G, COLORS.center_dot, 6);
+                drawLabel('G (重心)', G, {x:0, y:20});
+
+            } else if (mode === 'circumcenter') {
+                const O = getCircumcenter(A, B, C);
+                const R = dist(O, A);
+                
+                // 绘制外接圆
+                ctx.beginPath();
+                ctx.arc(O.x, O.y, R, 0, Math.PI*2);
+                ctx.strokeStyle = 'rgba(59, 130, 246, 0.3)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                
+                // 绘制中垂线示意 (从各边中点连向圆心)
+                drawLine(mid(B,C), O, COLORS.line_main, true);
+                drawLine(mid(A,C), O, COLORS.line_main, true);
+                drawLine(mid(A,B), O, COLORS.line_main, true);
+
+                drawDot(O, COLORS.center_dot, 6);
+                drawLabel('O (外心)', O, {x:0, y:20});
+
+            } else if (mode === 'incenter') {
+                const I = getIncenter(A, B, C);
+                // 计算内切圆半径 (面积/半周长)
+                // Area using Heron's or coordinate formula
+                const area = 0.5 * Math.abs(A.x*(B.y-C.y) + B.x*(C.y-A.y) + C.x*(A.y-B.y));
+                const sides = getSides(A,B,C);
+                const p = (sides.a+sides.b+sides.c)/2;
+                const r = area / p;
+
+                // 绘制内切圆
+                ctx.beginPath();
+                ctx.arc(I.x, I.y, r, 0, Math.PI*2);
+                ctx.strokeStyle = 'rgba(59, 130, 246, 0.6)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                drawLine(A, I, COLORS.line_main, true);
+                drawLine(B, I, COLORS.line_main, true);
+                drawLine(C, I, COLORS.line_main, true);
+
+                drawDot(I, COLORS.center_dot, 6);
+                drawLabel('I (内心)', I, {x:0, y:20});
+
+            } else if (mode === 'orthocenter') {
+                const H = getOrthocenter(A, B, C);
+                
+                const pA = getProjection(A, B, C); // A on BC
+                const pB = getProjection(B, A, C); // B on AC
+                const pC = getProjection(C, A, B); // C on AB
+
+                drawLine(A, pA, COLORS.line_main, true);
+                drawLine(B, pB, COLORS.line_main, true);
+                drawLine(C, pC, COLORS.line_main, true);
+
+                drawDot(H, COLORS.center_dot, 6);
+                drawLabel('H (垂心)', H, {x:0, y:20});
+            } else if (mode === 'euler') {
+                const G = getCentroid(A, B, C);
+                const O = getCircumcenter(A, B, C);
+                const H = getOrthocenter(A, B, C);
+
+                // 欧拉线穿过 O, G, H
+                // 绘制线段
+                drawLine(O, H, COLORS.euler_line, false, 3);
+
+                drawDot(O, '#3b82f6', 5); // Blue
+                drawDot(G, '#10b981', 5); // Green
+                drawDot(H, '#ef4444', 5); // Red
+
+                drawLabel('O', O, {x:10, y:-10});
+                drawLabel('G', G, {x:10, y:-10});
+                drawLabel('H', H, {x:10, y:-10});
+            }
+
+            // 3. 绘制控制点 (最后绘制，在最上层)
+            drawDot(A, COLORS.vertex, 8);
+            drawDot(B, COLORS.vertex, 8);
+            drawDot(C, COLORS.vertex, 8);
+        }
+
+        // --- UI 逻辑 ---
+        const infoMap = {
+            centroid: { title: '重心 (Centroid)', desc: '三角形三条<b>中线</b>的交点。它是三角形的物理平衡点（如果质量均匀）。重心将每条中线分为 2:1。', legend: '' },
+            circumcenter: { title: '外心 (Circumcenter)', desc: '三角形三条边的<b>垂直平分线</b>的交点。它是外接圆的圆心，到三个顶点的距离相等。锐角三角形在内部，钝角三角形在外部。', legend: '' },
+            incenter: { title: '内心 (Incenter)', desc: '三角形三个内角的<b>角平分线</b>的交点。它是内切圆的圆心，到三条边的距离相等。它永远在三角形内部。', legend: '' },
+            orthocenter: { title: '垂心 (Orthocenter)', desc: '三角形三条<b>高线</b>的交点。锐角三角形在内部，直角三角形在直角顶点，钝角三角形在外部。', legend: '' },
+            euler: { title: '欧拉线 (Euler Line)', desc: '在任意三角形中，<b>外心、重心、垂心</b>总是共线的！这条神奇的线被称为欧拉线。（注：正三角形三心合一，欧拉线为一个点）', legend: '<span class="legend-dot bg-blue-500"></span>外心 <span class="legend-dot bg-green-500"></span>重心 <span class="legend-dot bg-red-500"></span>垂心' }
+        };
+
+        window.setMode = function(m) {
+            mode = m;
+            // Update Buttons
+            document.querySelectorAll('.btn-mode').forEach(btn => {
+                if(btn.getAttribute('onclick').includes(m)) btn.classList.add('active');
+                else btn.classList.remove('active');
+            });
+            
+            // Update Info
+            const info = infoMap[m];
+            document.getElementById('info-title').innerHTML = info.title;
+            document.getElementById('info-desc').innerHTML = info.desc;
+            document.getElementById('legend-container').innerHTML = info.legend || '';
+
+            draw();
+        }
+
+        // 启动
+        setMode('centroid');
+        resize(); // Initial draw
+
+    </script>
+</body>
+</html>

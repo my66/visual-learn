@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>平面镜成像：全功能演示</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #f0f4f8; font-family: 'Segoe UI', sans-serif; }
+        canvas { display: block; touch-action: none; }
+        .panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            width: 360px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            backdrop-filter: blur(5px);
+            border: 1px solid #e2e8f0;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .control-group { margin-bottom: 12px; }
+        .label { font-weight: 600; font-size: 14px; color: #475569; margin-bottom: 5px; display: block; }
+        
+        .switch { position: relative; display: inline-block; width: 40px; height: 20px; vertical-align: middle; margin-right: 10px;}
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 20px; }
+        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 2px; bottom: 2px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: #3b82f6; }
+        input:checked + .slider:before { transform: translateX(20px); }
+
+        /* Range Slider */
+        input[type=range] { width: 100%; margin: 8px 0; }
+
+        .key-points {
+            margin-top: 15px;
+            background: #fffbeb;
+            border: 1px solid #fcd34d;
+            border-radius: 8px;
+            padding: 12px;
+        }
+        .key-points h3 {
+            font-size: 14px;
+            font-weight: bold;
+            color: #b45309;
+            margin: 0 0 8px 0;
+            border-bottom: 1px dashed #fcd34d;
+            padding-bottom: 4px;
+        }
+        .step-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .step-list li {
+            font-size: 13px;
+            color: #78350f;
+            margin-bottom: 6px;
+            padding-left: 20px;
+            position: relative;
+        }
+        .step-list li:before {
+            content: counter(step); 
+            counter-increment: step;
+            position: absolute;
+            left: 0;
+            top: 1px;
+            width: 16px;
+            height: 16px;
+            background: #f59e0b;
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 16px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        .step-list { counter-reset: step; }
+
+        .instruction {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            text-align: center;
+            color: #64748b;
+            font-size: 14px;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="opticsCanvas"></canvas>
+
+    <div class="panel">
+        <h1 class="text-xl font-bold text-gray-800 mb-4 border-b pb-2">🔭 平面镜成像作图演示</h1>
+        
+        <div class="control-group">
+            <span class="label">1. 旋转镜子 (改变成像位置)</span>
+            <input type="range" id="mirrorAngle" min="-60" max="60" value="0">
+            <div class="text-xs text-gray-500 flex justify-between">
+                <span>-60°</span>
+                <span id="angleVal">0°</span>
+                <span>+60°</span>
+            </div>
+        </div>
+
+        <hr class="border-gray-200 my-4">
+        <span class="label mb-2">2. 辅助显示选项</span>
+
+        <div class="control-group">
+            <label class="flex items-center cursor-pointer">
+                <div class="switch">
+                    <input type="checkbox" id="showPerpendicular" checked>
+                    <span class="slider"></span>
+                </div>
+                <span class="text-sm text-gray-700 font-bold text-blue-600">显示对称/垂线 (找虚像)</span>
+            </label>
+        </div>
+
+        <div class="control-group">
+            <label class="flex items-center cursor-pointer">
+                <div class="switch">
+                    <input type="checkbox" id="showNormal" checked>
+                    <span class="slider"></span>
+                </div>
+                <span class="text-sm text-gray-700">显示法线 (验证反射定律)</span>
+            </label>
+        </div>
+
+        <div class="control-group">
+            <label class="flex items-center cursor-pointer">
+                <div class="switch">
+                    <input type="checkbox" id="showScattered">
+                    <span class="slider"></span>
+                </div>
+                <span class="text-sm text-gray-700">显示漫反射 (干扰光线)</span>
+            </label>
+        </div>
+
+        <div class="control-group">
+            <label class="flex items-center cursor-pointer">
+                <div class="switch">
+                    <input type="checkbox" id="showFieldOfView">
+                    <span class="slider"></span>
+                </div>
+                <span class="text-sm text-gray-700">显示可视范围 (视野)</span>
+            </label>
+        </div>
+
+        <!-- Core Points Annotation Block -->
+        <div class="key-points">
+            <h3>📝 作图核心要点 (口诀)</h3>
+            <ul class="step-list">
+                <li><strong>作垂线：</strong>过物体 <i>S</i> 向镜面作垂线。</li>
+                <li><strong>取等距：</strong>镜后截取相等距离，定出虚像 <i>S'</i>。</li>
+                <li><strong>连视线：</strong>连接 <i>S'</i> 与眼睛，交镜面于入射点 <i>O</i>。</li>
+                <li><strong>补实线：</strong>连接 <i>S→O</i> 和 <i>O→眼睛</i> (标箭头)。</li>
+            </ul>
+        </div>
+
+    </div>
+
+    <div class="instruction">
+        拖动红球(物)或蓝球(眼)，观察光路如何遵循“对称原理”
+    </div>
+
+    <script>
+        const canvas = document.getElementById('opticsCanvas');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+
+        const config = {
+            showScattered: false,
+            showPerpendicular: true,
+            showFieldOfView: false,
+            showNormal: true,
+            mirrorLength: 300,
+            angle: 0 // Degrees
+        };
+
+        const state = {
+            object: { x: 200, y: 300, radius: 10, color: '#ef4444', label: 'S' },
+            eye: { x: 600, y: 200, radius: 15, color: '#3b82f6', label: 'Eye' },
+            mirror: { x: 0, y: 0 } 
+        };
+
+        // UI Refs
+        const angleSlider = document.getElementById('mirrorAngle');
+        const angleVal = document.getElementById('angleVal');
+        const showScatteredCheck = document.getElementById('showScattered');
+        const showPerpendicularCheck = document.getElementById('showPerpendicular');
+        const showFieldOfViewCheck = document.getElementById('showFieldOfView');
+        const showNormalCheck = document.getElementById('showNormal');
+
+        function init() {
+            resize();
+            window.addEventListener('resize', resize);
+            
+            // Initial positions
+            state.mirror.x = width / 2;
+            state.mirror.y = height / 2 + 50;
+            state.object.x = width / 2 - 150; 
+            state.object.y = height / 2 + 50;
+            state.eye.x = width / 2 - 250; 
+            state.eye.y = height / 2 - 100;
+
+            setupEvents();
+            animate();
+        }
+
+        function resize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+        }
+
+        // --- Math Engine ---
+        function rad(deg) { return deg * Math.PI / 180; }
+
+        function getMirrorPoints() {
+            const a = rad(config.angle);
+            const dx = (config.mirrorLength / 2) * Math.sin(a);
+            const dy = (config.mirrorLength / 2) * Math.cos(a);
+
+            return {
+                top: { x: state.mirror.x + dx, y: state.mirror.y - dy },
+                bottom: { x: state.mirror.x - dx, y: state.mirror.y + dy }
+            };
+        }
+
+        function getVirtualImagePos() {
+            const m = getMirrorPoints();
+            const ux = m.bottom.x - m.top.x;
+            const uy = m.bottom.y - m.top.y;
+            const len = Math.sqrt(ux*ux + uy*uy);
+            const u = { x: ux/len, y: uy/len }; 
+
+            const vx = state.object.x - m.top.x;
+            const vy = state.object.y - m.top.y;
+
+            const dot = vx * u.x + vy * u.y;
+            const proj = { x: dot * u.x, y: dot * u.y };
+            const perp = { x: vx - proj.x, y: vy - proj.y };
+
+            return {
+                x: state.object.x - 2 * perp.x,
+                y: state.object.y - 2 * perp.y
+            };
+        }
+
+        function getLineIntersection(p1, p2, p3, p4) {
+            const x1 = p1.x, y1 = p1.y, x2 = p2.x, y2 = p2.y;
+            const x3 = p3.x, y3 = p3.y, x4 = p4.x, y4 = p4.y;
+            const denom = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1);
+            if (denom === 0) return null; 
+
+            const ua = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / denom;
+             return {
+                x: x1 + ua * (x2 - x1),
+                y: y1 + ua * (y2 - y1),
+                t: ua
+            };
+        }
+
+        function getSide(p, lineStart, lineEnd) {
+             return (lineEnd.x - lineStart.x) * (p.y - lineStart.y) - (lineEnd.y - lineStart.y) * (p.x - lineStart.x);
+        }
+
+        // --- Drawing ---
+
+        function drawGrid() {
+            ctx.strokeStyle = '#e2e8f0';
+            ctx.lineWidth = 1;
+            const step = 50;
+            ctx.beginPath();
+            for (let x = 0; x < width; x += step) { ctx.moveTo(x, 0); ctx.lineTo(x, height); }
+            for (let y = 0; y < height; y += step) { ctx.moveTo(0, y); ctx.lineTo(width, y); }
+            ctx.stroke();
+        }
+
+        function drawMirror() {
+            const m = getMirrorPoints();
+            
+            // Glass
+            ctx.beginPath();
+            ctx.moveTo(m.top.x, m.top.y);
+            ctx.lineTo(m.bottom.x, m.bottom.y);
+            ctx.strokeStyle = '#94a3b8';
+            ctx.lineWidth = 6;
+            ctx.stroke();
+
+            // Reflective Surface
+            ctx.beginPath();
+            ctx.moveTo(m.top.x, m.top.y);
+            ctx.lineTo(m.bottom.x, m.bottom.y);
+            ctx.strokeStyle = '#bae6fd';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            // Hatch Marks
+            const dx = m.bottom.x - m.top.x;
+            const dy = m.bottom.y - m.top.y;
+            const len = Math.sqrt(dx*dx + dy*dy);
+            let nx = -dy / len;
+            let ny = dx / len;
+
+            const objSide = getSide(state.object, m.top, m.bottom);
+            if (objSide > 0) {
+                nx = -nx; ny = -ny;
+            }
+
+            ctx.beginPath();
+            const hatchLen = 10;
+            const numHatches = 30;
+            for(let i=0; i<=numHatches; i++) {
+                const t = i/numHatches;
+                const px = m.top.x + dx * t;
+                const py = m.top.y + dy * t;
+                ctx.moveTo(px, py);
+                ctx.lineTo(px + nx * hatchLen, py + ny * hatchLen);
+            }
+            ctx.strokeStyle = '#64748b';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        }
+
+        function drawPoint(pos, color, radius, label) {
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y, radius + 5, 0, Math.PI * 2);
+            ctx.fillStyle = color + '33';
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
+            ctx.fillStyle = color;
+            ctx.fill();
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            if (label) {
+                ctx.fillStyle = '#1e293b';
+                ctx.font = 'bold 14px sans-serif';
+                ctx.fillText(label, pos.x + 15, pos.y - 15);
+            }
+        }
+
+        function drawEye() {
+            const x = state.eye.x;
+            const y = state.eye.y;
+            ctx.save();
+            ctx.translate(x, y);
+            const dx = state.mirror.x - x;
+            const dy = state.mirror.y - y;
+            const angle = Math.atan2(dy, dx);
+            ctx.rotate(angle);
+            ctx.beginPath();
+            ctx.arc(0, 0, 15, -Math.PI/4, Math.PI/4);
+            ctx.quadraticCurveTo(-10, 0, 0, -Math.PI/4 * 15);
+            ctx.fillStyle = 'white';
+            ctx.fill();
+            ctx.strokeStyle = '#3b82f6';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(8, 0, 5, 0, Math.PI * 2);
+            ctx.fillStyle = '#1e3a8a';
+            ctx.fill();
+            ctx.restore();
+            drawPoint(state.eye, '#3b82f6', 5, "Eye");
+        }
+
+        function drawVirtualImage(pos) {
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y, 8, 0, Math.PI * 2);
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#ef4444';
+            ctx.font = 'bold 14px sans-serif';
+            ctx.fillText("S'", pos.x + 15, pos.y - 15);
+        }
+
+        function drawRay(from, to, color, dashed = false, width = 2) {
+            ctx.beginPath();
+            ctx.moveTo(from.x, from.y);
+            ctx.lineTo(to.x, to.y);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = width;
+            if (dashed) ctx.setLineDash([8, 6]);
+            else ctx.setLineDash([]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        function drawSymmetryLine(virtualPos) {
+            if (!config.showPerpendicular) return;
+
+            ctx.beginPath();
+            ctx.moveTo(state.object.x, state.object.y);
+            ctx.lineTo(virtualPos.x, virtualPos.y);
+            ctx.strokeStyle = '#94a3b8';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([4, 4]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Right angle symbol
+            const midX = (state.object.x + virtualPos.x) / 2;
+            const midY = (state.object.y + virtualPos.y) / 2;
+            
+            ctx.fillStyle = '#64748b';
+            ctx.beginPath();
+            ctx.arc(midX, midY, 3, 0, Math.PI*2);
+            ctx.fill();
+
+            const angle = Math.atan2(virtualPos.y - state.object.y, virtualPos.x - state.object.x);
+            ctx.save();
+            ctx.translate(midX, midY);
+            ctx.rotate(angle);
+            ctx.strokeStyle = '#64748b';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            const sz = 10;
+            ctx.moveTo(0, -sz);
+            ctx.lineTo(-sz, -sz);
+            ctx.lineTo(-sz, 0);
+            ctx.stroke();
+            
+            ctx.fillStyle = '#475569';
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText("d", -sz - 10, -sz - 5);
+            ctx.fillText("d", sz + 10, -sz - 5);
+            ctx.restore();
+        }
+
+        function drawNormal(intersectionPoint, m) {
+            if (!config.showNormal) return;
+
+            // Calculate Normal direction
+            // Mirror vector:
+            const dx = m.bottom.x - m.top.x;
+            const dy = m.bottom.y - m.top.y;
+            const len = Math.sqrt(dx*dx + dy*dy);
+            
+            // Normal is (-dy, dx) or (dy, -dx)
+            // We want it pointing towards the object (generally)
+            let nx = -dy / len;
+            let ny = dx / len;
+
+            // Verify direction against object
+            const objSide = getSide(state.object, m.top, m.bottom);
+            // If objSide is positive, normal should be "left" relative to mirror vector
+            // Just ensure it points into the "active" side
+            // Actually, for visualization, drawing a line THROUGH is fine, but typically normal is dotted line
+            
+            ctx.save();
+            ctx.translate(intersectionPoint.x, intersectionPoint.y);
+            
+            // Draw lines extending both ways relative to mirror
+            // We can just rotate context to match mirror normal
+            const angle = Math.atan2(ny, nx);
+            ctx.rotate(angle);
+
+            ctx.beginPath();
+            ctx.moveTo(-40, 0);
+            ctx.lineTo(40, 0);
+            ctx.strokeStyle = '#475569';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([3, 3]);
+            ctx.stroke();
+
+            // Label 'N'
+            ctx.fillStyle = '#475569';
+            ctx.font = 'bold 12px sans-serif';
+            // Determine label placement based on rotation to keep it upright-ish?
+            // Simple approach:
+            ctx.fillText("N", 45, 4);
+
+            ctx.restore();
+        }
+
+        function drawPhysics() {
+            const virtualPos = getVirtualImagePos();
+            const m = getMirrorPoints();
+            
+            // 1. Scattered Rays
+            if (config.showScattered) {
+                const steps = 15;
+                const dx = (m.bottom.x - m.top.x) / steps;
+                const dy = (m.bottom.y - m.top.y) / steps;
+                const objSide = getSide(state.object, m.top, m.bottom);
+                const eyeSide = getSide(state.eye, m.top, m.bottom);
+                const sameSide = (objSide * eyeSide) > 0;
+
+                if (sameSide) {
+                    for(let i=1; i<steps; i++) {
+                        const pOnMirror = { x: m.top.x + dx*i, y: m.top.y + dy*i };
+                        ctx.globalAlpha = 0.15;
+                        drawRay(state.object, pOnMirror, '#ef4444', false, 1);
+                        
+                        const rdx = pOnMirror.x - virtualPos.x;
+                        const rdy = pOnMirror.y - virtualPos.y;
+                        const dist = Math.sqrt(rdx*rdx + rdy*rdy);
+                        const len = 800;
+                        const pEnd = { x: pOnMirror.x + (rdx/dist) * len, y: pOnMirror.y + (rdy/dist) * len };
+                        drawRay(pOnMirror, pEnd, '#3b82f6', false, 1);
+                    }
+                    ctx.globalAlpha = 1.0;
+                }
+            }
+
+            // 2. Real Intersection
+            const inter = getLineIntersection(state.eye, virtualPos, m.top, m.bottom);
+            let hitPoint = null;
+            let hitValid = false;
+
+            if (inter) {
+                const dMirror = Math.sqrt((m.bottom.x-m.top.x)**2 + (m.bottom.y-m.top.y)**2);
+                const dInter = Math.sqrt((inter.x-m.top.x)**2 + (inter.y-m.top.y)**2);
+                const dInter2 = Math.sqrt((inter.x-m.bottom.x)**2 + (inter.y-m.bottom.y)**2);
+                
+                if (Math.abs((dInter + dInter2) - dMirror) < 1) {
+                    hitPoint = { x: inter.x, y: inter.y };
+                    hitValid = true;
+                } else {
+                    hitPoint = { x: inter.x, y: inter.y }; 
+                }
+            }
+
+            const objSide = getSide(state.object, m.top, m.bottom);
+            const eyeSide = getSide(state.eye, m.top, m.bottom);
+            const sameSide = (objSide * eyeSide) > 0;
+
+            if (config.showFieldOfView && sameSide) {
+                 ctx.beginPath();
+                 ctx.moveTo(state.eye.x, state.eye.y);
+                 ctx.lineTo(m.top.x, m.top.y);
+                 ctx.lineTo(m.bottom.x, m.bottom.y);
+                 ctx.closePath();
+                 ctx.fillStyle = 'rgba(255, 235, 59, 0.1)';
+                 ctx.fill();
+                 
+                 ctx.globalAlpha = 0.4;
+                 drawRay(m.top, state.eye, '#d97706');
+                 drawRay(m.bottom, state.eye, '#d97706');
+                 drawRay(state.object, m.top, '#d97706');
+                 drawRay(state.object, m.bottom, '#d97706');
+                 ctx.globalAlpha = 1.0;
+            }
+
+            // 3. Main Logic
+            drawVirtualImage(virtualPos);
+            drawSymmetryLine(virtualPos);
+
+            if (hitPoint && sameSide) {
+                if (hitValid) {
+                    // Valid Reflection
+                    drawRay(state.object, hitPoint, '#ef4444', false, 3);
+                    drawRay(hitPoint, state.eye, '#3b82f6', false, 3);
+                    drawRay(hitPoint, virtualPos, '#ef4444', true, 2); 
+                    
+                    // Draw Normal at hit point
+                    drawNormal(hitPoint, m);
+
+                } else {
+                    // Ghost line
+                    ctx.save();
+                    ctx.globalAlpha = 0.3;
+                    ctx.setLineDash([5,5]);
+                    ctx.strokeStyle = '#3b82f6';
+                    ctx.beginPath();
+                    ctx.moveTo(state.eye.x, state.eye.y);
+                    ctx.lineTo(hitPoint.x, hitPoint.y);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+            }
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, width, height);
+            drawGrid();
+            drawPhysics();
+            drawMirror();
+            drawPoint(state.object, state.object.color, state.object.radius, "S");
+            drawEye();
+            requestAnimationFrame(animate);
+        }
+
+        // --- Interaction ---
+        function getMousePos(evt) {
+            const rect = canvas.getBoundingClientRect();
+            return { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
+        }
+        function dist(p1, p2) { return Math.sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2); }
+
+        function setupEvents() {
+            let activeObj = null;
+            
+            const handleStart = (pos) => {
+                if (dist(pos, state.object) < 30) activeObj = state.object;
+                else if (dist(pos, state.eye) < 30) activeObj = state.eye;
+                else if (dist(pos, state.mirror) < 40) activeObj = state.mirror;
+            };
+
+            const handleMove = (pos) => {
+                canvas.style.cursor = 'default';
+                if (dist(pos, state.object) < 30 || dist(pos, state.eye) < 30) canvas.style.cursor = 'move';
+                else if (dist(pos, state.mirror) < 40) canvas.style.cursor = 'all-scroll';
+
+                if (activeObj) {
+                    activeObj.x = pos.x;
+                    activeObj.y = pos.y;
+                }
+            };
+
+            canvas.addEventListener('mousedown', e => handleStart(getMousePos(e)));
+            window.addEventListener('mousemove', e => handleMove(getMousePos(e)));
+            window.addEventListener('mouseup', () => activeObj = null);
+            
+            canvas.addEventListener('touchstart', e => {
+                e.preventDefault();
+                handleStart({x: e.touches[0].clientX, y: e.touches[0].clientY});
+            }, {passive:false});
+            canvas.addEventListener('touchmove', e => {
+                e.preventDefault();
+                if(activeObj) handleMove({x: e.touches[0].clientX, y: e.touches[0].clientY});
+            }, {passive:false});
+            window.addEventListener('touchend', () => activeObj = null);
+
+            angleSlider.addEventListener('input', (e) => {
+                config.angle = parseInt(e.target.value);
+                angleVal.textContent = config.angle + '°';
+            });
+            
+            showScatteredCheck.addEventListener('change', e => config.showScattered = e.target.checked);
+            showPerpendicularCheck.addEventListener('change', e => config.showPerpendicular = e.target.checked);
+            showFieldOfViewCheck.addEventListener('change', e => config.showFieldOfView = e.target.checked);
+            showNormalCheck.addEventListener('change', e => config.showNormal = e.target.checked);
+        }
+
+        init();
+    </script>
+</body>
+</html>

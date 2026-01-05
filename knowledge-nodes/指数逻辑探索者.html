@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>幂运算的本质：数学可视化探索</title>
+  <style>
+    /* 基础布局 */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Noto Sans SC", "Times New Roman", serif; /* 衬线体更像数学书 */
+      background-color: #f5f7fa;
+      color: #2c3e50;
+      height: 100vh;
+      overflow: hidden; /* 固定视口 */
+      display: flex;
+    }
+
+    /* 侧边栏：导航与控制 */
+    #sidebar {
+      width: 360px;
+      background: #ffffff;
+      border-right: 1px solid #e1e4e8;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 2px 0 10px rgba(0,0,0,0.03);
+      z-index: 10;
+    }
+
+    /* 模块选项卡 */
+    .module-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      background: #f0f2f5;
+    }
+    .module-tab {
+      flex: 1 1 50%; /* 两列布局 */
+      text-align: center;
+      padding: 12px 5px;
+      font-size: 13px;
+      cursor: pointer;
+      border-bottom: 1px solid #ddd;
+      border-right: 1px solid #ddd;
+      background: #f8f9fa;
+      color: #666;
+      transition: all 0.2s;
+    }
+    .module-tab:hover { background: #e9ecef; }
+    .module-tab.active {
+      background: #fff;
+      color: #2980b9;
+      font-weight: bold;
+      border-bottom: 2px solid #2980b9;
+    }
+
+    /* 内容区 */
+    .content-area {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    h1 { font-size: 18px; color: #2c3e50; margin-bottom: 15px; font-weight: bold; }
+    
+    .instruction-box {
+      background: #eef7fe;
+      border-left: 4px solid #3498db;
+      padding: 15px;
+      border-radius: 4px;
+      margin-bottom: 20px;
+      font-size: 14px;
+      line-height: 1.6;
+      color: #34495e;
+    }
+    .instruction-box b { color: #2980b9; }
+
+    /* 控制组件 */
+    .control-panel {
+      background: #fafafa;
+      border: 1px solid #eee;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+    .slider-container { margin-bottom: 10px; }
+    .slider-label { display: flex; justify-content: space-between; font-size: 13px; font-weight: bold; margin-bottom: 5px; }
+    input[type=range] { width: 100%; cursor: pointer; }
+
+    /* 底部导航 */
+    .nav-buttons {
+      margin-top: auto;
+      display: flex;
+      gap: 10px;
+      padding-top: 20px;
+      border-top: 1px solid #eee;
+    }
+    .btn {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 14px;
+      transition: background 0.2s;
+    }
+    .btn-prev { background: #e0e0e0; color: #555; }
+    .btn-prev:hover { background: #d0d0d0; }
+    .btn-next { background: #2980b9; color: white; }
+    .btn-next:hover { background: #1f6391; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* 画布区域 */
+    #canvas-container {
+      flex: 1;
+      position: relative;
+      background-color: #ffffff;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    
+    /* 进度指示器 */
+    .step-indicator {
+      text-align: center;
+      font-size: 12px;
+      color: #999;
+      margin-bottom: 5px;
+    }
+
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+</head>
+<body>
+
+  <!-- 左侧控制面板 -->
+  <aside id="sidebar">
+    <!-- 顶部模块切换 -->
+    <div class="module-tabs">
+      <div class="module-tab active" onclick="switchModule(0)">1. 整数与负数<br><small>(连乘到连除)</small></div>
+      <div class="module-tab" onclick="switchModule(1)">2. 代数验证<br><small>(矩形面积)</small></div>
+      <div class="module-tab" onclick="switchModule(2)">3. 函数图像<br><small>(连续性)</small></div>
+      <div class="module-tab" onclick="switchModule(3)">4. 几何意义<br><small>(根号与体积)</small></div>
+    </div>
+
+    <div class="content-area">
+      <div class="step-indicator" id="stepIndicator">Step 1/4</div>
+      <h1 id="stepTitle">标题</h1>
+      
+      <div class="instruction-box" id="stepDesc">
+        说明文字...
+      </div>
+
+      <!-- 动态控制区 -->
+      <div class="control-panel">
+        <div class="slider-container">
+          <div class="slider-label">
+            <span>底数 (Base)</span>
+            <span id="baseValDisplay" style="font-family: 'Times New Roman'; font-weight: bold;">a = 2</span>
+          </div>
+          <input type="range" id="baseSlider" min="2" max="5" step="1" value="2">
+        </div>
+
+        <!-- 仅在特定步骤显示的额外控制 -->
+        <div id="extraControls" style="display:none;">
+          <div class="slider-container">
+            <div class="slider-label">
+              <span>指数 (Exponent)</span>
+              <span id="expValDisplay">x = 1.0</span>
+            </div>
+            <input type="range" id="expSlider" min="-3" max="3" step="0.1" value="1">
+          </div>
+        </div>
+      </div>
+
+      <!-- 导航按钮 -->
+      <div class="nav-buttons">
+        <button class="btn btn-prev" id="btnPrev" onclick="prevStep()">上一步</button>
+        <button class="btn btn-next" id="btnNext" onclick="nextStep()">下一步</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- 右侧画布 -->
+  <main id="canvas-container"></main>
+
+<script>
+/**
+ * 核心数据结构：模块化教程
+ */
+const MODULES = [
+  {
+    title: "逻辑推导：从连乘到连除",
+    steps: [
+      {
+        title: "第一步：正整数的“连乘”",
+        desc: "在正整数的世界，<b>指数代表乘法的次数</b>。<br><br>观察右图：2<sup>3</sup> 是三个 2 相乘。<br>每下一个台阶（指数减 1），数值就<b>除以底数</b>。",
+        drawMode: "staircase",
+        params: { level: 0 } // Level 0: Show positives
+      },
+      {
+        title: "第二步：零指数的突变",
+        desc: "当指数来到 0 时，我们要遵循之前的规律：<br>2<sup>1</sup> ÷ 2 = 2<sup>0</sup><br>即 2 ÷ 2 = 1<br><br>所以，<b>任何非零数的 0 次方都是 1</b>。",
+        drawMode: "staircase",
+        params: { level: 1 } // Level 1: Show zero
+      },
+      {
+        title: "第三步：负指数的诞生",
+        desc: "最关键的一步：从 0 继续向下。<br>1 ÷ 2 = 1/2<br><br>数学必须保持逻辑一致性。因此 2<sup>-1</sup> <b>定义</b>为 1/2。",
+        drawMode: "staircase",
+        params: { level: 2 } // Level 2: Show negative 1
+      },
+      {
+        title: "第四步：负指数的规律",
+        desc: "继续向下：1/2 ÷ 2 = 1/4。<br><br><b>结论：</b>负指数就是“倒数”。<br>a<sup>-n</sup> = 1 / a<sup>n</sup>",
+        drawMode: "staircase",
+        params: { level: 3 } // Level 3: Show negative 2
+      }
+    ]
+  },
+  {
+    title: "代数验证：面积的守恒",
+    steps: [
+      {
+        title: "互为倒数的几何含义",
+        desc: "我们知道 a<sup>1</sup> · a<sup>-1</sup> = a<sup>0</sup> = 1。<br><br>在几何上，如果一个矩形的面积是 1，且宽是 a，那么高必须是 1/a。<br><br>右图展示了这种完美的对称性。",
+        drawMode: "area",
+        params: {}
+      }
+    ]
+  },
+  {
+    title: "函数图像：连续的纽带",
+    steps: [
+      {
+        title: "离散的点",
+        desc: "我们将刚才计算出的整数点（2<sup>1</sup>, 2<sup>0</sup>, 2<sup>-1</sup> 等）画在坐标系上。<br>注意看它们是如何分布的。",
+        drawMode: "graph",
+        params: { showCurve: false, interactive: false }
+      },
+      {
+        title: "连续的曲线",
+        desc: "数学家发现，这些点可以被一条光滑的曲线连接起来。<br>这说明指数不仅可以是整数，还可以是分数、无理数。<br><b>试着拖动滑块</b>，观察点在曲线上的游走。",
+        drawMode: "graph",
+        params: { showCurve: true, interactive: true }
+      }
+    ]
+  },
+  {
+    title: "几何意义：分数与开方",
+    steps: [
+      {
+        title: "二分之一：正方形的边",
+        desc: "如何理解 a<sup>1/2</sup>？<br>根据规则：(a<sup>1/2</sup>)<sup>2</sup> = a<sup>1</sup> = a。<br><br>这意味着，a<sup>1/2</sup> 是<b>面积为 a 的正方形的边长</b>。<br>也就是 √a。",
+        drawMode: "geometry_sqrt",
+        params: {}
+      },
+      {
+        title: "三分之一：立方体的棱",
+        desc: "同理，a<sup>1/3</sup> 是<b>体积为 a 的立方体的棱长</b>。<br>也就是 ∛a。<br><br>分母代表“开方”的次数。",
+        drawMode: "geometry_cbrt",
+        params: {}
+      }
+    ]
+  }
+];
+
+// 全局状态
+let currentModuleIdx = 0;
+let currentStepIdx = 0;
+let baseVal = 2;
+let expVal = 1.0;
+
+// UI 引用
+let baseSlider, expSlider;
+
+function setup() {
+  const container = document.getElementById('canvas-container');
+  const canvas = createCanvas(container.clientWidth, container.clientHeight);
+  canvas.parent('canvas-container');
+  
+  // 初始化控件
+  baseSlider = document.getElementById('baseSlider');
+  expSlider = document.getElementById('expSlider');
+  
+  baseSlider.addEventListener('input', (e) => {
+    baseVal = parseInt(e.target.value);
+    document.getElementById('baseValDisplay').innerText = `a = ${baseVal}`;
+  });
+
+  expSlider.addEventListener('input', (e) => {
+    expVal = parseFloat(e.target.value);
+    document.getElementById('expValDisplay').innerText = `x = ${expVal.toFixed(1)}`;
+  });
+
+  window.addEventListener('resize', windowResized);
+  
+  // 设置字体
+  textFont('Times New Roman');
+  
+  updateUI();
+}
+
+function windowResized() {
+  const container = document.getElementById('canvas-container');
+  resizeCanvas(container.clientWidth, container.clientHeight);
+}
+
+// ----------------------
+// 导航逻辑
+// ----------------------
+window.switchModule = function(idx) {
+  currentModuleIdx = idx;
+  currentStepIdx = 0;
+  
+  // 更新 Tabs 样式
+  const tabs = document.querySelectorAll('.module-tab');
+  tabs.forEach((t, i) => {
+    if(i === idx) t.classList.add('active');
+    else t.classList.remove('active');
+  });
+  
+  updateUI();
+}
+
+window.nextStep = function() {
+  const module = MODULES[currentModuleIdx];
+  if (currentStepIdx < module.steps.length - 1) {
+    currentStepIdx++;
+    updateUI();
+  }
+}
+
+window.prevStep = function() {
+  if (currentStepIdx > 0) {
+    currentStepIdx--;
+    updateUI();
+  }
+}
+
+function updateUI() {
+  const module = MODULES[currentModuleIdx];
+  const step = module.steps[currentStepIdx];
+  
+  document.getElementById('stepIndicator').innerText = `Module ${currentModuleIdx+1} - Step ${currentStepIdx+1}/${module.steps.length}`;
+  document.getElementById('stepTitle').innerText = step.title;
+  document.getElementById('stepDesc').innerHTML = step.desc;
+  
+  // 按钮状态
+  document.getElementById('btnPrev').disabled = (currentStepIdx === 0);
+  
+  const isLast = currentStepIdx === module.steps.length - 1;
+  document.getElementById('btnNext').innerText = isLast ? "本章完成" : "下一步";
+  document.getElementById('btnNext').disabled = isLast;
+
+  // 额外控件显示逻辑
+  const extraDiv = document.getElementById('extraControls');
+  if (step.params.interactive) {
+    extraDiv.style.display = 'block';
+  } else {
+    extraDiv.style.display = 'none';
+  }
+}
+
+// ----------------------
+// 绘图主循环
+// ----------------------
+function draw() {
+  background(255);
+  
+  const step = MODULES[currentModuleIdx].steps[currentStepIdx];
+  const mode = step.drawMode;
+  const params = step.params;
+  
+  if (mode === "staircase") drawStaircase(params.level);
+  else if (mode === "area") drawAlgebraArea();
+  else if (mode === "graph") drawGraph(params);
+  else if (mode === "geometry_sqrt") drawGeometrySqrt();
+  else if (mode === "geometry_cbrt") drawGeometryCbrt();
+}
+
+// =======================================================
+// 绘图模块 1: 阶梯 (Staircase) - 纯正数学符号绘制
+// =======================================================
+function drawStaircase(level) {
+  // Config
+  const startX = width * 0.15;
+  const startY = height * 0.15;
+  const rowH = height * 0.14;
+  
+  // Data: exp, description
+  const rows = [
+    { exp: 3, label: "连乘" },
+    { exp: 2, label: "÷ a" },
+    { exp: 1, label: "÷ a" },
+    { exp: 0, label: "÷ a" },
+    { exp: -1, label: "÷ a" },
+    { exp: -2, label: "÷ a" }
+  ];
+  
+  // Determine how many rows to render based on 'level'
+  let maxIdx = 2; // Level 0: up to 2^1
+  if (level === 1) maxIdx = 3; // up to 2^0
+  if (level === 2) maxIdx = 4; // up to 2^-1
+  if (level === 3) maxIdx = 5; // up to 2^-2
+
+  // Draw Headers
+  fill(100); noStroke(); textSize(16); textAlign(LEFT, BASELINE);
+  text("Math Expression", startX, startY - 20);
+  text("Value", startX + 250, startY - 20);
+  stroke(200); line(startX, startY - 10, startX + 400, startY - 10);
+
+  for (let i = 0; i <= maxIdx; i++) {
+    let r = rows[i];
+    let y = startY + i * rowH + 30;
+    
+    // Highlight effect
+    let isNew = (i === maxIdx);
+    
+    // 1. Draw Expression (e.g., 2^3) using MathText
+    fill(0);
+    drawMathExp(baseVal, r.exp, startX, y, 32, isNew ? "#e74c3c" : "#2c3e50");
+    
+    // 2. Draw Value using MathFraction
+    let valX = startX + 250;
+    
+    if (r.exp >= 0) {
+      let val = Math.pow(baseVal, r.exp);
+      fill(isNew ? "#e74c3c" : "#2c3e50");
+      textSize(32);
+      text("= " + val, valX, y);
+    } else {
+      // Draw Fraction 1 / a^n
+      fill(isNew ? "#e74c3c" : "#2c3e50");
+      textSize(32);
+      text("= ", valX, y);
+      let denomExp = Math.abs(r.exp);
+      // Draw vertical fraction
+      drawFraction("1", Math.pow(baseVal, denomExp), valX + 40, y, 24, isNew ? "#e74c3c" : "#2c3e50");
+    }
+
+    // 3. Draw Arrow
+    if (i > 0) {
+      drawCurveArrow(startX + 350, y - rowH + 10, startX + 350, y - 30);
+      fill(150); textSize(14); noStroke();
+      text("÷ " + baseVal, startX + 360, y - rowH/2);
+    }
+  }
+}
+
+// =======================================================
+// 绘图模块 2: 面积 (Area)
+// =======================================================
+function drawAlgebraArea() {
+  push();
+  translate(width/2, height/2 + 50);
+  
+  // Title
+  fill(50); noStroke(); textAlign(CENTER); textSize(24);
+  text(`Area = ${baseVal} · (1/${baseVal}) = 1`, 0, -250);
+
+  // Draw Axes
+  stroke(200); line(-200, 0, 200, 0); line(-200, 0, -200, -250); // L-shaped axis
+  
+  let scale = 150;
+  let w = baseVal * scale * 0.6; // Scale down a bit
+  let h = (1/baseVal) * scale * 0.6;
+  
+  // Draw Rect
+  fill(52, 152, 219, 50); stroke(52, 152, 219); strokeWeight(2);
+  rect(-200, 0, w, -h);
+  
+  // Labels
+  fill(0); noStroke(); textSize(18);
+  
+  // Width Label
+  textAlign(CENTER, TOP);
+  text(baseVal, -200 + w/2, 10);
+  textSize(14); fill(100);
+  drawMathExp("a", 1, -200 + w/2 + 20, 35, 14, "#666"); // a^1 label
+
+  // Height Label
+  textAlign(RIGHT, CENTER);
+  fill(0); textSize(18);
+  drawFraction("1", baseVal, -210, -h/2 + 5, 16, "#000");
+  
+  // Center Area Label
+  fill(231, 76, 60); textSize(30); textAlign(CENTER, CENTER);
+  text("1", -200 + w/2, -h/2);
+
+  pop();
+}
+
+// =======================================================
+// 绘图模块 3: 图像 (Graph)
+// =======================================================
+function drawGraph(params) {
+  push();
+  translate(width/2, height/2 + 100);
+  let sx = 60, sy = 60; // scale
+  
+  // Axes
+  stroke(180); strokeWeight(1);
+  line(-width/2, 0, width/2, 0); // X
+  line(0, -height/2, 0, height/2); // Y
+  fill(100); noStroke();
+  text("x", width/2 - 20, 20);
+  text("y", 20, -height/2 + 20);
+
+  // Draw Curve
+  if (params.showCurve) {
+    noFill(); stroke(52, 152, 219); strokeWeight(2);
+    beginShape();
+    for(let x = -4; x <= 4; x+=0.05) {
+      let y = Math.pow(baseVal, x);
+      vertex(x * sx, -y * sy);
+    }
+    endShape();
+    
+    if (params.interactive) {
+      // Interactive Point
+      let x = expVal;
+      let y = Math.pow(baseVal, x);
+      let px = x * sx;
+      let py = -y * sy;
+      
+      stroke(231, 76, 60); drawingContext.setLineDash([5,5]);
+      line(px, 0, px, py);
+      line(0, py, px, py);
+      drawingContext.setLineDash([]);
+      
+      fill(231, 76, 60); noStroke(); circle(px, py, 10);
+      
+      // Label
+      fill(50); textAlign(LEFT, BOTTOM); textSize(16);
+      let labelY = y < 1 ? `1/${Math.pow(baseVal, -x).toFixed(2)}` : y.toFixed(2);
+      text(`(${x.toFixed(1)}, ${labelY})`, px + 10, py - 10);
+    }
+  } else {
+    // Discrete Points
+    fill(52, 152, 219); noStroke();
+    let pts = [-2, -1, 0, 1, 2, 3];
+    for (let p of pts) {
+      let val = Math.pow(baseVal, p);
+      circle(p * sx, -val * sy, 8);
+    }
+  }
+  pop();
+}
+
+// =======================================================
+// 绘图模块 4A: 几何 - 平方根 (Square Root)
+// =======================================================
+function drawGeometrySqrt() {
+  let cx = width/2;
+  let cy = height/2;
+  let size = Math.sqrt(baseVal) * 100;
+  
+  push();
+  translate(cx, cy);
+  
+  // Draw Square
+  rectMode(CENTER);
+  fill(52, 152, 219, 50); stroke(52, 152, 219); strokeWeight(2);
+  rect(0, 0, size, size);
+  
+  // Area Label
+  fill(0); noStroke(); textAlign(CENTER, CENTER); textSize(24);
+  text(`Area = ${baseVal}`, 0, 0);
+  
+  // Side Labels using Math Notation
+  // Bottom Label: a^(1/2)
+  drawMathExp(baseVal, "1/2", 0, size/2 + 30, 20, "#2c3e50");
+  
+  // Left Label: sqrt(a)
+  drawRoot(baseVal, "", -size/2 - 40, 0, 20, "#2c3e50");
+  
+  pop();
+}
+
+// =======================================================
+// 绘图模块 4B: 几何 - 立方根 (Cube Root)
+// =======================================================
+function drawGeometryCbrt() {
+  let cx = width/2;
+  let cy = height/2 + 20;
+  let edge = Math.cbrt(baseVal) * 100;
+  
+  push();
+  translate(cx, cy);
+  
+  // Cabinet Projection
+  let dx = edge * 0.5 * 0.707; 
+  let dy = -edge * 0.5 * 0.707;
+  let h = edge / 2;
+  
+  stroke(192, 57, 43); strokeWeight(2);
+  // Back/Hidden lines (Optional, skip for clarity)
+  
+  // Faces
+  fill(231, 76, 60, 200); // Front
+  rectMode(CENTER);
+  rect(0, 0, edge, edge);
+  
+  fill(192, 57, 43, 200); // Top
+  quad(-h, -h, h, -h, h+dx, -h+dy, -h+dx, -h+dy);
+  
+  fill(146, 43, 33, 200); // Side
+  quad(h, -h, h+dx, -h+dy, h+dx, h+dy, h, h);
+  
+  // Labels
+  fill(255); noStroke(); textAlign(CENTER, CENTER); textSize(24);
+  text(`V = ${baseVal}`, 0, 0);
+  
+  // Edge Label: cube root
+  // We place it at the bottom edge
+  
+  // 1. Draw Root symbol: 3√a
+  drawRoot(baseVal, "3", -edge/2 - 40, h, 24, "#2c3e50");
+  
+  // 2. Draw Exponential form: a^(1/3)
+  drawMathExp(baseVal, "1/3", 0, h + 40, 24, "#2c3e50");
+  
+  pop();
+}
+
+
+// =======================================================
+// ★★★ 核心工具：数学公式手写渲染器 ★★★
+// =======================================================
+
+// 1. 绘制 指数形式 (base^exp)
+// 支持 exp 是字符串 "1/2" 这种形式
+function drawMathExp(base, exp, x, y, size, color) {
+  push();
+  fill(color); noStroke();
+  textSize(size);
+  textAlign(RIGHT, BASELINE);
+  let baseW = textWidth(base);
+  text(base, x, y);
+  
+  textSize(size * 0.6);
+  textAlign(LEFT, BASELINE);
+  
+  // Check if exp is a fraction string "1/2"
+  if (typeof exp === 'string' && exp.includes('/')) {
+    let parts = exp.split('/');
+    drawFractionSmall(parts[0], parts[1], x + 2, y - size*0.4, size*0.5, color);
+  } else {
+    text(exp, x + 2, y - size * 0.35);
+  }
+  pop();
+}
+
+// 2. 绘制 标准竖式分数
+function drawFraction(num, den, x, y, size, color) {
+  push();
+  fill(color); stroke(color);
+  textSize(size); textAlign(CENTER, BASELINE);
+  
+  let numStr = num.toString();
+  let denStr = den.toString();
+  let maxW = Math.max(textWidth(numStr), textWidth(denStr)) + 10;
+  
+  // Numerator
+  text(numStr, x, y - size * 0.6);
+  // Line
+  strokeWeight(size/15);
+  line(x - maxW/2, y - size * 0.5, x + maxW/2, y - size * 0.5);
+  // Denominator
+  noStroke();
+  text(denStr, x, y + size * 0.5);
+  pop();
+}
+
+// 3. 绘制 上标分数 (用于指数位置的小分数)
+function drawFractionSmall(num, den, x, y, size, color) {
+  push();
+  fill(color); stroke(color);
+  textSize(size); textAlign(CENTER, BASELINE);
+  
+  let maxW = Math.max(textWidth(num), textWidth(den));
+  
+  // Numerator
+  text(num, x + maxW/2, y - size*0.2);
+  // Line
+  strokeWeight(1);
+  line(x, y, x + maxW, y);
+  // Denominator
+  noStroke();
+  text(den, x + maxW/2, y + size*0.9);
+  pop();
+}
+
+// 4. 绘制 根号 (支持 N 次根)
+function drawRoot(val, index, x, y, size, color) {
+  push();
+  noFill(); stroke(color); strokeWeight(size/12);
+  
+  let valStr = val.toString();
+  textSize(size);
+  let valW = textWidth(valStr);
+  let h = size; 
+  
+  // Root symbol path
+  // Start left-mid, go down, go up-right, go right over value
+  let startX = x - valW/2 - size*0.6;
+  let bottomY = y + 2;
+  let topY = y - h + 5;
+  
+  beginShape();
+  vertex(startX, y - h*0.4);
+  vertex(startX + size*0.2, y); // bottom tip
+  vertex(startX + size*0.4, topY); // top tip
+  vertex(startX + size*0.4 + valW + 10, topY); // bar
+  endShape();
+  
+  // Value
+  noStroke(); fill(color); textAlign(LEFT, BASELINE);
+  text(valStr, startX + size*0.5, y);
+  
+  // Index (e.g., 3)
+  if (index) {
+    textSize(size * 0.5);
+    textAlign(CENTER, BASELINE);
+    text(index, startX + size*0.15, topY + size*0.3);
+  }
+  
+  pop();
+}
+
+// Helper arrow
+function drawCurveArrow(x1, y1, x2, y2) {
+  noFill(); stroke(200); strokeWeight(2);
+  bezier(x1, y1, x1 + 20, y1 + 10, x2 + 20, y2 - 10, x2, y2);
+  push(); translate(x2, y2); rotate(PI/1.2);
+  fill(200); noStroke(); triangle(0,0,-4,-2,-4,2); pop();
+}
+
+</script>
+</body>
+</html>
