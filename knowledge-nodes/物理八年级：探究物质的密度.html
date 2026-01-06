@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>物理八年级：探究物质的密度</title>
+  
+  <!-- p5.js CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <!-- MathJax for formula rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  <style>
+    /* CSS Setup */
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #f5f5f7;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      overflow-x: hidden; /* Prevent horizontal scroll */
+      overflow-y: auto;   /* Allow vertical scroll */
+      color: #333;
+    }
+
+    /* Layout Containers */
+    .main-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .header-section {
+      text-align: center;
+      margin-bottom: 20px;
+      width: 100%;
+    }
+
+    .header-title {
+      font-size: 28px;
+      font-weight: bold;
+      color: #1d1d1f;
+      margin-bottom: 10px;
+    }
+
+    .header-desc {
+      font-size: 16px;
+      color: #666;
+      max-width: 800px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+
+    /* Flex Layout for Controls and Canvas */
+    .content-wrapper {
+      display: flex;
+      flex-direction: row;
+      justify-content: center;
+      align-items: flex-start;
+      gap: 20px;
+      width: 100%;
+      flex-wrap: wrap; /* Wrap on small screens if necessary, though PC target */
+    }
+
+    /* Control Panel */
+    .control-panel {
+      width: 320px; /* Slightly wider for calculation display */
+      background: #ffffff;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      max-height: 800px;
+      overflow-y: auto;
+    }
+
+    .panel-section {
+      border-bottom: 1px solid #eee;
+      padding-bottom: 15px;
+    }
+
+    .panel-section:last-child {
+      border-bottom: none;
+    }
+
+    .panel-label {
+      font-size: 14px;
+      font-weight: 600;
+      color: #888;
+      margin-bottom: 10px;
+      display: block;
+    }
+
+    /* Custom UI Elements */
+    .btn-group {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+
+    .material-btn {
+      flex: 1;
+      min-width: 60px;
+      padding: 8px;
+      border: 1px solid #ddd;
+      background: #f9f9f9;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+
+    .material-btn.active {
+      background: #007aff;
+      color: white;
+      border-color: #007aff;
+    }
+
+    .action-btn {
+      width: 100%;
+      padding: 12px;
+      background: #34c759;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .action-btn:hover {
+      background: #24a144;
+    }
+    
+    .action-btn:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+
+    .reset-btn {
+      background: #ff3b30;
+      margin-top: 10px;
+    }
+    .reset-btn:hover {
+      background: #d63329;
+    }
+
+    input[type=range] {
+      width: 100%;
+      margin: 10px 0;
+    }
+
+    .value-display {
+      display: flex;
+      justify-content: space-between;
+      font-size: 14px;
+      color: #333;
+      font-weight: 500;
+    }
+
+    /* Formula Box */
+    .formula-box {
+      background: #f0f8ff;
+      border: 1px solid #cce5ff;
+      padding: 15px;
+      border-radius: 8px;
+      margin-top: 10px;
+      visibility: hidden; /* Prevent flash */
+    }
+
+    .formula-text {
+      font-size: 14px;
+      margin-bottom: 5px;
+      color: #0056b3;
+    }
+    
+    /* Result Box for Calculation */
+    .result-box {
+      background: #fff8e1;
+      border: 1px solid #ffe082;
+      padding: 10px;
+      border-radius: 8px;
+      margin-top: 10px;
+      font-size: 14px;
+      color: #bf360c;
+      display: none; /* Hidden until measured */
+    }
+
+    /* Canvas Container */
+    #canvas-container {
+      background: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      padding: 4px;
+      /* Ensures canvas is centered */
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    /* Status Bar */
+    .status-bar {
+      width: 100%;
+      margin-top: 10px;
+      padding: 10px 20px;
+      background: #333;
+      color: #fff;
+      font-size: 14px;
+      border-radius: 8px;
+      text-align: center;
+    }
+
+  </style>
+</head>
+<body>
+
+<div class="main-container">
+  
+  <div class="header-section">
+    <div class="header-title">探究物质的密度</div>
+    <div class="header-desc">
+      通过改变物块的体积，测量其质量，探究同种物质质量与体积的关系。<br>
+      选择不同材质（木头、铝、铁、铜），观察 \( m-V \) 图像斜率的变化。
+    </div>
+  </div>
+
+  <div class="content-wrapper">
+    <!-- Left: Controls -->
+    <div class="control-panel">
+      
+      <!-- Section 1: Material Selection -->
+      <div class="panel-section">
+        <span class="panel-label">1. 选择探究物质</span>
+        <div class="btn-group">
+          <button class="material-btn active" onclick="setMaterial('Al')">铝</button>
+          <button class="material-btn" onclick="setMaterial('Fe')">铁</button>
+          <button class="material-btn" onclick="setMaterial('Cu')">铜</button>
+          <button class="material-btn" onclick="setMaterial('Wood')" style="background-color: #FFF8E7; border-color: #DEB887;">木头</button>
+        </div>
+        <div id="material-info" style="font-size: 12px; color: #666; margin-top: 5px;">
+          当前物质：铝 (密度 \(\approx 2.7 \text{ g/cm}^3\))
+        </div>
+      </div>
+
+      <!-- Section 2: Volume Control -->
+      <div class="panel-section">
+        <span class="panel-label">2. 设定物块体积 (V)</span>
+        <input type="range" id="vol-slider" min="10" max="100" step="5" value="50" oninput="updateVolumeSlider(this.value)">
+        <div class="value-display">
+          <span>体积:</span>
+          <span id="vol-display">50 cm³</span>
+        </div>
+      </div>
+
+      <!-- Section 3: Action -->
+      <div class="panel-section">
+        <span class="panel-label">3. 实验操作</span>
+        <button id="btn-measure" class="action-btn" onclick="triggerMeasurement()">进行实验测量</button>
+        <button class="action-btn reset-btn" onclick="resetExperiment()">清空数据 / 重置</button>
+      </div>
+      
+      <!-- Section 3.5: Calculation Result -->
+      <div class="panel-section" id="calc-section" style="display:none;">
+        <span class="panel-label">计算结果</span>
+        <div id="result-box" class="result-box">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- Section 4: Theory -->
+      <div class="panel-section">
+        <span class="panel-label">实验原理</span>
+        <div id="formula-container" class="formula-box">
+          <div class="formula-text">密度定义式：</div>
+          \[ \rho = \frac{m}{V} \]
+          <div style="font-size:12px; color:#555; margin-top:5px;">
+            \( \rho \): 密度 (g/cm³)<br>
+            \( m \): 质量 (g)<br>
+            \( V \): 体积 (cm³)
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right: Canvas -->
+    <div id="canvas-container">
+      <!-- P5 Canvas will be injected here -->
+    </div>
+  </div>
+
+  <div class="status-bar" id="status-bar">
+    准备就绪。请选择物质并设定体积，然后点击“进行实验测量”。
+  </div>
+
+</div>
+
+<script>
+/**
+ * CONFIGURATION & CONSTANTS
+ * Centralized settings for easy maintenance.
+ */
+const CONFIG = {
+  canvasWidth: 900,
+  canvasHeight: 500,
+  colors: {
+    Al: { fill: '#D3D3D3', stroke: '#A9A9A9', name: '铝' }, // Aluminum
+    Fe: { fill: '#708090', stroke: '#2F4F4F', name: '铁' }, // Iron
+    Cu: { fill: '#B87333', stroke: '#8B4513', name: '铜' }, // Copper
+    Wood: { fill: '#DEB887', stroke: '#8B4513', name: '木头' }, // Wood
+    water: 'rgba(52, 152, 219, 0.6)',
+    glass: 'rgba(200, 200, 220, 0.3)',
+    axis: '#333',
+    grid: '#ddd'
+  },
+  densities: { // g/cm^3
+    Al: 2.7,
+    Fe: 7.9,
+    Cu: 8.9,
+    Wood: 0.6
+  },
+  lab: {
+    groundY: 450,
+    balanceX: 150,
+    balanceY: 400,
+    cylinderX: 350,
+    cylinderY: 400,
+    cylinderWidth: 60,
+    cylinderHeight: 200,
+    baseWaterLevel: 80 // pixels from bottom of cylinder
+  },
+  graph: {
+    originX: 550,
+    originY: 420,
+    width: 300,
+    height: 300,
+    xMax: 110, // Max Volume on graph
+    yMax: 1000 // Max Mass on graph (Copper 100*8.9 = 890)
+  }
+};
+
+/**
+ * STATE VARIABLES
+ */
+let currentMaterial = 'Al';
+let currentVolume = 50; // cm^3
+let currentMass = 0;    // g
+let measuredData = {
+  Al: [],
+  Fe: [],
+  Cu: [],
+  Wood: []
+};
+
+// Animation States
+let animationState = 'IDLE'; // IDLE, MEASURING
+let animProgress = 0;
+let showBlockOnBalance = false;
+let showBlockInCylinder = false;
+
+// P5.js Instance
+let myP5;
+
+/**
+ * P5.js Sketch
+ */
+const sketch = (p) => {
+  
+  p.setup = () => {
+    let canvas = p.createCanvas(CONFIG.canvasWidth, CONFIG.canvasHeight);
+    canvas.parent('canvas-container');
+    p.rectMode(p.CENTER);
+    p.textAlign(p.CENTER, p.CENTER);
+    p.textSize(14);
+    
+    // Initial calculation
+    calculateMass();
+  };
+
+  p.draw = () => {
+    p.background(255);
+    
+    // 1. Draw Lab Scene
+    drawLabBench(p);
+    drawBalance(p);
+    drawCylinder(p);
+    
+    // 2. Draw Moving Block (Animation logic)
+    drawActiveBlock(p);
+    
+    // 3. Draw Graph
+    drawGraph(p);
+    
+    // 4. Update Animation
+    updateAnimation();
+  };
+
+  function drawLabBench(p) {
+    p.noStroke();
+    p.fill(240);
+    p.rect(CONFIG.canvasWidth/2, CONFIG.lab.groundY + 25, CONFIG.canvasWidth, 50); // Table top
+    p.fill(200);
+    p.rect(CONFIG.canvasWidth/2, CONFIG.lab.groundY + 50, CONFIG.canvasWidth, 5); // Shadow line
+    
+    // Lab labels
+    p.fill(100);
+    p.noStroke();
+    p.textSize(16);
+    p.text("虚拟实验室", 250, 50);
+    p.text("数据分析", 700, 50);
+  }
+
+  function drawBalance(p) {
+    const x = CONFIG.lab.balanceX;
+    const y = CONFIG.lab.balanceY;
+    
+    // Body
+    p.fill(220);
+    p.stroke(150);
+    p.rect(x, y + 20, 140, 40, 5); // Base
+    
+    // Pan
+    p.fill(200);
+    p.rect(x, y - 10, 120, 10); // Plate
+    p.rect(x, y + 5, 20, 20); // Stem
+    
+    // Display Screen
+    p.fill(50);
+    p.rect(x, y + 25, 80, 20);
+    
+    // Reading
+    p.fill(0, 255, 0);
+    p.noStroke();
+    p.textSize(14);
+    p.textAlign(p.RIGHT, p.CENTER);
+    
+    let displayMass = 0;
+    if (showBlockOnBalance) {
+      displayMass = currentMass;
+    }
+    p.text(displayMass.toFixed(1) + " g", x + 35, y + 25);
+    
+    p.textAlign(p.CENTER, p.CENTER); // Reset align
+    
+    // Label
+    p.fill(80);
+    p.noStroke();
+    p.text("电子天平", x, y + 55);
+  }
+
+  function drawCylinder(p) {
+    const x = CONFIG.lab.cylinderX;
+    const y = CONFIG.lab.cylinderY;
+    const w = CONFIG.lab.cylinderWidth;
+    const h = CONFIG.lab.cylinderHeight;
+    
+    // Glass cylinder back
+    p.noStroke();
+    p.fill(CONFIG.colors.glass);
+    p.rect(x, y - h/2 + 40, w, h);
+    
+    // Water
+    p.fill(CONFIG.colors.water);
+    // Calculate water height based on whether block is inside
+    // Visual scale: let's say 1 pixel = 1 cm^3 roughly for height visual, scaled down
+    let waterH = CONFIG.lab.baseWaterLevel;
+    if (showBlockInCylinder) {
+      waterH += currentVolume * 0.8; // Scale factor for visual rise
+    }
+    
+    // Animate water rise smoothly
+    // (Simplified: instant state change for stability, or could lerp)
+    
+    p.rect(x, y + 40 - waterH/2, w - 4, waterH);
+    
+    // Glass cylinder outline
+    p.stroke(150);
+    p.strokeWeight(2);
+    p.noFill();
+    p.rect(x, y - h/2 + 40, w, h);
+    
+    // Graduations
+    p.stroke(100);
+    p.strokeWeight(1);
+    for (let i = 0; i < h; i+=10) {
+      let markX = x - w/2;
+      let markW = (i % 50 === 0) ? 15 : 8;
+      p.line(markX, y + 40 - i, markX + markW, y + 40 - i);
+    }
+    
+    // Label
+    p.noStroke();
+    p.fill(80);
+    p.text("量筒 (排水法)", x, y + 55);
+  }
+
+  function drawActiveBlock(p) {
+    // Determine block visual size based on volume (cube root approximation for 2D square)
+    let side = Math.sqrt(currentVolume) * 5; // Visual scale
+    let c = CONFIG.colors[currentMaterial];
+    
+    p.fill(c.fill);
+    p.stroke(c.stroke);
+    p.strokeWeight(2);
+    
+    let bx, by;
+    
+    if (animationState === 'IDLE') {
+      // Sitting on table between instruments
+      bx = 250;
+      by = CONFIG.lab.groundY - side/2;
+    } else if (animationState === 'MEASURING') {
+      // Animation Phase 1: Move to Balance
+      if (animProgress < 0.3) {
+        // Lerp to balance
+        let t = p.map(animProgress, 0, 0.3, 0, 1);
+        bx = p.lerp(250, CONFIG.lab.balanceX, t);
+        by = p.lerp(CONFIG.lab.groundY - side/2, CONFIG.lab.balanceY - 10 - side/2, t);
+      } 
+      // Phase 2: Stay on Balance
+      else if (animProgress < 0.5) {
+        bx = CONFIG.lab.balanceX;
+        by = CONFIG.lab.balanceY - 10 - side/2;
+        showBlockOnBalance = true;
+      }
+      // Phase 3: Move to Cylinder
+      else if (animProgress < 0.7) {
+        showBlockOnBalance = false; // Left balance
+        let t = p.map(animProgress, 0.5, 0.7, 0, 1);
+        // Jump arc
+        bx = p.lerp(CONFIG.lab.balanceX, CONFIG.lab.cylinderX, t);
+        by = p.lerp(CONFIG.lab.balanceY - 10 - side/2, CONFIG.lab.cylinderY - CONFIG.lab.cylinderHeight - side, t); 
+      }
+      // Phase 4: Drop into Cylinder
+      else if (animProgress < 1.0) {
+        let t = p.map(animProgress, 0.7, 1.0, 0, 1);
+        bx = CONFIG.lab.cylinderX;
+        // Drop to bottom
+        let bottomY = CONFIG.lab.cylinderY + 40 - side/2; 
+        by = p.lerp(CONFIG.lab.cylinderY - CONFIG.lab.cylinderHeight - side, bottomY, t);
+      } else {
+        // Done
+        bx = CONFIG.lab.cylinderX;
+        by = CONFIG.lab.cylinderY + 40 - side/2;
+        showBlockInCylinder = true;
+      }
+    }
+    
+    p.rect(bx, by, side, side);
+    
+    // Label on block
+    p.fill(0);
+    p.noStroke();
+    p.textSize(10);
+    // Dark text usually works, but for dark material use white? 
+    // Iron/Copper are darkish. Let's keep black for now or adapt.
+    p.text(c.name, bx, by);
+  }
+
+  function drawGraph(p) {
+    const gx = CONFIG.graph.originX;
+    const gy = CONFIG.graph.originY;
+    const gw = CONFIG.graph.width;
+    const gh = CONFIG.graph.height;
+    
+    // Axes
+    p.stroke(0);
+    p.strokeWeight(2);
+    p.line(gx, gy, gx + gw, gy); // X axis
+    p.line(gx, gy, gx, gy - gh); // Y axis
+    
+    // Labels
+    p.noStroke();
+    p.fill(0);
+    p.textSize(14);
+    p.textAlign(p.CENTER, p.TOP);
+    p.text("体积 V (cm³)", gx + gw/2, gy + 10);
+    p.textAlign(p.RIGHT, p.CENTER);
+    p.text("质量 m (g)", gx - 10, gy - gh/2);
+    
+    // Grid (Optional)
+    p.stroke(220);
+    p.strokeWeight(1);
+    // X grid
+    for(let v=20; v<=CONFIG.graph.xMax; v+=20) {
+      let x = p.map(v, 0, CONFIG.graph.xMax, gx, gx + gw);
+      p.line(x, gy, x, gy - gh);
+      p.noStroke(); p.fill(100); p.textSize(10);
+      p.text(v, x, gy + 5);
+      p.stroke(220);
+    }
+    // Y grid
+    for(let m=200; m<=CONFIG.graph.yMax; m+=200) {
+      let y = p.map(m, 0, CONFIG.graph.yMax, gy, gy - gh);
+      p.line(gx, y, gx + gw, y);
+      p.noStroke(); p.fill(100); p.textSize(10);
+      p.text(m, gx - 5, y);
+      p.stroke(220);
+    }
+
+    // Plot Points
+    // Draw lines for each material defined in colors
+    Object.keys(CONFIG.colors).forEach(mat => {
+      // skip system colors like water/glass
+      if (!measuredData[mat]) return;
+
+      let data = measuredData[mat];
+      if (data.length > 0) {
+        let c = CONFIG.colors[mat];
+        p.stroke(c.stroke);
+        p.strokeWeight(2);
+        p.noFill();
+        p.beginShape();
+        p.vertex(gx, gy); // Start from 0,0
+        data.forEach(pt => {
+          let px = p.map(pt.v, 0, CONFIG.graph.xMax, gx, gx + gw);
+          let py = p.map(pt.m, 0, CONFIG.graph.yMax, gy, gy - gh);
+          p.vertex(px, py);
+        });
+        p.endShape();
+        
+        // Draw dots
+        data.forEach(pt => {
+          let px = p.map(pt.v, 0, CONFIG.graph.xMax, gx, gx + gw);
+          let py = p.map(pt.m, 0, CONFIG.graph.yMax, gy, gy - gh);
+          p.fill(c.stroke);
+          p.noStroke();
+          p.circle(px, py, 6);
+        });
+        
+        // Draw Label at end of line (if at least one point)
+        if (data.length > 0) {
+           let lastPt = data[data.length-1];
+           let lx = p.map(lastPt.v, 0, CONFIG.graph.xMax, gx, gx + gw);
+           let ly = p.map(lastPt.m, 0, CONFIG.graph.yMax, gy, gy - gh);
+           p.fill(c.stroke);
+           p.noStroke();
+           p.textSize(12);
+           p.textAlign(p.LEFT, p.CENTER);
+           p.text(c.name, lx + 5, ly);
+        }
+      }
+    });
+  }
+};
+
+new p5(sketch);
+
+/**
+ * LOGIC & INTERACTION
+ */
+
+function calculateMass() {
+  currentMass = CONFIG.densities[currentMaterial] * currentVolume;
+}
+
+function setMaterial(mat) {
+  if (animationState === 'MEASURING') return; // Lock during anim
+  
+  currentMaterial = mat;
+  calculateMass();
+  
+  // Update UI buttons
+  document.querySelectorAll('.material-btn').forEach(btn => btn.classList.remove('active'));
+  event.target.classList.add('active');
+  
+  // Update info text
+  const rho = CONFIG.densities[mat];
+  let texSrc = `当前物质：${CONFIG.colors[mat].name} (密度 \\(\\approx ${rho} \\text{ g/cm}^3\\))`;
+  // Simple update logic for HTML content with MathJax
+  const infoEl = document.getElementById('material-info');
+  infoEl.innerHTML = texSrc;
+  MathJax.typesetPromise([infoEl]);
+  
+  // Hide result box when changing material (requires new measurement)
+  document.getElementById('calc-section').style.display = 'none';
+  
+  resetVisuals();
+}
+
+function updateVolumeSlider(val) {
+  if (animationState === 'MEASURING') return;
+  
+  currentVolume = parseInt(val);
+  document.getElementById('vol-display').innerText = currentVolume + " cm³";
+  calculateMass();
+  // Hide result box when changing volume
+  document.getElementById('calc-section').style.display = 'none';
+  resetVisuals();
+}
+
+function triggerMeasurement() {
+  if (animationState === 'MEASURING') return;
+  
+  const btn = document.getElementById('btn-measure');
+  btn.disabled = true;
+  document.getElementById('vol-slider').disabled = true;
+  document.getElementById('calc-section').style.display = 'none'; // Hide old result
+  
+  animationState = 'MEASURING';
+  animProgress = 0;
+  
+  showStatus("正在测量质量...", "normal");
+}
+
+function updateAnimation() {
+  if (animationState === 'MEASURING') {
+    animProgress += 0.008; // Animation speed
+    
+    // Status updates based on progress
+    if (animProgress > 0.3 && animProgress < 0.5) {
+      showStatus(`电子天平读数稳定：m = ${currentMass.toFixed(1)} g`, "success");
+    } else if (animProgress > 0.5 && animProgress < 0.7) {
+      showStatus("正在放入量筒测量体积...", "normal");
+    }
+    
+    if (animProgress >= 1.0) {
+      animationState = 'DONE';
+      showBlockInCylinder = true;
+      showStatus(`测量完成！V = ${currentVolume} cm³, m = ${currentMass.toFixed(1)} g`, "success");
+      recordDataPoint();
+      showCalculationResult();
+      
+      // Re-enable controls
+      document.getElementById('btn-measure').disabled = false;
+      document.getElementById('vol-slider').disabled = false;
+    }
+  }
+}
+
+function showCalculationResult() {
+  const box = document.getElementById('result-box');
+  const section = document.getElementById('calc-section');
+  const matName = CONFIG.colors[currentMaterial].name;
+  const rho = CONFIG.densities[currentMaterial];
+  
+  // Create TeX string for calculation
+  // \rho = \frac{m}{V} = \frac{mass}{vol} = result
+  const tex = `\\text{${matName}的密度}： \\rho = \\frac{m}{V} = \\frac{${currentMass.toFixed(1)}\\text{ g}}{${currentVolume}\\text{ cm}^3} \\approx ${rho.toFixed(1)} \\text{ g/cm}^3`;
+  
+  box.innerHTML = `\\[ ${tex} \\]`;
+  section.style.display = 'block';
+  box.style.display = 'block';
+  
+  MathJax.typesetPromise([box]);
+}
+
+function resetVisuals() {
+  // Move block back to table, clear instruments
+  animationState = 'IDLE';
+  animProgress = 0;
+  showBlockOnBalance = false;
+  showBlockInCylinder = false;
+  document.getElementById('status-bar').innerText = "准备就绪。";
+}
+
+function recordDataPoint() {
+  // Check if point already exists close by? Nah, just add.
+  // We allow multiple points to show consistency.
+  // Sort by volume to draw line correctly
+  measuredData[currentMaterial].push({v: currentVolume, m: currentMass});
+  measuredData[currentMaterial].sort((a,b) => a.v - b.v);
+}
+
+function resetExperiment() {
+  measuredData = { Al: [], Fe: [], Cu: [], Wood: [] };
+  resetVisuals();
+  document.getElementById('calc-section').style.display = 'none';
+  showStatus("数据已清空，请重新开始实验。", "warning");
+}
+
+function showStatus(msg, type) {
+  const bar = document.getElementById('status-bar');
+  bar.innerText = msg;
+  if (type === 'success') bar.style.backgroundColor = '#34c759';
+  else if (type === 'warning') bar.style.backgroundColor = '#ff9500';
+  else bar.style.backgroundColor = '#333';
+}
+
+// Initial Typeset
+window.onload = function() {
+  const container = document.getElementById('formula-container');
+  container.style.visibility = 'visible';
+  MathJax.typesetPromise();
+};
+
+</script>
+</body>
+</html>

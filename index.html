@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Visual Learn - 初中数理可视化知识库v2.2</title>
-    <!-- 引入 Tailwind CSS -->
+    <title>Visual Learn - 初中数理可视化知识库</title>
     <script src="./assets/tailwindcss.js"></script>
+    <script src="data.js"></script>
     <style>
         body {
             font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
@@ -54,11 +54,9 @@
 </head>
 <body class="min-h-screen flex flex-col text-slate-800">
 
-    <!-- 顶部导航与搜索 -->
     <header class="bg-white sticky top-0 z-50 shadow-md border-b border-slate-200/80 backdrop-blur-sm bg-white/95">
         <div class="container mx-auto px-4 py-3">
             <div class="flex flex-col md:flex-row justify-between items-center gap-4">
-                <!-- Logo & Reset -->
                 <div class="flex items-center space-x-3 cursor-pointer group select-none" onclick="app.resetAll()" title="点击重置所有筛选">
                     <div class="bg-gradient-to-br from-blue-600 to-indigo-700 text-white p-2.5 rounded-xl shadow-lg group-hover:scale-105 transition-transform duration-300">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -66,19 +64,17 @@
                         </svg>
                     </div>
                     <div>
-                        <h1 class="text-xl font-extrabold tracking-tight text-slate-800 group-hover:text-blue-600 transition-colors">Visual Learn-(综支儿童学习)</h1>
-                        <p class="text-xs text-slate-500 font-medium tracking-wide">全量资源库 (97个演示)</p>
+                        <h1 class="text-xl font-extrabold tracking-tight text-slate-800 group-hover:text-blue-600 transition-colors">Visual Learn</h1>
+                        <p class="text-xs text-slate-500 font-medium tracking-wide">全量资源库 (<span id="headerCount">--</span>个演示)</p>
                     </div>
                 </div>
 
-                <!-- 搜索框 -->
                 <div class="w-full md:w-1/2 relative group">
                     <input type="text" id="searchInput" placeholder="搜索知识点（如：凸透镜、勾股定理、函数...）" 
                         class="w-full pl-11 pr-10 py-3 rounded-xl bg-slate-100 border-2 border-transparent focus:bg-white focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/10 transition-all shadow-inner font-medium text-slate-700 placeholder-slate-400">
                     <svg class="w-5 h-5 text-slate-400 absolute left-3.5 top-3.5 group-focus-within:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                     </svg>
-                    <!-- 清除按钮 -->
                     <button id="clearSearchBtn" onclick="app.clearSearch()" class="hidden absolute right-3 top-3 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full p-1 transition-all">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                     </button>
@@ -87,15 +83,12 @@
         </div>
     </header>
 
-    <!-- 筛选面板 -->
     <div class="bg-white border-b border-slate-200 shadow-sm relative z-40">
         <div class="container mx-auto px-4 py-5 space-y-4">
-            <!-- JS 将在此处生成 Subject, Topic, Type 筛选行 -->
             <div id="filterContainer"></div>
         </div>
     </div>
 
-    <!-- 状态栏与计数 -->
     <div class="container mx-auto px-4 py-4 flex flex-col md:flex-row justify-between items-center text-sm gap-3 sticky top-[73px] z-30 bg-slate-50/90 backdrop-blur border-b border-slate-200 md:static md:bg-transparent md:border-none">
         <div class="flex items-center gap-2 overflow-x-auto w-full md:w-auto no-scrollbar pb-1 md:pb-0">
             <span class="font-bold text-slate-700 whitespace-nowrap">当前筛选:</span>
@@ -108,13 +101,10 @@
         </div>
     </div>
 
-    <!-- 资源列表区域 -->
     <main class="container mx-auto px-4 pb-16 flex-grow">
         <div id="contentGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            <!-- JS 动态生成卡片 -->
-        </div>
+            </div>
         
-        <!-- 空状态 -->
         <div id="noResults" class="hidden flex-col items-center justify-center py-20 opacity-0 transition-opacity duration-500">
             <div class="w-32 h-32 bg-slate-100 rounded-full flex items-center justify-center mb-6 relative overflow-hidden">
                 <div class="absolute inset-0 bg-grid-slate-200 [mask-image:linear-gradient(0deg,white,rgba(255,255,255,0.6))]"></div>
@@ -134,155 +124,25 @@
     <footer class="bg-white border-t border-slate-200 py-8 mt-auto">
         <div class="container mx-auto px-4 text-center">
             <p class="text-slate-500 text-sm font-medium">Visual Learn Knowledge Base</p>
-            <p class="text-slate-400 text-xs mt-2">综合服务支撑中心 &middot; 2026</p>
+            <p class="text-slate-400 text-xs mt-2">Designed for Interactive Education &middot; 2024-2026</p>
         </div>
     </footer>
 
-    <!-- 应用逻辑 -->
     <script>
         const app = (() => {
             // ================== 1. 数据配置 ==================
-            
-            // 标签颜色映射
-            const TAG_COLOR_MAP = {
-                '物理': 'bg-blue-50 text-blue-700 border-blue-200',
-                '数学': 'bg-emerald-50 text-emerald-700 border-emerald-200',
-                '力学': 'bg-sky-50 text-sky-700 border-sky-100',
-                '光学': 'bg-indigo-50 text-indigo-700 border-indigo-100',
-                '声学': 'bg-purple-50 text-purple-700 border-purple-100',
-                '热学': 'bg-orange-50 text-orange-700 border-orange-100',
-                '电磁学': 'bg-violet-50 text-violet-700 border-violet-100',
-                '天文': 'bg-slate-100 text-slate-700 border-slate-200',
-                '代数': 'bg-cyan-50 text-cyan-700 border-cyan-100',
-                '几何': 'bg-teal-50 text-teal-700 border-teal-100',
-                '函数': 'bg-lime-50 text-lime-700 border-lime-100',
-                '坐标系': 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-100',
-                '真题解析': 'bg-rose-50 text-rose-600 font-bold border-rose-200',
-                '实验模拟': 'bg-amber-50 text-amber-700 border-amber-200',
-                '几何作图': 'bg-stone-100 text-stone-700 border-stone-200',
-                '3D可视化': 'bg-blue-100 text-blue-800 font-bold border-blue-200',
-                '原理剖析': 'bg-gray-50 text-gray-600 border-gray-200',
-                '数形结合': 'bg-pink-50 text-pink-700 border-pink-100',
-                '生活应用': 'bg-yellow-50 text-yellow-700 border-yellow-200',
-                '微积分思想': 'bg-red-50 text-red-700 border-red-200 font-bold',
-                'default': 'bg-slate-50 text-slate-500 border-slate-200'
+            // 从全局对象中获取配置，如果未加载则使用空默认值
+            const { TAG_COLOR_MAP, FILTER_GROUPS, RESOURCES } = window.VISUAL_LEARN_DATA || {
+                TAG_COLOR_MAP: { 'default': 'bg-slate-50 text-slate-500 border-slate-200' },
+                FILTER_GROUPS: [],
+                RESOURCES: []
             };
 
-            const FILTER_GROUPS = [
-                { id: 'subject', label: '学科', tags: ['物理', '数学'] },
-                { id: 'topic', label: '模块', tags: ['力学', '光学', '声学', '热学', '电磁学', '天文', '代数', '几何', '函数', '坐标系'] },
-                { id: 'type', label: '类型', tags: ['实验模拟', '几何作图', '真题解析', '3D可视化', '原理剖析', '数形结合', '生活应用', '互动探究'] }
-            ];
-
-            // 97个全量文件，针对性描述和分类
-            const RESOURCES = [
-                // --- 物理 / 力学 ---
-                { file: "运动学核心概念：路程、速度与面积可视化.html", title: "v-t图像面积与位移", tags: ['物理', '力学', '数形结合', '原理剖析', '微积分思想'], desc: "深度解析速度-时间（v-t）图像中面积的物理意义。通过动态演示匀速与变速运动，直观展示积分思想在求解位移中的应用，帮助理解“面积即路程”的核心概念。" },
-                { file: "路程时间.html", title: "s-t 图像基础", tags: ['物理', '力学', '数形结合', '原理剖析'], desc: "基础运动学图表教学。对比静止、匀速直线运动与变速运动的s-t图像特征，通过斜率变化直观展示速度快慢的差异。" },
-                { file: "路程时间演示.html", title: "小车运动与图表同步", tags: ['物理', '力学', '实验模拟'], desc: "实时互动的运动图表生成器。操作小车运动，实时绘制对应的路程-时间图像，帮助学生建立物体实际运动与抽象图表之间的直观联系。" },
-                { file: "3D运动三维投影.html", title: "3D运动与三视图投影", tags: ['物理', '力学', '数学', '几何', '3D可视化'], desc: "跨学科3D可视化。展示物体在三维空间运动时，其轨迹在XY、YZ、XZ三个平面上的投影，直观理解运动的分解与合成以及三视图原理。" },
-                { file: "旋转公转.html", title: "自转与公转", tags: ['物理', '天文', '原理剖析'], desc: "天体运动基础模型。清晰演示自转（绕自身轴）与公转（绕中心体）的区别，通过动态轨迹帮助理解复杂的天体运行规律。" },
-                { file: "水平仪光学模型.html", title: "水平仪原理", tags: ['物理', '力学', '生活应用'], desc: "解析气泡水平仪的工作原理。展示重力如何影响气泡位置，以及如何通过气泡位置判断平面的倾斜方向。" },
-
-                // --- 物理 / 光学 ---
-                { file: "面镜成像作图原理演示2024广州三模第6题.html", title: "真题：面镜作图", tags: ['物理', '光学', '真题解析', '几何作图'], desc: "针对2024广州三模真题的深度解析。分步演示平面镜成像的作图规范，包括虚像画法、对称点确定及光路的可逆性。" },
-                { file: "面镜光学性质互动演示.html", title: "面镜性质互动", tags: ['物理', '光学', '互动探究'], desc: "综合比较平面镜、凹面镜和凸面镜的光学特性。通过互动光路展示它们的会聚、发散及成像特点。" },
-                { file: "透镜折射率演示-水中的气泡.html", title: "水中的气泡", tags: ['物理', '光学', '原理剖析'], desc: "趣味光学模型。分析水中气泡对光线的发散作用，解释为何水中气泡等效于凹透镜，纠正“圆形就是凸透镜”的直觉误区。" },
-                { file: "透镜光路作图原理可视化 (分步教学版).html", title: "透镜特殊光线作图", tags: ['物理', '光学', '几何作图'], desc: "透镜作图的分步教程。详细演示平行主光轴、过光心、过焦点这三条特殊光线在凸透镜和凹透镜中的折射路径画法。" },
-                { file: "近视原理与矫正可视化.html", title: "近视与矫正", tags: ['物理', '光学', '生活应用'], desc: "生物物理学应用。模拟晶状体厚度变化导致的焦点偏移（近视），并动态展示佩戴凹透镜如何修正光路使图像重新落在视网膜上。" },
-                { file: "视角看鞋.html", title: "平面镜：视角看鞋", tags: ['物理', '光学', '生活应用', '真题解析'], desc: "经典平面镜应用题。通过几何光路分析，计算为了看到全身或脚上鞋子所需的最小镜子长度及悬挂高度，验证“镜长只需身高一半”的结论。" },
-                { file: "虚像到底是什么.html", title: "虚像的本质", tags: ['物理', '光学', '原理剖析'], desc: "揭示虚像的物理本质。通过人眼视觉反向追踪光路，解释虚像是由光线的反向延长线相交而成，无法在光屏上呈现。" },
-                { file: "筷子.html", title: "折射：折断的筷子", tags: ['物理', '光学', '生活应用'], desc: "经典折射现象复现。模拟筷子斜插入水中时，因水面折射导致视觉上“折断”并上浮的光路原理图解。" },
-                { file: "物理光学探究：本影与半影.html", title: "本影与半影", tags: ['物理', '光学', '原理剖析'], desc: "光影形成机制探究。对比点光源形成清晰边缘的本影，与面光源形成模糊边缘的半影，解释影子深浅变化的物理原因。" },
-                { file: "物理光学仿真：水中平面镜反射与折射.html", title: "水中平面镜", tags: ['物理', '光学', '真题解析'], desc: "复合光路分析。追踪光线从空气射入水中，经水底平面镜反射后再次射出水面的完整路径，涉及两次折射和一次反射。" },
-                { file: "照相机原理虚化.html", title: "照相机：背景虚化", tags: ['物理', '光学', '生活应用'], desc: "摄影光学进阶。深入解析光圈大小与景深的关系，直观演示大光圈如何减少景深范围，从而产生背景虚化的艺术效果。" },
-                { file: "照相机原理.html", title: "照相机结构", tags: ['物理', '光学', '生活应用'], desc: "照相机成像结构剖析。模拟凸透镜成像原理在相机中的应用，展示调节焦距和物距对成像清晰度及大小的影响。" },
-                { file: "汽车挡风玻璃光路原理演示.html", title: "汽车挡风玻璃", tags: ['物理', '光学', '生活应用'], desc: "交通安全中的物理智慧。利用平面镜成像原理，解释为何汽车挡风玻璃倾斜安装能防止车内物体成像干扰司机夜间视线。" },
-                { file: "标准透镜折射原理可视化.html", title: "标准透镜折射", tags: ['物理', '光学', '基础概念'], desc: "透镜折射基础。动态展示光线经过透镜两个表面的折射过程，重点演示三条特殊光线的传播规律。" },
-                { file: "日食原理互动演示.html", title: "日食原理 (3D)", tags: ['物理', '天文', '3D可视化'], desc: "宏观天象的微观模拟。利用3D模型演示日地月相对运动，解释光沿直线传播形成的日全食、日偏食和日环食的成因条件。" },
-                { file: "平面镜蜡烛45度运动虚像轨迹.html", title: "平面镜：像的轨迹", tags: ['物理', '光学', '真题解析'], desc: "动态几何光路题。分析物体沿45度（或其他角度）靠近或远离平面镜时，其虚像的运动速度、方向及轨迹特征。" },
-                { file: "平面镜成像通用探究实验室蜡烛.html", title: "平面镜：蜡烛实验", tags: ['物理', '光学', '实验模拟'], desc: "经典物理实验仿真。模拟“两支蜡烛”实验，通过代替法精准确定虚像位置，验证像与物关于镜面对称的性质。" },
-                { file: "平面镜成像可视范围演示.html", title: "平面镜视场", tags: ['物理', '光学', '几何作图', '难点突破'], desc: "几何光学难点突破。利用边界光线法，作图确定人眼通过平面镜所能观察到的最大空间范围（视场）。" },
-                { file: "平面镜成像与移动后大小位置变化.html", title: "平面镜：像的大小", tags: ['物理', '光学', '互动探究'], desc: "纠正视觉误区。演示当物体远离平面镜时，像的大小实际上保持不变，改变的只是人眼的视角大小。" },
-                { file: "平面镜成像.html", title: "平面镜成像规律", tags: ['物理', '光学', '基础概念'], desc: "平面镜成像核心规律。验证像与物大小相等、到镜面距离相等、连线垂直于镜面以及成虚像的四大性质。" },
-                { file: "平面镜分裂成像原理可视化2.html", title: "重影原理 (进阶)", tags: ['物理', '光学', '原理剖析'], desc: "厚玻璃板成像进阶分析。深入探究光线在玻璃板内部多次反射产生的多重虚像（重影），解释主像与副像的成因。" },
-                { file: "平面镜分裂成像原理可视化.html", title: "重影原理 (基础)", tags: ['物理', '光学', '原理剖析'], desc: "厚玻璃板重影基础。图解光线在玻璃板前后两个表面分别反射，导致观察者看到两个错位虚像的物理机制。" },
-                { file: "平面镜光路.html", title: "平面镜光路交互", tags: ['物理', '光学', '互动探究'], desc: "自由光路探索。交互式拖动光源和镜面，实时观察入射角变化对反射光路的影响，验证光的反射定律。" },
-                { file: "平面镜45度角成像模型.html", title: "潜望镜原理", tags: ['物理', '光学', '生活应用'], desc: "潜望镜核心原理。展示平面镜呈45度放置时，如何将水平入射的光线改变90度变为竖直传播。" },
-                { file: "小孔成像实验可视化.html", title: "小孔成像", tags: ['物理', '光学', '实验模拟'], desc: "光沿直线传播经典实验。探究小孔形状、大小及物距变化对成像清晰度、亮度、大小和形状的具体影响。" },
-                { file: "多透镜组合成像系统.html", title: "多透镜组合", tags: ['物理', '光学', '互动探究'], desc: "光学仪器原理初探。模拟显微镜或望远镜的光路，展示光线经过多个透镜连续折射后的最终成像效果。" },
-                { file: "圆规直尺作图：光的反射与任意角.html", title: "尺规作光路", tags: ['物理', '光学', '几何作图'], desc: "跨学科作图技能。结合几何尺规作图规范，演示如何精准画出光的反射角等于入射角，不依赖量角器。" },
-                { file: "反射原理直觉演示如何作图.html", title: "反射作图技巧", tags: ['物理', '光学', '几何作图'], desc: "建立作图直觉。动态演示法线的确立、入射角与反射角的度量，培养规范的光学作图习惯。" },
-                { file: "厚玻璃板双重成像原理演示.html", title: "厚玻璃板成像", tags: ['物理', '光学', '原理剖析'], desc: "深度解析厚玻璃板成像。详细图解光线在具有厚度的介质表面发生的折射与反射，解释重影现象。" },
-                { file: "凹面镜聚焦原理与切线可视化.html", title: "凹面镜聚焦", tags: ['物理', '光学', '原理剖析'], desc: "用微积分思想理解聚焦。将凹面镜视为无数微小平面镜的组合，通过切线反射解释其对平行光的会聚作用。" },
-                { file: "凹透镜成像原理交互演示.html", title: "凹透镜成像", tags: ['物理', '光学', '互动探究'], desc: "凹透镜成像规律全解。动态演示无论物体位于何处，凹透镜始终成正立、缩小的虚像，并分析其光路特征。" },
-                { file: "凸凹透镜成像实像虚像.html", title: "透镜全能实验室", tags: ['物理', '光学', '实验模拟', '互动探究'], desc: "全能透镜实验室。集成凸透镜与凹透镜，支持自由调节物距焦距，实时呈现像的虚实、正倒与放大缩小情况。" },
-                { file: "凸凹透镜.html", title: "透镜基础", tags: ['物理', '光学', '基础概念'], desc: "透镜基础形态对比。静态展示凸透镜（中间厚边缘薄）与凹透镜（中间薄边缘厚）的几何结构及其对光线的基本作用。" },
-                { file: "光的色散与折射交互实验.html", title: "色散综合", tags: ['物理', '光学', '实验模拟'], desc: "牛顿色散实验再现。模拟白光通过三棱镜分解为七色光谱的过程，直观展示不同色光折射率的差异。" },
-                { file: "光的折射-岸上看鱼.html", title: "岸上看鱼", tags: ['物理', '光学', '生活应用'], desc: "视深现象解析。利用折射光路图解释为何从岸上看水中的鱼，看到的虚像位置比实际位置浅。" },
-                { file: "光的折射 - 互动可视化演示.html", title: "折射与全反射", tags: ['物理', '光学', '实验模拟'], desc: "斯涅尔定律实验室。交互式调节入射角和介质折射率，观察折射角变化及全反射现象的发生条件。" },
-                { file: "光-液面监测模拟.html", title: "光电液面监测", tags: ['物理', '光学', '生活应用'], desc: "光电传感器原理。展示如何利用光的反射定律设计液位监测装置，将微小的液面升降转化为光斑的明显移动。" },
-                { file: "光-水面月光.html", title: "漫反射：月光", tags: ['物理', '光学', '生活应用'], desc: "漫反射与镜面反射。模拟月光在平静水面与波浪水面上的反射效果，解释波光粼粼的物理成因。" },
-                { file: "仙女飞天魔术原理.html", title: "魔术：佩珀尔幻象", tags: ['物理', '光学', '生活应用'], desc: "佩珀尔幻象揭秘。利用平面镜（或半透半反玻璃）的成像原理，揭示舞台上“幽灵”或“飞天”魔术的视觉欺骗机制。" },
-                { file: "三棱镜色散与折射交互实验.html", title: "三棱镜色散", tags: ['物理', '光学', '实验模拟'], desc: "棱镜光学特性探究。详细观察复色光在三棱镜内的两次折射过程，解析色散形成的物理机制。" },
-                { file: "三棱镜光路问题可视化.html", title: "三棱镜光路", tags: ['物理', '光学', '原理剖析'], desc: "三棱镜偏折规律。直观展示光线通过三棱镜后总是向底边偏折的几何光学特性。" },
-                { file: "三棱镜光路几何作图演示.html", title: "三棱镜光路动态", tags: ['物理', '光学', '互动探究'], desc: "动态折射作图。改变入射角度，实时观察光线在三棱镜两个界面上的折射路径变化。" },
-                { file: "三棱镜光路几何作图法.html", title: "三棱镜作图法", tags: ['物理', '光学', '几何作图'], desc: "规范作图教学。分步演示光线通过三棱镜时的法线画法及折射光线的确定步骤。" },
-                { file: "3D平面镜成像综合互动演示数字反转.html", title: "3D镜像：数字反转", tags: ['物理', '光学', '3D可视化'], desc: "3D镜像反转体验。在三维场景中观察电子数字在平面镜中的成像，直观理解“左右相反、上下不变”的横向反转特性。" },
-
-                // --- 物理 / 声学 & 热学 & 电磁 ---
-                { file: "声音.html", title: "声音的传播", tags: ['物理', '声学', '基础概念'], desc: "声音的产生与微观传播。可视化展示发声体振动挤压空气分子形成疏密波（纵波）的过程。" },
-                { file: "各种乐器声波形状.png", title: "乐器波形", tags: ['物理', '声学', '生活应用'], desc: "音色与波形。展示不同乐器（如钢琴、小提琴）发出相同音高时波形的差异，解释音色的物理决定因素。" },
-                { file: "光波声波的对比.html", title: "横波与纵波", tags: ['物理', '声学', '光学', '原理剖析'], desc: "横波与纵波的本质区别。对比演示光波（电磁波，横波）与声波（机械波，纵波）在传播方式和介质依赖上的不同。" },
-                { file: "光波基础演示：波长、速度与振幅.html", title: "波的基础参数", tags: ['物理', '光学', '基础概念'], desc: "波动学基础参数。通过动态正弦波形，直观展示波长、频率、周期、振幅及波速之间的数学与物理关系。" },
-                { file: "物态变化演示.html", title: "熔化凝固图象", tags: ['物理', '热学', '实验模拟'], desc: "熔化与凝固曲线分析。对比晶体与非晶体在加热过程中的温度变化图象，解析吸热、放热与状态改变的关系。" },
-                { file: "物态变化.html", title: "物态变化微观", tags: ['物理', '热学', '3D可视化'], desc: "微观粒子模型。3D展示固液气三态转化过程中分子间距和运动剧烈程度的变化，解释物态变化的微观本质。" },
-                { file: "晶体vs非晶体熔化物理同步版.html", title: "晶体vs非晶体", tags: ['物理', '热学', '实验模拟'], desc: "典型物质熔化对比。同步展示海波（晶体）与石蜡（非晶体）的熔化实验现象及其对应的温度-时间曲线。" },
-                { file: "3D电磁波.html", title: "3D电磁波", tags: ['物理', '电磁学', '3D可视化'], desc: "电磁波立体结构。3D可视化展示电场E与磁场B相互垂直且垂直于传播方向的动态波动模型。" },
-
-                // --- 数学 / 几何 ---
-                { file: "角平分线作图演示 - 互动教学.html", title: "角平分线作图", tags: ['数学', '几何', '几何作图', '互动探究'], desc: "互动式尺规作图。引导学生一步步操作虚拟圆规和直尺，掌握角平分线的标准作法。" },
-                { file: "等腰三角形三线合一.html", title: "三线合一", tags: ['数学', '几何', '原理剖析'], desc: "等腰三角形核心性质。动态验证底边上的高、底边上的中线以及顶角的平分线三线重合的几何定理。" },
-                { file: "尺规作图：角平分线.html", title: "尺规：角平分线", tags: ['数学', '几何', '几何作图'], desc: "标准作图流程。清晰展示角平分线作图的每一步痕迹，帮助规范作图习惯。" },
-                { file: "尺规作图交互演示到两点距离相等.html", title: "尺规：垂直平分线", tags: ['数学', '几何', '几何作图'], desc: "垂直平分线作图与性质。演示线段垂直平分线的作法，并图解其作为“到线段两端距离相等点的集合”的轨迹性质。" },
-                { file: "小学方位认知-上下左右与东南西北.html", title: "方位认知", tags: ['数学', '几何', '基础概念'], desc: "空间方位启蒙。建立相对方位（上下左右）与绝对方位（东南西北）的空间认知体系。" },
-                { file: "坐标系中的K字型全等.html", title: "坐标系K字型", tags: ['数学', '几何', '坐标系', '真题解析'], desc: "坐标几何模型。解析如何在平面直角坐标系中通过作垂线构造“K字型”（一线三等角）全等三角形来求解坐标。" },
-                { file: "古希腊三等分角仪原理演示.html", title: "三等分角仪", tags: ['数学', '几何', '原理剖析'], desc: "数学史与机械原理。复原古希腊数学家设计的巧妙机械结构，演示如何突破尺规作图限制实现三等分任意角。" },
-                { file: "初二几何压轴题完整演示.html", title: "几何压轴题", tags: ['数学', '几何', '真题解析'], desc: "压轴题动态解构。针对一道高难度几何题，动态展示辅助线的添加思路、图形变换过程及逻辑推导链条。" },
-                { file: "凹面镜聚焦原理与切线可视化.html", title: "切线与反射", tags: ['数学', '几何', '原理剖析'], desc: "跨学科原理解析。利用几何中的切线和法线概念，解释物理中凹面镜将平行光聚焦于焦点的数学原理。" },
-                { file: "几何动点问题可视化.html", title: "动点问题", tags: ['数学', '几何', '互动探究', '难点突破'], desc: "动点问题动态分析。可视化展示点在图形边上运动时，线段长度、图形面积及角度的函数变化规律，辅助解决动态几何难题。" },
-                { file: "几何代数拼图.html", title: "几何代数拼图", tags: ['数学', '几何', '数形结合'], desc: "数形结合思维训练。通过几何图形的拼摆组合，直观验证代数恒等式，培养将代数问题几何化的思维。" },
-                { file: "全等判定核心演示SSAvsAAS.html", title: "全等判定辨析", tags: ['数学', '几何', '难点突破'], desc: "全等判定易错点辨析。通过动态演示“边边角”（SSA）无法确定唯一的三角形，反证其不能作为全等判定条件。" },
-                { file: "三角形折叠与几何性质可视化 (题22).html", title: "三角形折叠", tags: ['数学', '几何', '真题解析'], desc: "折叠问题专题。动态展示三角形折叠过程，利用轴对称性质分析折叠前后的对应边、对应角关系。" },
-                { file: "三角形四心.html", title: "三角形四心", tags: ['数学', '几何', '基础概念'], desc: "三角形四心全解。集成展示重心、垂心、外心、内心的几何定义、作图方法及其在不同三角形中的位置特征。" },
-                { file: "三角形全等.html", title: "三角形全等实验", tags: ['数学', '几何', '互动探究'], desc: "全等三角形判定实验室。自由拖动顶点和边，尝试构造全等三角形，验证SSS、SAS、ASA、AAS判定定理。" },
-                { file: "总统证法 (Garfield's Proof).html", title: "勾股定理总统证法", tags: ['数学', '几何', '数形结合'], desc: "勾股定理经典证明。重现美国总统加菲尔德利用梯形面积公式推导勾股定理 a²+b²=c² 的巧妙过程。" },
-
-                // --- 数学 / 代数 & 函数 & 坐标 ---
-                { file: "负号与分式的本质-交互式教学演示.html", title: "分式变号法则", tags: ['数学', '代数', '基础概念'], desc: "分式符号法则。动态演示分式的分子、分母及分式本身的符号变化规律，解决“提负号”易错点。" },
-                { file: "立方差公式 3D 可视化演示.html", title: "立方差公式 3D", tags: ['数学', '代数', '3D可视化'], desc: "代数公式立体化。利用大立方体切去小立方体的3D模型，直观展示 a³-b³ 因式分解的体积几何意义。" },
-                { file: "神奇的“换元法”.html", title: "换元法技巧", tags: ['数学', '代数', '原理剖析'], desc: "代数思想可视化。通过图形符号的整体置换，生动演示“换元法”如何将复杂代数式化繁为简，降低运算难度。" },
-                { file: "幂运算原理实验室.html", title: "幂运算律", tags: ['数学', '代数', '实验模拟'], desc: "指数运算律探究。可视化验证同底数幂乘除、幂的乘方及积的乘方运算法则，理解指数加减乘的内在逻辑。" },
-                { file: "幂.html", title: "幂的维度", tags: ['数学', '代数', '基础概念'], desc: "幂与维度。从一维线段（1次方）、二维面积（2次方）到三维体积（3次方），建立幂运算与空间维度的对应关系。" },
-                { file: "工程问题核心特性演示.html", title: "工程问题", tags: ['数学', '代数', '生活应用'], desc: "工程问题模型。可视化演示将工作总量设为“1”的合理性，以及多对象合作时工作效率的叠加原理。" },
-                { file: "完全平方公式几何可视化0.html", title: "完全平方几何证", tags: ['数学', '代数', '数形结合'], desc: "数形结合证公式。通过正方形面积分割，直观证明完全平方公式 (a+b)²=a²+2ab+b²，强化代数公式的几何记忆。" },
-                { file: "完全平方-平方差-整体代入演示1.html", title: "乘法公式进阶", tags: ['数学', '代数', '真题解析'], desc: "乘法公式进阶应用。解析复杂代数式求值问题，演示如何识别公式结构并运用“整体代入”思想简化计算。" },
-                { file: "完全平方-平方差-整体代入演示.html", title: "乘法公式基础", tags: ['数学', '代数', '原理剖析'], desc: "乘法公式基础。动态展示平方差公式和完全平方公式的结构特征，帮助识别和套用公式。" },
-                { file: "坐标的含义坐标抽象2.html", title: "坐标系性质", tags: ['数学', '坐标系', '互动探究'], desc: "坐标系进阶性质。探究点到坐标轴的距离公式、各象限坐标符号规律以及关于轴对称点的坐标特征。" },
-                { file: "坐标的含义坐标抽象.html", title: "坐标系定义", tags: ['数学', '坐标系', '基础概念'], desc: "坐标系入门。建立平面上点与有序数对的一一对应关系，理解横纵坐标的几何定位意义。" },
-                { file: "因式分解的本质 - 交互可视化.html", title: "因式分解本质", tags: ['数学', '代数', '数形结合'], desc: "因式分解几何本质。通过长方形面积的不同表达方式，展示“多项式和”转化为“整式积”的过程。" },
-                { file: "因式分解深度探究：十字相乘 vs 配方法.html", title: "方法对比", tags: ['数学', '代数', '原理剖析'], desc: "解题方法对比。对比分析十字相乘法与配方法在分解二次三项式时的思路差异及各自适用场景。" },
-                { file: "十字相乘法可视化原理.html", title: "十字相乘法", tags: ['数学', '代数', '数形结合'], desc: "十字相乘法图解。利用面积拼图模型验证十字相乘步骤的合理性，将抽象的系数交叉相乘转化为具体的面积组合。" },
-                { file: "十字相乘法互动训练器.html", title: "十字相乘训练", tags: ['数学', '代数', '互动探究'], desc: "专项技能训练。提供交互式练习环境，帮助学生通过反复练习掌握二次三项式的十字相乘分解技巧。" },
-                { file: "动态函数斜率截距测试.html", title: "函数匹配游戏", tags: ['数学', '函数', '互动探究'], desc: "函数图像匹配挑战。游戏化学习，通过调整 k 和 b 参数使当前直线与目标直线重合，检测对斜率和截距的理解。" },
-                { file: "动态函数一次方程斜率截距.html", title: "一次函数k与b", tags: ['数学', '函数', '互动探究'], desc: "一次函数参数探究。拖动滑块改变 k 和 b，实时观察直线倾斜程度、升降趋势及截距位置的变化规律。" },
-                { file: "分式运算可视化-化简验证器.html", title: "分式化简", tags: ['数学', '代数', '互动探究'], desc: "分式运算辅助工具。可视化展示分式通分、约分及加减乘除的运算步骤，帮助检查运算过程中的错误。" },
-                { file: "分式方程行程问题演示合集.html", title: "分式方程应用", tags: ['数学', '代数', '生活应用'], desc: "分式方程应用题。针对追及、相遇及流水行船问题，动态演示路程、速度、时间关系，辅助列出分式方程。" },
-                { file: "代数易混淆概念全解：方程与分式.html", title: "方程与分式", tags: ['数学', '代数', '原理剖析'], desc: "概念辨析。对比分析分式通分（不改变分式值）与解分式方程去分母（改变代数式形式）的区别，防止混淆。" },
-                { file: "二次函数深度解析可视化.html", title: "二次函数深度", tags: ['数学', '函数', '原理剖析'], desc: "二次函数全解析。深度探究 y=ax²+bx+c 中 a,b,c 对开口、对称轴、顶点及与坐标轴交点的影响，结合几何定义理解抛物线。" },
-                { file: "指数逻辑探索者.html", title: "指数爆炸", tags: ['数学', '函数', '生活应用'], desc: "指数增长可视化。通过折纸、细胞分裂等生活实例，图解指数函数的爆炸式增长特性，培养复利思维。" },
-                { file: "曲线切线绘制原理可视化-割线逼近法.html", title: "切线与导数", tags: ['数学', '函数', '微积分思想'], desc: "导数入门思想。动态演示割线随着两点距离缩小逐渐逼近切线的过程，直观解释瞬时变化率与导数的几何意义。" }
-            ];
+            // 安全检查
+            if (!window.VISUAL_LEARN_DATA) {
+                console.error('Critical Error: data.js not loaded. Please ensure data.js is in the same directory and loaded correctly.');
+                alert('数据文件 (data.js) 加载失败，页面可能无法正常显示。请检查文件位置。');
+            }
 
             // ================== 2. 状态管理 ==================
             
@@ -294,6 +154,10 @@
             // ================== 3. 核心逻辑 ==================
 
             function init() {
+                // 初始化 Header 计数
+                const headerCount = document.getElementById('headerCount');
+                if(headerCount) headerCount.innerText = RESOURCES.length;
+
                 const params = new URLSearchParams(window.location.search);
                 if (params.get('q')) state.searchQuery = decodeURIComponent(params.get('q'));
                 if (params.get('tags')) {
@@ -311,6 +175,8 @@
 
             function renderFilterSections() {
                 const container = document.getElementById('filterContainer');
+                if (!container) return;
+
                 container.innerHTML = FILTER_GROUPS.map(group => `
                     <div class="flex flex-col sm:flex-row items-start gap-3 sm:gap-4 border-b border-slate-100 last:border-0 pb-3 last:pb-0">
                         <span class="text-xs font-bold text-slate-400 uppercase tracking-widest mt-2 w-12 flex-shrink-0 text-left sm:text-right">

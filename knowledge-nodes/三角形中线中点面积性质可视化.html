@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三角形中线中点面积性质可视化</title>
+    <!-- Load p5.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <!-- Load MathJax for beautiful equations -->
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        :root {
+            --primary-bg: #f3f4f6;
+            --panel-bg: #ffffff;
+            --accent-blue: #3498db;
+            --accent-green: #2ecc71;
+            --accent-red: #e74c3c;
+            --text-main: #2c3e50;
+            --step-highlight: #f1c40f;
+        }
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+            background-color: var(--primary-bg);
+            color: var(--text-main);
+            height: 100vh;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 {
+            margin: 0 0 20px 0;
+            font-size: 24px;
+            color: var(--text-main);
+            text-align: center;
+        }
+        .main-layout {
+            display: flex;
+            flex-direction: row;
+            gap: 20px;
+            width: 100%;
+            max-width: 1280px;
+            flex: 1;
+            min-height: 0; /* Important for flex scrolling */
+        }
+        /* Control Panel */
+        .control-panel {
+            width: 380px;
+            min-width: 320px;
+            background: var(--panel-bg);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .panel-section {
+            border-bottom: 1px solid #eee;
+            padding-bottom: 15px;
+        }
+        .panel-section:last-child {
+            border-bottom: none;
+        }
+        .section-header {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--accent-blue);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+        }
+        .section-header::before {
+            content: '';
+            display: inline-block;
+            width: 4px;
+            height: 16px;
+            background: var(--accent-blue);
+            margin-right: 8px;
+            border-radius: 2px;
+        }
+        /* Canvas Container */
+        .canvas-wrapper {
+            flex: 1;
+            background: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        /* Custom UI Elements */
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+            font-size: 14px;
+            font-family: 'Consolas', monospace;
+        }
+        .stat-value {
+            font-weight: bold;
+        }
+        .conclusion-box {
+            background: #e8f8f5;
+            border: 2px solid #2ecc71;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 5px;
+        }
+        .conclusion-title {
+            color: #27ae60;
+            font-weight: bold;
+            font-size: 16px;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+        .conclusion-text {
+            font-size: 14px;
+            line-height: 1.5;
+            text-align: center;
+        }
+        .btn {
+            background: var(--accent-blue);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s;
+            width: 100%;
+            margin-bottom: 5px;
+        }
+        .btn:hover {
+            background: #2980b9;
+        }
+        .btn-reset {
+            background: #95a5a6;
+            margin-top: 5px;
+        }
+        .btn-reset:hover {
+            background: #7f8c8d;
+        }
+        .btn-step {
+            background: #f39c12;
+            color: white;
+            font-weight: bold;
+        }
+        .btn-step:hover {
+            background: #d35400;
+        }
+        .btn-step:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+        }
+        
+        /* MathJax Visibility Control */
+        #math-container {
+            visibility: hidden; 
+        }
+        .tooltip {
+            font-size: 12px;
+            color: #7f8c8d;
+            margin-top: 5px;
+        }
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .step-desc {
+            background: #fff8e1;
+            border-left: 4px solid #f1c40f;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 14px;
+            line-height: 1.5;
+            min-height: 60px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>三角形中线面积性质可视化</h1>
+
+    <div class="main-layout">
+        <!-- Control & Info Panel -->
+        <aside class="control-panel">
+            
+            <!-- Problem Description -->
+            <div class="panel-section">
+                <div class="section-header">题目与几何设定</div>
+                <div style="font-size: 14px; line-height: 1.6;">
+                    已知：\(\triangle ABC\) 中，\(D\) 是边 \(BC\) 的中点（\(AD\) 为中线），点 \(E\) 是中线 \(AD\) 的中点。<br>
+                    <strong>求证：</strong> \(\triangle EBC\) 的面积是 \(\triangle ABC\) 面积的一半。
+                </div>
+            </div>
+
+            <!-- Step-by-Step Proof Mode (NEW) -->
+            <div class="panel-section">
+                <div class="section-header">分步证明演示</div>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn btn-step" id="btn-start-step" onclick="startStepMode()">开始证明</button>
+                    <button class="btn btn-step" id="btn-next-step" onclick="nextStep()" disabled>下一步</button>
+                </div>
+                <div id="step-description" class="step-desc" style="display:none;">
+                    点击“开始证明”以重置场景并开始分步讲解。
+                </div>
+            </div>
+
+            <!-- Real-time Data -->
+            <div class="panel-section">
+                <div class="section-header">实时数据监测</div>
+                <div id="data-display">
+                    <div class="stat-row">
+                        <span>大三角形面积 \(S_{ABC}\):</span>
+                        <span class="stat-value" id="val-area-abc">--</span>
+                    </div>
+                    <div class="stat-row">
+                        <span>小三角形面积 \(S_{EBC}\):</span>
+                        <span class="stat-value" id="val-area-ebc">--</span>
+                    </div>
+                    <div style="border-top: 1px dashed #ccc; margin: 8px 0;"></div>
+                    <div class="stat-row" style="color: var(--accent-blue);">
+                        <span>底边长 \(BC\):</span>
+                        <span class="stat-value" id="val-base">--</span>
+                    </div>
+                    <div class="stat-row" style="color: var(--accent-red);">
+                        <span>顶点高度 \(h_A\):</span>
+                        <span class="stat-value" id="val-h-a">--</span>
+                    </div>
+                    <div class="stat-row" style="color: #d35400;">
+                        <span>E点高度 \(h_E\):</span>
+                        <span class="stat-value" id="val-h-e">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Conclusion Block -->
+            <div class="panel-section">
+                <div class="conclusion-box">
+                    <div class="conclusion-title">结论验证</div>
+                    <div class="conclusion-text">
+                        <div style="margin-bottom:5px;">计算面积比值：</div>
+                        <div style="font-size: 24px; font-weight: bold; color: #27ae60; margin: 5px 0;">
+                            <span id="ratio-display">0.50</span>
+                        </div>
+                        <div id="math-container" style="font-size: 15px; margin-top: 8px;">
+                            \[ S_{\triangle EBC} = \frac{1}{2} S_{\triangle ABC} \]
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Controls -->
+            <div class="panel-section">
+                <div class="section-header">交互控制</div>
+                <div class="toggle-row">
+                    <input type="checkbox" id="chk-show-heights" checked onchange="redraw()">
+                    <label for="chk-show-heights">显示高度投影 (辅助线)</label>
+                </div>
+                <div class="toggle-row">
+                    <input type="checkbox" id="chk-fill-areas" checked onchange="redraw()">
+                    <label for="chk-fill-areas">填充面积颜色</label>
+                </div>
+                <button class="btn btn-reset" onclick="resetSim()">重置位置</button>
+                <div class="tooltip">提示：拖动顶点 A, B, C 可改变三角形形状。</div>
+            </div>
+
+        </aside>
+
+        <!-- Visualization Canvas -->
+        <div class="canvas-wrapper" id="canvas-container">
+            <!-- Canvas injected here by p5.js -->
+        </div>
+    </div>
+
+<script>
+/**
+ * MathPhysics_Interactive_Visualizer_Ultimate_v1.4
+ * Subject: Mathematics (Plane Geometry)
+ * Engine: Pure p5.js
+ */
+
+// Configuration and Constants
+const CONFIG = {
+    canvasWidth: 800, 
+    vertexRadius: 10,
+    colors: {
+        abcOutline: '#3498db',  // Blue
+        abcFill: 'rgba(52, 152, 219, 0.1)',
+        ebcOutline: '#e74c3c',  // Red
+        ebcFill: 'rgba(231, 76, 60, 0.2)',
+        median: '#27ae60',      // Green
+        heightLine: '#95a5a6',  // Gray
+        text: '#2c3e50',
+        highlight: '#f1c40f'    // Gold for step highlights
+    }
+};
+
+// State Variables
+let nodes = []; // {x, y, label, color}
+let draggingNodeIndex = -1;
+let canvas;
+let stepMode = {
+    active: false,
+    index: -1
+};
+
+const STEPS = [
+    {
+        text: "第一步：观察公共底边 BC。<br>两个三角形 \\(\\triangle ABC\\) 和 \\(\\triangle EBC\\) 都以 BC 为底。",
+        draw: (sys) => {
+            // Highlight Base BC
+            stroke(CONFIG.colors.highlight);
+            strokeWeight(6);
+            line(sys.B.x, sys.B.y, sys.C.x, sys.C.y);
+            noStroke();
+            fill(CONFIG.colors.highlight);
+            textAlign(CENTER);
+            text("公共底边", (sys.B.x + sys.C.x)/2, (sys.B.y + sys.C.y)/2 + 20);
+        }
+    },
+    {
+        text: "第二步：作高。<br>过 A 作 \\( AA' \\perp BC \\)，过 E 作 \\( EE' \\perp BC \\)。<br>分别是两个三角形的高。",
+        draw: (sys) => {
+            // Force draw heights highlighted
+            drawHeightLine(sys.A, sys.B, sys.C, "h_A", true);
+            drawHeightLine(sys.E, sys.B, sys.C, "h_E", true);
+        }
+    },
+    {
+        text: "第三步：发现相似三角形。<br>因为 \\( AA' \\parallel EE' \\)，所以 \\(\\triangle AA'D \\sim \\triangle EE'D\\)。",
+        draw: (sys) => {
+            // Draw heights normal first
+            drawHeightLine(sys.A, sys.B, sys.C, "h_A");
+            drawHeightLine(sys.E, sys.B, sys.C, "h_E");
+            
+            // Highlight Triangle AA'D
+            let footA = getFoot(sys.A, sys.B, sys.C);
+            noFill();
+            stroke(CONFIG.colors.abcOutline);
+            strokeWeight(2);
+            triangle(sys.A.x, sys.A.y, footA.x, footA.y, sys.D.x, sys.D.y);
+            
+            // Highlight Triangle EE'D
+            let footE = getFoot(sys.E, sys.B, sys.C);
+            stroke(CONFIG.colors.ebcOutline);
+            strokeWeight(2);
+            triangle(sys.E.x, sys.E.y, footE.x, footE.y, sys.D.x, sys.D.y);
+            
+            fill(CONFIG.colors.text);
+            noStroke();
+            text("相似!", (sys.D.x + footE.x)/2, (sys.D.y + footE.y)/2 - 10);
+        }
+    },
+    {
+        text: "第四步：利用中点性质。<br>已知 E 是 AD 中点，即 \\( ED = \\frac{1}{2}AD \\)。<br>根据相似比，高 \\( h_E = \\frac{1}{2} h_A \\)。",
+        draw: (sys) => {
+             drawHeightLine(sys.A, sys.B, sys.C, "h_A", true);
+             drawHeightLine(sys.E, sys.B, sys.C, "h_E", true);
+             
+             // Mark midpoint relation
+             stroke(CONFIG.colors.median);
+             strokeWeight(4);
+             line(sys.A.x, sys.A.y, sys.D.x, sys.D.y);
+             noStroke();
+             fill(CONFIG.colors.text);
+             text("1 : 2", (sys.A.x + sys.D.x)/2 + 10, (sys.A.y + sys.D.y)/2);
+        }
+    },
+    {
+        text: "第五步：结论。<br>面积 = 底 × 高 ÷ 2。<br>底相同，高减半，所以面积减半。<br>\\( S_{\\triangle EBC} = \\frac{1}{2} S_{\\triangle ABC} \\)",
+        draw: (sys) => {
+            // Highlight Areas
+            noStroke();
+            fill(CONFIG.colors.abcFill);
+            triangle(sys.A.x, sys.A.y, sys.B.x, sys.B.y, sys.C.x, sys.C.y);
+            fill(CONFIG.colors.ebcFill);
+            triangle(sys.E.x, sys.E.y, sys.B.x, sys.B.y, sys.C.x, sys.C.y);
+        }
+    }
+];
+
+// Core Logic: Triangle Geometry
+class GeometrySystem {
+    constructor() {
+        this.reset();
+    }
+
+    reset() {
+        const cx = window.innerWidth > 1000 ? 400 : window.innerWidth * 0.4;
+        
+        // 1. 设置为一般三角形 (Scalene Triangle)
+        // A 点偏左 (cx - 80)，B 和 C 不对称
+        nodes = [
+            { x: cx - 80, y: 120, label: 'A', isDraggable: true }, 
+            { x: cx - 220, y: 500, label: 'B', isDraggable: true },
+            { x: cx + 180, y: 500, label: 'C', isDraggable: true }
+        ];
+    }
+
+    get A() { return createVector(nodes[0].x, nodes[0].y); }
+    get B() { return createVector(nodes[1].x, nodes[1].y); }
+    get C() { return createVector(nodes[2].x, nodes[2].y); }
+
+    // Midpoint of BC
+    get D() {
+        return p5.Vector.add(this.B, this.C).mult(0.5);
+    }
+
+    // Midpoint of Median AD
+    get E() {
+        return p5.Vector.add(this.A, this.D).mult(0.5);
+    }
+
+    getArea(p1, p2, p3) {
+        return Math.abs(0.5 * (p1.x * (p2.y - p3.y) + p2.x * (p3.y - p1.y) + p3.x * (p1.y - p2.y)));
+    }
+
+    getHeight(P, B, C) {
+        let vBC = p5.Vector.sub(C, B);
+        let vBP = p5.Vector.sub(P, B);
+        let areaParallelogram = Math.abs(vBP.cross(vBC).z); 
+        if (typeof areaParallelogram !== 'number') {
+             areaParallelogram = Math.abs(vBP.x * vBC.y - vBP.y * vBC.x);
+        }
+        return areaParallelogram / vBC.mag();
+    }
+}
+
+const geo = new GeometrySystem();
+
+// p5.js Setup
+function setup() {
+    const container = document.getElementById('canvas-container');
+    const w = container.offsetWidth;
+    const h = container.offsetHeight || 600;
+    
+    // 2. 适配高分屏，修复文字模糊
+    pixelDensity(window.devicePixelRatio || 1);
+
+    canvas = createCanvas(w, h);
+    canvas.parent(container);
+    
+    geo.reset();
+    renderMathFormula();
+    canvas.elt.oncontextmenu = () => false;
+}
+
+function windowResized() {
+    const container = document.getElementById('canvas-container');
+    resizeCanvas(container.offsetWidth, container.offsetHeight || 600);
+}
+
+// Main Draw Loop
+function draw() {
+    background(255);
+    if (nodes.length < 3) return;
+
+    const A = geo.A;
+    const B = geo.B;
+    const C = geo.C;
+    const D = geo.D;
+    const E = geo.E;
+
+    let showFills = document.getElementById('chk-fill-areas').checked;
+    
+    if (showFills) {
+        noStroke();
+        fill(CONFIG.colors.abcFill);
+        triangle(A.x, A.y, B.x, B.y, C.x, C.y);
+        fill(CONFIG.colors.ebcFill);
+        triangle(E.x, E.y, B.x, B.y, C.x, C.y);
+    }
+
+    strokeJoin(ROUND);
+    
+    // Triangle ABC
+    stroke(CONFIG.colors.abcOutline);
+    strokeWeight(2);
+    noFill();
+    triangle(A.x, A.y, B.x, B.y, C.x, C.y);
+
+    // Median AD
+    stroke(CONFIG.colors.median);
+    strokeWeight(1.5);
+    drawingContext.setLineDash([5, 5]); 
+    line(A.x, A.y, D.x, D.y);
+    drawingContext.setLineDash([]);
+
+    // Triangle EBC
+    stroke(CONFIG.colors.ebcOutline);
+    strokeWeight(3);
+    triangle(E.x, E.y, B.x, B.y, C.x, C.y);
+
+    // Standard Heights
+    if (document.getElementById('chk-show-heights').checked) {
+        drawHeightLine(A, B, C, "h_A");
+        drawHeightLine(E, B, C, "h_E");
+    }
+
+    // 2. Step Mode Overlays
+    if (stepMode.active && stepMode.index >= 0 && stepMode.index < STEPS.length) {
+        push();
+        STEPS[stepMode.index].draw(geo);
+        pop();
+    }
+
+    // 3. Nodes (Always on top)
+    drawNode(A, "A");
+    drawNode(B, "B");
+    drawNode(C, "C");
+    drawNode(D, "D (中点)", true); 
+    drawNode(E, "E (中点)", true); 
+
+    updateUI(A, B, C, E);
+}
+
+// --- Helper Functions ---
+
+function getFoot(Point, BaseStart, BaseEnd) {
+    let vBase = p5.Vector.sub(BaseEnd, BaseStart);
+    let vPoint = p5.Vector.sub(Point, BaseStart);
+    let scalarProj = vPoint.dot(vBase) / vBase.magSq();
+    let projVec = p5.Vector.mult(vBase, scalarProj);
+    return p5.Vector.add(BaseStart, projVec);
+}
+
+function drawHeightLine(Point, BaseStart, BaseEnd, label, highlight = false) {
+    let Foot = getFoot(Point, BaseStart, BaseEnd);
+
+    // Draw Height Line
+    stroke(highlight ? CONFIG.colors.highlight : CONFIG.colors.heightLine);
+    strokeWeight(highlight ? 3 : 1);
+    if (!highlight) drawingContext.setLineDash([2, 2]);
+    line(Point.x, Point.y, Foot.x, Foot.y);
+    drawingContext.setLineDash([]);
+
+    // Draw Right Angle Mark
+    drawRightAngle(Foot, Point, BaseStart);
+
+    // Draw Label with Halo
+    drawTextWithHalo(label, (Point.x + Foot.x)/2 + 8, (Point.y + Foot.y)/2, highlight ? 16 : 14, highlight ? '#d35400' : CONFIG.colors.text, LEFT);
+}
+
+function drawRightAngle(corner, up, side) {
+    let size = 8;
+    push();
+    translate(corner.x, corner.y);
+    let ang = atan2(side.y - corner.y, side.x - corner.x);
+    rotate(ang);
+    stroke(150);
+    noFill();
+    let localUp = createVector(up.x - corner.x, up.y - corner.y);
+    localUp.rotate(-ang);
+    let sign = localUp.y < 0 ? -1 : 1;
+    line(0, -size*sign, size, -size*sign);
+    line(size, -size*sign, size, 0);
+    pop();
+}
+
+function drawNode(p, label, isSmall = false) {
+    noStroke();
+    
+    let d = dist(mouseX, mouseY, p.x, p.y);
+    let r = isSmall ? 6 : CONFIG.vertexRadius;
+    let isHover = d < r * 1.5;
+
+    if (isHover && !isSmall) {
+        fill(200, 200, 200, 100);
+        ellipse(p.x, p.y, r * 2.5);
+        cursor('pointer');
+    } else if (!isSmall) {
+        cursor('default');
+    }
+
+    fill(isSmall ? CONFIG.colors.text : '#fff');
+    stroke(CONFIG.colors.text);
+    strokeWeight(isSmall ? 1 : 2);
+    if (!isSmall) fill(255);
+    ellipse(p.x, p.y, r * 2);
+
+    // 3. 优化文字显示：添加光晕，防止重影和模糊
+    drawTextWithHalo(label, p.x, p.y - r - 8, 16, CONFIG.colors.text, CENTER);
+}
+
+function drawTextWithHalo(txt, x, y, size, col, align) {
+    push();
+    textSize(size);
+    textAlign(align, CENTER);
+    textStyle(BOLD);
+    
+    // Halo (White Outline)
+    stroke(255);
+    strokeWeight(4);
+    strokeJoin(ROUND);
+    fill(255);
+    text(txt, x, y);
+    
+    // Actual Text
+    noStroke();
+    fill(col);
+    text(txt, x, y);
+    pop();
+}
+
+function updateUI(A, B, C, E) {
+    const areaABC = geo.getArea(A, B, C);
+    const areaEBC = geo.getArea(E, B, C);
+    const hA = geo.getHeight(A, B, C);
+    const hE = geo.getHeight(E, B, C);
+    const baseLen = p5.Vector.dist(B, C);
+
+    safeSetText('val-area-abc', areaABC.toFixed(0));
+    safeSetText('val-area-ebc', areaEBC.toFixed(0));
+    safeSetText('val-base', baseLen.toFixed(0));
+    safeSetText('val-h-a', hA.toFixed(1));
+    safeSetText('val-h-e', hE.toFixed(1));
+
+    let ratio = areaABC > 0.1 ? (areaEBC / areaABC) : 0.5;
+    const ratioEl = document.getElementById('ratio-display');
+    ratioEl.innerText = ratio.toFixed(2);
+    
+    if (Math.abs(ratio - 0.5) < 0.01) {
+        ratioEl.style.color = '#27ae60';
+        if (!ratioEl.innerText.includes("精确")) ratioEl.innerText += " (精确)";
+    } else {
+        ratioEl.style.color = '#e67e22';
+    }
+}
+
+function safeSetText(id, val) {
+    const el = document.getElementById(id);
+    if (el) el.innerText = val;
+}
+
+// --- Step Logic ---
+
+function startStepMode() {
+    resetSim();
+    stepMode.active = true;
+    stepMode.index = 0;
+    document.getElementById('btn-start-step').innerText = "重新开始";
+    document.getElementById('btn-next-step').disabled = false;
+    document.getElementById('btn-next-step').innerText = "下一步";
+    document.getElementById('step-description').style.display = 'block';
+    updateStepDisplay();
+}
+
+function nextStep() {
+    if (!stepMode.active) return;
+    stepMode.index++;
+    if (stepMode.index >= STEPS.length) {
+        document.getElementById('btn-next-step').innerText = "完成";
+        document.getElementById('btn-next-step').disabled = true;
+    } else {
+        updateStepDisplay();
+    }
+}
+
+async function updateStepDisplay() {
+    const step = STEPS[stepMode.index];
+    const descBox = document.getElementById('step-description');
+    if (!step) return;
+    descBox.innerHTML = `<div style="font-weight:bold; margin-bottom:5px;">当前演示：</div>${step.text}`;
+    try { await MathJax.typesetPromise([descBox]); } catch(e) { console.log(e); }
+}
+
+// Interaction Handlers
+function mousePressed() {
+    for (let i = 0; i < nodes.length; i++) {
+        if (nodes[i].isDraggable) {
+            let d = dist(mouseX, mouseY, nodes[i].x, nodes[i].y);
+            if (d < CONFIG.vertexRadius * 2) {
+                draggingNodeIndex = i;
+                return;
+            }
+        }
+    }
+}
+
+function mouseDragged() {
+    if (draggingNodeIndex !== -1) {
+        let nx = constrain(mouseX, 20, width - 20);
+        let ny = constrain(mouseY, 20, height - 20);
+        nodes[draggingNodeIndex].x = nx;
+        nodes[draggingNodeIndex].y = ny;
+    }
+}
+
+function mouseReleased() {
+    draggingNodeIndex = -1;
+}
+
+function resetSim() {
+    geo.reset();
+}
+
+async function renderMathFormula() {
+    const container = document.getElementById('math-container');
+    if (!container) return;
+    try {
+        await MathJax.typesetPromise([container]);
+        container.style.visibility = 'visible';
+    } catch (err) {
+        container.style.visibility = 'visible';
+    }
+}
+</script>
+</body>
+</html>

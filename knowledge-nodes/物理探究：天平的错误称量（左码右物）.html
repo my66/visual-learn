@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>物理探究：天平的错误称量（左码右物）</title>
+    <!-- p5.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <!-- MathJax -->
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        /* Modern Reset */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+            background-color: #f0f4f8;
+            color: #2c3e50;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .header {
+            background: #2c3e50;
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .header h1 { font-size: 1.2rem; }
+        .header .subtitle { font-size: 0.9rem; opacity: 0.8; margin-left: 10px; }
+
+        .main-content {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* Sidebar */
+        .controls {
+            width: 380px;
+            background: white;
+            border-right: 1px solid #dde1e7;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            z-index: 10;
+        }
+
+        .panel-section {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 15px;
+        }
+        
+        .panel-title {
+            font-weight: bold;
+            margin-bottom: 12px;
+            color: #34495e;
+            display: flex;
+            align-items: center;
+        }
+        .panel-title::before {
+            content: '';
+            width: 4px; 
+            height: 16px; 
+            background: #3498db; 
+            margin-right: 8px;
+            border-radius: 2px;
+        }
+
+        /* Custom Toggle Switch */
+        .mode-switch {
+            display: flex;
+            background: #e0e0e0;
+            border-radius: 20px;
+            padding: 4px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            position: relative;
+        }
+        .mode-option {
+            flex: 1;
+            text-align: center;
+            padding: 8px 0;
+            font-size: 0.9rem;
+            z-index: 2;
+            transition: color 0.3s;
+        }
+        .mode-slider {
+            position: absolute;
+            width: 50%;
+            height: calc(100% - 8px);
+            background: white;
+            border-radius: 16px;
+            top: 4px;
+            left: 4px;
+            transition: transform 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        /* Sliders */
+        .slider-group { margin-bottom: 12px; }
+        .slider-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        .slider-val { font-family: monospace; font-weight: bold; color: #3498db; }
+        input[type=range] { width: 100%; cursor: pointer; accent-color: #3498db; }
+
+        /* Buttons */
+        .btn-primary {
+            width: 100%;
+            padding: 12px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-bottom: 10px;
+        }
+        .btn-primary:hover { background: #2980b9; }
+        
+        .btn-secondary {
+            padding: 8px 15px;
+            background: #ecf0f1;
+            border: 1px solid #bdc3c7;
+            border-radius: 4px;
+            cursor: pointer;
+            color: #2c3e50;
+        }
+        .btn-secondary:hover { background: #dfe6e9; }
+
+        /* Visualization */
+        .canvas-area {
+            flex: 1;
+            position: relative;
+            background: #f0f4f8;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        #canvas-wrapper {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Math Overlay Refined */
+        .math-overlay {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(5px);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+            width: 380px;
+            max-width: 90%;
+            border-left: 6px solid #e67e22;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            font-size: 0.9rem;
+        }
+
+        .math-section {
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        .math-section:last-child { border-bottom: none; padding-bottom: 0; }
+
+        .math-label {
+            font-size: 0.85rem;
+            color: #95a5a6;
+            font-weight: bold;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-weight: bold;
+            color: white;
+            font-size: 0.9rem;
+        }
+
+        /* Labels overlay on canvas */
+        .obj-label {
+            position: absolute;
+            background: rgba(255,255,255,0.9);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            pointer-events: none;
+            transform: translate(-50%, -100%);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div>
+            <h1>物理易错题：天平称量误差分析</h1>
+            <span class="subtitle">题目 10：左码右物称量问题</span>
+        </div>
+        <div style="font-size:0.9rem">
+            状态: <span id="status-tag" style="font-weight:bold; color:#2ecc71;">仿真运行中</span>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <!-- Controls -->
+        <div class="controls">
+            
+            <!-- Problem Text Section -->
+            <div class="panel-section" style="background: #edf2f7; border-left: 4px solid #34495e;">
+                <div class="panel-title">原题复现</div>
+                <div style="font-size:0.85rem; color:#2c3e50; line-height:1.6;">
+                    <p style="margin-bottom:8px;">
+                        <b>10. [科学思维]</b> 某同学用最大测量值为210g、最小刻度为0.2g、最小砝码为5g的托盘天平称量一个铁块的质量。
+                    </p>
+                    <p style="margin-bottom:8px;">
+                        当调节横梁平衡后，他将<b style="color:#c0392b;">铁块放在天平的右盘，砝码放在天平的左盘</b>，同时移动游码。当天平平衡时，他读出铁块的质量是 <b style="color:#d35400;">67.8g</b>。
+                    </p>
+                    <p style="margin-bottom:8px;">
+                        测量结束后，他还未觉察出自己的失误，则铁块的真实质量应是：
+                    </p>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:5px; margin-top:5px; font-weight:500;">
+                        <span>A. 62.2 g</span>
+                        <span>B. 67.6 g</span>
+                        <span>C. 67.8 g</span>
+                        <span>D. 68 g</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Mode Selection -->
+            <div class="panel-section">
+                <div class="panel-title">1. 放置方式</div>
+                <div class="mode-switch" onclick="toggleMode()">
+                    <div class="mode-slider" id="mode-slider"></div>
+                    <div class="mode-option" id="mode-normal">标准：左物右码</div>
+                    <div class="mode-option" id="mode-reverse">错误：左码右物</div>
+                </div>
+                <p style="font-size:0.8rem; color:#7f8c8d; line-height:1.4;" id="mode-desc">
+                    正常操作，物体在左盘，砝码在右盘。
+                </p>
+            </div>
+
+            <!-- Problem Scenario -->
+            <div class="panel-section" style="border-color: #f1c40f; background: #fffcf5;">
+                <div class="panel-title" style="color:#d35400;">2. 题目情景复现</div>
+                <p style="font-size:0.85rem; color:#d35400; margin-bottom:10px;">
+                    读数=67.8g (砝码65g + 游码2.8g)
+                </p>
+                <button class="btn-primary" onclick="loadProblemScenario()">
+                    加载题目数据
+                </button>
+                <div style="font-size:0.8rem; color:#666;">
+                    点击加载后，观察天平是否平衡，以及此时的真实质量。
+                </div>
+            </div>
+
+            <!-- Manual Adjustment -->
+            <div class="panel-section">
+                <div class="panel-title">3. 手动探究</div>
+                
+                <div class="slider-group">
+                    <div class="slider-header">
+                        <span>铁块真实质量</span>
+                        <span id="val-mass" class="slider-val">62.2 g</span>
+                    </div>
+                    <input type="range" id="input-mass" min="50" max="80" step="0.1" value="62.2">
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-header">
+                        <span>砝码总质量</span>
+                        <span id="val-weights" class="slider-val">65 g</span>
+                    </div>
+                    <input type="range" id="input-weights" min="0" max="100" step="5" value="65">
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-header">
+                        <span>游码读数</span>
+                        <span id="val-rider" class="slider-val">2.8 g</span>
+                    </div>
+                    <input type="range" id="input-rider" min="0" max="5" step="0.1" value="2.8">
+                </div>
+                
+                <div style="text-align:center; margin-top:10px;">
+                     <button class="btn-secondary" onclick="resetSim()">重置</button>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Canvas -->
+        <div class="canvas-area">
+            <div id="canvas-wrapper"></div>
+            
+            <!-- Refined Math Overlay -->
+            <div class="math-overlay">
+                <div class="math-section">
+                    <div class="math-label">天平平衡原理</div>
+                    <div id="math-formula-box" style="font-size:1.1rem; padding:5px 0;"></div>
+                </div>
+                
+                <div class="math-section">
+                    <div class="math-label">状态判定</div>
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div id="math-status-badge" class="status-badge">计算中...</div>
+                        <div style="font-size:0.85rem; color:#666;">误差范围 < 0.2g</div>
+                    </div>
+                </div>
+
+                <div class="math-section">
+                    <div class="math-label">数据验证 (Data Check)</div>
+                    <div id="math-calc-box"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+/**
+ * CONFIGURATION
+ */
+const CONFIG = {
+    gravity: 0.5,       // Sim gravity
+    beamLen: 300,
+    panDist: 120,
+    scaleRadius: 150,
+    maxTilt: 0.2,       // Radians
+    damping: 0.95,
+    kSpring: 0.02,      // Restoring force
+    torqueScale: 0.002, // Mass to Torque conversion
+    
+    colors: {
+        beam: '#bdc3c7',
+        base: '#2c3e50',
+        pointer: '#e74c3c',
+        object: '#3498db', // Blue Iron
+        weights: '#f1c40f', // Gold Weights
+        rider: '#2ecc71'
+    }
+};
+
+/**
+ * STATE
+ */
+let sim = {
+    isReversed: false, // false = Left Object, true = Left Weights
+    realMass: 62.2,    // Actual mass of object
+    weightMass: 65,    // Total mass of weights
+    riderMass: 2.8,    // Rider reading
+    
+    // Dynamics
+    angle: 0,
+    angVel: 0,
+    
+    // UI state
+    reading: 67.8
+};
+
+let canvas;
+
+function setup() {
+    const wrapper = document.getElementById('canvas-wrapper');
+    canvas = createCanvas(wrapper.clientWidth, wrapper.clientHeight);
+    canvas.parent('canvas-wrapper');
+    rectMode(CENTER);
+    imageMode(CENTER);
+    
+    // Init Logic
+    updateEquation();
+    
+    // Listeners
+    setupInputs();
+}
+
+function windowResized() {
+    const wrapper = document.getElementById('canvas-wrapper');
+    resizeCanvas(wrapper.clientWidth, wrapper.clientHeight);
+}
+
+function draw() {
+    background('#f0f4f8'); // Clear
+    
+    updatePhysics();
+    drawScene();
+}
+
+/**
+ * PHYSICS
+ */
+function updatePhysics() {
+    // 1. Determine Mass on Left and Right
+    let mL = 0;
+    let mR = 0;
+
+    if (!sim.isReversed) {
+        // Normal: Left = Object, Right = Weights
+        mL = sim.realMass;
+        mR = sim.weightMass; 
+    } else {
+        // Reversed: Left = Weights, Right = Object
+        mL = sim.weightMass;
+        mR = sim.realMass;
+    }
+
+    // 2. Rider Effect
+    // Rider is ALWAYS on the right arm scale.
+    // It adds torque to the Right side equivalent to its mass reading.
+    let massDiff = (mR + sim.riderMass) - mL;
+    let torque = massDiff * CONFIG.torqueScale;
+    
+    // Restoring Torque (Pendulum effect)
+    let restore = -CONFIG.kSpring * Math.sin(sim.angle);
+    
+    // Integrate
+    let acc = torque + restore;
+    sim.angVel += acc;
+    sim.angVel *= CONFIG.damping;
+    sim.angle += sim.angVel;
+    
+    // Clamp
+    if (sim.angle > CONFIG.maxTilt) {
+        sim.angle = CONFIG.maxTilt;
+        sim.angVel = 0;
+    } else if (sim.angle < -CONFIG.maxTilt) {
+        sim.angle = -CONFIG.maxTilt;
+        sim.angVel = 0;
+    }
+}
+
+/**
+ * DRAWING
+ */
+function drawScene() {
+    push();
+    translate(width/2, height/2 + 60); // Base position
+    
+    // 1. Base & Scale
+    drawBase();
+    
+    // 2. Beam System (Rotates)
+    push();
+    translate(0, -120); // Pivot
+    rotate(sim.angle);
+    
+    drawBeam();
+    drawPans();
+    drawRider();
+    
+    pop(); // End Beam
+    
+    pop(); // End Scene
+}
+
+function drawBase() {
+    // Pillar
+    fill(CONFIG.colors.base);
+    noStroke();
+    rect(0, -60, 14, 140, 4);
+    rect(0, 10, 160, 20, 4);
+    
+    // Scale Dial
+    fill(255);
+    stroke(200);
+    strokeWeight(1);
+    arc(0, -100, CONFIG.scaleRadius, CONFIG.scaleRadius, PI/2 - 0.3, PI/2 + 0.3, PIE);
+    
+    // Ticks
+    stroke(150);
+    for(let i=-5; i<=5; i++){
+        let a = PI/2 + i*0.04;
+        let r = CONFIG.scaleRadius/2;
+        line(cos(a)*(r-10), sin(a)*(r-10)-100, cos(a)*r, sin(a)*r-100);
+    }
+}
+
+function drawBeam() {
+    // Beam
+    fill(CONFIG.colors.beam);
+    stroke(150);
+    rect(0, 0, CONFIG.beamLen, 12, 4);
+    
+    // Pointer
+    stroke(CONFIG.colors.pointer);
+    strokeWeight(3);
+    line(0, 0, 0, 95);
+    noStroke();
+    fill(CONFIG.colors.pointer);
+    triangle(-4, 95, 4, 95, 0, 110);
+    
+    // Pivot dot
+    fill(50);
+    ellipse(0, 0, 8, 8);
+    
+    // Labels L/R
+    fill(100);
+    textSize(10);
+    textAlign(CENTER);
+    text("L", -CONFIG.panDist, -10);
+    text("R", CONFIG.panDist, -10);
+}
+
+function drawPans() {
+    // Logic: What is on Left?
+    let leftContent = !sim.isReversed ? 'OBJ' : 'WEIGHTS';
+    let rightContent = !sim.isReversed ? 'WEIGHTS' : 'OBJ';
+    
+    drawSinglePan(-CONFIG.panDist, leftContent);
+    drawSinglePan(CONFIG.panDist, rightContent);
+}
+
+function drawSinglePan(x, type) {
+    push();
+    translate(x, 0);
+    
+    // Hanger
+    stroke(150);
+    strokeWeight(1);
+    line(0, 0, -15, 40);
+    line(0, 0, 15, 40);
+    
+    // Pan (Counter rotate)
+    translate(0, 40);
+    rotate(-sim.angle);
+    
+    // Plate
+    fill('#ecf0f1');
+    stroke(180);
+    beginShape();
+    vertex(-30,0); vertex(30,0); vertex(20,10); vertex(-20,10);
+    endShape(CLOSE);
+    
+    // Content
+    translate(0, -2); // On top of pan
+    if (type === 'OBJ') {
+        drawObject(sim.realMass);
+    } else {
+        drawWeights(sim.weightMass);
+    }
+    
+    pop();
+}
+
+function drawObject(mass) {
+    fill(CONFIG.colors.object);
+    noStroke();
+    // Size scales slightly with mass
+    let sz = map(mass, 50, 80, 25, 35);
+    rect(0, -sz/2, sz, sz, 2);
+    
+    fill(255);
+    textAlign(CENTER, CENTER);
+    textSize(10);
+    text("Fe", 0, -sz/2 - 5);
+    text(mass.toFixed(1), 0, -sz/2 + 5);
+}
+
+function drawWeights(mass) {
+    if (mass <= 0) return;
+    fill(CONFIG.colors.weights);
+    stroke(211, 84, 0);
+    strokeWeight(1);
+    
+    // Simple stack visualization
+    let h = 10;
+    let w = map(mass, 0, 100, 15, 30);
+    rect(0, -h/2, w, h, 2);
+    
+    fill(0,0,0,150);
+    noStroke();
+    textSize(9);
+    textAlign(CENTER, CENTER);
+    text(mass + "g", 0, -h/2);
+}
+
+function drawRider() {
+    // Rider moves on right arm (x > 0)
+    // Assume scale is 0 to 5g
+    // Map 0 -> x=20, 5 -> x=100
+    let rx = map(sim.riderMass, 0, 5, 20, 100);
+    
+    fill(CONFIG.colors.rider);
+    noStroke();
+    rect(rx, -8, 8, 10);
+    triangle(rx-4, -3, rx+4, -3, rx, 2);
+    
+    // Label
+    fill(0);
+    textSize(9);
+    text(sim.riderMass.toFixed(1), rx, -16);
+}
+
+/**
+ * LOGIC & UI
+ */
+function setupInputs() {
+    // Mass Input
+    document.getElementById('input-mass').addEventListener('input', (e)=>{
+        sim.realMass = parseFloat(e.target.value);
+        document.getElementById('val-mass').innerText = sim.realMass.toFixed(1) + " g";
+        updateEquation();
+    });
+    
+    // Weights Input
+    document.getElementById('input-weights').addEventListener('input', (e)=>{
+        sim.weightMass = parseFloat(e.target.value);
+        document.getElementById('val-weights').innerText = sim.weightMass + " g";
+        updateEquation();
+    });
+    
+    // Rider Input
+    document.getElementById('input-rider').addEventListener('input', (e)=>{
+        sim.riderMass = parseFloat(e.target.value);
+        document.getElementById('val-rider').innerText = sim.riderMass.toFixed(1) + " g";
+        updateEquation();
+    });
+}
+
+function toggleMode() {
+    sim.isReversed = !sim.isReversed;
+    
+    const slider = document.getElementById('mode-slider');
+    const desc = document.getElementById('mode-desc');
+    
+    if (sim.isReversed) {
+        slider.style.transform = 'translateX(100%)';
+        slider.style.background = '#e74c3c'; // Warning color
+        slider.style.color = 'white';
+        desc.innerHTML = "⚠️ <b style='color:#c0392b'>错误操作</b>：物体放在右盘，砝码放在左盘。<br>此时平衡条件发生改变！";
+    } else {
+        slider.style.transform = 'translateX(0)';
+        slider.style.background = 'white';
+        desc.innerHTML = "正常操作，物体在左盘，砝码在右盘。<br>符合左物右码原则。";
+    }
+    
+    updateEquation();
+}
+
+function loadProblemScenario() {
+    // 1. Switch to Reversed
+    if (!sim.isReversed) toggleMode();
+    
+    // 2. Set Values from Problem
+    sim.weightMass = 65;
+    document.getElementById('input-weights').value = 65;
+    document.getElementById('val-weights').innerText = "65 g";
+    
+    sim.riderMass = 2.8;
+    document.getElementById('input-rider').value = 2.8;
+    document.getElementById('val-rider').innerText = "2.8 g";
+    
+    sim.realMass = 62.2;
+    document.getElementById('input-mass').value = 62.2;
+    document.getElementById('val-mass').innerText = "62.2 g";
+    
+    sim.angle = 0;
+    sim.angVel = 0;
+    
+    updateEquation();
+}
+
+function resetSim() {
+    sim.realMass = 62.2;
+    sim.weightMass = 0;
+    sim.riderMass = 0;
+    if (sim.isReversed) toggleMode(); // Go back to normal
+    
+    document.getElementById('input-mass').value = 62.2;
+    document.getElementById('input-weights').value = 0;
+    document.getElementById('input-rider').value = 0;
+    
+    document.getElementById('val-mass').innerText = "62.2 g";
+    document.getElementById('val-weights').innerText = "0 g";
+    document.getElementById('val-rider').innerText = "0.0 g";
+    
+    sim.angle = 0;
+    updateEquation();
+}
+
+async function updateEquation() {
+    const boxFormula = document.getElementById('math-formula-box');
+    const boxCalc = document.getElementById('math-calc-box');
+    const badge = document.getElementById('math-status-badge');
+    const tag = document.getElementById('status-tag');
+    
+    // Check Equilibrium
+    let L = 0, R = 0;
+    if (!sim.isReversed) {
+        L = sim.realMass;
+        R = sim.weightMass + sim.riderMass;
+    } else {
+        L = sim.weightMass;
+        R = sim.realMass + sim.riderMass;
+    }
+    
+    let diff = Math.abs(L - R);
+    let isBalanced = diff < 0.2;
+    
+    // Update Badges
+    if (isBalanced) {
+        badge.innerText = "已平衡 (Balanced)";
+        badge.style.background = "#27ae60";
+        tag.innerText = "天平已平衡";
+        tag.style.color = "#27ae60";
+    } else {
+        badge.innerText = L > R ? "左盘偏重 (Left Heavy)" : "右盘偏重 (Right Heavy)";
+        badge.style.background = "#c0392b";
+        tag.innerText = "天平未平衡";
+        tag.style.color = "#c0392b";
+    }
+
+    // Formulas
+    let texFormula = "";
+    let texCalc = "";
+
+    if (!sim.isReversed) {
+        // Standard Mode
+        texFormula = String.raw`M_{物} = M_{码} + M_{游}`;
+        texCalc = String.raw`
+            \begin{aligned}
+            M_{物} &= ${sim.realMass.toFixed(1)} \text{ g} \\
+            M_{右} &= ${sim.weightMass} + ${sim.riderMass.toFixed(1)} = ${(sim.weightMass + sim.riderMass).toFixed(1)} \text{ g}
+            \end{aligned}
+        `;
+    } else {
+        // Reverse Mode
+        texFormula = String.raw`
+             M_{码} = M_{物} + M_{游} \Rightarrow \mathbf{M_{物} = M_{码} - M_{游}}
+        `;
+        texCalc = String.raw`
+            \begin{aligned}
+             65 \text{g} &= M_{物} + 2.8 \text{g} \\
+             M_{物} &= 65 - 2.8 = \mathbf{62.2} \text{ g}
+            \end{aligned}
+        `;
+        
+        // Dynamic calc if numbers drift from problem
+        if (Math.abs(sim.weightMass - 65) > 0.1 || Math.abs(sim.riderMass - 2.8) > 0.1) {
+             texCalc = String.raw`
+                \begin{aligned}
+                 ${sim.weightMass} &= M_{物} + ${sim.riderMass.toFixed(1)} \\
+                 M_{物} &= ${sim.weightMass} - ${sim.riderMass.toFixed(1)} = ${(sim.weightMass - sim.riderMass).toFixed(1)}
+                \end{aligned}
+            `;
+        }
+    }
+
+    boxFormula.innerHTML = `\\[${texFormula}\\]`;
+    boxCalc.innerHTML = `\\[${texCalc}\\]`;
+    
+    await MathJax.typesetPromise([boxFormula, boxCalc]);
+}
+
+</script>
+</body>
+</html>

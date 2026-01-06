@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>初中数学：代数天平与移项变号</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <script>
+    window.MathJax = {
+      loader: {load: ['[tex]/color']},
+      tex: { 
+          inlineMath: [['\\(','\\)']], 
+          displayMath: [['\\[','\\]']],
+          packages: {'[+]': ['color']}
+      },
+      options: { skipHtmlTags: ['script','noscript','style','textarea','pre','code'] },
+      startup: {
+        pageReady: () => {
+          return MathJax.startup.defaultPageReady().then(() => {
+            console.log('MathJax initial typesetting complete');
+          });
+        }
+      }
+    };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #f4f7f6;
+            font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* 左侧控制面板 */
+        #controls {
+            width: 340px;
+            background: #ffffff;
+            padding: 20px;
+            box-shadow: 2px 0 15px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            z-index: 10;
+            overflow-y: auto;
+        }
+
+        h1 {
+            font-size: 18px;
+            color: #2c3e50;
+            margin: 0 0 10px 0;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #3498db;
+        }
+
+        .section-title {
+            font-size: 14px;
+            font-weight: bold;
+            color: #7f8c8d;
+            margin-top: 10px;
+            margin-bottom: 5px;
+        }
+
+        .scenario-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        
+        .scenario-btn {
+            background: #ecf0f1;
+            border: 1px solid #bdc3c7;
+            padding: 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+            text-align: center;
+        }
+        
+        .scenario-btn:hover { background: #e0e6e7; }
+        .scenario-btn.active {
+            background: #3498db;
+            color: white;
+            border-color: #2980b9;
+        }
+
+        .action-panel {
+            background: #fff8e1;
+            border: 1px solid #ffe082;
+            border-radius: 8px;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .step-btn {
+            background: #27ae60;
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 15px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: transform 0.1s;
+        }
+        
+        .step-btn:hover { background: #219150; }
+        .step-btn:active { transform: scale(0.98); }
+        .step-btn:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .hint-text {
+            font-size: 13px;
+            color: #d35400;
+            line-height: 1.4;
+        }
+
+        /* 右侧画布 */
+        #canvas-container {
+            flex-grow: 1;
+            position: relative;
+            background: #eef2f5;
+        }
+
+        /* 天平上方的动态方程 HUD */
+        #scale-equation-hud {
+            position: absolute;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px 40px;
+            border-radius: 16px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+            font-size: 26px;
+            color: #2c3e50;
+            pointer-events: none;
+            transition: all 0.3s ease;
+            z-index: 20;
+            border: 2px solid #3498db;
+            min-width: 200px;
+            text-align: center;
+        }
+
+        /* 浮动图例 */
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255,255,255,0.8);
+            padding: 8px 12px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            font-size: 12px;
+            pointer-events: none;
+            display: flex;
+            gap: 15px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+        .box { width: 10px; height: 10px; display: inline-block; }
+    </style>
+</head>
+<body>
+
+    <div id="controls">
+        <h1>⚖️ 代数天平：移项变号</h1>
+        
+        <div class="section-title">1. 选择方程场景</div>
+        <div class="scenario-grid">
+            <button class="scenario-btn active" onclick="setScenario(0)">① \(x+3=6\)<br>(移正数)</button>
+            <button class="scenario-btn" onclick="setScenario(1)">② \(x-2=4\)<br>(移负数)</button>
+            <button class="scenario-btn" onclick="setScenario(2)">③ \(3x=2x+2\)<br>(移未知数)</button>
+            <button class="scenario-btn" onclick="setScenario(3)">④ \(2x+3=x+5\)<br>(混合)</button>
+        </div>
+
+        <div class="section-title">2. 执行操作</div>
+        <div class="action-panel">
+            <div id="step-desc" class="hint-text">目标：让左边只剩下 \(x\)。<br>当前：左边多了 \(+3\)。</div>
+            <button id="btn-action" class="step-btn">
+                <span>执行移项 (消去+3)</span>
+                <span>▶</span>
+            </button>
+            <button id="btn-simplify" class="step-btn" style="background:#e67e22; display:none;">
+                <span>合并同类项</span>
+                <span>✨</span>
+            </button>
+        </div>
+
+        <div class="section-title">3. 核心原理</div>
+        <div style="font-size:13px; color:#555; line-height:1.6;">
+            注意观察右侧天平上方：<br>
+            当显示 <span style="color:#e74c3c; font-weight:bold;">红色</span> 时，代表减去/负项。<br>
+            当显示 <span style="color:#2ecc71; font-weight:bold;">绿色</span> 时，代表加上/正项。<br>
+            当显示 <span style="color:#bdc3c7; font-weight:bold;">灰色</span> 时，代表正在抵消。
+        </div>
+    </div>
+
+    <div id="canvas-container">
+        <!-- HUD 方程显示区 -->
+        <div id="scale-equation-hud">\[ x + 3 = 6 \]</div>
+
+        <div id="legend">
+            <div class="legend-item"><span class="box" style="background:#2ecc71; border:1px solid #27ae60"></span> <span>+x</span></div>
+            <div class="legend-item"><span class="dot" style="background:#2ecc71"></span> <span>+1 (正)</span></div>
+            <div class="legend-item"><span class="dot" style="background:#e74c3c"></span> <span>-1 (负)</span></div>
+        </div>
+    </div>
+
+    <script>
+        // --- 核心逻辑与配置 ---
+        
+        const scenarios = [
+            { 
+                id: 0,
+                eqStr: "x + 3 = 6", 
+                lhs: { x: 1, c: 3 }, rhs: { x: 0, c: 6 },
+                steps: [
+                    { type: 'op_const', val: -3, desc: "左边有+3，在两边同时减3 (即加上-3) 来抵消它。" },
+                    { type: 'simplify', desc: "整理：左边+3与-3抵消，右边6-3=3。" }
+                ]
+            },
+            { 
+                id: 1,
+                eqStr: "x - 2 = 4", 
+                lhs: { x: 1, c: -2 }, rhs: { x: 0, c: 4 },
+                steps: [
+                    { type: 'op_const', val: 2, desc: "左边有-2 (欠2个)，在两边同时加2来填补。" },
+                    { type: 'simplify', desc: "整理：左边-2与+2抵消，右边4+2=6。" }
+                ]
+            },
+            { 
+                id: 2,
+                eqStr: "3x = 2x + 2", 
+                lhs: { x: 3, c: 0 }, rhs: { x: 2, c: 2 },
+                steps: [
+                    { type: 'op_x', val: -2, desc: "右边有2x，我们在两边同时减去 2x。" },
+                    { type: 'simplify', desc: "整理：左边3x-2x=x，右边2x消失。" }
+                ]
+            },
+            { 
+                id: 3,
+                eqStr: "2x + 3 = x + 5", 
+                lhs: { x: 2, c: 3 }, rhs: { x: 1, c: 5 },
+                steps: [
+                    { type: 'op_x', val: -1, desc: "第一步：两边同时减去 x。" },
+                    { type: 'simplify', desc: "整理x项。" },
+                    { type: 'op_const', val: -3, desc: "第二步：两边同时减去 3。" },
+                    { type: 'simplify', desc: "整理常数项，得到解。" }
+                ]
+            }
+        ];
+
+        // 状态定义：每个步骤完成后的“稳定态”
+        const equationStateMap = {
+            '0-1': "x = 3",
+            '1-1': "x = 6",
+            '2-1': "x = 2",
+            '3-1': "x + 3 = 5",
+            '3-3': "x = 2"
+        };
+
+        // 新增：过程中的“过渡态” (灰色显示抵消部分)
+        // 逻辑：将上一阶段的红色/绿色部分变成灰色
+        const equationTransitionMap = {
+            '0-1': "x + \\color{#bdc3c7}{3 - 3} = \\color{#bdc3c7}{6 - 3}", 
+            '1-1': "x \\color{#bdc3c7}{- 2 + 2} = \\color{#bdc3c7}{4 + 2}",
+            '2-1': "\\color{#bdc3c7}{3x - 2x} = \\color{#bdc3c7}{2x - 2x} + 2",
+            '3-1': "\\color{#bdc3c7}{2x - x} + 3 = \\color{#bdc3c7}{x - x} + 5",
+            '3-3': "x + \\color{#bdc3c7}{3 - 3} = \\color{#bdc3c7}{5 - 3}"
+        };
+
+        let currentScenarioIdx = 0;
+        let currentStepIdx = 0;
+        
+        let scaleBaseX, scaleBaseY;
+        let items = []; 
+        let animState = 'IDLE'; 
+
+        let btnAction, btnSimplify, infoText, hudDisplay;
+
+        function setup() {
+            let canvas = createCanvas(windowWidth - 340, windowHeight);
+            canvas.parent('canvas-container');
+            
+            scaleBaseX = width / 2;
+            scaleBaseY = height / 2 + 120;
+
+            btnAction = select('#btn-action');
+            btnSimplify = select('#btn-simplify');
+            infoText = select('#step-desc');
+            hudDisplay = select('#scale-equation-hud'); 
+            
+            btnAction.mousePressed(performNextStep);
+            btnSimplify.mousePressed(performNextStep);
+
+            loadScenario(0);
+        }
+
+        function windowResized() {
+            resizeCanvas(windowWidth - 340, windowHeight);
+            scaleBaseX = width / 2;
+            scaleBaseY = height / 2 + 120;
+            repositionItems();
+        }
+
+        function setScenario(idx) {
+            document.querySelectorAll('.scenario-btn').forEach((b, i) => {
+                if (i === idx) b.classList.add('active');
+                else b.classList.remove('active');
+            });
+            loadScenario(idx);
+        }
+
+        function loadScenario(idx) {
+            currentScenarioIdx = idx;
+            currentStepIdx = 0;
+            let sc = scenarios[idx];
+            
+            items = [];
+            createInitialItems(sc.lhs, 'L');
+            createInitialItems(sc.rhs, 'R');
+            
+            updateEquationDisplay(sc.eqStr);
+            updateButtonState();
+            
+            animState = 'IDLE';
+        }
+
+        function createInitialItems(data, side) {
+            for (let i = 0; i < data.x; i++) items.push(createItem('x', 1, side));
+            let count = Math.abs(data.c);
+            let val = data.c >= 0 ? 1 : -1;
+            for (let i = 0; i < count; i++) items.push(createItem('c', val, side));
+            repositionItems();
+        }
+
+        function createItem(type, val, side) {
+            return {
+                type: type, 
+                val: val,   
+                side: side, 
+                x: 0, y: -500, 
+                targetX: 0, targetY: 0,
+                state: 'idle',
+                id: random(10000)
+            };
+        }
+
+        function updateButtonState() {
+            let sc = scenarios[currentScenarioIdx];
+            if (currentStepIdx >= sc.steps.length) {
+                btnAction.hide();
+                btnSimplify.hide();
+                infoText.html("<b>🎉 完成！方程已解开。</b>");
+                updateEquationDisplay(getFinalEquation(sc));
+                return;
+            }
+
+            let step = sc.steps[currentStepIdx];
+            infoText.html(step.desc);
+            
+            if (step.type === 'simplify') {
+                btnAction.hide();
+                btnSimplify.show();
+                btnSimplify.elt.style.display = 'flex'; 
+            } else {
+                btnAction.show();
+                btnAction.elt.style.display = 'flex';
+                btnSimplify.hide();
+                let btnTxt = "";
+                if (step.type === 'op_const') btnTxt = `执行: 两边${step.val > 0 ? '+' : ''}${step.val}`;
+                if (step.type === 'op_x') btnTxt = `执行: 两边${step.val > 0 ? '+' : ''}${step.val}x`;
+                select('#btn-action span').html(btnTxt);
+            }
+        }
+
+        function performNextStep() {
+            if (animState === 'ANIMATING') return;
+
+            let sc = scenarios[currentScenarioIdx];
+            let step = sc.steps[currentStepIdx];
+
+            if (step.type === 'op_const' || step.type === 'op_x') {
+                // --- 移项操作 (Drop Phase) ---
+                let isX = step.type === 'op_x';
+                let count = Math.abs(step.val);
+                let val = step.val > 0 ? 1 : -1;
+                
+                for(let s of ['L', 'R']) {
+                    for(let i=0; i<count; i++) {
+                        let it = createItem(isX ? 'x' : 'c', val, s);
+                        it.state = 'dropping'; 
+                        it.y = -100; 
+                        items.push(it);
+                    }
+                }
+                
+                animState = 'ANIMATING';
+                updateEquationDisplay_MiddleStep(sc, currentStepIdx);
+
+                setTimeout(() => {
+                    animState = 'IDLE';
+                    repositionItems();
+                    currentStepIdx++;
+                    updateButtonState();
+                }, 1500);
+
+            } else if (step.type === 'simplify') {
+                // --- 合并同类项 (Annihilation Phase - 优化版) ---
+                animState = 'ANIMATING';
+                
+                // 1. 开始移动小球 (Start moving)
+                for (let side of ['L', 'R']) {
+                    annihilatePairs(side, 'c');
+                    annihilatePairs(side, 'x');
+                }
+
+                // 2. [T+1.2s] 过渡态：方程变灰 (Transition State: Grey out)
+                // 等小球快撞上时，把方程中要消除的部分变灰
+                setTimeout(() => {
+                    updateEquationDisplay_TransitionStep(sc, currentStepIdx);
+                }, 1200);
+
+                // 3. [T+2.5s] 小球消失 & 停留 (Poof & Pause)
+                setTimeout(() => {
+                    items = items.filter(it => it.state !== 'dead');
+                    repositionItems();
+                }, 2500);
+
+                // 4. [T+3.5s] 最终结果 (Final Result)
+                setTimeout(() => {
+                    animState = 'IDLE';
+                    currentStepIdx++;
+                    updateEquationDisplay_SimplifyStep(sc, currentStepIdx);
+                    updateButtonState();
+                }, 3500);
+            }
+        }
+
+        function annihilatePairs(side, type) {
+            let candidates = items.filter(it => it.side === side && it.type === type && it.state !== 'dead');
+            let positives = candidates.filter(it => it.val > 0);
+            let negatives = candidates.filter(it => it.val < 0);
+            let pairCount = Math.min(positives.length, negatives.length);
+            
+            for (let i = 0; i < pairCount; i++) {
+                let p = positives[i];
+                let n = negatives[i];
+                p.state = 'merging';
+                n.state = 'merging';
+                let mergeX = (p.x + n.x) / 2;
+                let mergeY = p.y - 80; // Fly higher
+                p.targetX = mergeX; p.targetY = mergeY;
+                n.targetX = mergeX; n.targetY = mergeY;
+            }
+        }
+
+        function draw() {
+            background(240, 244, 248);
+            drawScale();
+            updateAndDrawItems();
+        }
+
+        function drawScale() {
+            push();
+            translate(scaleBaseX, scaleBaseY);
+            fill(100); noStroke();
+            triangle(-20, 100, 20, 100, 0, 0);
+            rect(-40, 100, 80, 10);
+            
+            let angle = 0;
+            if (animState === 'ANIMATING') angle = sin(frameCount * 0.1) * 0.01; // Slower wobble
+            rotate(angle);
+            
+            stroke(50); strokeWeight(4);
+            line(-150, 0, 150, 0); 
+            strokeWeight(2);
+            line(-150, 0, -150, 60);
+            line(150, 0, 150, 60);
+            
+            push(); translate(-150, 60); rotate(-angle);
+            fill(225); stroke(150); arc(0, 0, 130, 40, 0, PI); pop();
+            push(); translate(150, 60); rotate(-angle);
+            fill(225); stroke(150); arc(0, 0, 130, 40, 0, PI); pop();
+            fill(231, 76, 60); noStroke(); circle(0, 0, 10);
+            pop();
+        }
+
+        function updateAndDrawItems() {
+            for (let it of items) {
+                if (it.state === 'dropping') {
+                    it.y += 12;
+                    let groundY = scaleBaseY + 60; 
+                    if (it.y > groundY - 10) {
+                        it.y = groundY - 10;
+                        it.state = 'idle';
+                        repositionItems(); 
+                    }
+                } 
+                else if (it.state === 'merging') {
+                    // Slower merge animation (0.05 instead of 0.1)
+                    it.x = lerp(it.x, it.targetX, 0.05);
+                    it.y = lerp(it.y, it.targetY, 0.05);
+                    if (dist(it.x, it.y, it.targetX, it.targetY) < 5) {
+                        drawPoof(it.x, it.y);
+                        it.state = 'dead';
+                    }
+                }
+                else if (it.state === 'idle') {
+                    it.x = lerp(it.x, it.targetX, 0.12);
+                    it.y = lerp(it.y, it.targetY, 0.12);
+                }
+                
+                if (it.state !== 'dead') drawItemShape(it);
+            }
+        }
+
+        function drawItemShape(it) {
+            push();
+            translate(it.x, it.y);
+            let cColor = it.val > 0 ? color(46, 204, 113) : color(231, 76, 60); 
+            fill(cColor); stroke(255); strokeWeight(1);
+            
+            if (it.type === 'x') {
+                rectMode(CENTER); rect(0, 0, 26, 26, 4);
+                fill(255); noStroke(); textAlign(CENTER, CENTER); textSize(15); text("x", 0, 0);
+            } else {
+                circle(0, 0, 22);
+                fill(255); noStroke(); textAlign(CENTER, CENTER); textSize(13); text(it.val > 0 ? "+1" : "-1", 0, 1);
+            }
+            pop();
+        }
+        
+        function drawPoof(x, y) {
+            noStroke(); fill(255, 200, 0, 180); circle(x, y, 40);
+        }
+
+        function repositionItems() {
+            let leftItems = items.filter(it => it.side === 'L' && it.state === 'idle');
+            let rightItems = items.filter(it => it.side === 'R' && it.state === 'idle');
+            layoutPile(leftItems, scaleBaseX - 150, scaleBaseY + 60);
+            layoutPile(rightItems, scaleBaseX + 150, scaleBaseY + 60);
+        }
+        
+        function layoutPile(list, centerX, baseY) {
+            let spacing = 26;
+            let rowMax = 4;
+            list.forEach((it, i) => {
+                let row = Math.floor(i / rowMax);
+                let col = i % rowMax;
+                let rowWidth = (Math.min(list.length - row*rowMax, rowMax) - 1) * spacing;
+                let xOffset = col * spacing - rowWidth / 2;
+                it.targetX = centerX + xOffset;
+                it.targetY = baseY - 15 - (row * 26); 
+            });
+        }
+        
+        function updateEquationDisplay(str) {
+            hudDisplay.html(`\\[ ${str} \\]`);
+            if (window.MathJax && typeof window.MathJax.typesetPromise === 'function') {
+                MathJax.typesetPromise([hudDisplay.elt]).catch(err => console.log(err));
+            }
+        }
+        
+        function updateEquationDisplay_MiddleStep(sc, stepIdx) {
+            let step = sc.steps[stepIdx];
+            // Base equation logic
+            let baseEq = "";
+            if (stepIdx === 0) {
+                baseEq = sc.eqStr;
+            } else {
+                let prevKey = `${sc.id}-${stepIdx - 1}`;
+                baseEq = equationStateMap[prevKey] || sc.eqStr;
+            }
+            let parts = baseEq.split('=');
+            let LHS = parts[0].trim();
+            let RHS = parts[1].trim();
+            let opStr = "";
+            if (step.type === 'op_const') opStr = step.val > 0 ? `+${step.val}` : `${step.val}`;
+            if (step.type === 'op_x') opStr = step.val > 0 ? `+${Math.abs(step.val)}x` : `-${Math.abs(step.val)}x`;
+            let colorHex = step.val > 0 ? "#2ecc71" : "#e74c3c"; 
+            let highlightOp = `{\\color{${colorHex}} ${opStr}}`;
+            updateEquationDisplay(`${LHS} ${highlightOp} = ${RHS} ${highlightOp}`);
+        }
+        
+        // New: Transition display (Grey out)
+        function updateEquationDisplay_TransitionStep(sc, stepIdx) {
+            let key = `${sc.id}-${stepIdx}`; // Key for the current transition
+            // The stepIdx here is the 'simplify' step index, e.g., 1
+            // But our map uses the index AFTER the step finishes? 
+            // Wait, performNextStep uses currentStepIdx which points to the 'simplify' step.
+            // When simplify is done, idx increments.
+            // So we need a key that represents "Transitioning during stepIdx".
+            // Let's reuse the key logic but map it differently.
+            // Using the result key (e.g., '0-1') is fine if the map has transition content.
+            if (equationTransitionMap[key]) {
+                updateEquationDisplay(equationTransitionMap[key]);
+            }
+        }
+        
+        function updateEquationDisplay_SimplifyStep(sc, stepIdx) {
+            let key = `${sc.id}-${stepIdx}`;
+            if (equationStateMap[key]) updateEquationDisplay(equationStateMap[key]);
+        }
+        
+        function getFinalEquation(sc) {
+            if (sc.id === 0) return "x = 3";
+            if (sc.id === 1) return "x = 6";
+            if (sc.id === 2) return "x = 2";
+            if (sc.id === 3) return "x = 2";
+            return "";
+        }
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>物理仿真：托盘天平的使用与原理</title>
+    <!-- p5.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <!-- MathJax for formula rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        /* Modern Reset & Typography */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+            background-color: #f5f7fa;
+            color: #333;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; /* Main scroll handled in container */
+        }
+
+        /* Layout Structure */
+        .main-container {
+            display: flex;
+            flex: 1;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        /* Sidebar Controls */
+        .controls {
+            width: 380px;
+            background: #ffffff;
+            border-right: 1px solid #e0e0e0;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.05);
+            z-index: 10;
+        }
+
+        .controls-header {
+            padding: 20px;
+            background: #2c3e50;
+            color: white;
+            border-bottom: 3px solid #3498db;
+        }
+
+        .controls-header h1 { font-size: 1.2rem; margin-bottom: 5px; }
+        .controls-header p { font-size: 0.85rem; opacity: 0.9; line-height: 1.4; }
+
+        .control-group {
+            padding: 20px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .control-group h3 {
+            font-size: 1rem;
+            color: #2c3e50;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .control-group h3::before {
+            content: '';
+            display: inline-block;
+            width: 4px;
+            height: 16px;
+            background: #3498db;
+            margin-right: 8px;
+            border-radius: 2px;
+        }
+
+        /* Interactive Elements */
+        .slider-container { margin-bottom: 15px; }
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9rem;
+            margin-bottom: 5px;
+            color: #555;
+        }
+        .slider-value { color: #3498db; font-weight: bold; font-family: monospace; }
+        
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+            accent-color: #3498db;
+        }
+
+        .button-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+
+        button {
+            padding: 8px 12px;
+            border: 1px solid #dcdcdc;
+            background: #f8f9fa;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+            color: #333;
+        }
+
+        button:hover { background: #e9ecef; border-color: #adb5bd; }
+        button:active { background: #dde2e6; transform: translateY(1px); }
+        button.primary { background: #3498db; color: white; border-color: #2980b9; }
+        button.primary:hover { background: #2980b9; }
+        button.danger { background: #e74c3c; color: white; border-color: #c0392b; }
+        
+        .weights-display {
+            background: #f1f3f5;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            margin-top: 10px;
+            min-height: 40px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            align-items: center;
+        }
+        
+        .weight-tag {
+            background: #95a5a6;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.8rem;
+        }
+
+        /* Visualization Area */
+        .vis-container {
+            flex: 1;
+            position: relative;
+            background-color: #f0f2f5;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        #canvas-wrapper {
+            flex: 1;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        /* Dynamic Feedback Overlay */
+        #feedback-overlay {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(255, 255, 255, 0.95);
+            padding: 15px 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+            text-align: center;
+            pointer-events: none; /* Let clicks pass through */
+            border-left: 5px solid #3498db;
+            transition: opacity 0.3s, transform 0.3s;
+            opacity: 0;
+            z-index: 100;
+            max-width: 80%;
+        }
+
+        #feedback-overlay.active {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .feedback-title {
+            font-weight: bold;
+            font-size: 1rem;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+
+        .feedback-desc {
+            font-size: 0.9rem;
+            color: #555;
+            line-height: 1.4;
+        }
+
+        .feedback-arrow {
+            display: inline-block;
+            font-weight: bold;
+            color: #e67e22;
+            margin: 0 5px;
+        }
+
+        /* Analysis Panel (Bottom) */
+        .analysis-panel {
+            height: 180px;
+            background: white;
+            border-top: 1px solid #ddd;
+            padding: 15px 20px;
+            overflow-y: auto;
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+
+        .status-bar {
+            padding: 8px 15px;
+            background: #34495e;
+            color: #ecf0f1;
+            font-size: 0.85rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .warning-msg { color: #ff6b6b; font-weight: bold; margin-left: 10px; opacity: 0; transition: opacity 0.3s; }
+        .warning-visible { opacity: 1; }
+
+        /* Concept Toggles */
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            cursor: pointer;
+        }
+        .toggle-row input { margin-right: 8px; }
+
+        /* MathJax Visibility Helper */
+        .math-box { visibility: hidden; } /* Hidden until rendered */
+
+    </style>
+</head>
+<body>
+
+    <div class="main-container">
+        <!-- LEFT: Control Panel -->
+        <div class="controls">
+            <div class="controls-header">
+                <h1>托盘天平仿真实验室</h1>
+                <p>探究质量测量原理与平衡调节</p>
+            </div>
+
+            <!-- Section 1: Setup & Calibration -->
+            <div class="control-group">
+                <h3>1. 调平阶段 (空载)</h3>
+                <p style="font-size:0.85rem; color:#666; margin-bottom:10px;">
+                    在测量前，需调节平衡螺母使指针指在分度盘中央。
+                </p>
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>平衡螺母调节</span>
+                        <span id="nut-val" class="slider-value">0 格</span>
+                    </div>
+                    <input type="range" id="nut-slider" min="-5" max="5" step="0.1" value="0">
+                </div>
+                <div style="font-size: 0.8rem; color: #e74c3c;" id="nut-warning">
+                    ⚠️ 测量过程中严禁调节平衡螺母！
+                </div>
+            </div>
+
+            <!-- Section 2: Measurement -->
+            <div class="control-group">
+                <h3>2. 测量阶段 (加载)</h3>
+                
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>左盘物体质量 \( m_{obj} \)</span>
+                        <span id="obj-val" class="slider-value">0.0 g</span>
+                    </div>
+                    <input type="range" id="obj-slider" min="0" max="100" step="0.5" value="0">
+                </div>
+
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>游码位置 (0-5g)</span>
+                        <span id="rider-val" class="slider-value">0.0 g</span>
+                    </div>
+                    <input type="range" id="rider-slider" min="0" max="5" step="0.1" value="0">
+                </div>
+
+                <div style="margin-bottom: 10px;">
+                    <span style="font-size:0.9rem;">右盘砝码操作：</span>
+                </div>
+                <div class="button-grid">
+                    <button onclick="addWeight(50)">+50g</button>
+                    <button onclick="addWeight(20)">+20g</button>
+                    <button onclick="addWeight(10)">+10g</button>
+                    <button onclick="addWeight(5)">+5g</button>
+                    <button onclick="clearWeights()" class="danger">清空砝码</button>
+                    <button onclick="removeLastWeight()">移除最后一个</button>
+                </div>
+                <div class="weights-display" id="weights-list">
+                    <span style="color:#aaa; font-size:0.8rem;">(右盘空)</span>
+                </div>
+            </div>
+
+            <!-- Section 3: Simulation Control -->
+            <div class="control-group">
+                <h3>3. 实验控制</h3>
+                <div class="button-grid">
+                    <button id="btn-play" class="primary">暂停 / 继续</button>
+                    <button id="btn-reset" class="danger">重置实验</button>
+                </div>
+                <div style="margin-top:15px;">
+                    <div class="toggle-row">
+                        <input type="checkbox" id="chk-show-forces">
+                        <label for="chk-show-forces">显示受力分析 (力矩)</label>
+                    </div>
+                    <div class="toggle-row">
+                        <input type="checkbox" id="chk-damp" checked>
+                        <label for="chk-damp">启用空气阻力 (快速稳定)</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT: Visualization -->
+        <div class="vis-container">
+            <div id="feedback-overlay">
+                <div class="feedback-title" id="fb-title">操作提示</div>
+                <div class="feedback-desc" id="fb-desc">详细说明</div>
+            </div>
+
+            <div id="canvas-wrapper">
+                <!-- Canvas injected here -->
+            </div>
+            
+            <div class="analysis-panel">
+                <h4>原理分析</h4>
+                <div id="math-explanation" class="math-box">
+                    <!-- Dynamic MathJax content -->
+                    等待实验数据...
+                </div>
+            </div>
+
+            <div class="status-bar">
+                <span id="status-text">状态：就绪</span>
+                <span id="global-warning" class="warning-msg">警告信息</span>
+            </div>
+        </div>
+    </div>
+
+<script>
+/**
+ * CONFIGURATION & CONSTANTS
+ * Centralized settings for easy maintenance.
+ */
+const CONFIG = {
+    gravity: 9.8,        // Visual gravity scaling
+    beamLength: 400,     // Total length in pixels
+    pivotY: 150,         // Vertical position of pivot relative to center
+    panDist: 160,        // Distance from pivot to pan hang point
+    scaleRadius: 200,    // Radius for the scale drawing
+    maxTilt: 0.25,       // Max tilt angle in radians (~14 degrees)
+    damping: 0.96,       // High damping for realistic "settling"
+    lowDamping: 0.995,   // Low damping (oscillation)
+    springK: 0.05,       // Restoring torque coeff (Center of Mass below pivot)
+    torqueScale: 0.0005, // Scaling factor for mass -> torque
+    colors: {
+        base: '#95a5a6',
+        pillar: '#34495e',
+        beam: '#ecf0f1', // Lighter beam
+        pan: '#bdc3c7',
+        pointer: '#e74c3c',
+        object: '#3498db',
+        weight: '#f1c40f',
+        rider: '#27ae60',
+        nut: '#7f8c8d',
+        text: '#2c3e50'
+    }
+};
+
+/**
+ * STATE VARIABLES
+ */
+let state = {
+    nutOffset: 0,        // -5 to +5 "units"
+    objMass: 0,          // Left pan mass (g)
+    riderMass: 0,        // Rider reading (0-5g)
+    weights: [],         // Array of weights on right pan
+    
+    // Physics State
+    angle: 0,            // Current tilt angle (radians)
+    angVel: 0,           // Angular velocity
+    angAcc: 0,           // Angular acceleration
+    
+    isPlaying: true,
+    showForces: false,
+    useDamping: true
+};
+
+let canvas;
+let canvasWidth, canvasHeight;
+let feedbackTimer = null;
+
+/**
+ * P5.JS SETUP
+ */
+function setup() {
+    const wrapper = document.getElementById('canvas-wrapper');
+    canvasWidth = wrapper.clientWidth;
+    canvasHeight = wrapper.clientHeight;
+    
+    canvas = createCanvas(canvasWidth, canvasHeight);
+    canvas.parent('canvas-wrapper');
+    
+    rectMode(CENTER);
+    imageMode(CENTER);
+    
+    windowResized();
+    setupControls();
+    updateMath();
+}
+
+/**
+ * P5.JS WINDOW RESIZE
+ */
+function windowResized() {
+    const wrapper = document.getElementById('canvas-wrapper');
+    if(wrapper) {
+        resizeCanvas(wrapper.clientWidth, wrapper.clientHeight);
+    }
+}
+
+/**
+ * P5.JS MAIN LOOP
+ */
+function draw() {
+    background(245, 247, 250);
+    
+    updatePhysics();
+    drawScene();
+    drawUIOverlay();
+}
+
+/**
+ * PHYSICS ENGINE
+ */
+function updatePhysics() {
+    if (!state.isPlaying) return;
+
+    const massL = state.objMass;
+    const totalWeightMass = state.weights.reduce((a, b) => a + b, 0);
+    const massR = totalWeightMass + state.riderMass;
+
+    // Load Torque
+    let loadTorque = (massR - massL) * CONFIG.torqueScale;
+    
+    // Nut Torque (Conceptual shift)
+    let nutTorque = state.nutOffset * CONFIG.torqueScale;
+
+    // Restoring Torque
+    let restoringTorque = - CONFIG.springK * Math.sin(state.angle);
+
+    // Total
+    let totalTorque = loadTorque + nutTorque + restoringTorque;
+
+    // Integrate
+    state.angAcc = totalTorque;
+    state.angVel += state.angAcc;
+    
+    const dampFactor = state.useDamping ? CONFIG.damping : CONFIG.lowDamping;
+    state.angVel *= dampFactor;
+    state.angle += state.angVel;
+
+    // Constraints
+    if (state.angle > CONFIG.maxTilt) {
+        state.angle = CONFIG.maxTilt;
+        state.angVel = -state.angVel * 0.3;
+    } else if (state.angle < -CONFIG.maxTilt) {
+        state.angle = -CONFIG.maxTilt;
+        state.angVel = -state.angVel * 0.3;
+    }
+}
+
+/**
+ * DRAWING FUNCTIONS
+ */
+function drawScene() {
+    push();
+    translate(width / 2, height / 2 + 50); // Base center
+    
+    // --- 1. Draw Base & Scale (Fixed) ---
+    
+    // Pillar
+    noStroke();
+    fill(CONFIG.colors.pillar);
+    rect(0, -60, 16, 160); // Central vertical pillar
+    
+    // Base platform
+    fill(CONFIG.colors.base);
+    rect(0, 30, 180, 20, 4);
+
+    // Scale Dial (分度盘) - Fan shape
+    push();
+    translate(0, 0); // At the bottom of pillar usually
+    
+    // Draw fan background
+    fill(255);
+    stroke(180);
+    strokeWeight(1);
+    // Draw a wedge for the scale
+    arc(0, -100, CONFIG.scaleRadius, CONFIG.scaleRadius, PI/2 - 0.25, PI/2 + 0.25, PIE);
+    
+    // Tick Marks
+    stroke(100);
+    strokeWeight(1);
+    let radius = CONFIG.scaleRadius / 2;
+    for(let i = -5; i <= 5; i++) {
+        let ang = PI/2 + i * 0.04; // Spread ticks
+        let x1 = cos(ang) * (radius - 15);
+        let y1 = sin(ang) * (radius - 15) - 100;
+        let x2 = cos(ang) * (radius - 5);
+        let y2 = sin(ang) * (radius - 5) - 100;
+        
+        if (i === 0) {
+             stroke(CONFIG.colors.text);
+             strokeWeight(2);
+             line(x1, y1, x2, y2); // Center mark longer?
+             stroke(100);
+             strokeWeight(1);
+        } else {
+             line(x1, y1, x2, y2);
+        }
+    }
+    pop();
+
+    // --- 2. Draw Beam Assembly (Rotates) ---
+    push();
+    translate(0, -140); // Pivot point at top of pillar
+    rotate(state.angle);
+
+    // Main Beam
+    fill(CONFIG.colors.beam);
+    stroke(150);
+    strokeWeight(1);
+    rect(0, 0, CONFIG.beamLength, 14, 2);
+
+    // --- BALANCE NUTS (New) ---
+    drawNuts();
+
+    // Central Pivot Housing
+    fill('#7f8c8d');
+    noStroke();
+    rect(0, 0, 24, 20, 4);
+    fill(255);
+    ellipse(0, 0, 6, 6); // Pivot pin
+
+    // Pointer (Needle)
+    stroke(CONFIG.colors.pointer);
+    strokeWeight(2);
+    line(0, 5, 0, 120); // Long needle down
+    noStroke();
+    fill(CONFIG.colors.pointer);
+    triangle(-3, 110, 3, 110, 0, 135); // Sharp tip
+
+    // Rider Track
+    stroke(100);
+    strokeWeight(1);
+    line(0, -4, 150, -4); // Track on right side
+
+    // Pans
+    drawPan(-CONFIG.panDist, 'L');
+    drawPan(CONFIG.panDist, 'R');
+    
+    // Rider
+    drawRider();
+
+    // Forces
+    if(state.showForces) drawVectors();
+
+    pop(); // End Rotated Beam
+
+    pop(); // End Global Translate
+}
+
+function drawNuts() {
+    // Threaded rods at ends
+    stroke(150);
+    strokeWeight(3);
+    let rodLen = 30;
+    let endX = CONFIG.beamLength / 2;
+    
+    // Left Rod
+    line(-endX, 0, -endX - rodLen, 0);
+    // Right Rod
+    line(endX, 0, endX + rodLen, 0);
+    
+    // Nuts (Cylinders)
+    noStroke();
+    fill(CONFIG.colors.nut);
+    
+    // Visual logic: 
+    // If nutOffset > 0 (Shift equilibrium to Right), 
+    // it implies adding mass*dist to Right.
+    // So Right Nut moves OUT (Right), Left Nut moves IN (Right) or stays?
+    // Let's just move Right Nut OUT and Left Nut OUT based on signed offset to show "adjustment".
+    // Actually, to balance a Left-Heavy scale, you move nuts RIGHT.
+    // So positive nutOffset = Move Nuts Right.
+    
+    let movePx = state.nutOffset * 3; // Amplified movement
+    
+    // Left Nut (Default near end)
+    // Base pos: -endX - 10. + movePx
+    rect(-endX - 15 + movePx, 0, 12, 16, 2);
+    
+    // Right Nut (Default near end)
+    // Base pos: endX + 10. + movePx
+    rect(endX + 15 + movePx, 0, 12, 16, 2);
+    
+    // Nut Detail
+    stroke(255, 100);
+    strokeWeight(1);
+    line(-endX - 15 + movePx, -5, -endX - 15 + movePx, 5);
+    line(endX + 15 + movePx, -5, endX + 15 + movePx, 5);
+    
+    if(state.showForces) {
+        fill(0);
+        noStroke();
+        textSize(9);
+        textAlign(CENTER);
+        text("螺母", -endX - 15 + movePx, -15);
+        text("螺母", endX + 15 + movePx, -15);
+    }
+}
+
+function drawPan(xOffset, side) {
+    push();
+    translate(xOffset, 0);
+    
+    // Hanger Support on Beam
+    fill(100);
+    noStroke();
+    rect(0, 0, 8, 16); // Clip
+    
+    // Hanger Wire (Triangle)
+    stroke(150);
+    strokeWeight(1.5);
+    line(0, 5, -18, 50);
+    line(0, 5, 18, 50);
+    
+    // Pan Loop (counter-rotate to hang vertical)
+    translate(0, 50);
+    rotate(-state.angle); 
+    
+    // Pan Body
+    fill(CONFIG.colors.pan);
+    stroke(160);
+    strokeWeight(1);
+    // Trapezoid pan
+    beginShape();
+    vertex(-35, 0);
+    vertex(35, 0);
+    vertex(25, 12);
+    vertex(-25, 12);
+    endShape(CLOSE);
+    
+    // Content
+    if (side === 'L' && state.objMass > 0) {
+        drawObject();
+    } else if (side === 'R') {
+        drawWeights();
+    }
+    
+    pop();
+}
+
+function drawObject() {
+    fill(CONFIG.colors.object);
+    noStroke();
+    let s = map(state.objMass, 0, 100, 15, 40);
+    rect(0, -s/2, s, s, 2);
+    fill(255);
+    textAlign(CENTER, CENTER);
+    textSize(10);
+    text("物", 0, -s/2);
+}
+
+function drawWeights() {
+    let totalW = state.weights.length;
+    if (totalW > 0) {
+        let yPos = 0; 
+        for(let i = 0; i < totalW; i++) {
+            let wVal = state.weights[i];
+            let wWidth = map(wVal, 5, 50, 14, 30);
+            let wHeight = map(wVal, 5, 50, 8, 15);
+            let wColor = wVal >= 50 ? '#e67e22' : (wVal >= 20 ? '#f39c12' : '#f1c40f');
+            
+            fill(wColor);
+            stroke(120);
+            strokeWeight(1);
+            
+            // Draw weight cylinder-ish
+            rect(0, yPos - wHeight/2, wWidth, wHeight, 2);
+            
+            // Label
+            if (wHeight > 10) {
+                fill(0, 0, 0, 150);
+                noStroke();
+                textSize(8);
+                textAlign(CENTER, CENTER);
+                text(wVal, 0, yPos - wHeight/2);
+            }
+            
+            yPos -= wHeight;
+        }
+    }
+}
+
+function drawRider() {
+    let riderX = map(state.riderMass, 0, 5, 20, 120); // 0-5g maps to beam pos
+    
+    fill(CONFIG.colors.rider);
+    stroke(40);
+    strokeWeight(1);
+    // Standard rider shape
+    beginShape();
+    vertex(riderX - 5, -8);
+    vertex(riderX + 5, -8);
+    vertex(riderX + 5, 2);
+    vertex(riderX, 6); // Point
+    vertex(riderX - 5, 2);
+    endShape(CLOSE);
+    
+    if(state.showForces) {
+        fill(0);
+        noStroke();
+        textSize(9);
+        textAlign(CENTER);
+        text(state.riderMass.toFixed(1), riderX, -12);
+    }
+}
+
+function drawVectors() {
+    let mL = state.objMass;
+    let mR = state.weights.reduce((a,b)=>a+b, 0);
+    const arrowScale = 1.2; 
+    
+    if (mL > 0) drawArrow(-CONFIG.panDist, 10, mL * arrowScale, CONFIG.colors.object, `Mg`);
+    if (mR > 0) drawArrow(CONFIG.panDist, 10, mR * arrowScale, CONFIG.colors.weight, `mg`);
+    
+    if (state.riderMass > 0) {
+        let rx = map(state.riderMass, 0, 5, 20, 120);
+        drawArrow(rx, 0, state.riderMass * 5 * arrowScale, CONFIG.colors.rider, `游码`);
+    }
+}
+
+function drawArrow(x, y, len, col, label) {
+    if(len < 5) return;
+    push();
+    translate(x, y);
+    stroke(col);
+    strokeWeight(2);
+    fill(col);
+    line(0, 0, 0, len);
+    triangle(-3, len-5, 3, len-5, 0, len);
+    noStroke();
+    textAlign(LEFT, CENTER);
+    textSize(10);
+    text(label, 5, len/2);
+    pop();
+}
+
+function drawUIOverlay() {
+    // Optional overlay text
+}
+
+/**
+ * LOGIC & INTERACTION HANDLERS
+ */
+function setupControls() {
+    // 1. NUT SLIDER
+    const nutSlider = document.getElementById('nut-slider');
+    let prevNut = 0;
+    
+    nutSlider.addEventListener('input', (e) => {
+        let val = parseFloat(e.target.value);
+        let diff = val - prevNut;
+        prevNut = val;
+
+        // Warning Logic
+        if (state.objMass > 0 || state.weights.length > 0) {
+            showWarning("测量阶段禁止调节螺母！这会破坏零点。");
+            showFeedback("错误操作", "测量阶段调节螺母会使结果不准！此操作仅限空载调平时使用。", true);
+        } else {
+            // Normal Feedback Logic
+            if (diff > 0) {
+                showFeedback("平衡螺母向右调 →", 
+                    `重心向右移 <span class='feedback-arrow'>→</span> 促使右盘下沉 <span class='feedback-arrow'>→</span> 指针左偏`);
+            } else if (diff < 0) {
+                showFeedback("← 平衡螺母向左调", 
+                    `重心向左移 <span class='feedback-arrow'>→</span> 促使左盘下沉 <span class='feedback-arrow'>→</span> 指针右偏`);
+            }
+        }
+        
+        state.nutOffset = val;
+        document.getElementById('nut-val').textContent = state.nutOffset > 0 ? `+${state.nutOffset}` : state.nutOffset;
+        updateMath();
+    });
+
+    // 2. OBJECT SLIDER
+    const objSlider = document.getElementById('obj-slider');
+    objSlider.addEventListener('input', (e) => {
+        state.objMass = parseFloat(e.target.value);
+        document.getElementById('obj-val').textContent = state.objMass.toFixed(1) + " g";
+        updateMath();
+    });
+
+    // 3. RIDER SLIDER
+    const riderSlider = document.getElementById('rider-slider');
+    let prevRider = 0;
+    
+    riderSlider.addEventListener('input', (e) => {
+        let val = parseFloat(e.target.value);
+        let diff = val - prevRider;
+        prevRider = val;
+        
+        // Rider Feedback Logic
+        if (diff > 0) {
+            showFeedback("游码向右移 →", 
+                `相当于往右盘加砝码 (力臂变长) <span class='feedback-arrow'>→</span> 右侧力矩增大 <span class='feedback-arrow'>→</span> 指针左偏`);
+        } else if (diff < 0) {
+            showFeedback("← 游码向左移", 
+                `相当于减少右盘砝码 (力臂变短) <span class='feedback-arrow'>→</span> 右侧力矩减小 <span class='feedback-arrow'>→</span> 指针右偏`);
+        }
+
+        state.riderMass = val;
+        document.getElementById('rider-val').textContent = state.riderMass.toFixed(1) + " g";
+        updateMath();
+    });
+
+    document.getElementById('btn-play').addEventListener('click', () => {
+        state.isPlaying = !state.isPlaying;
+        document.getElementById('status-text').textContent = state.isPlaying ? "状态：仿真进行中" : "状态：已暂停";
+    });
+
+    document.getElementById('btn-reset').addEventListener('click', resetSim);
+    
+    document.getElementById('chk-show-forces').addEventListener('change', (e) => {
+        state.showForces = e.target.checked;
+    });
+    
+    document.getElementById('chk-damp').addEventListener('change', (e) => {
+        state.useDamping = e.target.checked;
+    });
+}
+
+function showFeedback(title, desc, isError = false) {
+    const el = document.getElementById('feedback-overlay');
+    const tEl = document.getElementById('fb-title');
+    const dEl = document.getElementById('fb-desc');
+    
+    tEl.textContent = title;
+    dEl.innerHTML = desc;
+    
+    // Style update
+    el.style.borderLeftColor = isError ? '#e74c3c' : '#3498db';
+    tEl.style.color = isError ? '#c0392b' : '#2c3e50';
+
+    el.classList.add('active');
+    
+    if (feedbackTimer) clearTimeout(feedbackTimer);
+    feedbackTimer = setTimeout(() => {
+        el.classList.remove('active');
+    }, 4000); // Show for 4 seconds
+}
+
+function addWeight(mass) {
+    state.weights.push(mass);
+    state.weights.sort((a,b) => b-a);
+    showFeedback("增加砝码", `右盘增加 ${mass}g <span class='feedback-arrow'>→</span> 指针向左偏`);
+    updateWeightsDisplay();
+    updateMath();
+}
+
+function removeLastWeight() {
+    if (state.weights.length > 0) {
+        let minVal = Math.min(...state.weights);
+        let idx = state.weights.indexOf(minVal);
+        state.weights.splice(idx, 1);
+        showFeedback("减少砝码", `右盘减少 ${minVal}g <span class='feedback-arrow'>→</span> 指针向右偏`);
+        updateWeightsDisplay();
+        updateMath();
+    }
+}
+
+function clearWeights() {
+    state.weights = [];
+    updateWeightsDisplay();
+    updateMath();
+}
+
+function updateWeightsDisplay() {
+    const container = document.getElementById('weights-list');
+    container.innerHTML = '';
+    if (state.weights.length === 0) {
+        container.innerHTML = '<span style="color:#aaa; font-size:0.8rem;">(右盘空)</span>';
+        return;
+    }
+    state.weights.forEach(w => {
+        const tag = document.createElement('span');
+        tag.className = 'weight-tag';
+        tag.textContent = w + 'g';
+        container.appendChild(tag);
+    });
+}
+
+function resetSim() {
+    state.nutOffset = 0;
+    state.objMass = 0;
+    state.riderMass = 0;
+    state.weights = [];
+    state.angle = 0;
+    state.angVel = 0;
+    state.isPlaying = true;
+    
+    document.getElementById('nut-slider').value = 0;
+    document.getElementById('nut-val').textContent = "0 格";
+    document.getElementById('obj-slider').value = 0;
+    document.getElementById('obj-val').textContent = "0.0 g";
+    document.getElementById('rider-slider').value = 0;
+    document.getElementById('rider-val').textContent = "0.0 g";
+    updateWeightsDisplay();
+    updateMath();
+    
+    document.getElementById('status-text').textContent = "状态：已重置";
+}
+
+function showWarning(msg) {
+    const el = document.getElementById('global-warning');
+    const nutWarn = document.getElementById('nut-warning');
+    
+    el.textContent = msg;
+    el.classList.add('warning-visible');
+    
+    if(msg.includes("螺母")) nutWarn.style.opacity = 1;
+
+    setTimeout(() => {
+        el.classList.remove('warning-visible');
+        nutWarn.style.opacity = 0;
+    }, 3000);
+}
+
+async function updateMath() {
+    const container = document.getElementById('math-explanation');
+    
+    let mLeft = state.objMass;
+    let mWeights = state.weights.reduce((a,b)=>a+b, 0);
+    let mRider = state.riderMass;
+    let mRightTotal = mWeights + mRider;
+    
+    let diff = mRightTotal - mLeft + state.nutOffset; 
+    let status = "";
+    if (Math.abs(diff) < 0.1) status = "平衡 (Balance)";
+    else if (diff > 0) status = "右盘重 (Right Heavy) → 指针偏左";
+    else status = "左盘重 (Left Heavy) → 指针偏右";
+
+    const tex = String.raw`
+    \begin{aligned}
+    & \text{1. 左盘质量：} M_{L} = ${mLeft.toFixed(1)} \text{ g} \\
+    & \text{2. 右盘总重：} M_{R} = M_{\text{砝码}} + M_{\text{游码}} \\
+    & \quad = ${mWeights} + ${mRider.toFixed(1)} = ${mRightTotal.toFixed(1)} \text{ g} \\
+    & \text{3. 状态判定：} \Delta M = M_R - M_L = ${(mRightTotal - mLeft).toFixed(1)} \text{ g} \\
+    & \text{当前状态：} \mathbf{${status}}
+    \end{aligned}
+    `;
+
+    container.style.visibility = 'hidden';
+    container.innerHTML = `\\[${tex}\\]`;
+    
+    try {
+        await MathJax.typesetPromise([container]);
+        container.style.visibility = 'visible';
+    } catch (err) {
+        container.textContent = `Left: ${mLeft}g, Right: ${mRightTotal}g`;
+        container.style.visibility = 'visible';
+    }
+}
+</script>
+</body>
+</html>

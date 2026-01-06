@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>根式概念全解析：从起源到定义</title>
+    
+    <!-- 引入 p5.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <!-- 引入 MathJax 用于公式渲染 -->
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #f0f2f5;
+            --panel-bg: #ffffff;
+            --text-color: #333333;
+            --accent-color: #2196F3;
+            --guide-color: #9C27B0;
+            --success-color: #4CAF50;
+            --error-color: #F44336;
+            --border-color: #dee2e6;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; /* 防止主页面滚动 */
+        }
+
+        /* 顶部标题栏 */
+        header {
+            background-color: var(--panel-bg);
+            padding: 15px 25px;
+            border-bottom: 1px solid var(--border-color);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            z-index: 10;
+            flex-shrink: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-content h1 {
+            margin: 0;
+            font-size: 1.4rem;
+            color: #2c3e50;
+        }
+
+        .header-content p {
+            margin: 5px 0 0;
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+
+        /* 主布局容器 */
+        .main-container {
+            display: flex;
+            flex: 1;
+            height: calc(100vh - 80px); /* 减去header高度 */
+            overflow: hidden;
+        }
+
+        /* 左侧控制面板 */
+        .control-panel {
+            width: 300px;
+            background-color: var(--panel-bg);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            overflow-y: auto;
+            z-index: 5;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.03);
+        }
+
+        .control-group {
+            margin-bottom: 25px;
+        }
+
+        .control-group h3 {
+            font-size: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #95a5a6;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 5px;
+            display: inline-block;
+        }
+
+        /* 导航按钮样式优化 */
+        .nav-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .nav-btn {
+            padding: 12px 15px;
+            border: 1px solid #e0e0e0;
+            background: #fff;
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: left;
+            transition: all 0.2s ease;
+            position: relative;
+            overflow: hidden;
+            color: #555;
+            font-weight: 500;
+        }
+
+        .nav-btn:hover {
+            background-color: #f8f9fa;
+            transform: translateX(3px);
+            border-color: #d0d0d0;
+        }
+
+        .nav-btn.active {
+            background-color: #e3f2fd;
+            border-color: var(--accent-color);
+            color: var(--accent-color);
+            box-shadow: 0 2px 5px rgba(33, 150, 243, 0.2);
+        }
+        
+        .nav-btn.active::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background-color: var(--accent-color);
+        }
+
+        /* 向导控制条 */
+        .step-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f3e5f5;
+            padding: 8px 12px;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+        
+        .step-btn {
+            background: var(--guide-color);
+            color: white;
+            border: none;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            transition: opacity 0.2s;
+        }
+        .step-btn:disabled {
+            background: #bdbdbd;
+            cursor: not-allowed;
+        }
+        .step-btn:hover:not(:disabled) {
+            opacity: 0.9;
+            transform: scale(1.1);
+        }
+
+        /* 右侧画布区域 */
+        .canvas-area {
+            flex: 1;
+            position: relative;
+            background-color: #f8f9fa;
+            overflow: hidden;
+        }
+
+        #p5-canvas-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            /* 网格背景图，增加一点质感 */
+            background-image: 
+                linear-gradient(#e5e5e5 1px, transparent 1px),
+                linear-gradient(90deg, #e5e5e5 1px, transparent 1px);
+            background-size: 20px 20px;
+            background-color: #fff;
+        }
+
+        /* === 浮动卡片系统 === */
+        .floating-card {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            max-width: 360px;
+            opacity: 0;
+            transform: translateY(10px);
+            pointer-events: none; /* 让鼠标穿透以便点击下方Canvas，除非有交互需求 */
+        }
+
+        .floating-card.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* 左上角：核心讲解区 */
+        .left-card {
+            top: 25px;
+            left: 25px;
+            border-left: 5px solid var(--accent-color);
+        }
+
+        /* 右上角：公式区 */
+        .right-card {
+            top: 25px;
+            right: 25px;
+            border-right: 5px solid #666;
+            text-align: center;
+            min-width: 180px;
+        }
+
+        /* 卡片内容样式 */
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card-content {
+            font-size: 0.95rem;
+            line-height: 1.6;
+            color: #444;
+        }
+
+        .highlight {
+            color: var(--accent-color);
+            font-weight: bold;
+            background: rgba(33, 150, 243, 0.1);
+            padding: 0 4px;
+            border-radius: 4px;
+        }
+        
+        .warn {
+            color: var(--error-color);
+            font-weight: bold;
+        }
+
+        .success {
+            color: var(--success-color);
+            font-weight: bold;
+        }
+
+        /* 图例样式 */
+        .legend-box {
+            margin-top: 15px;
+            border-top: 1px solid #eee;
+            padding-top: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            font-size: 0.8rem;
+            color: #666;
+        }
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        }
+
+        /* 状态栏 */
+        .status-bar {
+            margin-top: auto;
+            font-size: 0.85rem;
+            color: #888;
+            text-align: center;
+            padding-top: 20px;
+        }
+
+        /* 响应式 */
+        @media (max-width: 900px) {
+            .main-container { flex-direction: column; height: auto; overflow-y: auto; }
+            .control-panel { width: 100%; height: auto; border-right: none; border-bottom: 1px solid #eee; }
+            .canvas-area { height: 500px; }
+            .floating-card { position: relative; top: auto; left: auto; right: auto; margin: 10px; width: auto; max-width: none; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="header-content">
+        <h1>数学可视化：根号与正负的纠葛</h1>
+        <p>为什么 \(\sqrt{4}=2\)？为什么 \(x^2=4 \Rightarrow x=\pm 2\)？</p>
+    </div>
+</header>
+
+<div class="main-container">
+    <!-- 左侧：纯粹的操作区 -->
+    <div class="control-panel">
+        
+        <!-- 导航区 -->
+        <div class="control-group">
+            <h3>选择演示模式</h3>
+            <div class="nav-list">
+                <div class="nav-btn active" id="btn-guide" onclick="setMode('guide')">
+                    ① 几何起源：根号的诞生
+                    <div style="font-size:0.8rem; color:#999; margin-top:4px;">从正方形面积讲起，直观易懂</div>
+                </div>
+                <!-- 嵌入向导控制 -->
+                <div id="guide-controls" class="step-controls" style="display:flex;">
+                    <button class="step-btn" id="prev-step" onclick="changeGuideStep(-1)" title="上一步">←</button>
+                    <span id="step-indicator" style="font-weight:bold; color:#9C27B0; font-size:0.9rem;">第 1 / 3 步</span>
+                    <button class="step-btn" id="next-step" onclick="changeGuideStep(1)" title="下一步">→</button>
+                </div>
+
+                <div class="nav-btn" id="btn-equation" onclick="setMode('equation')">
+                    ② 方程视角：\(x^2 = a\)
+                    <div style="font-size:0.8rem; color:#999; margin-top:4px;">解方程时为什么会有正负？</div>
+                </div>
+                <div class="nav-btn" id="btn-function" onclick="setMode('function')">
+                    ③ 函数视角：\(y = \sqrt{x}\)
+                    <div style="font-size:0.8rem; color:#999; margin-top:4px;">为什么函数必须是单值的？</div>
+                </div>
+                <div class="nav-btn" id="btn-summary" onclick="setMode('summary')">
+                    ④ 终极结论：与绝对值
+                    <div style="font-size:0.8rem; color:#999; margin-top:4px;">\(\sqrt{x^2}=|x|\) 到底发生了什么</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 参数控制区 -->
+        <div class="control-group">
+            <h3>实验参数</h3>
+            <label for="val-slider" style="display:block; margin-bottom:10px; font-weight:500;">
+                <span id="label-text">设定数值</span> \( = \) <span id="val-display" style="color:var(--accent-color); font-weight:bold;">4.0</span>
+            </label>
+            <input type="range" id="val-slider" min="0" max="16" step="0.5" value="4.0" style="width:100%;">
+            
+            <!-- 快捷按钮 -->
+            <div id="summary-input" style="display:none; margin-top:15px;">
+                <p style="font-size:0.9rem; margin-bottom:8px; color:#666;">或点击快捷预设：</p>
+                <div style="display:flex; gap:10px;">
+                    <button onclick="setInput(-2)" style="padding:5px 10px; cursor:pointer;">-2</button>
+                    <button onclick="setInput(-3)" style="padding:5px 10px; cursor:pointer;">-3</button>
+                    <button onclick="setInput(-5)" style="padding:5px 10px; cursor:pointer;">-5</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="status-bar">
+            MathPhysics Visualization v2.2
+        </div>
+    </div>
+
+    <!-- 右侧：演示区 + 浮动讲解 -->
+    <div class="canvas-area">
+        <div id="p5-canvas-container"></div>
+        
+        <!-- 左上角：核心讲解浮层 -->
+        <div id="guide-overlay" class="floating-card left-card">
+            <div class="card-title" id="guide-title">标题</div>
+            <div class="card-content" id="guide-content">
+                内容加载中...
+            </div>
+        </div>
+
+        <!-- 右上角：公式浮层 -->
+        <div id="math-box" class="floating-card right-card">
+            <div id="math-content" style="font-size:1.2rem;">$$ ... $$</div>
+            <div id="legend-box" class="legend-box"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ============================================
+    // 配置与状态
+    // ============================================
+    const CONFIG = {
+        gridSize: 40,
+        colors: {
+            axis: '#333',
+            grid: '#e0e0e0',
+            main: '#2196F3',   // 蓝
+            secondary: '#FF9800', // 橙
+            success: '#4CAF50', // 绿
+            error: '#F44336',   // 红
+            guide: '#9C27B0',   // 紫 (向导)
+            text: '#000'
+        }
+    };
+
+    let state = {
+        mode: 'guide', // guide, equation, function, summary
+        a: 4.0,        // 主要数值
+        guideStep: 1,  // 向导步骤 1-3
+        inputX: -3,    // 总结模式下的输入值
+        canvasW: 800,
+        canvasH: 600
+    };
+
+    // DOM 引用
+    const els = {
+        slider: document.getElementById('val-slider'),
+        valDisplay: document.getElementById('val-display'),
+        labelText: document.getElementById('label-text'),
+        
+        // 浮层
+        guideOverlay: document.getElementById('guide-overlay'),
+        guideTitle: document.getElementById('guide-title'),
+        guideContent: document.getElementById('guide-content'),
+        
+        mathBox: document.getElementById('math-box'),
+        mathContent: document.getElementById('math-content'),
+        legend: document.getElementById('legend-box'),
+        
+        guideControls: document.getElementById('guide-controls'),
+        summaryInput: document.getElementById('summary-input')
+    };
+
+    // ============================================
+    // P5.js 核心
+    // ============================================
+    function setup() {
+        const container = document.getElementById('p5-canvas-container');
+        state.canvasW = container.clientWidth;
+        state.canvasH = container.clientHeight;
+        const canvas = createCanvas(state.canvasW, state.canvasH);
+        canvas.parent('p5-canvas-container');
+        
+        rectMode(CENTER);
+        textAlign(CENTER, CENTER);
+        
+        // 修复：让滑块在不同模式下控制不同的变量
+        els.slider.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            
+            if (state.mode === 'summary') {
+                state.inputX = val;
+                els.valDisplay.textContent = state.inputX.toFixed(1);
+            } else {
+                state.a = val;
+                els.valDisplay.textContent = state.a.toFixed(1);
+            }
+            updateUI();
+        });
+
+        setMode('guide'); // 初始化模式
+    }
+
+    function windowResized() {
+        const container = document.getElementById('p5-canvas-container');
+        if(container) {
+            resizeCanvas(container.clientWidth, container.clientHeight);
+            state.canvasW = width;
+            state.canvasH = height;
+        }
+    }
+
+    function draw() {
+        clear(); // 配合 CSS 背景图
+        
+        // 模式分发
+        if (state.mode === 'guide') {
+            drawGuideMode();
+        } else if (state.mode === 'summary') {
+            drawSummaryMode();
+        } else {
+            // 方程与函数模式共用坐标系逻辑
+            push();
+            translate(width / 2, height / 2 + 100);
+            scale(1, -1);
+            drawGrid();
+            drawAxes();
+            
+            if (state.mode === 'equation') drawEquationMode();
+            if (state.mode === 'function') drawFunctionMode();
+            pop();
+        }
+    }
+
+    // ============================================
+    // 绘图逻辑：模式 ① 概念向导
+    // ============================================
+    function drawGuideMode() {
+        push();
+        translate(width/2, height/2);
+        
+        const sideLen = Math.sqrt(state.a) * 60; 
+        const area = state.a;
+
+        if (state.guideStep === 1 || state.guideStep === 2) {
+            // 简单的正方形
+            fill(230, 240, 255);
+            stroke(CONFIG.colors.main);
+            strokeWeight(3);
+            rect(0, 0, sideLen, sideLen);
+            
+            fill(CONFIG.colors.main); noStroke(); textSize(24);
+            text(`Area = ${area}`, 0, 0);
+
+            fill(0); textSize(20);
+            const label = (state.guideStep === 1) ? "?" : `√${area}`;
+            text(label, 0, -sideLen/2 - 25);
+            text(label, -sideLen/2 - 30, 0);
+        } else if (state.guideStep === 3) {
+            // 放在地面的正方形
+            stroke(CONFIG.colors.axis); strokeWeight(2);
+            line(-250, 60, 250, 60); // 地面线
+            
+            fill(100); noStroke(); textSize(14);
+            text("现实物理世界", 0, 90);
+            
+            fill(230, 240, 255);
+            stroke(CONFIG.colors.main); strokeWeight(3);
+            rect(0, 60 - sideLen/2, sideLen, sideLen);
+            
+            // 标注正边长
+            // 修正：第三个参数应该是长度 sideLen，而不是坐标计算值
+            drawDimensionLine(sideLen/2 + 30, 60, sideLen, CONFIG.colors.success, `+${Math.sqrt(area).toFixed(2)}`);
+            
+            // 标注负边长(错误)
+            push();
+            translate(-sideLen/2 - 60, 60 - sideLen/2);
+            fill(CONFIG.colors.error); noStroke(); textSize(16);
+            text("-2.0 ???", 0, 0);
+            stroke(CONFIG.colors.error); strokeWeight(2);
+            line(-30, -15, 30, 15); // 叉号
+            line(30, -15, -30, 15);
+            pop();
+        }
+        pop();
+    }
+
+    // ============================================
+    // 绘图逻辑：模式 ④ 总结
+    // ============================================
+    function drawSummaryMode() {
+        push();
+        translate(width/2, height/2);
+        
+        const startX = -200, midX = 0, endX = 200;
+        
+        // 1. 输入 X
+        drawNode(startX, 0, CONFIG.colors.secondary, state.inputX, "输入 x");
+        // 2. 中间 x²
+        let sq = state.inputX * state.inputX;
+        drawBox(midX, 0, CONFIG.colors.grid, sq.toFixed(2), "x² (消除了负号)");
+        // 3. 输出 |x|
+        let res = Math.sqrt(sq);
+        drawNode(endX, 0, CONFIG.colors.success, res.toFixed(2), "输出 √x²");
+
+        // 箭头
+        drawArrow(startX + 40, 0, midX - 50, 0);
+        drawArrow(midX + 50, 0, endX - 40, 0);
+
+        // 额外标注
+        fill(CONFIG.colors.error); noStroke(); textSize(16);
+        text("平方运算", (startX+midX)/2, -30);
+        
+        fill(CONFIG.colors.main);
+        text("开根运算(取正)", (midX+endX)/2, -30);
+
+        pop();
+    }
+
+    // ============================================
+    // 绘图逻辑：通用 (方程/函数)
+    // ============================================
+    function drawGrid() {
+        stroke(CONFIG.colors.grid); strokeWeight(1);
+        const w = width, h = height;
+        for(let x = -w; x < w; x+=CONFIG.gridSize) line(x, -h, x, h);
+        for(let y = -h; y < h; y+=CONFIG.gridSize) line(-w, y, w, y);
+    }
+
+    function drawAxes() {
+        stroke(CONFIG.colors.axis); strokeWeight(2);
+        line(-1000, 0, 1000, 0);
+        line(0, -1000, 0, 1000);
+        
+        // 轴标
+        fill(0); noStroke(); textSize(16);
+        scale(1, -1);
+        text("x", width/2 - 40, 15);
+        text("y", 15, -height/2 + 60);
+        scale(1, -1);
+    }
+
+    function drawEquationMode() {
+        const a = state.a;
+        const sqrtA = Math.sqrt(a);
+        const gs = CONFIG.gridSize;
+
+        // y = x²
+        noFill(); stroke(CONFIG.colors.main); strokeWeight(3);
+        beginShape();
+        for(let x=-9; x<=9; x+=0.1) vertex(x*gs, x*x*gs);
+        endShape();
+
+        // y = a
+        stroke(CONFIG.colors.secondary); strokeWeight(2);
+        drawingContext.setLineDash([6,6]);
+        line(-1000, a*gs, 1000, a*gs);
+        drawingContext.setLineDash([]);
+
+        // 交点
+        drawDot(sqrtA, a, CONFIG.colors.success, `(${sqrtA.toFixed(1)}, ${a})`);
+        drawDot(-sqrtA, a, CONFIG.colors.error, `(${-sqrtA.toFixed(1)}, ${a})`);
+    }
+
+    function drawFunctionMode() {
+        const x = state.a; 
+        const y = Math.sqrt(x);
+        const gs = CONFIG.gridSize;
+
+        // 虚线 (舍弃)
+        noFill(); stroke(200); strokeWeight(2);
+        drawingContext.setLineDash([5,5]);
+        beginShape();
+        for(let ty=-5; ty<0; ty+=0.1) vertex(ty*ty*gs, ty*gs);
+        endShape();
+
+        // 实线 y=√x
+        stroke(CONFIG.colors.main); strokeWeight(3);
+        drawingContext.setLineDash([]);
+        beginShape();
+        for(let tx=0; tx<=16; tx+=0.1) vertex(tx*gs, Math.sqrt(tx)*gs);
+        endShape();
+
+        // 垂线
+        stroke(CONFIG.colors.guide); strokeWeight(1);
+        line(x*gs, -1000, x*gs, 1000);
+
+        // 叉号
+        if(x > 0.1) {
+            push(); translate(x*gs, -y*gs);
+            stroke(CONFIG.colors.error); strokeWeight(3);
+            line(-8,-8, 8,8); line(8,-8, -8,8);
+            pop();
+        }
+
+        drawDot(x, y, CONFIG.colors.success, `√${x}=${y.toFixed(1)}`);
+    }
+
+    // === 辅助绘图函数 ===
+    function drawNode(x, y, color, val, label) {
+        fill(255); stroke(color); strokeWeight(2);
+        circle(x, y, 60);
+        fill(color); noStroke(); textSize(20); text(val, x, y);
+        fill(100); textSize(14); text(label, x, y + 45);
+    }
+    
+    function drawBox(x, y, color, val, label) {
+        fill(255); stroke(color); strokeWeight(2);
+        rect(x, y, 70, 60, 5);
+        fill(0); noStroke(); textSize(20); text(val, x, y);
+        fill(100); textSize(14); text(label, x, y + 45);
+    }
+
+    function drawArrow(x1, y1, x2, y2) {
+        stroke(150); strokeWeight(2);
+        line(x1, y1, x2, y2);
+        push(); translate(x2, y2);
+        triangle(0,0, -8,4, -8,-4);
+        pop();
+    }
+
+    function drawDot(x, y, color, label) {
+        fill(color); noStroke();
+        circle(x*CONFIG.gridSize, y*CONFIG.gridSize, 12);
+        if(label) {
+            push(); scale(1,-1);
+            fill(0); text(label, x*CONFIG.gridSize, -y*CONFIG.gridSize - 20);
+            pop();
+        }
+    }
+    
+    function drawDimensionLine(x, yTop, len, color, label) {
+        stroke(color); strokeWeight(1);
+        line(x, yTop, x, yTop - len); // 竖线
+        line(x-5, yTop, x+5, yTop); // 端点
+        line(x-5, yTop-len, x+5, yTop-len); // 端点
+        fill(color); noStroke();
+        text(label, x+35, yTop - len/2);
+    }
+
+    // ============================================
+    // UI 逻辑
+    // ============================================
+    function setMode(m) {
+        state.mode = m;
+        
+        // 导航按钮状态
+        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('btn-' + m).classList.add('active');
+
+        // 控件显隐
+        els.guideControls.style.display = (m === 'guide') ? 'flex' : 'none';
+        els.summaryInput.style.display = (m === 'summary') ? 'block' : 'none';
+        
+        // 动态调整滑块参数
+        if (m === 'summary') {
+            // 总结模式：允许负数，范围更大
+            els.slider.min = -10;
+            els.slider.max = 10;
+            els.slider.step = 0.5;
+            els.slider.value = state.inputX;
+            els.labelText.textContent = '输入 x';
+            els.valDisplay.textContent = state.inputX.toFixed(1);
+        } else {
+            // 其他模式：正数，0-16
+            els.slider.min = 0;
+            els.slider.max = 16;
+            els.slider.step = 0.5;
+            els.slider.value = state.a;
+            
+            if(m === 'equation') els.labelText.textContent = '目标 a';
+            else if(m === 'function') els.labelText.textContent = '输入 x';
+            else els.labelText.textContent = '面积 S';
+            
+            els.valDisplay.textContent = state.a.toFixed(1);
+        }
+        
+        // 颜色变化
+        const root = document.documentElement;
+        if(m === 'guide') root.style.setProperty('--accent-color', CONFIG.colors.guide);
+        else if(m === 'equation') root.style.setProperty('--accent-color', CONFIG.colors.secondary);
+        else if(m === 'function') root.style.setProperty('--accent-color', CONFIG.colors.main);
+        else root.style.setProperty('--accent-color', CONFIG.colors.success);
+
+        updateUI();
+    }
+
+    function changeGuideStep(delta) {
+        state.guideStep += delta;
+        if(state.guideStep < 1) state.guideStep = 1;
+        if(state.guideStep > 3) state.guideStep = 3;
+        
+        document.getElementById('prev-step').disabled = (state.guideStep === 1);
+        document.getElementById('next-step').disabled = (state.guideStep === 3);
+        document.getElementById('step-indicator').textContent = `第 ${state.guideStep} / 3 步`;
+        
+        updateUI();
+    }
+
+    function setInput(val) {
+        state.inputX = val;
+        // 如果在总结模式下点击按钮，也同步更新滑块
+        if (state.mode === 'summary') {
+            els.slider.value = val;
+        }
+        updateUI();
+    }
+
+    async function updateUI() {
+        const val = state.a;
+        
+        let title = "";
+        let content = "";
+        let math = "";
+        let legend = "";
+
+        // 浮层显示逻辑
+        if (state.mode === 'guide') {
+            els.mathBox.style.display = "none"; // 向导模式不显示右上角复杂公式
+            
+            if (state.guideStep === 1) {
+                title = "1. 几何难题";
+                content = `
+                    <p>想象你在古代，需要围一块地。</p>
+                    <p>已知正方形<span class="highlight">面积 = ${val}</span>。</p>
+                    <p><strong>问题：</strong>边长是多少？</p>
+                    <p style="color:#666; font-size:0.9rem;">(我们需要找一个数，它的平方等于 ${val})</p>
+                `;
+            } else if (state.guideStep === 2) {
+                title = "2. 发明符号";
+                content = `
+                    <p>对于面积 4，边长是 2 (整数)。</p>
+                    <p>对于面积 2，边长是 1.414... (无限不循环)。</p>
+                    <p>为了方便书写，数学家创造了符号 <span class="highlight">√</span>。</p>
+                    <p><strong>\\(\\sqrt{${val}}\\) 的含义：</strong>就是那个“面积为${val}的正方形的边长”。</p>
+                `;
+            } else {
+                title = "3. 必须是正数！";
+                content = `
+                    <p>回到现实世界。</p>
+                    <p>你有见过边长为负数的正方形吗？没有。</p>
+                    <p><span class="highlight">几何长度必须 > 0</span>。</p>
+                    <p>因此，根号 (\\(\\sqrt{\\quad}\\)) 从诞生的那一刻起，就被烙印了<strong>“非负”</strong>的基因。</p>
+                `;
+            }
+        } 
+        else if (state.mode === 'equation') {
+            els.mathBox.style.display = "block";
+            title = "方程视角的“自由”";
+            content = `
+                <p>到了代数世界，我们不再受几何图形的限制。</p>
+                <p>问：<span class="highlight">谁的平方等于 ${val}？</span></p>
+                <p>答：\(2\) 可以，\(-2\) 也可以。</p>
+                <p>所以解方程时，我们要把<strong>两个解</strong>都找回来，写作 \\(\\pm\\sqrt{${val}}\\)。</p>
+            `;
+            math = `\\[ x^2 = ${val} \\implies x = \\pm ${Math.sqrt(val).toFixed(2)} \\]`;
+            legend = `
+                <div class="legend-item"><div class="dot" style="background:${CONFIG.colors.success}"></div>算术平方根 (正)</div>
+                <div class="legend-item"><div class="dot" style="background:${CONFIG.colors.error}"></div>负平方根</div>
+            `;
+        } 
+        else if (state.mode === 'function') {
+            els.mathBox.style.display = "block";
+            title = "函数定义的“严苛”";
+            content = `
+                <p>函数就像一个精密的机器。</p>
+                <p>规则：<span class="warn">单值性</span>（输入一个数，只能出一个结果）。</p>
+                <p>如果 \\(\\sqrt{4}\\) 既等于 2 又等于 -2，机器就乱套了。</p>
+                <p>所以数学界强行规定：<strong>根号只取正的那一个。</strong></p>
+            `;
+            math = `\\[ f(${val}) = \\sqrt{${val}} = ${Math.sqrt(val).toFixed(2)} \\]`;
+            legend = `
+                <div class="legend-item"><div class="dot" style="background:${CONFIG.colors.main}"></div>y=√x 图像</div>
+                <div class="legend-item"><div class="dot" style="background:#ccc"></div>被舍弃的负半边</div>
+            `;
+        } 
+        else {
+            els.mathBox.style.display = "block";
+            title = "总结：绝对值的真相";
+            content = `
+                <p>拖动滑块试试负数输入！</p>
+                <p>1. <strong>平方</strong> \\(( )^2\\)：把负号“吃掉”了，变成正数。</p>
+                <p>2. <strong>开方</strong> \\(\\sqrt{\\quad}\\)：根据定义，只能吐出正数。</p>
+                <p>结果：输入 \\(${state.inputX}\\) \\(\\to\\) 输出 \\(${Math.abs(state.inputX)}\\)。</p>
+                <p class="success">这就是绝对值的作用！</p>
+            `;
+            // 注意：这里使用了 inputX 而不是 a
+            const x = state.inputX; 
+            const absX = Math.abs(x);
+            // 处理负数的括号显示
+            const xStr = x < 0 ? `(${x})` : `${x}`;
+            
+            math = `\\[ \\sqrt{${xStr}^2} = |${x}| = ${absX} \\]`;
+        }
+
+        // 渲染内容
+        els.guideTitle.innerHTML = title;
+        els.guideContent.innerHTML = content;
+        els.mathContent.innerHTML = math;
+        els.legend.innerHTML = legend;
+
+        // 浮层动画
+        els.guideOverlay.classList.remove('visible');
+        void els.guideOverlay.offsetWidth; // trigger reflow
+        els.guideOverlay.classList.add('visible');
+        
+        els.mathBox.classList.add('visible');
+
+        try {
+            await MathJax.typesetPromise();
+        } catch(e) {}
+    }
+</script>
+</body>
+</html>
