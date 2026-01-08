@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>几何动点折叠 - 完美演示版</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']], // 允许 $ 和 \( 作为行内公式
+        displayMath: [['$$', '$$'], ['\\[', '\\]']]
+      },
+      svg: { fontCache: 'global' }
+    };
+  </script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  <style>
+    /* ------ 全局布局：无滚动条 ------ */
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+      background-color: #f4f6f9;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ------ 左侧边栏：侧重文字讲解 ------ */
+    #sidebar {
+      width: 400px; /* 固定宽度 */
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid #ddd;
+      box-shadow: 2px 0 10px rgba(0,0,0,0.05);
+      z-index: 20;
+    }
+
+    /* 1. 题目区域：紧凑化 */
+    #problem-header {
+      flex-shrink: 0; /* 不允许压缩 */
+      padding: 12px 20px;
+      background: #fafafa;
+      border-bottom: 1px solid #eee;
+    }
+    h3 { margin: 0 0 8px 0; font-size: 16px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 8px; }
+    .problem-content { font-size: 13px; color: #555; line-height: 1.4; }
+
+    /* 2. 静态题图：高度限制，避免喧宾夺主 */
+    #static-diagram-container {
+      flex-shrink: 0; /* 不允许过度压缩 */
+      height: 160px; /* 固定一个较小的高度 */
+      background: #fff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      border-bottom: 1px solid #eee;
+      padding: 5px;
+    }
+    #static-svg {
+      height: 100%; /* 填满容器高度 */
+      width: auto;  /* 宽度自适应 */
+      max-width: 100%;
+    }
+
+    /* 3. 核心讲解区：占据剩余所有空间 */
+    #control-panel {
+      flex-grow: 1; /* 占据剩余垂直空间 */
+      display: flex;
+      flex-direction: column;
+      padding: 20px;
+      background: #fff;
+      overflow-y: auto; /* 内容过多时仅此处滚动 */
+    }
+
+    /* 步骤文字框：放大字体，提升阅读体验 */
+    .step-box {
+      background: #eef9fe;
+      border-left: 5px solid #3498db;
+      padding: 15px;
+      font-size: 16px; /* 字体加大 */
+      line-height: 1.8; /* 行距加大 */
+      color: #2c3e50;
+      border-radius: 0 6px 6px 0;
+      margin-bottom: 15px;
+      flex-grow: 1; /* 撑开空间 */
+    }
+    
+    /* 重点高亮 */
+    .highlight { color: #e74c3c; font-weight: bold; padding: 0 2px; }
+
+    /* 按钮组 */
+    .btn-group {
+      flex-shrink: 0;
+      display: flex;
+      gap: 12px;
+      margin-top: auto; /* 推到底部 */
+    }
+    button {
+      flex: 1; padding: 12px; border: none; border-radius: 6px;
+      cursor: pointer; font-weight: 600; font-size: 15px; transition: 0.2s;
+    }
+    .btn-next { background: #3498db; color: white; box-shadow: 0 2px 5px rgba(52, 152, 219, 0.3); }
+    .btn-next:hover { background: #2980b9; transform: translateY(-1px); }
+    .btn-prev { background: #ecf0f1; color: #7f8c8d; }
+    .btn-prev:hover { background: #bdc3c7; }
+
+    /* 进度条 */
+    .progress-container { margin-top: 15px; flex-shrink: 0; }
+    .progress-track { height: 6px; background: #eee; border-radius: 3px; overflow: hidden; margin-bottom: 5px; }
+    .progress-bar { height: 100%; background: #2ecc71; width: 0%; transition: width 0.3s; }
+    .step-indicator { font-size: 12px; color: #999; text-align: center; }
+
+    /* ------ 右侧：演示画布 ------ */
+    #canvas-container {
+      flex-grow: 1;
+      position: relative;
+      background: radial-gradient(#e0e0e0 1px, transparent 1px);
+      background-size: 20px 20px;
+      background-color: #fff;
+    }
+    
+    /* SVG 样式 */
+    .svg-line { stroke: #333; stroke-width: 1.5; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+    .svg-dash { stroke: #666; stroke-width: 1; stroke-dasharray: 4,3; fill: none; }
+    .svg-fold { stroke: #9b59b6; stroke-width: 1.5; fill: rgba(155, 89, 182, 0.1); }
+    .svg-text { font-family: "Times New Roman", serif; font-size: 14px; fill: #000; font-style: italic; }
+  </style>
+</head>
+<body>
+
+  <div id="sidebar">
+    
+    <div id="problem-header">
+      <h3>越秀模考题 10 - 几何综合</h3>
+      <div class="problem-content">
+        已知 $AB=AC$，$\angle A=50^\circ$，$AP$ 平分 $\angle A$。
+        $PD \perp AC$ 于中点 $D$。将 $\triangle BEF$ 沿 $EF$ 折叠使 $B$ 落在 $P$。
+        求 $\angle PFC$。
+      </div>
+    </div>
+
+    <div id="static-diagram-container">
+      <svg id="static-svg" viewBox="0 0 300 200" xmlns="http://www.w3.org/2000/svg">
+        </svg>
+    </div>
+
+    <div id="control-panel">
+      <div id="step-content" class="step-box">
+        正在加载数学引擎...
+      </div>
+      
+      <div class="btn-group">
+        <button class="btn-prev" onclick="prevStep()">上一步</button>
+        <button class="btn-next" onclick="nextStep()">下一步</button>
+      </div>
+
+      <div class="progress-container">
+        <div class="progress-track"><div id="progress-bar" class="progress-bar"></div></div>
+        <div class="step-indicator">步骤 <span id="step-num">1</span> / 7</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="canvas-container"></div>
+
+<script>
+// ==================== 几何数据核心 ====================
+// 使用 p5.Vector 计算所有点坐标，供 SVG 和 Canvas 共用
+let geo = {}; 
+
+function calculateGeometry(w, h) {
+  // 这里的计算逻辑保证图是“真”的
+  // 设 P 为原点进行相对计算，最后平移
+  // 设定半径 R 适应视图
+  const R = Math.min(w, h) * 0.35; 
+  const cx = w / 2;
+  const cy = h * 0.5; // 居中
+  
+  // 1. 构建点 (基于外心 P)
+  // 题目：AB=AC, AngleA=50. P为外心.
+  // 圆心角 AngleBPC = 2*50 = 100度.
+  // 设对称轴为Y轴. A在上方.
+  // P到A,B,C距离相等.
+  
+  // 相对坐标 (P为0,0)
+  // A: 向上 (0, -R)
+  // B: 向左下. 角度计算：
+  //    BPC=100 => 垂直线平分BPC => 偏角50度
+  //    B相对于垂直向下顺时针转 -50度 (即 90+50 = 140度 从X轴正向)
+  //    C相对于垂直向下逆时针转 +50度 (即 90-50 = 40度 从X轴正向)
+  
+  const angB = radians(90 + 50);
+  const angC = radians(90 - 50);
+  const angA = radians(-90);
+  
+  let vP = createVector(0, 0);
+  let vA = p5.Vector.fromAngle(angA, R);
+  let vB = p5.Vector.fromAngle(angB, R);
+  let vC = p5.Vector.fromAngle(angC, R);
+  
+  // 2. 派生点
+  // D: AC中点
+  let vD = p5.Vector.add(vA, vC).div(2);
+  
+  // F: 在BC上，且 EF 是 BP 的中垂线
+  // F 是 [直线BC] 与 [BP中垂线] 的交点
+  let midBP = p5.Vector.add(vB, vP).div(2);
+  let dirBP = p5.Vector.sub(vP, vB);
+  let dirPerp = createVector(-dirBP.y, dirBP.x); // 中垂线方向
+  
+  // 线段BC方向
+  let vF = intersectLineLine(vB, vC, midBP, p5.Vector.add(midBP, dirPerp));
+  
+  // E: 在AB上
+  let vE = intersectLineLine(vA, vB, midBP, p5.Vector.add(midBP, dirPerp));
+  
+  // 3. 应用平移
+  let offset = createVector(cx, cy);
+  return {
+    A: p5.Vector.add(vA, offset),
+    B: p5.Vector.add(vB, offset),
+    C: p5.Vector.add(vC, offset),
+    P: p5.Vector.add(vP, offset),
+    D: p5.Vector.add(vD, offset),
+    E: p5.Vector.add(vE, offset),
+    F: p5.Vector.add(vF, offset),
+    R: R
+  };
+}
+
+function intersectLineLine(p1, p2, p3, p4) {
+  const x1 = p1.x, y1 = p1.y, x2 = p2.x, y2 = p2.y;
+  const x3 = p3.x, y3 = p3.y, x4 = p4.x, y4 = p4.y;
+  const den = (y4-y3)*(x2-x1) - (x4-x3)*(y2-y1);
+  if(den == 0) return createVector(0,0);
+  const ua = ((x4-x3)*(y1-y3) - (y4-y3)*(x1-x3)) / den;
+  return createVector(x1 + ua*(x2-x1), y1 + ua*(y2-y1));
+}
+
+// ==================== 静态 SVG 绘制 ====================
+function drawStaticSVG() {
+  const svg = document.getElementById('static-svg');
+  // 使用较小的视口计算几何
+  const g = calculateGeometry(300, 200); 
+  
+  // 清空
+  svg.innerHTML = '';
+  
+  const create = (tag, attr) => {
+    let el = document.createElementNS("http://www.w3.org/2000/svg", tag);
+    for(let k in attr) el.setAttribute(k, attr[k]);
+    return el;
+  }
+  
+  // 画线函数
+  const line = (p1, p2, cls) => svg.appendChild(create('line', {x1:p1.x, y1:p1.y, x2:p2.x, y2:p2.y, class:cls}));
+  const text = (txt, p, dx, dy) => {
+    let t = create('text', {x:p.x+dx, y:p.y+dy, class:'svg-text'});
+    t.textContent = txt;
+    svg.appendChild(t);
+  }
+
+  // 1. 三角形
+  svg.appendChild(create('path', {d:`M${g.A.x},${g.A.y} L${g.B.x},${g.B.y} L${g.C.x},${g.C.y} Z`, class:'svg-line'}));
+  
+  // 2. 辅助线 AP, PC, PD
+  line(g.A, g.P, 'svg-line');
+  line(g.P, g.C, 'svg-line');
+  line(g.P, g.D, 'svg-line'); // PD
+  
+  // 3. 垂直符号
+  let d = 6;
+  let dirA = p5.Vector.sub(g.A, g.D).normalize().mult(d);
+  let dirP = p5.Vector.sub(g.P, g.D).normalize().mult(d);
+  let c1 = p5.Vector.add(g.D, dirA);
+  let c2 = p5.Vector.add(c1, dirP);
+  let c3 = p5.Vector.add(g.D, dirP);
+  svg.appendChild(create('path', {d:`M${c1.x},${c1.y} L${c2.x},${c2.y} L${c3.x},${c3.y}`, class:'svg-line', style:'stroke-width:1'}));
+
+  // 4. 折叠虚线
+  line(g.E, g.F, 'svg-line');
+  svg.appendChild(create('path', {d:`M${g.B.x},${g.B.y} L${g.E.x},${g.E.y} L${g.F.x},${g.F.y} Z`, class:'svg-fold'}));
+  svg.appendChild(create('path', {d:`M${g.P.x},${g.P.y} L${g.E.x},${g.E.y} L${g.F.x},${g.F.y} Z`, class:'svg-dash'}));
+
+  // 5. 标注
+  text('A', g.A, -5, -8);
+  text('B', g.B, -15, 5);
+  text('C', g.C, 5, 5);
+  text('P', g.P, 2, 15);
+  text('D', g.D, 5, -2);
+  text('E', g.E, -15, 0);
+  text('F', g.F, -5, 15);
+}
+
+// ==================== 动态演示与文本 ====================
+let step = 1;
+const totalSteps = 7;
+let canvas;
+let foldAnim = 0;
+
+// 注意：JS字符串中使用双反斜杠 \\ 来表示 LaTeX 的 \
+const stepTexts = [
+  "", // placeholder
+  
+  "<b>步骤 1：题意分析</b><br>" +
+  "已知 $AB=AC$，$\\angle BAC=50^\\circ$。<br>" +
+  "这是一个等腰三角形，我们可以先算出底角：<br>" +
+  "$\\angle B = \\angle C = \\frac{180^\\circ - 50^\\circ}{2} = 65^\\circ$。",
+
+  "<b>步骤 2：确定 P 点位置 (1)</b><br>" +
+  "题目已知：$AP$ 平分 $\\angle BAC$。<br>" +
+  "根据等腰三角形“三线合一”性质，顶角平分线也是底边的**垂直平分线**。<br>" +
+  "$\\therefore$ 点 $P$ 在 $BC$ 的中垂线上，得 <span class='highlight'>$PB = PC$</span>。",
+
+  "<b>步骤 3：确定 P 点位置 (2)</b><br>" +
+  "题目已知：$PD \\perp AC$ 且 $D$ 是 $AC$ 中点。<br>" +
+  "这意味着 $PD$ 是 $AC$ 的**垂直平分线**。<br>" +
+  "$\\therefore$ 点 $P$ 到线段两端距离相等，得 <span class='highlight'>$PA = PC$</span>。<br>" +
+  "综合步骤2，我们发现 $PA=PB=PC$，即 **$P$ 是 $\\triangle ABC$ 的外心**。",
+
+  "<b>步骤 4：利用外心性质算角度</b><br>" +
+  "在等腰 $\\triangle PAC$ 中（因 $PA=PC$）：<br>" +
+  "$\\because AP$ 平分 $\\angle A \\Rightarrow \\angle PAC = 25^\\circ$<br>" +
+  "$\\therefore \\angle PCA = 25^\\circ$<br>" +
+  "进而算出：$\\angle PCB = \\angle ACB - \\angle PCA = 65^\\circ - 25^\\circ = 40^\\circ$。<br>" +
+  "同理可得 <span class='highlight'>$\\angle PBC = 40^\\circ$</span>。",
+
+  "<b>步骤 5：折叠的几何意义</b><br>" +
+  "将 $\\triangle BEF$ 沿 $EF$ 折叠得 $\\triangle PEF$。<br>" +
+  "这意味着图形完全重合：<br>" +
+  "1. 点 $B$ 落在点 $P$ 上；<br>" +
+  "2. 对应边相等：<span class='highlight'>$FB = FP$</span>。",
+
+  "<b>步骤 6：求解 $\\triangle PFB$</b><br>" +
+  "在 $\\triangle PFB$ 中：<br>" +
+  "由 $FB=FP$ 知它是**等腰三角形**。<br>" +
+  "底角 $\\angle FBP = 40^\\circ$（步骤4已证）。<br>" +
+  "$\\therefore$ 顶角 $\\angle PFB = 180^\\circ - 40^\\circ - 40^\\circ = 100^\\circ$。",
+
+  "<b>步骤 7：得出最终答案</b><br>" +
+  "观察平角 $\\angle BFC$（$B, F, C$ 共线）：<br>" +
+  "$\\angle PFC$ 与 $\\angle PFB$ 互补。<br>" +
+  "$\\angle PFC = 180^\\circ - 100^\\circ = \\mathbf{80^\\circ}$。<br>" +
+  "故选 C。"
+];
+
+function setup() {
+  let c = document.getElementById('canvas-container');
+  canvas = createCanvas(c.offsetWidth, c.offsetHeight);
+  canvas.parent('canvas-container');
+  
+  // 初始化绘制一次静态图
+  drawStaticSVG();
+  updateDOM();
+}
+
+function draw() {
+  clear();
+  // 重新计算全屏几何
+  geo = calculateGeometry(width, height);
+  
+  push();
+  // 1. 基础三角形
+  stroke(0); strokeWeight(2); noFill();
+  triangle(geo.A.x, geo.A.y, geo.B.x, geo.B.y, geo.C.x, geo.C.y);
+  
+  fill(0); noStroke(); textSize(16);
+  text("A", geo.A.x-5, geo.A.y-15);
+  text("B", geo.B.x-25, geo.B.y+5);
+  text("C", geo.C.x+10, geo.C.y+5);
+
+  // Step 2: 中垂线与 PB=PC
+  if(step >= 2) {
+    stroke(50, 100, 255); strokeWeight(1);
+    drawingContext.setLineDash([5,5]);
+    line(geo.A.x, geo.A.y, (geo.B.x+geo.C.x)/2, (geo.B.y+geo.C.y)/2); // 中轴
+    drawingContext.setLineDash([]);
+    
+    fill(50, 100, 255); noStroke();
+    circle(geo.P.x, geo.P.y, 8);
+    text("P", geo.P.x+10, geo.P.y);
+    
+    stroke(50, 100, 255); strokeWeight(2);
+    line(geo.P.x, geo.P.y, geo.B.x, geo.B.y);
+    line(geo.P.x, geo.P.y, geo.C.x, geo.C.y);
+    drawTick(geo.P, geo.B, 1);
+    drawTick(geo.P, geo.C, 1);
+  }
+
+  // Step 3: PD 垂直平分 AC
+  if(step >= 3) {
+    stroke(39, 174, 96); strokeWeight(2);
+    line(geo.P.x, geo.P.y, geo.D.x, geo.D.y);
+    line(geo.P.x, geo.P.y, geo.A.x, geo.A.y);
+    drawTick(geo.P, geo.A, 1);
+    
+    fill(39, 174, 96); noStroke();
+    text("D", geo.D.x+5, geo.D.y-5);
+  }
+
+  // Step 4: 角度展示
+  if(step >= 4) {
+    fill(100); noStroke(); textSize(14);
+    text("25°", geo.A.x-10, geo.A.y+40);
+    text("25°", geo.A.x+10, geo.A.y+40);
+    
+    fill(200, 50, 50);
+    text("40°", geo.B.x+40, geo.B.y-5);
+    text("40°", geo.C.x-40, geo.C.y-5);
+  }
+
+  // Step 5: 折叠动画
+  if(step >= 5) {
+    fill(0); noStroke(); textSize(18); textStyle(BOLD);
+    text("F", geo.F.x-5, geo.F.y+25);
+    text("E", geo.E.x-30, geo.E.y);
+    
+    stroke(142, 68, 173); strokeWeight(3);
+    line(geo.E.x, geo.E.y, geo.F.x, geo.F.y);
+    
+    // 动画插值
+    let animB = p5.Vector.lerp(geo.B, geo.P, foldAnim);
+    
+    // 原始虚影
+    fill(142, 68, 173, 30); noStroke();
+    triangle(geo.B.x, geo.B.y, geo.E.x, geo.E.y, geo.F.x, geo.F.y);
+    
+    // 动态三角形
+    if(step >= 6 || foldAnim > 0) {
+      if(step >= 6) foldAnim = lerp(foldAnim, 1, 0.1);
+      else foldAnim = 0;
+      
+      fill(231, 76, 60, 150*foldAnim); 
+      stroke(192, 57, 43, 200*foldAnim); strokeWeight(1);
+      triangle(animB.x, animB.y, geo.E.x, geo.E.y, geo.F.x, geo.F.y);
+    }
+  }
+
+  // Step 6: 结果展示
+  if(step >= 6 && foldAnim > 0.9) {
+    stroke(231, 76, 60); strokeWeight(3);
+    line(geo.F.x, geo.F.y, geo.B.x, geo.B.y);
+    line(geo.F.x, geo.F.y, geo.P.x, geo.P.y);
+    drawTick(geo.F, geo.B, 2);
+    drawTick(geo.F, geo.P, 2);
+    
+    fill(231, 76, 60); noStroke(); textSize(16);
+    text("100°", geo.F.x+5, geo.F.y-25);
+  }
+
+  if(step >= 7) {
+    stroke(243, 156, 18); strokeWeight(4);
+    line(geo.F.x, geo.F.y, geo.C.x, geo.C.y);
+    line(geo.F.x, geo.F.y, geo.P.x, geo.P.y); // Highlight side
+    
+    fill(243, 156, 18); noStroke(); textSize(28);
+    text("80°", geo.F.x+40, geo.F.y-10);
+  }
+
+  pop();
+}
+
+// 辅助绘图
+function drawTick(p1, p2, type) {
+  let mid = p5.Vector.add(p1, p2).div(2);
+  let dir = p5.Vector.sub(p2, p1).normalize();
+  let perp = createVector(-dir.y, dir.x).mult(5);
+  
+  if(type===1) {
+    line(mid.x-perp.x, mid.y-perp.y, mid.x+perp.x, mid.y+perp.y);
+  } else {
+    let off = p5.Vector.mult(dir, 3);
+    let m1 = p5.Vector.sub(mid, off);
+    let m2 = p5.Vector.add(mid, off);
+    line(m1.x-perp.x, m1.y-perp.y, m1.x+perp.x, m1.y+perp.y);
+    line(m2.x-perp.x, m2.y-perp.y, m2.x+perp.x, m2.y+perp.y);
+  }
+}
+
+function nextStep() {
+  if(step < totalSteps) { step++; updateDOM(); }
+}
+function prevStep() {
+  if(step > 1) { step--; if(step < 6) foldAnim=0; updateDOM(); }
+}
+
+function updateDOM() {
+  let content = document.getElementById('step-content');
+  content.innerHTML = stepTexts[step];
+  
+  // 重新渲染公式
+  if (window.MathJax) {
+    MathJax.typesetPromise([content]).catch((err) => console.log(err));
+  }
+
+  document.getElementById('step-num').innerText = step;
+  document.getElementById('progress-bar').style.width = (step/totalSteps)*100 + "%";
+}
+
+function windowResized() {
+  let c = document.getElementById('canvas-container');
+  resizeCanvas(c.offsetWidth, c.offsetHeight);
+}
+</script>
+</body>
+</html>

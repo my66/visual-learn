@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>三角形几何全解：四心与特殊线可视化</title>
+  
+  <!-- p5.js CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  
+  <!-- MathJax CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  <style>
+    /* 全局重置与布局 */
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #f0f2f5;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif;
+      color: #333;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* 顶部导航 */
+    header {
+      background-color: #fff;
+      padding: 0.8rem 1.5rem;
+      border-bottom: 1px solid #dcdcdc;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      z-index: 10;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0; /* 防止头部被压缩 */
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 1.4rem;
+      color: #2c3e50;
+    }
+    
+    .subtitle {
+      font-size: 0.9rem;
+      color: #7f8c8d;
+      margin-left: 1rem;
+    }
+
+    /* 主容器：Flex布局 */
+    #main-container {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* 左侧控制面板与教学区 */
+    #sidebar {
+      width: 420px;
+      background-color: #fff;
+      border-right: 1px solid #e0e0e0;
+      display: flex;
+      flex-direction: column;
+      /* 修改：隐藏溢出，取消滚动条 */
+      overflow: hidden; 
+      padding: 1.2rem; /* 稍微减小内边距 */
+      box-sizing: border-box;
+      flex-shrink: 0;
+    }
+
+    /* 章节标题 */
+    .section-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #34495e;
+      margin-top: 1rem; /* 减小间距 */
+      margin-bottom: 0.6rem;
+      padding-left: 0.5rem;
+      border-left: 4px solid #3498db;
+      text-transform: uppercase;
+      flex-shrink: 0;
+    }
+    .section-title:first-child { margin-top: 0; }
+
+    /* 按钮网格 */
+    .btn-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px; /* 减小间隙 */
+      margin-bottom: 0.8rem;
+      flex-shrink: 0;
+    }
+
+    /* 按钮样式 */
+    button {
+      background-color: #ecf0f1;
+      border: 1px solid #bdc3c7;
+      color: #2c3e50;
+      padding: 8px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: all 0.2s;
+    }
+
+    button:hover {
+      background-color: #dce4e6;
+      border-color: #95a5a6;
+    }
+
+    button.active {
+      background-color: #3498db;
+      color: white;
+      border-color: #2980b9;
+    }
+
+    /* 复选框列表 */
+    .feature-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px; /* 减小间隙 */
+      flex-shrink: 0;
+      margin-bottom: 0.8rem;
+    }
+
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      padding: 6px 8px; /* 减小内边距 */
+      border-radius: 4px;
+      background-color: #f9f9f9;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    
+    .checkbox-item:hover {
+      background-color: #f0f0f0;
+    }
+
+    .checkbox-item input {
+      margin-right: 10px;
+      transform: scale(1.1);
+      cursor: pointer;
+    }
+
+    /* 颜色指示器 */
+    .color-dot {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      margin-right: 8px;
+      margin-left: auto;
+    }
+
+    /* 数学解释卡片 - 自动填充剩余空间 */
+    .math-card {
+      background-color: #f8f9fa;
+      border: 1px solid #eee;
+      border-radius: 6px;
+      padding: 1rem;
+      margin-top: 0.5rem;
+      font-size: 0.95rem;
+      line-height: 1.5;
+      
+      /* 关键修改：让卡片占据剩余高度，且隐藏滚动条 */
+      flex: 1; 
+      overflow-y: auto; /* 允许内部内容滚动 */
+      /* 隐藏滚动条但保留滚动功能 (Firefox) */
+      scrollbar-width: none; 
+      /* (IE 10+) */
+      -ms-overflow-style: none;
+    }
+    
+    /* 隐藏滚动条 (Chrome/Safari) */
+    .math-card::-webkit-scrollbar {
+      display: none;
+    }
+
+    .math-hidden {
+      visibility: hidden;
+      height: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+
+    /* 右侧 Canvas */
+    #canvas-container {
+      flex: 1;
+      position: relative;
+      background-color: #ffffff;
+      overflow: hidden;
+      cursor: crosshair;
+    }
+
+    /* 状态栏 */
+    #status-bar {
+      height: 32px;
+      background-color: #2c3e50;
+      color: white;
+      display: flex;
+      align-items: center;
+      padding: 0 1rem;
+      font-size: 0.85rem;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    
+    /* 图例 */
+    .legend-box {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      pointer-events: none;
+    }
+
+  </style>
+</head>
+<body>
+
+<header>
+  <div style="display:flex; align-items:baseline;">
+    <h1>三角形几何全解</h1>
+    <span class="subtitle">四心（重心、垂心、外心、内心）与特殊线可视化</span>
+  </div>
+</header>
+
+<div id="main-container">
+  <div id="sidebar">
+    
+    <div class="section-title">1. 快速设置形状 (Presets)</div>
+    <div class="btn-grid">
+      <button onclick="setShape('equilateral')">等边三角形</button>
+      <button onclick="setShape('isosceles')">等腰三角形</button>
+      <button onclick="setShape('right')">直角三角形</button>
+      <button onclick="setShape('obtuse')">钝角三角形</button>
+      <button onclick="setShape('random')">随机形状</button>
+      <button onclick="resetView()">重置 (Reset)</button>
+    </div>
+
+    <div class="section-title">2. 选择要探索的概念 (Concepts)</div>
+    <div class="feature-list">
+      <!-- 只有选中时才显示对应的线和点 -->
+      <label class="checkbox-item" onclick="updateExplanation('median')">
+        <input type="checkbox" id="chk-median">
+        <span>中线与重心 (Centroid)</span>
+        <span class="color-dot" style="background:#e67e22"></span>
+      </label>
+      
+      <label class="checkbox-item" onclick="updateExplanation('altitude')">
+        <input type="checkbox" id="chk-altitude">
+        <span>高线与垂心 (Orthocenter)</span>
+        <span class="color-dot" style="background:#e74c3c"></span>
+      </label>
+      
+      <label class="checkbox-item" onclick="updateExplanation('perp')">
+        <input type="checkbox" id="chk-perp">
+        <span>中垂线与外心 (Circumcenter)</span>
+        <span class="color-dot" style="background:#3498db"></span>
+      </label>
+      
+      <label class="checkbox-item" onclick="updateExplanation('angle')">
+        <input type="checkbox" id="chk-angle">
+        <span>角平分线与内心 (Incenter)</span>
+        <span class="color-dot" style="background:#2ecc71"></span>
+      </label>
+
+      <label class="checkbox-item" onclick="updateExplanation('euler')">
+        <input type="checkbox" id="chk-euler">
+        <span>欧拉线 (Euler Line)</span>
+        <span class="color-dot" style="background:#9b59b6"></span>
+      </label>
+    </div>
+
+    <div class="section-title">3. 几何原理说明</div>
+    <div id="math-display" class="math-card">
+      <p style="color:#7f8c8d; font-style:italic;">请点击上方勾选框查看对应的几何概念与公式。</p>
+    </div>
+
+  </div>
+
+  <div id="canvas-container">
+    <!-- p5.js canvas -->
+    <div class="legend-box" id="legend">
+      <strong>当前状态:</strong> <span id="triangle-type-text">任意三角形</span>
+    </div>
+  </div>
+</div>
+
+<div id="status-bar">
+  <span id="status-msg">就绪：拖动顶点 A, B, C 以改变三角形形状</span>
+  <span id="coords-info"></span>
+</div>
+
+<script>
+/**
+ * 全局配置与状态
+ */
+const CONFIG = {
+  vertexRadius: 10,
+  colors: {
+    vertex: '#2c3e50',
+    side: '#34495e',
+    median: '#e67e22',
+    altitude: '#e74c3c',
+    perp: '#3498db',
+    angle: '#2ecc71',
+    euler: '#9b59b6',
+    text: '#000000'
+  },
+  labelSize: 14
+};
+
+// 顶点数据 (使用 ptA/ptB/ptC 避免全局变量冲突)
+let ptA, ptB, ptC;
+let vertices = [];
+let draggedVertex = null;
+
+// DOM 元素引用
+let chkMedian, chkAltitude, chkPerp, chkAngle, chkEuler;
+let statusMsg, coordsInfo, triangleTypeText;
+let mathDisplay;
+
+// 当前选中的解释模式
+let currentMode = null;
+
+/**
+ * 几何计算辅助函数类
+ */
+const Geom = {
+  // 两点距离
+  dist: (p1, p2) => Math.hypot(p1.x - p2.x, p1.y - p2.y),
+  
+  // 中点
+  midpoint: (p1, p2) => createVector((p1.x + p2.x)/2, (p1.y + p2.y)/2),
+  
+  // 向量点积
+  dot: (v1, v2) => v1.x * v2.x + v1.y * v2.y,
+  
+  // 点到直线的投影点 (P project onto Line AB)
+  projection: (P, A, B) => {
+    let AP = p5.Vector.sub(P, A);
+    let AB = p5.Vector.sub(B, A);
+    let magAB2 = AB.magSq();
+    if(magAB2 === 0) return A.copy();
+    let scalar = AP.dot(AB) / magAB2;
+    return p5.Vector.add(A, p5.Vector.mult(AB, scalar));
+  },
+  
+  // 直线交点 (L1: p1-p2, L2: p3-p4)
+  intersect: (p1, p2, p3, p4) => {
+    const d = (p1.x - p2.x) * (p3.y - p4.y) - (p1.y - p2.y) * (p3.x - p4.x);
+    if (d === 0) return null; // 平行
+    const t = ((p1.x - p3.x) * (p3.y - p4.y) - (p1.y - p3.y) * (p3.x - p4.x)) / d;
+    return createVector(p1.x + t * (p2.x - p1.x), p1.y + t * (p2.y - p1.y));
+  },
+
+  // 计算角度 (在 P 点，边为 PA, PB)
+  angleAt: (P, A, B) => {
+    let v1 = p5.Vector.sub(A, P);
+    let v2 = p5.Vector.sub(B, P);
+    return Math.abs(v1.angleBetween(v2));
+  }
+};
+
+/**
+ * p5.js Setup
+ */
+function setup() {
+  const container = document.getElementById('canvas-container');
+  const canvas = createCanvas(container.clientWidth, container.clientHeight);
+  canvas.parent('canvas-container');
+  
+  // 获取DOM
+  chkMedian = document.getElementById('chk-median');
+  chkAltitude = document.getElementById('chk-altitude');
+  chkPerp = document.getElementById('chk-perp');
+  chkAngle = document.getElementById('chk-angle');
+  chkEuler = document.getElementById('chk-euler');
+  statusMsg = document.getElementById('status-msg');
+  coordsInfo = document.getElementById('coords-info');
+  triangleTypeText = document.getElementById('triangle-type-text');
+  mathDisplay = document.getElementById('math-display');
+
+  // 初始化三角形
+  resetView();
+}
+
+/**
+ * p5.js Window Resize
+ */
+function windowResized() {
+  const container = document.getElementById('canvas-container');
+  resizeCanvas(container.clientWidth, container.clientHeight);
+}
+
+/**
+ * 设置三角形形状
+ */
+function setShape(type) {
+  const cx = width / 2;
+  const cy = height / 2 + 50;
+  const size = Math.min(width, height) / 3;
+
+  if (type === 'equilateral') {
+    // 等边
+    const h = size * Math.sqrt(3) / 2;
+    ptA.set(cx, cy - 2/3*h);
+    ptB.set(cx - size/2, cy + 1/3*h);
+    ptC.set(cx + size/2, cy + 1/3*h);
+  } else if (type === 'isosceles') {
+    // 等腰
+    ptA.set(cx, cy - size);
+    ptB.set(cx - size/1.5, cy + size/2);
+    ptC.set(cx + size/1.5, cy + size/2);
+  } else if (type === 'right') {
+    // 直角 (C为直角)
+    ptA.set(cx - size/2, cy - size);
+    ptB.set(cx + size, cy + size/2);
+    ptC.set(cx - size/2, cy + size/2);
+  } else if (type === 'obtuse') {
+    // 钝角 (C为钝角)
+    ptA.set(cx - size, cy - size/2);
+    ptB.set(cx + size, cy + size/2);
+    ptC.set(cx, cy + size/2); // 把C往中间拉一点
+  } else if (type === 'random') {
+    ptA.set(random(width*0.2, width*0.8), random(height*0.2, height*0.8));
+    ptB.set(random(width*0.2, width*0.8), random(height*0.2, height*0.8));
+    ptC.set(random(width*0.2, width*0.8), random(height*0.2, height*0.8));
+  }
+  
+  updateTriangleType();
+}
+
+function resetView() {
+  ptA = createVector(width/2, height/2 - 150);
+  ptB = createVector(width/2 - 130, height/2 + 100);
+  ptC = createVector(width/2 + 130, height/2 + 100);
+  vertices = [ptA, ptB, ptC];
+  
+  // 默认不选中任何复选框，让用户探索
+  chkMedian.checked = false;
+  chkAltitude.checked = false;
+  chkPerp.checked = false;
+  chkAngle.checked = false;
+  chkEuler.checked = false;
+  
+  mathDisplay.innerHTML = '<p style="color:#7f8c8d; font-style:italic;">请点击左侧勾选框查看对应的几何概念与公式。</p>';
+  updateTriangleType();
+}
+
+/**
+ * 核心绘图循环
+ */
+function draw() {
+  background(255);
+  
+  // 绘制网格背景（可选，增加实验室感）
+  drawGrid();
+
+  // 1. 计算边长和角度用于分类
+  const a = Geom.dist(ptB, ptC);
+  const b = Geom.dist(ptA, ptC);
+  const c = Geom.dist(ptA, ptB);
+  
+  // 绘制主三角形
+  stroke(CONFIG.colors.side);
+  strokeWeight(3);
+  noFill();
+  triangle(ptA.x, ptA.y, ptB.x, ptB.y, ptC.x, ptC.y);
+
+  // 2. 根据勾选状态绘制特性
+  let G, H, O, I; // 保存四个心用于欧拉线
+
+  if (chkMedian.checked) {
+    G = drawMedians();
+  }
+  
+  if (chkAltitude.checked) {
+    H = drawAltitudes();
+  }
+  
+  if (chkPerp.checked) {
+    O = drawPerpendicularBisectors();
+  }
+  
+  if (chkAngle.checked) {
+    I = drawAngleBisectors(a, b, c);
+  }
+
+  // 3. 欧拉线 (O, G, H 共线)
+  if (chkEuler.checked) {
+    // 如果还没计算，需要重新算一下
+    if (!G) G = calculateCentroid();
+    if (!H) H = calculateOrthocenter();
+    if (!O) O = calculateCircumcenter();
+    
+    drawEulerLine(O, G, H);
+  }
+
+  // 4. 绘制顶点
+  drawVertex(ptA, 'A');
+  drawVertex(ptB, 'B');
+  drawVertex(ptC, 'C');
+
+  // 交互反馈
+  if (draggedVertex) {
+    cursor('grabbing');
+    updateTriangleType(); // 拖动时实时更新类型判断
+  } else {
+    let hovering = vertices.some(v => dist(mouseX, mouseY, v.x, v.y) < CONFIG.vertexRadius + 5);
+    cursor(hovering ? 'grab' : 'default');
+  }
+}
+
+/**
+ * 绘制辅助网格
+ */
+function drawGrid() {
+  stroke(240);
+  strokeWeight(1);
+  for (let i = 0; i < width; i+=50) line(i, 0, i, height);
+  for (let j = 0; j < height; j+=50) line(0, j, width, j);
+}
+
+/**
+ * 绘制顶点
+ */
+function drawVertex(p, label) {
+  fill(CONFIG.colors.vertex);
+  noStroke();
+  circle(p.x, p.y, CONFIG.vertexRadius * 2);
+  
+  fill(0);
+  textSize(CONFIG.labelSize);
+  textStyle(BOLD);
+  textAlign(CENTER, CENTER);
+  
+  // 智能标签偏移
+  let offX = 0, offY = -25;
+  if (label === 'B') { offX = -20; offY = 15; }
+  if (label === 'C') { offX = 20; offY = 15; }
+  text(label, p.x + offX, p.y + offY);
+}
+
+// --- 几何特性绘制函数 ---
+
+/**
+ * 1. 中线与重心 (Median & Centroid)
+ */
+function drawMedians() {
+  const mA = Geom.midpoint(ptB, ptC);
+  const mB = Geom.midpoint(ptA, ptC);
+  const mC = Geom.midpoint(ptA, ptB);
+  
+  stroke(CONFIG.colors.median);
+  strokeWeight(1);
+  // 画虚线连线
+  setLineDash([5, 5]);
+  line(ptA.x, ptA.y, mA.x, mA.y);
+  line(ptB.x, ptB.y, mB.x, mB.y);
+  line(ptC.x, ptC.y, mC.x, mC.y);
+  setLineDash([]);
+  
+  // 重心
+  const G = createVector((ptA.x + ptB.x + ptC.x)/3, (ptA.y + ptB.y + ptC.y)/3);
+  drawPoint(G, 'G', CONFIG.colors.median);
+  return G;
+}
+
+/**
+ * 2. 高线与垂心 (Altitude & Orthocenter)
+ */
+function drawAltitudes() {
+  const fA = Geom.projection(ptA, ptB, ptC);
+  const fB = Geom.projection(ptB, ptA, ptC);
+  const fC = Geom.projection(ptC, ptA, ptB);
+  
+  stroke(CONFIG.colors.altitude);
+  strokeWeight(1);
+  
+  // 绘制高线（延伸至垂足）
+  line(ptA.x, ptA.y, fA.x, fA.y);
+  line(ptB.x, ptB.y, fB.x, fB.y);
+  line(ptC.x, ptC.y, fC.x, fC.y);
+  
+  // 垂心计算 (A-fA 和 B-fB 的交点)
+  const H = Geom.intersect(ptA, fA, ptB, fB);
+  if (H) {
+    // 如果是钝角三角形，H在外部，需要画延长线辅助视觉
+    setLineDash([2, 4]);
+    if (Geom.dist(ptA, fA) < Geom.dist(ptA, H)) line(fA.x, fA.y, H.x, H.y);
+    if (Geom.dist(ptB, fB) < Geom.dist(ptB, H)) line(fB.x, fB.y, H.x, H.y);
+    if (Geom.dist(ptC, fC) < Geom.dist(ptC, H)) line(fC.x, fC.y, H.x, H.y);
+    setLineDash([]);
+    drawPoint(H, 'H', CONFIG.colors.altitude);
+  }
+  
+  // 画直角符号
+  drawRightAngle(fA, ptB, ptC, CONFIG.colors.altitude);
+  drawRightAngle(fB, ptA, ptC, CONFIG.colors.altitude);
+  drawRightAngle(fC, ptA, ptB, CONFIG.colors.altitude);
+  
+  return H;
+}
+
+/**
+ * 3. 中垂线与外心 (Perp Bisector & Circumcenter)
+ */
+function drawPerpendicularBisectors() {
+  const mAB = Geom.midpoint(ptA, ptB);
+  const mBC = Geom.midpoint(ptB, ptC);
+  const mAC = Geom.midpoint(ptA, ptC);
+  
+  // 计算外心 (使用行列式方法更稳定)
+  const O = calculateCircumcenter();
+  
+  if (O) {
+    stroke(CONFIG.colors.perp);
+    strokeWeight(1);
+    
+    // 画线：中点 -> 外心 (并延伸一点)
+    // 如果 O 在很远的地方，画长一点
+    const drawRay = (start, target) => {
+       const v = p5.Vector.sub(target, start);
+       const len = v.mag();
+       // 视觉上稍微延伸穿过 O
+       const ext = p5.Vector.add(start, p5.Vector.mult(v, 1.2)); 
+       line(start.x, start.y, ext.x, ext.y);
+    };
+
+    drawRay(mAB, O);
+    drawRay(mBC, O);
+    drawRay(mAC, O);
+    
+    // 画外接圆
+    noFill();
+    stroke(CONFIG.colors.perp);
+    strokeWeight(1);
+    const R = Geom.dist(O, ptA);
+    circle(O.x, O.y, R * 2);
+    
+    drawPoint(O, 'O', CONFIG.colors.perp);
+  }
+  return O;
+}
+
+/**
+ * 4. 角平分线与内心 (Angle Bisector & Incenter)
+ */
+function drawAngleBisectors(a, b, c) {
+  // 内心公式 I = (aA + bB + cC) / (a+b+c)
+  const perimeter = a + b + c;
+  const Ix = (a*ptA.x + b*ptB.x + c*ptC.x) / perimeter;
+  const Iy = (a*ptA.y + b*ptB.y + c*ptC.y) / perimeter;
+  const I = createVector(Ix, Iy);
+  
+  stroke(CONFIG.colors.angle);
+  strokeWeight(1);
+  // 画线 Vertex -> Incenter (再稍微延长接触对边)
+  line(ptA.x, ptA.y, I.x, I.y);
+  line(ptB.x, ptB.y, I.x, I.y);
+  line(ptC.x, ptC.y, I.x, I.y);
+  
+  // 计算内切圆半径 r = 2 * Area / Perimeter
+  // Area using Heron's formula
+  const s = perimeter / 2;
+  const area = Math.sqrt(s * (s-a) * (s-b) * (s-c));
+  const r = 2 * area / perimeter;
+  
+  // 画内切圆
+  noFill();
+  circle(I.x, I.y, r * 2);
+  
+  drawPoint(I, 'I', CONFIG.colors.angle);
+  return I;
+}
+
+/**
+ * 5. 欧拉线
+ */
+function drawEulerLine(O, G, H) {
+  if (O && G && H) {
+    stroke(CONFIG.colors.euler);
+    strokeWeight(2);
+    // 穿过这三点的直线。画一条很长的线段覆盖屏幕
+    // 方向向量 H - O
+    const dir = p5.Vector.sub(H, O);
+    if (dir.magSq() > 0.1) {
+      dir.normalize();
+      const pStart = p5.Vector.sub(O, p5.Vector.mult(dir, 1000));
+      const pEnd = p5.Vector.add(O, p5.Vector.mult(dir, 1000));
+      line(pStart.x, pStart.y, pEnd.x, pEnd.y);
+    }
+    
+    // 标记文字
+    noStroke();
+    fill(CONFIG.colors.euler);
+    text("Euler Line", (O.x+H.x)/2 + 10, (O.y+H.y)/2);
+  }
+}
+
+/**
+ * 辅助：画点
+ */
+function drawPoint(p, label, col) {
+  fill(col);
+  noStroke();
+  circle(p.x, p.y, 8);
+  fill(col);
+  textStyle(BOLD);
+  textAlign(LEFT, BOTTOM);
+  text(label, p.x + 8, p.y - 8);
+}
+
+/**
+ * 辅助：画直角标记
+ */
+function drawRightAngle(corner, p1, p2, col) {
+  const size = 10;
+  // 计算方向向量
+  let v1 = p5.Vector.sub(p1, corner).normalize();
+  let v2 = p5.Vector.sub(p2, corner).normalize();
+  
+  // 简单的正方形顶点
+  // 注意：这只是一个简单的视觉近似，对于非水平垂直的线可能需要更复杂的计算
+  // 但对于"高线"，v1是高线方向，v2是底边方向，它们本身垂直
+  
+  stroke(col);
+  strokeWeight(1);
+  noFill();
+  
+  // 使用绘图上下文变换更简单
+  push();
+  translate(corner.x, corner.y);
+  // 找到角度
+  let angle = v2.heading();
+  rotate(angle);
+  // 假设 v1 垂直于 v2，v1在相对坐标系中应该是 (0, -1) 或 (0, 1)
+  // 我们直接画一个正方形
+  rect(0, 0, size, -size); // 向上的象限
+  pop();
+}
+
+/**
+ * 辅助：设置虚线
+ */
+function setLineDash(list) {
+  drawingContext.setLineDash(list);
+}
+
+/**
+ * 计算外心 (复用)
+ */
+function calculateCircumcenter() {
+  const D = 2 * (ptA.x * (ptB.y - ptC.y) + ptB.x * (ptC.y - ptA.y) + ptC.x * (ptA.y - ptB.y));
+  if (Math.abs(D) < 0.001) return null; // 三点共线
+  const Ux = (1 / D) * ((ptA.x**2 + ptA.y**2) * (ptB.y - ptC.y) + (ptB.x**2 + ptB.y**2) * (ptC.y - ptA.y) + (ptC.x**2 + ptC.y**2) * (ptA.y - ptB.y));
+  const Uy = (1 / D) * ((ptA.x**2 + ptA.y**2) * (ptC.x - ptB.x) + (ptB.x**2 + ptB.y**2) * (ptA.x - ptC.x) + (ptC.x**2 + ptC.y**2) * (ptB.x - ptA.x));
+  return createVector(Ux, Uy);
+}
+
+function calculateCentroid() {
+  return createVector((ptA.x + ptB.x + ptC.x)/3, (ptA.y + ptB.y + ptC.y)/3);
+}
+
+function calculateOrthocenter() {
+  // 垂心 H。利用欧拉线性质 OH = 3OG (向量关系) 或直接求交点
+  // H = A + B + C - 2O (向量加法，如果原点是外心) -- 这个公式太复杂
+  // 直接求两条高的交点
+  const fA = Geom.projection(ptA, ptB, ptC);
+  const fB = Geom.projection(ptB, ptA, ptC);
+  return Geom.intersect(ptA, fA, ptB, fB);
+}
+
+/**
+ * 更新三角形类型文字
+ */
+function updateTriangleType() {
+  const a = Geom.dist(ptB, ptC);
+  const b = Geom.dist(ptA, ptC);
+  const c = Geom.dist(ptA, ptB);
+  const sides = [a, b, c].sort((x, y) => x - y); // 小到大
+  
+  let typeStr = "";
+  
+  // 边长判断
+  if (Math.abs(a - b) < 1 && Math.abs(b - c) < 1) {
+    typeStr = "等边三角形 (Equilateral)";
+  } else if (Math.abs(a - b) < 1 || Math.abs(b - c) < 1 || Math.abs(a - c) < 1) {
+    typeStr = "等腰三角形 (Isosceles)";
+  } else {
+    typeStr = "一般三角形 (Scalene)";
+  }
+  
+  // 角度判断 (余弦定理 cosC = (a^2+b^2-c^2)/2ab)
+  // 如果 c 是最长边
+  // c^2 < a^2 + b^2 -> 锐角
+  // c^2 = a^2 + b^2 -> 直角
+  // c^2 > a^2 + b^2 -> 钝角
+  
+  const x = sides[0], y = sides[1], z = sides[2]; // z is max
+  const diff = z*z - (x*x + y*y);
+  
+  let angleStr = "";
+  if (Math.abs(diff) < 100) { // 容差
+    angleStr = "直角";
+  } else if (diff > 0) {
+    angleStr = "钝角";
+  } else {
+    angleStr = "锐角";
+  }
+  
+  // 组合描述
+  if (typeStr.includes("等边")) {
+    triangleTypeText.textContent = typeStr; // 等边必锐角
+  } else {
+    triangleTypeText.textContent = `${angleStr}${typeStr}`;
+  }
+}
+
+/**
+ * 交互控制
+ */
+function mousePressed() {
+  if (mouseX < 0 || mouseX > width || mouseY < 0 || mouseY > height) return;
+  
+  for (let v of vertices) {
+    if (dist(mouseX, mouseY, v.x, v.y) < CONFIG.vertexRadius + 5) {
+      draggedVertex = v;
+      return;
+    }
+  }
+}
+
+function mouseDragged() {
+  if (draggedVertex) {
+    draggedVertex.x = constrain(mouseX, 0, width);
+    draggedVertex.y = constrain(mouseY, 0, height);
+  }
+}
+
+function mouseReleased() {
+  draggedVertex = null;
+}
+
+/**
+ * 更新侧边栏数学解释 (MathJax)
+ */
+function updateExplanation(mode) {
+  // 由于点击 checkbox 会触发 onclick，需要稍等一下再检查状态
+  // 或者直接使用传递的 mode 来生成内容
+  
+  // 获取所有勾选状态
+  const showMedian = document.getElementById('chk-median').checked;
+  const showAltitude = document.getElementById('chk-altitude').checked;
+  const showPerp = document.getElementById('chk-perp').checked;
+  const showAngle = document.getElementById('chk-angle').checked;
+  const showEuler = document.getElementById('chk-euler').checked;
+
+  let content = "";
+  
+  // 只要勾选了该项，就追加该项的说明
+  // 如果是点击触发的，优先把该项放在最上面（或者只显示该项的详情？为了避免堆叠太多，这里采取“最后点击的优先显示”或者“全部堆叠”）
+  // 鉴于 MathJax 渲染开销，我们只显示当前 active 的最相关的一个，或者显示所有勾选的简介。
+  // 为了教学清晰，我们只显示用户**刚刚点击**的那个概念的详细定义。
+  
+  if (mode === 'median' && showMedian) {
+    content = `
+      <h3>中线 (Median) 与 重心 (Centroid, G)</h3>
+      <p><strong>定义：</strong>连接顶点与对边中点的线段。</p>
+      <p><strong>性质：</strong></p>
+      <ul>
+        <li>三条中线交于一点，称为<strong>重心 \(G\)</strong>。</li>
+        <li>重心将中线分为 \(2:1\) 两部分（顶点到重心 : 重心到对边）。</li>
+        <li>坐标公式：\( G = \frac{A+B+C}{3} \)</li>
+      </ul>
+    `;
+  } else if (mode === 'altitude' && showAltitude) {
+    content = `
+      <h3>高线 (Altitude) 与 垂心 (Orthocenter, H)</h3>
+      <p><strong>定义：</strong>从顶点向对边（或其延长线）作的垂线段。</p>
+      <p><strong>性质：</strong></p>
+      <ul>
+        <li>三条高线（或延长线）交于一点，称为<strong>垂心 \(H\)</strong>。</li>
+        <li>锐角三角形 \(H\) 在内部；直角三角形 \(H\) 在直角顶点；钝角三角形 \(H\) 在外部。</li>
+      </ul>
+    `;
+  } else if (mode === 'perp' && showPerp) {
+    content = `
+      <h3>中垂线 (Perpendicular Bisector) 与 外心 (Circumcenter, O)</h3>
+      <p><strong>定义：</strong>垂直并平分三角形一边的直线。</p>
+      <p><strong>性质：</strong></p>
+      <ul>
+        <li>三条中垂线交于一点，称为<strong>外心 \(O\)</strong>。</li>
+        <li>外心到三个顶点的距离相等：\( OA = OB = OC = R \)。</li>
+        <li>以此为圆心的圆称为<strong>外接圆</strong>。</li>
+      </ul>
+    `;
+  } else if (mode === 'angle' && showAngle) {
+    content = `
+      <h3>角平分线 (Angle Bisector) 与 内心 (Incenter, I)</h3>
+      <p><strong>定义：</strong>平分三角形内角的射线。</li>
+      <p><strong>性质：</strong></p>
+      <ul>
+        <li>三条角平分线交于一点，称为<strong>内心 \(I\)</strong>。</li>
+        <li>内心到三条边的距离相等（即内切圆半径 \(r\)）。</li>
+        <li>内心一定在三角形内部。</li>
+      </ul>
+    `;
+  } else if (mode === 'euler' && showEuler) {
+    content = `
+      <h3>欧拉线 (Euler Line)</h3>
+      <p><strong>神奇的发现：</strong></p>
+      <p>在任意非等边三角形中，<strong>外心 \(O\)、重心 \(G\)、垂心 \(H\)</strong> 总是共线的。</p>
+      <p>这条线称为欧拉线。</p>
+      <p><strong>位置关系：</strong>重心 \(G\) 位于 \(O\) 和 \(H\) 之间，且 \( HG = 2GO \)。</p>
+    `;
+  } else {
+    // 如果取消勾选，显示默认或另一项
+    content = `<p style="color:#7f8c8d;">请选择并勾选一个几何概念以查看详细定义。</p>`;
+  }
+
+  // 渲染
+  mathDisplay.innerHTML = content;
+  // 必须重新触发 MathJax
+  MathJax.typesetPromise([mathDisplay]).catch(err => console.log(err));
+}
+
+// 初始化 MathJax
+window.onload = function() {
+  updateExplanation('none');
+};
+
+</script>
+</body>
+</html>

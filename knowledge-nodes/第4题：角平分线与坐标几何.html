@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>第4题：角平分线与坐标几何 - 交互式可视化</title>
+    
+    <!-- External Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #475569;
+            --accent-color: #f59e0b;
+            --bg-color: #f8fafc;
+            --panel-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-color: #1e293b;
+            --success-color: #10b981;
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; /* Prevent body scroll, use inner scroll */
+        }
+
+        /* Header */
+        header {
+            background: var(--panel-bg);
+            border-bottom: 1px solid var(--border-color);
+            padding: 0 24px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            flex-shrink: 0;
+            z-index: 10;
+        }
+
+        h1 {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-color);
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .tag {
+            background: var(--primary-color);
+            color: white;
+            font-size: 12px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+
+        /* Main Layout */
+        main {
+            display: flex;
+            flex: 1;
+            height: calc(100vh - 60px);
+            overflow: hidden;
+        }
+
+        /* Left Panel: Controls & Text */
+        #control-panel {
+            width: 420px;
+            background: var(--panel-bg);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            flex-shrink: 0;
+            padding: 24px;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.02);
+        }
+
+        /* Right Panel: Canvas */
+        #canvas-container {
+            flex: 1;
+            position: relative;
+            background-color: #fff;
+            background-image: radial-gradient(#e2e8f0 1px, transparent 1px);
+            background-size: 20px 20px;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        /* FIX: Ensure the p5-canvas div takes up space */
+        #p5-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* Problem Card */
+        .problem-card {
+            background: #f1f5f9;
+            border-left: 4px solid var(--secondary-color);
+            padding: 16px;
+            border-radius: 0 8px 8px 0;
+            margin-bottom: 24px;
+        }
+
+        .problem-title {
+            font-weight: 700;
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: var(--secondary-color);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .problem-text {
+            font-size: 15px;
+            line-height: 1.6;
+            color: var(--text-color);
+        }
+
+        /* Interactive Controls */
+        .controls-section {
+            background: #fff;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        }
+
+        .slider-group {
+            margin-bottom: 15px;
+        }
+
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--secondary-color);
+        }
+
+        input[type=range] {
+            width: 100%;
+            height: 6px;
+            background: #e2e8f0;
+            border-radius: 3px;
+            outline: none;
+            -webkit-appearance: none;
+            cursor: pointer;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            background: var(--primary-color);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: transform 0.1s;
+            box-shadow: 0 2px 4px rgba(37, 99, 235, 0.3);
+        }
+
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.1);
+        }
+
+        /* Explanation Step Box */
+        .step-box {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .step-indicator {
+            font-size: 12px;
+            color: var(--secondary-color);
+            margin-bottom: 8px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .step-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin: 0 0 16px 0;
+            line-height: 1.3;
+        }
+
+        .step-content {
+            font-size: 16px;
+            line-height: 1.7;
+            color: #334155;
+            margin-bottom: 20px;
+            /* Hide initially to prevent MathJax flash */
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .step-content.visible {
+            opacity: 1;
+        }
+
+        .step-content ul {
+            padding-left: 20px;
+            margin: 10px 0;
+        }
+
+        .step-content li {
+            margin-bottom: 8px;
+        }
+
+        /* Math Formula Box */
+        .math-box {
+            background: #ecfdf5;
+            border: 1px solid #d1fae5;
+            color: #047857;
+            padding: 12px;
+            border-radius: 8px;
+            font-family: "Times New Roman", serif;
+            text-align: center;
+            margin: 10px 0;
+            font-size: 1.1em;
+        }
+
+        /* Navigation Buttons */
+        .nav-buttons {
+            display: flex;
+            gap: 12px;
+            margin-top: auto;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+            box-shadow: 0 4px 6px rgba(37, 99, 235, 0.2);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: #1d4ed8;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: #fff;
+            border: 1px solid #cbd5e1;
+            color: #475569;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: #f1f5f9;
+            border-color: #94a3b8;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* Status Bar */
+        .status-bar {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.95);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            color: var(--secondary-color);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(0,0,0,0.05);
+            display: flex;
+            gap: 15px;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+
+        .status-item span {
+            font-family: monospace;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+
+        /* Responsive */
+        @media (max-width: 1000px) {
+            main { flex-direction: column; overflow-y: auto; height: auto; }
+            #control-panel { width: 100%; height: auto; border-right: none; border-bottom: 1px solid var(--border-color); }
+            #canvas-container { height: 60vh; min-height: 400px; }
+            body { overflow: auto; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>
+        <span class="tag">平面几何</span>
+        第4题：角平分线与坐标几何 (v1.4)
+    </h1>
+</header>
+
+<main>
+    <!-- Left Panel -->
+    <section id="control-panel">
+        
+        <!-- Problem Statement -->
+        <div class="problem-card">
+            <div class="problem-title">题目大意</div>
+            <div class="problem-text">
+                在平面直角坐标系 \(xOy\) 中，\(\angle ZA = 90^\circ\) (即 \(AB \perp OA\))，\(OA=2\)，\(OB\) 平分 \(\angle AOx\)。<br>
+                已知点 \(B(a-1, a-2)\)，求点 \(B\) 关于 \(x\) 轴的对称点坐标。
+            </div>
+        </div>
+
+        <!-- Interactive Controls -->
+        <div class="controls-section">
+            <div class="slider-group">
+                <div class="slider-label">
+                    <span>改变角度 \(\angle AOx\)</span>
+                    <span id="angle-val">50°</span>
+                </div>
+                <input type="range" id="angleSlider" min="15" max="80" value="50" step="1">
+            </div>
+            <div style="font-size: 13px; color: #64748b; line-height: 1.4;">
+                <span style="color:var(--accent-color);">💡 提示：</span> 拖动滑块观察，无论角度如何变化，点 \(B\) 的位置有什么特殊规律？
+            </div>
+        </div>
+
+        <!-- Step Content -->
+        <div class="step-box">
+            <div class="step-indicator">Step <span id="step-num">1</span> / 5</div>
+            <h2 class="step-title" id="step-title">加载中...</h2>
+            <div class="step-content" id="step-content">
+                <!-- Dynamic Content Here -->
+            </div>
+        </div>
+
+        <!-- Navigation -->
+        <div class="nav-buttons">
+            <button class="btn-secondary" id="btn-prev" onclick="prevStep()" disabled>
+                ← 上一步
+            </button>
+            <button class="btn-primary" id="btn-next" onclick="nextStep()">
+                下一步 →
+            </button>
+        </div>
+    </section>
+
+    <!-- Right Panel -->
+    <section id="canvas-container">
+        <div id="p5-canvas"></div>
+        <div class="status-bar">
+            <div class="status-item">A点: <span id="val-A">Loading...</span></div>
+            <div class="status-item">B点: <span id="val-B">Loading...</span></div>
+        </div>
+    </section>
+</main>
+
+<script>
+/**
+ * MathPhysics_Interactive_Visualizer_Ultimate_v1.4
+ * Subject: Mathematics / Plane Geometry / Coordinate System
+ * Engine: Pure p5.js (No Matter.js needed for geometry)
+ */
+
+// --- Configuration & Constants ---
+const CONFIG = {
+    colors: {
+        primary: '#2563eb',   // Blue
+        secondary: '#475569', // Slate
+        accent: '#f59e0b',    // Amber
+        highlight: '#ef4444', // Red
+        success: '#10b981',   // Green (Fixed)
+        grid: '#e2e8f0',
+        axis: '#0f172a',
+        text: '#1e293b'
+    },
+    layout: {
+        scale: 80, // Pixels per unit
+        originOffset: { x: 0.2, y: 0.7 } // Relative to canvas size
+    },
+    anim: {
+        duration: 60, // Frames
+        speed: 0.05
+    }
+};
+
+// --- Global State ---
+let state = {
+    step: 0,           // 0 to 4
+    angleDeg: 50,      // Current angle AOx
+    animProgress: 0,   // 0.0 to 1.0 for folding animation
+    isAnimating: false
+};
+
+// --- DOM Elements ---
+const ui = {
+    stepNum: document.getElementById('step-num'),
+    stepTitle: document.getElementById('step-title'),
+    stepContent: document.getElementById('step-content'),
+    angleSlider: document.getElementById('angleSlider'),
+    angleVal: document.getElementById('angle-val'),
+    btnPrev: document.getElementById('btn-prev'),
+    btnNext: document.getElementById('btn-next'),
+    valA: document.getElementById('val-A'),
+    valB: document.getElementById('val-B')
+};
+
+// --- Step Content Data ---
+const stepsData = [
+    {
+        title: "1. 建立模型与观察",
+        content: `
+            <p>首先根据题意建立坐标系：</p>
+            <ul>
+                <li>\\(OA = 2\\)，\\(\\angle AOx\\) 为变量（可尝试拖动滑块改变）。</li>
+                <li>\\(AB \\perp OA\\)（垂线）。</li>
+                <li>\\(OB\\) 平分 \\(\\angle AOx\\)。</li>
+            </ul>
+            <p><strong>观察：</strong>请试着拖动上方的角度滑块。注意观察点 \\(B\\) 的移动轨迹。你会发现尽管 \\(A\\) 点动了，\\(B\\) 点的<strong>横坐标</strong>似乎锁定在某个值？</p>
+        `
+    },
+    {
+        title: "2. 几何构造：轴对称",
+        content: `
+            <p>为了求 \\(B\\) 点坐标，我们需要利用<strong>角平分线的对称性</strong>。</p>
+            <p><strong>操作：</strong>将 \\(\\triangle OAB\\) 沿着角平分线 \\(OB\\) 向下“折叠”。</p>
+            <ul>
+                <li>射线 \\(OA\\) 会重合到 \\(x\\) 轴上。</li>
+                <li>点 \\(A\\) 会落在 \\(x\\) 轴上的点 \\(A'\\) 处。</li>
+            </ul>
+            <div class="math-box">\\(OA' = OA = 2\\)</div>
+            <p>请看右侧动画演示这一过程。</p>
+        `
+    },
+    {
+        title: "3. 确定 B 点横坐标",
+        content: `
+            <p>折叠后，由全等三角形性质可知：</p>
+            <ul>
+                <li>\\(\\triangle OAB \\cong \\triangle OA'B\\)</li>
+                <li>\\(\\angle OA'B = \\angle OAB = 90^\\circ\\)</li>
+            </ul>
+            <p>这意味着 \\(BA' \\perp Ox\\)。因此，点 \\(B\\) 的横坐标 \\(x_B\\) 就等于 \\(OA'\\) 的长度。</p>
+            <div class="math-box">\\(x_B = 2\\)</div>
+            <p>这解释了为什么无论角度怎么变，\\(B\\) 点始终在 \\(x=2\\) 这条竖线上。</p>
+        `
+    },
+    {
+        title: "4. 代数求解",
+        content: `
+            <p>回到题目代数条件。已知点 \\(B(a-1, a-2)\\)。</p>
+            <p>我们已经求出横坐标为 2：</p>
+            <div class="math-box">
+                \\(a - 1 = 2 \\implies a = 3\\)
+            </div>
+            <p>将 \\(a=3\\) 代入纵坐标：</p>
+            <div class="math-box">
+                \\(y_B = a - 2 = 3 - 2 = 1\\)
+            </div>
+            <p>所以点 \\(B\\) 的实际坐标为 \\((2, 1)\\)。(此时对应的 \\(\\alpha \\approx 53^\\circ\\))</p>
+        `
+    },
+    {
+        title: "5. 最终答案",
+        content: `
+            <p>题目最后要求点 \\(B\\) 关于 \\(x\\) 轴的对称点。</p>
+            <p>根据对称口诀：<strong>“关于 \\(x\\) 轴对称，横不变，纵变号”</strong>。</p>
+            <div class="math-box">
+                \\((2, 1) \\xrightarrow{x轴对称} (2, -1)\\)
+            </div>
+            <p style="color:var(--primary-color); font-weight:bold;">故答案选 C。</p>
+        `
+    }
+];
+
+// --- p5.js Implementation ---
+
+let canvasW, canvasH;
+let origin = { x: 0, y: 0 };
+let imgGrid; // Cached background grid
+
+function setup() {
+    // FIX: Measure the parent container instead of the inner div to avoid 0 height
+    const container = document.getElementById('canvas-container');
+    canvasW = container.clientWidth;
+    canvasH = container.clientHeight;
+    
+    // Create canvas and parent it to the inner wrapper
+    const cnv = createCanvas(canvasW, canvasH);
+    cnv.parent('p5-canvas');
+    
+    // Initialize UI
+    ui.angleSlider.addEventListener('input', (e) => {
+        state.angleDeg = parseInt(e.target.value);
+        ui.angleVal.innerText = state.angleDeg + "°";
+    });
+
+    updateUIContent();
+    windowResized(); // Ensure layout matches
+}
+
+function windowResized() {
+    const container = document.getElementById('canvas-container');
+    if (container) {
+        canvasW = container.clientWidth;
+        canvasH = container.clientHeight;
+        resizeCanvas(canvasW, canvasH);
+        origin.x = canvasW * CONFIG.layout.originOffset.x;
+        origin.y = canvasH * CONFIG.layout.originOffset.y;
+    }
+}
+
+function draw() {
+    background(255);
+    
+    // 1. Draw Grid & Axes
+    drawGridSystem();
+
+    // 2. Calculation
+    const angleRad = radians(state.angleDeg);
+    const scalePx = CONFIG.layout.scale;
+    const OA_len = 2;
+    
+    // Coordinates
+    // A: Polar(2, angle)
+    const Ax = OA_len * cos(angleRad);
+    const Ay = OA_len * sin(angleRad);
+    
+    // B geometry:
+    // B is on bisector (angle/2).
+    // In Triangle OAB, angle OAB = 90.
+    // OB = OA / cos(angle/2)
+    // Bx = OB * cos(angle/2) = OA = 2 ! (The proof)
+    // By = OB * sin(angle/2) = OA * tan(angle/2)
+    const angleHalf = angleRad / 2;
+    const Bx = 2; 
+    const By = 2 * tan(angleHalf);
+    
+    // A' (Projection on x axis)
+    const A_prime_x = 2;
+    const A_prime_y = 0;
+
+    // Convert to screen
+    const sO = toScreen(0, 0);
+    const sA = toScreen(Ax, Ay);
+    const sB = toScreen(Bx, By);
+    const sAp = toScreen(A_prime_x, A_prime_y); // A'
+    const sXEnd = toScreen(5, 0); // x-axis direction
+    
+    // Update Status Bar
+    ui.valA.innerText = `(${nf(Ax,1,2)}, ${nf(Ay,1,2)})`;
+    ui.valB.innerText = `(${nf(Bx,1,2)}, ${nf(By,1,2)})`;
+
+    // 3. Draw Base Geometry
+    
+    // Fill Angle Sector
+    fill(255, 240, 200, 150);
+    noStroke();
+    // In p5.js, positive angles are clockwise. 
+    // Our math Y is up, screen Y is down.
+    // So positive math angle corresponds to NEGATIVE p5 angle (counter-clockwise).
+    // Arc starts from -angleRad to 0.
+    arc(sO.x, sO.y, 100, 100, -angleRad, 0);
+    
+    // Draw Rays
+    stroke(CONFIG.colors.text); strokeWeight(2);
+    // OA
+    line(sO.x, sO.y, sA.x, sA.y);
+    // Ox Axis (already drawn but reinforce ray)
+    // OB Ray
+    stroke(CONFIG.colors.primary); 
+    drawingContext.setLineDash([5, 5]);
+    const rayLen = 5.5;
+    const sRayB = toScreen(rayLen*cos(angleHalf), rayLen*sin(angleHalf));
+    line(sO.x, sO.y, sRayB.x, sRayB.y);
+    drawingContext.setLineDash([]);
+
+    // Draw Triangle OAB lines
+    stroke(CONFIG.colors.text); strokeWeight(2);
+    line(sA.x, sA.y, sB.x, sB.y); // AB
+    
+    // Right Angle Mark at A
+    drawRightAngle(sA.x, sA.y, angleRad + PI/2, 15);
+
+    // Draw Points
+    drawPoint(sO.x, sO.y, "O", -20, 20);
+    drawPoint(sA.x, sA.y, "A", -10, -15);
+    drawPoint(sB.x, sB.y, "B", 15, 0, CONFIG.colors.primary);
+
+    // 4. Step-specific Visualizations
+    
+    // Animation Logic for Step 1 -> 2
+    if (state.step === 1 && state.isAnimating) {
+        state.animProgress += CONFIG.anim.speed;
+        if (state.animProgress >= 1) {
+            state.animProgress = 1;
+            state.isAnimating = false;
+        }
+    }
+
+    // Step 1+: Show A' Ghost if animating or done
+    if (state.step >= 1) {
+        const p = state.animProgress;
+        // Animation: fold Triangle OAB to OA'B
+        
+        if (p > 0) {
+            // Current folding angle for A
+            // Start at angleRad, End at 0
+            const currAngle = lerp(angleRad, 0, p);
+            const currAx = OA_len * cos(currAngle);
+            const currAy = OA_len * sin(currAngle);
+            const sCurrA = toScreen(currAx, currAy);
+
+            fill(254, 215, 170, 100); // Amber hint
+            stroke(CONFIG.colors.accent);
+            drawingContext.setLineDash([2, 4]);
+            triangle(sO.x, sO.y, sB.x, sB.y, sCurrA.x, sCurrA.y);
+            drawingContext.setLineDash([]);
+            
+            if (p < 1) {
+               drawPoint(sCurrA.x, sCurrA.y, "", 0, 0, CONFIG.colors.accent, 4);
+            }
+        }
+
+        // Draw Final A' (fixed on x-axis)
+        if (p >= 1 || state.step > 1) {
+            stroke(CONFIG.colors.highlight);
+            strokeWeight(2);
+            line(sB.x, sB.y, sAp.x, sAp.y); // BA'
+            drawPoint(sAp.x, sAp.y, "A'", 0, 25, CONFIG.colors.highlight);
+            
+            // Mark Right Angle at A'
+            drawRightAngle(sAp.x, sAp.y, PI/2, 15, CONFIG.colors.highlight);
+            
+            // Highlight OA' distance
+            drawBracket(sO.x, sO.y + 35, sAp.x, sAp.y + 35, "2", CONFIG.colors.highlight);
+        }
+    }
+
+    // Step 2+: Show x_B = 2 construction line explicit
+    if (state.step >= 2) {
+        stroke(CONFIG.colors.secondary);
+        drawingContext.setLineDash([4, 4]);
+        line(sB.x, sB.y, sAp.x, sAp.y); // Vertical line
+        drawingContext.setLineDash([]);
+        
+        // Label x=2
+        noStroke(); fill(CONFIG.colors.highlight); textSize(16); textStyle(BOLD);
+        text("x = 2", sAp.x - 20, sAp.y + 55);
+    }
+
+    // Step 4+: Reflection across X axis
+    if (state.step === 4) {
+        const B_refl_y = -By;
+        const sBRefl = toScreen(Bx, B_refl_y);
+        
+        stroke(CONFIG.colors.success);
+        drawingContext.setLineDash([5, 5]);
+        line(sB.x, sB.y, sBRefl.x, sBRefl.y);
+        drawingContext.setLineDash([]);
+        
+        drawPoint(sBRefl.x, sBRefl.y, "C(2, -1)", 15, 5, CONFIG.colors.success);
+        
+        const correctB = toScreen(2, 1);
+        const correctC = toScreen(2, -1);
+        
+        // Ghost correct solution
+        if (abs(By - 1) > 0.1) {
+            drawPoint(correctB.x, correctB.y, "B(2,1)", 15, 0, 'rgba(37, 99, 235, 0.4)');
+            drawPoint(correctC.x, correctC.y, "C(2,-1)", 15, 0, 'rgba(16, 185, 129, 0.4)');
+        }
+    }
+}
+
+// --- Helper Functions ---
+
+function toScreen(x, y) {
+    return {
+        x: origin.x + x * CONFIG.layout.scale,
+        y: origin.y - y * CONFIG.layout.scale
+    };
+}
+
+function drawGridSystem() {
+    const scale = CONFIG.layout.scale;
+    const left = -origin.x / scale;
+    const right = (width - origin.x) / scale;
+    const top = origin.y / scale;
+    const bottom = -(height - origin.y) / scale;
+
+    stroke(CONFIG.colors.grid); strokeWeight(1);
+    
+    // Grid lines
+    for (let i = Math.floor(left); i <= right; i++) {
+        const x = origin.x + i * scale;
+        line(x, 0, x, height);
+    }
+    for (let i = Math.floor(bottom); i <= top; i++) {
+        const y = origin.y - i * scale;
+        line(0, y, width, y);
+    }
+
+    // Axes
+    stroke(CONFIG.colors.axis); strokeWeight(2);
+    line(0, origin.y, width, origin.y); // X axis
+    line(origin.x, 0, origin.x, height); // Y axis
+
+    // Axis Labels
+    fill(CONFIG.colors.text); noStroke(); textSize(16); textStyle(ITALIC);
+    text("x", width - 20, origin.y + 20);
+    text("y", origin.x - 20, 20);
+    text("O", origin.x - 20, origin.y + 20);
+}
+
+function drawPoint(x, y, label, offsetX=10, offsetY=-10, color=CONFIG.colors.text, size=8) {
+    fill(color); noStroke();
+    circle(x, y, size);
+    stroke(255); strokeWeight(2); noFill(); circle(x, y, size); // white ring
+
+    if (label) {
+        fill(color); noStroke(); textSize(16); textStyle(BOLD);
+        text(label, x + offsetX, y + offsetY);
+    }
+}
+
+function drawRightAngle(x, y, rotation, size=15, color=CONFIG.colors.text) {
+    push();
+    translate(x, y);
+    rotate(-rotation); // p5 rotation is clockwise
+    stroke(color); strokeWeight(1.5); noFill();
+    beginShape();
+    vertex(size, 0);
+    vertex(size, size);
+    vertex(0, size);
+    endShape();
+    pop();
+}
+
+function drawBracket(x1, y1, x2, y2, label, color) {
+    stroke(color); strokeWeight(1.5);
+    line(x1, y1, x1, y1 + 5);
+    line(x1, y1 + 5, x2, y1 + 5);
+    line(x2, y1 + 5, x2, y2);
+    
+    fill(color); noStroke(); textSize(14); textAlign(CENTER);
+    text(label, (x1+x2)/2, y1 + 20);
+    textAlign(LEFT); // Reset
+}
+
+// --- UI Logic ---
+
+function updateUIContent() {
+    // 1. Text Update
+    ui.stepNum.innerText = state.step + 1;
+    ui.stepTitle.innerText = stepsData[state.step].title;
+    
+    // Fade out, update, fade in
+    ui.stepContent.classList.remove('visible');
+    
+    setTimeout(() => {
+        ui.stepContent.innerHTML = stepsData[state.step].content;
+        // Re-render MathJax
+        MathJax.typesetPromise([ui.stepContent]).then(() => {
+            ui.stepContent.classList.add('visible');
+        });
+    }, 200);
+
+    // 2. Button State
+    ui.btnPrev.disabled = (state.step === 0);
+    ui.btnNext.disabled = (state.step === stepsData.length - 1);
+    
+    // 3. Logic Triggers
+    if (state.step === 1) {
+        state.isAnimating = true;
+        state.animProgress = 0;
+    } else {
+        state.animProgress = (state.step > 1) ? 1 : 0;
+        state.isAnimating = false;
+    }
+
+    // 4. Auto-adjustment
+    if (state.step === 3 && abs(state.angleDeg - 53) > 5) {
+        // Optional: Encourage user to move slider to ~53 deg?
+    }
+}
+
+function nextStep() {
+    if (state.step < stepsData.length - 1) {
+        state.step++;
+        updateUIContent();
+    }
+}
+
+function prevStep() {
+    if (state.step > 0) {
+        state.step--;
+        updateUIContent();
+    }
+}
+
+</script>
+</body>
+</html>
