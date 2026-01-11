@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>几何光学可视化：光的折射与全反射 (Optics: Refraction & TIR)</title>
+  <!-- Load p5.js ONLY (No Matter.js for Optics) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <!-- Load MathJax -->
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #f0f2f5;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+      color: #333;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    #main-container {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      justify-content: center;
+      width: 95%;
+      max-width: 1400px;
+      margin-top: 20px;
+      gap: 20px;
+      background: white;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    /* Control Panel */
+    #control-panel {
+      flex: 1;
+      min-width: 320px;
+      max-width: 400px;
+      padding: 24px;
+      background-color: #fafafa;
+      border-right: 1px solid #e0e0e0;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      height: 700px;
+      overflow-y: auto;
+    }
+
+    .panel-section {
+      border-bottom: 1px solid #eee;
+      padding-bottom: 16px;
+      margin-bottom: 8px;
+    }
+
+    .panel-title {
+      font-size: 1.2em;
+      font-weight: bold;
+      margin-bottom: 12px;
+      color: #2c3e50;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .control-group {
+      margin-bottom: 12px;
+    }
+
+    label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.95em;
+      margin-bottom: 6px;
+      color: #555;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: #8e44ad;
+    }
+
+    .value-display {
+      font-weight: bold;
+      color: #8e44ad;
+      font-family: monospace;
+    }
+
+    button {
+      background-color: #8e44ad;
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 1em;
+      transition: background 0.2s;
+      width: 100%;
+      margin-bottom: 8px;
+    }
+
+    button:hover {
+      background-color: #732d91;
+    }
+
+    button.secondary {
+      background-color: #95a5a6;
+      font-size: 0.9em;
+      padding: 8px 12px;
+    }
+    
+    button.secondary:hover {
+      background-color: #7f8c8d;
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+      cursor: pointer;
+    }
+    
+    .toggle-row input {
+      width: auto;
+      transform: scale(1.2);
+    }
+
+    /* Visualization Area */
+    #canvas-container {
+      flex: 2;
+      min-width: 600px;
+      min-height: 600px;
+      position: relative;
+      background-color: #ffffff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+    }
+
+    /* Formula Overlay */
+    #formula-box {
+      background: rgba(255, 255, 255, 0.95);
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 16px;
+      margin-top: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      font-size: 0.9em;
+      color: #444;
+    }
+
+    #status-bar {
+      width: 100%;
+      background: #333;
+      color: #fff;
+      padding: 8px 20px;
+      font-size: 0.9em;
+      text-align: center;
+      margin-top: auto;
+    }
+
+    .warning-text {
+      color: #e74c3c;
+      font-weight: bold;
+      font-size: 0.9em;
+      margin-top: 4px;
+      display: none; /* Hidden by default */
+    }
+
+    /* Responsive adjustment */
+    @media (max-width: 1000px) {
+      #control-panel {
+        max-width: 100%;
+        border-right: none;
+        border-bottom: 1px solid #e0e0e0;
+        height: auto;
+      }
+      #main-container {
+        flex-direction: column;
+      }
+      #canvas-container {
+        min-width: 100%;
+        height: 500px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div id="main-container">
+  <!-- Left Panel: Controls & Explanation -->
+  <div id="control-panel">
+    <div class="panel-section">
+      <div class="panel-title">📚 题目解析 (Analysis)</div>
+      <div style="font-size: 0.95em; line-height: 1.5; color: #444;">
+        <p><strong>实验场景：</strong>光线从玻璃砖内部（左下方）沿半径射向圆心，在平界面处发生折射或全反射。</p>
+        <p><strong>坐标定义：</strong>左侧水平线为 0°，正上方为 90°，右侧为 180°，正下方为 270°。</p>
+      </div>
+      <div id="formula-box">
+        <strong>折射定律 (Snell's Law):</strong>
+        <div id="math-snell">\[ n \sin \theta_1 = 1 \cdot \sin \theta_2 \]</div>
+        <strong>临界角 (Critical Angle):</strong>
+        <div id="math-critical">\[ C = \arcsin \left( \frac{1}{n} \right) \]</div>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-title">⚙️ 实验参数 (Parameters)</div>
+      
+      <div class="control-group">
+        <label>光源位置角度 (Source Pos): <span id="val-angle" class="value-display">315.0°</span></label>
+        <!-- Step reduced to 0.1 for precision -->
+        <input type="range" id="slider-angle" min="0" max="360" step="0.1" value="315">
+        <div style="font-size:0.8em; color:#888; margin-top:4px;">0°=左, 90°=上, 180°=右, 270°=下, 315°=左下</div>
+      </div>
+
+      <div class="control-group">
+        <label>玻璃折射率 (Index \(n\)): <span id="val-index" class="value-display">1.50</span></label>
+        <input type="range" id="slider-index" min="1.0" max="2.5" step="0.01" value="1.50">
+      </div>
+      
+      <div id="critical-info" style="font-size:0.85em; color:#666; margin-top:5px; display:flex; flex-direction:column; gap:5px;">
+        <div>当前临界角 C ≈ <span id="val-critical">-</span></div>
+        <button id="btn-set-critical" class="secondary">🎯 一键设为临界角 (Set to Critical)</button>
+      </div>
+      
+      <div id="tir-warning" class="warning-text">⚠️ 发生全反射 (Total Internal Reflection)</div>
+
+      <div class="control-group" style="margin-top: 15px;">
+        <button id="btn-reset" class="secondary">↺ 重置实验 (Reset)</button>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-title">👁️ 辅助显示 (Visuals)</div>
+      
+      <label class="toggle-row">
+        <input type="checkbox" id="chk-normal" checked>
+        <span>显示法线 (Show Normal)</span>
+      </label>
+      
+      <label class="toggle-row">
+        <input type="checkbox" id="chk-protractor" checked>
+        <span>显示量角器 (Show Protractor)</span>
+      </label>
+      
+      <label class="toggle-row">
+        <input type="checkbox" id="chk-values" checked>
+        <span>显示角度数值 (Show Values)</span>
+      </label>
+    </div>
+  </div>
+
+  <!-- Right Panel: Visualization Canvas -->
+  <div id="canvas-container">
+    <div id="p5-canvas"></div>
+  </div>
+</div>
+
+<div id="status-bar">就绪 - 拖动滑块或直接拖动激光笔</div>
+
+<script>
+// --- CONFIGURATION ---
+const CONFIG = {
+  glassRadius: 200,
+  glassColor: [52, 152, 219, 50], // RGBA light blue
+  glassStroke: [41, 128, 185],
+  rayColorSource: [231, 76, 60], // Red laser
+  rayColorReflect: [231, 76, 60, 150], // Faded red
+  rayColorRefract: [231, 76, 60],
+  normalColor: [100, 100, 100],
+  width: 800,
+  height: 600
+};
+
+// --- GLOBAL VARIABLES ---
+let canvas;
+let sliderAngle, sliderIndex;
+let valAngle, valIndex, valCritical;
+let chkNormal, chkProtractor, chkValues;
+let btnReset, btnSetCritical;
+let tirWarningDiv;
+
+// State
+let angleInput = 315; 
+
+function setup() {
+  const container = document.getElementById('canvas-container');
+  const w = container.clientWidth;
+  const h = container.clientHeight || 600;
+  canvas = createCanvas(w, h);
+  canvas.parent('p5-canvas');
+  
+  // UI References
+  sliderAngle = document.getElementById('slider-angle');
+  sliderIndex = document.getElementById('slider-index');
+  valAngle = document.getElementById('val-angle');
+  valIndex = document.getElementById('val-index');
+  valCritical = document.getElementById('val-critical');
+  chkNormal = document.getElementById('chk-normal');
+  chkProtractor = document.getElementById('chk-protractor');
+  chkValues = document.getElementById('chk-values');
+  btnReset = document.getElementById('btn-reset');
+  btnSetCritical = document.getElementById('btn-set-critical');
+  tirWarningDiv = document.getElementById('tir-warning');
+
+  // Listeners
+  sliderAngle.oninput = updateState;
+  sliderIndex.oninput = updateState;
+  btnReset.onclick = resetExperiment;
+  
+  btnSetCritical.onclick = () => {
+    const n = parseFloat(sliderIndex.value);
+    const critDeg = degrees(Math.asin(1/n));
+    // Determine target side based on current approximate position
+    // Normal is 270 (Down).
+    // If current is Left of Normal (>270), set to 270 + C.
+    // If current is Right of Normal (<270), set to 270 - C.
+    // Default to Left (315 area) if confusing.
+    let current = parseFloat(sliderAngle.value);
+    let target = 0;
+    
+    // Simple heuristic: if between 180 and 270, use Right side. Otherwise use Left side.
+    if (current > 180 && current < 270) {
+      target = 270 - critDeg;
+    } else {
+      target = 270 + critDeg;
+    }
+    
+    sliderAngle.value = target;
+    updateState();
+  };
+  
+  window.addEventListener('resize', () => {
+    const cw = container.clientWidth;
+    const ch = container.clientHeight || 600;
+    resizeCanvas(cw, ch);
+  });
+
+  angleMode(DEGREES);
+  textAlign(CENTER, CENTER);
+  updateState();
+  
+  // MathJax
+  MathJax.typesetPromise();
+}
+
+function resetExperiment() {
+  sliderAngle.value = 315; 
+  sliderIndex.value = 1.5;
+  chkNormal.checked = true;
+  chkProtractor.checked = true;
+  updateState();
+}
+
+function updateState() {
+  angleInput = parseFloat(sliderAngle.value);
+  const n = parseFloat(sliderIndex.value);
+  
+  valAngle.textContent = angleInput.toFixed(1) + "°";
+  valIndex.textContent = n.toFixed(2);
+  
+  // Calculate critical angle: sin C = 1/n
+  const critRad = Math.asin(1/n);
+  const critDeg = degrees(critRad);
+  valCritical.textContent = critDeg.toFixed(1) + "°";
+  
+  // Update status bar based on region
+  const region = getRegion(angleInput);
+  let status = "";
+  if (region === 'air_to_glass') status = "光从空气射入玻璃 (Air → Glass)";
+  else status = "光从玻璃射向空气 (Glass → Air)";
+  
+  document.getElementById('status-bar').textContent = status;
+}
+
+// Helper: 0-180 is Air (Top), 180-360 is Glass (Bottom)
+function getRegion(angle) {
+  // Normalize
+  let a = angle % 360;
+  if (a < 0) a += 360;
+  if (a > 180 && a < 360) return 'glass_to_air'; 
+  return 'air_to_glass';
+}
+
+function draw() {
+  background(255);
+  translate(width/2, height/2); // Center is origin (0,0)
+
+  const n = parseFloat(sliderIndex.value);
+  const r = CONFIG.glassRadius;
+
+  // 1. Draw Protractor (Background)
+  if (chkProtractor.checked) {
+    drawProtractor(r * 1.2);
+  }
+
+  // 2. Draw Glass Block (Semi-circle in Bottom Half)
+  noStroke();
+  fill(CONFIG.glassColor);
+  arc(0, 0, r*2, r*2, 0, 180);
+  
+  // Draw Flat Surface Line
+  stroke(CONFIG.glassStroke);
+  strokeWeight(2);
+  line(-r, 0, r, 0);
+  
+  // Draw Curved Boundary (Outline)
+  noFill();
+  stroke(CONFIG.glassStroke);
+  strokeWeight(1);
+  arc(0, 0, r*2, r*2, 0, 180);
+
+  // 3. Draw Normal Line (Y-axis)
+  if (chkNormal.checked) {
+    stroke(CONFIG.normalColor);
+    strokeWeight(1);
+    drawingContext.setLineDash([5, 5]);
+    line(0, -r*1.2, 0, r*1.2);
+    drawingContext.setLineDash([]); // Reset dash
+    
+    // Label N
+    noStroke();
+    fill(100);
+    textSize(12);
+    text("N", 10, -r*1.1); // Top Normal
+    text("N'", 10, r*1.1); // Bottom Normal
+  }
+
+  // 4. Physics & Rays
+  // Coordinate Mapping: Slider 0=Left(180), 90=Top(270), 180=Right(0), 270=Bottom(90)
+  // Formula: p5Angle = 180 + sliderAngle (mod 360)
+  let p5Angle = (180 + angleInput) % 360;
+  
+  // Source Coordinates
+  let srcDist = r * 1.3;
+  let srcX = cos(p5Angle) * srcDist;
+  let srcY = sin(p5Angle) * srcDist;
+  
+  // Draw Incident Ray
+  stroke(CONFIG.rayColorSource);
+  strokeWeight(3);
+  drawRayLine(srcX, srcY, 0, 0, true);
+  
+  let region = getRegion(angleInput);
+  let theta1 = 0; // Incidence angle (with Normal)
+  let theta2 = 0; // Refraction angle (with Normal)
+  let isTIR = false;
+  
+  if (region === 'air_to_glass') {
+    // Normal is Vertical Up (Slider 90).
+    theta1 = Math.abs(angleInput - 90);
+    
+    // Snell's Law
+    let sin2 = sin(theta1) / n;
+    theta2 = degrees(Math.asin(sin2));
+    
+    // -- REFLECTION (Partial) --
+    stroke(CONFIG.rayColorReflect);
+    strokeWeight(1.5);
+    drawRayLine(0, 0, -srcX, srcY, true);
+    
+    // -- REFRACTION --
+    let signX = (angleInput < 90) ? 1 : -1;
+    let refrP5Angle = (signX === 1) ? (90 - theta2) : (90 + theta2);
+    
+    let refrLen = r * 1.5;
+    let refrX = cos(refrP5Angle) * refrLen;
+    let refrY = sin(refrP5Angle) * refrLen;
+    
+    stroke(CONFIG.rayColorRefract);
+    strokeWeight(3);
+    drawRayLine(0, 0, refrX, refrY, true);
+    
+    if(chkValues.checked) {
+      drawLabelBackground(refrX/2, refrY/2, "r = " + theta2.toFixed(1) + "°");
+    }
+    
+  } else {
+    // Glass to Air (Bottom)
+    // Normal is Vertical Down (Slider 270).
+    theta1 = Math.abs(angleInput - 270);
+    
+    // Snell's Law: n * sin(t1) = 1 * sin(t2)
+    let sin2 = n * sin(theta1);
+    
+    // Check TIR
+    // Use a small epsilon to catch floating point noise, but ALLOW exactly 1.0 (90 deg)
+    if (sin2 > 1.0001) {
+      isTIR = true;
+      theta2 = 90;
+    } else {
+      // Clamp for cases like 1.0000001 -> 1.0
+      if (sin2 > 1.0) sin2 = 1.0;
+      theta2 = degrees(Math.asin(sin2));
+    }
+    
+    // -- REFLECTION (Internal) --
+    stroke(isTIR ? CONFIG.rayColorRefract : CONFIG.rayColorReflect);
+    strokeWeight(isTIR ? 3 : 1.5);
+    drawRayLine(0, 0, -srcX, srcY, true);
+    
+    // -- REFRACTION --
+    // Draw if theta2 <= 90 (which includes the Critical case)
+    if (theta2 <= 90) {
+       let signX = (angleInput < 270) ? -1 : 1;
+       let refrP5Angle = (signX === 1) ? (270 + theta2) : (270 - theta2);
+       
+       let refrLen = r * 1.5;
+       let refrX = cos(refrP5Angle) * refrLen;
+       let refrY = sin(refrP5Angle) * refrLen;
+       
+       // Draw Critical Ray (Orange) if very close to 90
+       if (Math.abs(theta2 - 90) < 0.2) {
+         stroke(255, 165, 0); 
+       } else {
+         stroke(CONFIG.rayColorRefract);
+       }
+       strokeWeight(3);
+       
+       // Only draw if NOT fully TIR (or if it IS Critical Angle boundary)
+       // sin2 > 1.0001 implies TIR. sin2 <= 1.0001 implies Refraction or Critical.
+       if (sin2 <= 1.0001) {
+          drawRayLine(0, 0, refrX, refrY, true);
+          if(chkValues.checked) {
+            drawLabelBackground(refrX/2, refrY/2, "r = " + theta2.toFixed(1) + "°");
+          }
+       }
+    }
+  }
+  
+  // Incident Angle Label
+  if(chkValues.checked) {
+    drawLabelBackground(srcX/2, srcY/2, "i = " + theta1.toFixed(1) + "°");
+  }
+
+  // Warning for TIR (Show only if significantly past critical angle)
+  // Calculate exact critical angle for comparison
+  let critDeg = degrees(Math.asin(1/n));
+  if (theta1 > critDeg + 0.1) {
+    tirWarningDiv.style.display = 'block';
+  } else {
+    tirWarningDiv.style.display = 'none';
+  }
+}
+
+// --- HELPERS ---
+
+function drawRayLine(x1, y1, x2, y2, arrow) {
+  line(x1, y1, x2, y2);
+  if (arrow) {
+    let mx = lerp(x1, x2, 0.6);
+    let my = lerp(y1, y2, 0.6);
+    let angle = atan2(y2 - y1, x2 - x1);
+    
+    push();
+    translate(mx, my);
+    rotate(angle);
+    fill(strokeColor()); 
+    noStroke();
+    triangle(0, 0, -8, 4, -8, -4);
+    pop();
+  }
+}
+
+function strokeColor() {
+  return drawingContext.strokeStyle;
+}
+
+function drawLabelBackground(x, y, txt) {
+  noStroke();
+  fill(255, 255, 255, 200);
+  rectMode(CENTER);
+  let w = textWidth(txt) + 10;
+  rect(x, y, w, 20, 4);
+  fill(0);
+  text(txt, x, y);
+}
+
+function drawProtractor(radius) {
+  push();
+  noFill();
+  stroke(220);
+  strokeWeight(1);
+  circle(0, 0, radius * 2);
+  
+  // Ticks
+  for (let a = 0; a < 360; a += 10) {
+    let r1 = (a % 90 === 0) ? radius - 15 : radius - 8;
+    let r2 = radius;
+    let x1 = cos(a) * r1;
+    let y1 = sin(a) * r1;
+    let x2 = cos(a) * r2;
+    let y2 = sin(a) * r2;
+    line(x1, y1, x2, y2);
+    
+    // Numbers
+    if (a % 30 === 0) {
+      let rText = radius + 15;
+      let tx = cos(a) * rText;
+      let ty = sin(a) * rText;
+      fill(180);
+      noStroke();
+      textSize(10);
+      
+      let sliderVal = (a - 180);
+      if (sliderVal < 0) sliderVal += 360;
+      
+      text(sliderVal, tx, ty);
+    }
+  }
+  pop();
+}
+
+function mouseDragged() {
+  if (mouseX > 0 && mouseX < width && mouseY > 0 && mouseY < height) {
+    let cx = width / 2;
+    let cy = height / 2;
+    let dx = mouseX - cx;
+    let dy = mouseY - cy;
+    let p5Angle = degrees(atan2(dy, dx)); 
+    if (p5Angle < 0) p5Angle += 360;
+    
+    let sliderVal = p5Angle - 180;
+    if (sliderVal < 0) sliderVal += 360;
+    
+    sliderAngle.value = sliderVal;
+    updateState();
+  }
+}
+</script>
+</body>
+</html>

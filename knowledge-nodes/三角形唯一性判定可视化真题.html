@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>三角形唯一性判定可视化 (Triangle Uniqueness)</title>
+  
+  <!-- CDNs -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-light: #eff6ff;
+      --text: #1f2937;
+      --border: #e5e7eb;
+      --bg: #f9fafb;
+      --fail: #ef4444;
+      --pass: #10b981;
+      --warn: #f59e0b;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; outline: none; }
+    body { font-family: "Noto Sans SC", system-ui, sans-serif; background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; display: flex; }
+
+    /* Layout */
+    #sidebar {
+      width: 400px;
+      height: 100vh;
+      background: #fff;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      z-index: 20;
+      box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+
+    #canvas-container {
+      flex: 1;
+      position: relative;
+      background: #fafafa;
+      overflow: hidden;
+      cursor: grab;
+    }
+    #canvas-container:active { cursor: grabbing; }
+
+    /* Sidebar Components */
+    .panel { padding: 16px; border-bottom: 1px solid var(--border); }
+    .panel-title { font-weight: bold; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+    
+    .btn {
+      padding: 8px 16px;
+      background: #fff;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+    .btn:hover { background: var(--primary-light); border-color: var(--primary); color: var(--primary); }
+    .btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    
+    .option-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+    
+    .info-card {
+      background: var(--primary-light);
+      border: 1px solid #bfdbfe;
+      padding: 12px;
+      border-radius: 6px;
+      font-size: 14px;
+      line-height: 1.5;
+      margin-bottom: 10px;
+    }
+
+    /* Problem Card */
+    .problem-box { font-size: 15px; line-height: 1.6; color: #374151; background: #fff; padding: 12px; border: 1px solid var(--border); border-radius: 6px; }
+    .tex-source { font-family: monospace; font-size: 12px; color: #6b7280; background: #f3f4f6; padding: 4px; border-radius: 4px; margin-top: 8px; display: block; overflow-x: auto; }
+
+    /* Guided Overlay */
+    #guided-overlay {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 480px;
+      max-width: 90%;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(4px);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+      z-index: 30;
+      transition: all 0.3s ease;
+      display: none;
+    }
+    #guided-overlay.visible { display: block; animation: slideDown 0.3s ease-out; }
+    
+    @keyframes slideDown { from { opacity: 0; transform: translate(-50%, -20px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+    .step-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .step-title { font-weight: bold; color: var(--primary); }
+    .step-counter { font-size: 12px; color: #6b7280; background: #f3f4f6; padding: 2px 8px; border-radius: 10px; }
+    .step-content { font-size: 15px; line-height: 1.6; margin-bottom: 12px; min-height: 60px; }
+    .step-formula { background: #f8fafc; padding: 8px; border-radius: 6px; margin-top: 8px; border-left: 3px solid var(--primary); font-size: 14px; }
+    
+    .nav-btn {
+      padding: 6px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: #fff;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .nav-btn:hover:not(:disabled) { background: var(--primary-light); color: var(--primary); }
+    .nav-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Status Bar */
+    .status-item { display: flex; justify-content: space-between; font-size: 13px; padding: 6px 0; border-bottom: 1px dashed #eee; }
+    .status-val { font-family: monospace; font-weight: bold; }
+    .pass { color: var(--pass); }
+    .fail { color: var(--fail); }
+    .warn { color: var(--warn); }
+
+    /* MathJax Hidden */
+    .math-container { visibility: hidden; }
+  </style>
+</head>
+<body>
+
+  <!-- Sidebar -->
+  <div id="sidebar">
+    <!-- Problem Card -->
+    <div class="panel">
+      <div class="panel-title">题目原题 (可复制)</div>
+      <div class="problem-box">
+        <div id="prob-stmt-cn"></div>
+        <button class="btn" style="margin-top:8px; width:100%; font-size:12px;" onclick="copyProblem()">复制题面 TeX</button>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="panel">
+      <div class="panel-title">
+        <span>选项控制</span>
+        <button class="btn" style="font-size:12px" onclick="resetApp()">重置</button>
+      </div>
+      
+      <div class="info-card">
+        点击下方选项，观察几何作图与判定结果。
+      </div>
+
+      <div class="option-grid">
+        <button class="btn active" id="btn-opt-A" onclick="setOption('A')">选项 A (SSA钝)</button>
+        <button class="btn" id="btn-opt-B" onclick="setOption('B')">选项 B (SSS)</button>
+        <button class="btn" id="btn-opt-C" onclick="setOption('C')">选项 C (SSA锐)</button>
+        <button class="btn" id="btn-opt-D" onclick="setOption('D')">选项 D (AAA)</button>
+      </div>
+
+      <div id="slider-container-D" style="display:none; margin-top:12px;">
+        <label style="font-size:13px; font-weight:bold; display:block; margin-bottom:6px;">
+          调整三角形大小 (Scale)
+        </label>
+        <input type="range" id="slider-scale" min="0.5" max="3" step="0.1" value="1.5" style="width:100%" oninput="updateParams()">
+        <div style="font-size:12px; color:#666; margin-top:4px; text-align:right;">
+          不改变角度，只改变边长
+        </div>
+      </div>
+
+      <div style="margin-top:16px;">
+        <label class="panel-title" style="font-size:14px; margin-bottom:8px;">教学模式</label>
+        <div style="display:flex; gap:8px;">
+          <button class="btn active" id="mode-guided" onclick="setMode('guided')">引导模式</button>
+          <button class="btn" id="mode-explore" onclick="setMode('explore')">探索模式</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Verification -->
+    <div class="panel">
+      <div class="panel-title">验证/自检</div>
+      <div id="verification-content">
+        <!-- Dynamic Content -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Canvas -->
+  <div id="canvas-container">
+    <div id="guided-overlay" class="visible">
+      <div class="step-header">
+        <span class="step-title" id="overlay-title">步骤标题</span>
+        <span class="step-counter" id="overlay-counter">1/1</span>
+      </div>
+      <div class="step-content" id="overlay-reasoning">
+        内容加载中...
+      </div>
+      <div class="step-formula math-container" id="overlay-formula">
+        \[ ... \]
+      </div>
+      <div style="display:flex; justify-content:space-between; margin-top:12px;">
+        <button class="nav-btn" id="btn-prev" onclick="changeStep(-1)">上一步</button>
+        <button class="nav-btn" id="btn-next" onclick="changeStep(1)">下一步</button>
+      </div>
+    </div>
+    <!-- p5 canvas injected here -->
+  </div>
+
+<script>
+/**
+ * MathPhysics_Interactive_Visualizer_Ultimate_v3.1.4
+ * Core Logic: Solve-Then-Draw, Logic-First, Visual Proof
+ */
+
+// --- GLOBAL STATE ---
+const STATE = {
+  option: 'A', // 'A', 'B', 'C', 'D'
+  mode: 'guided', // 'guided', 'explore'
+  stepIndex: 0,
+  params: {
+    scaleD: 1.5, // Only for Option D
+  },
+  view: {
+    scale: 40, // pixels per unit
+    offsetX: 0,
+    offsetY: 0,
+    isDragging: false,
+    lastMouse: { x: 0, y: 0 }
+  },
+  problem: {
+    // FIX: Add number, wrap triangle in \( \)
+    stmtCN: "10. 根据下列条件, 能画出唯一一个 \\(\\triangle ABC\\) 的是 (  ).",
+    options: [
+      { id: 'A', label: 'A', tex: 'AB=4, BC=6, \\angle A=120^{\\circ}' },
+      { id: 'B', label: 'B', tex: 'AB=1, BC=2, AC=3' },
+      { id: 'C', label: 'C', tex: 'AB=4, BC=3, \\angle A=30^{\\circ}' },
+      { id: 'D', label: 'D', tex: '\\angle A=30^{\\circ}, \\angle B=60^{\\circ}, \\angle C=90^{\\circ}' }
+    ]
+  },
+  geometry: null, // Computed geometric objects
+  planSteps: [],  // Guided steps
+  anim: {
+    time: 0,
+    focusPulse: 0
+  }
+};
+
+let mainCanvas; // Define global canvas variable to fix scope issues
+
+// --- P5.JS SETUP & DRAW ---
+function setup() {
+  const container = document.getElementById('canvas-container');
+  // Assign to global mainCanvas instead of local const
+  mainCanvas = createCanvas(container.clientWidth, container.clientHeight);
+  mainCanvas.parent(container);
+  
+  // Initialize View
+  resetView();
+  
+  // DOM Event Listeners for Pan/Zoom (Native for strict scoping)
+  mainCanvas.elt.addEventListener('wheel', handleWheel, { passive: false });
+  mainCanvas.elt.addEventListener('pointerdown', handlePointerDown);
+  mainCanvas.elt.addEventListener('pointermove', handlePointerMove);
+  mainCanvas.elt.addEventListener('pointerup', handlePointerUp);
+  mainCanvas.elt.addEventListener('pointercancel', handlePointerUp);
+  
+  // Initial Build
+  recomputeAll();
+}
+
+function windowResized() {
+  const container = document.getElementById('canvas-container');
+  resizeCanvas(container.clientWidth, container.clientHeight);
+}
+
+function draw() {
+  background(250);
+  
+  // Update Animation
+  STATE.anim.time += deltaTime / 1000;
+  STATE.anim.focusPulse = (Math.sin(STATE.anim.time * 4) + 1) / 2; // 0..1 pulse
+  
+  push();
+  // Apply View Transform
+  translate(width/2 + STATE.view.offsetX, height/2 + STATE.view.offsetY);
+  scale(STATE.view.scale);
+  // Flip Y to Cartesian (Up is Positive)
+  scale(1, -1);
+  
+  // Draw Grid/Axes
+  drawGrid();
+  
+  // Draw Geometry
+  if (STATE.geometry) {
+    drawGeometry(STATE.geometry);
+  }
+  
+  pop();
+}
+
+// --- CORE LOGIC: LOGIC-FIRST GEOMETRY ---
+function recomputeAll() {
+  // 1. Calculate Geometry based on constraints (Solve-Then-Draw)
+  STATE.geometry = calculateGeometry(STATE.option, STATE.params);
+  
+  // 2. Build Guided Plan Steps
+  STATE.planSteps = buildPlanSteps(STATE.option, STATE.geometry);
+  
+  // 3. Update UI (Overlay, Sidebar)
+  updateUI();
+  
+  // 4. Trigger MathJax
+  renderMathQueue();
+}
+
+function calculateGeometry(option, params) {
+  // Common origin A
+  const A = { x: 0, y: 0, label: 'A' };
+  let objs = { points: [A], lines: [], circles: [], arcs: [], labels: [], resultType: '' };
+  
+  if (option === 'A') {
+    // A: AB=4, BC=6, Angle A=120
+    const angleA = 120 * (Math.PI / 180);
+    const AB_len = 4;
+    const BC_len = 6;
+    
+    // B is at 120 deg
+    const B = { x: AB_len * Math.cos(angleA), y: AB_len * Math.sin(angleA), label: 'B' };
+    
+    // Ray AC is on positive x-axis
+    // Intersection of Circle(B, 6) with Ray(A, 1, 0)
+    // (x - Bx)^2 + (y - By)^2 = 6^2, with y=0, x>0
+    // (x - Bx)^2 + By^2 = 36
+    // (x - Bx)^2 = 36 - By^2
+    const term = BC_len*BC_len - B.y*B.y; // 36 - (4 sin120)^2 = 36 - 16*(3/4) = 36 - 12 = 24
+    let C_x = 0;
+    
+    if (term > 0) {
+      const sqrtTerm = Math.sqrt(term);
+      const x1 = B.x + sqrtTerm; // -2 + 4.89 = 2.89 (Valid > 0)
+      const x2 = B.x - sqrtTerm; // -2 - 4.89 = -6.89 (Invalid < 0 for Ray)
+      
+      // Since Angle A is fixed, C must be on the ray defining the angle. 
+      // Usually standard position aligns one side with x-axis.
+      if (x1 > 0) C_x = x1;
+    }
+    
+    const C = { x: C_x, y: 0, label: 'C' };
+    
+    objs.points.push(B, C);
+    objs.lines.push({ p1: A, p2: B, style: 'solid', label: 'c=4' });
+    objs.lines.push({ p1: A, p2: {x: 8, y:0}, style: 'ray', label: 'Ray' }); // Ray AC
+    objs.circles.push({ center: B, r: BC_len, style: 'arc', start: -1, end: 1 }); // Visual arc
+    objs.lines.push({ p1: B, p2: C, style: 'solid', label: 'a=6' });
+    objs.lines.push({ p1: A, p2: C, style: 'solid', label: 'b' });
+    
+    objs.resultType = 'unique'; // 1 solution
+    objs.meta = { AB: 4, BC: 6, AngleA: 120 };
+
+  } else if (option === 'B') {
+    // B: AB=1, BC=2, AC=3
+    // SSS. Check triangle inequality. 1+2=3. Collinear.
+    const B = { x: 1, y: 0, label: 'B' };
+    // C is intersection of Circle(A, 3) and Circle(B, 2)
+    // A=(0,0), B=(1,0).
+    // x^2 + y^2 = 9
+    // (x-1)^2 + y^2 = 4 => x^2 - 2x + 1 + y^2 = 4
+    // 9 - 2x + 1 = 4 => 10 - 2x = 4 => 2x = 6 => x = 3.
+    // y^2 = 9 - 9 = 0.
+    const C = { x: 3, y: 0, label: 'C' };
+    
+    objs.points.push(B, C);
+    objs.circles.push({ center: A, r: 3, style: 'dash', label: 'b=3' });
+    objs.circles.push({ center: B, r: 2, style: 'dash', label: 'a=2' });
+    objs.lines.push({ p1: A, p2: C, style: 'solid', color: '#ff0000' }); // Show the line
+    
+    objs.resultType = 'none'; // Degenerate
+    objs.meta = { AB: 1, BC: 2, AC: 3, sum: '1+2=3' };
+
+  } else if (option === 'C') {
+    // C: AB=4, BC=3, Angle A=30
+    // SSA Ambiguous
+    const angleA = 30 * (Math.PI / 180);
+    const AB_len = 4;
+    const BC_len = 3;
+    
+    const B = { x: AB_len * Math.cos(angleA), y: AB_len * Math.sin(angleA), label: 'B' };
+    // Height h = 4 * sin(30) = 2.
+    // a = 3. h < a < c (2 < 3 < 4). Two solutions.
+    
+    // (x - Bx)^2 + By^2 = 9
+    // By = 2. term = 9 - 4 = 5.
+    // x = Bx +/- sqrt(5)
+    // Bx = 4 cos30 = 2sqrt(3) approx 3.46
+    // x1 = 3.46 - 2.23 = 1.23
+    // x2 = 3.46 + 2.23 = 5.69
+    // Both > 0. Two valid points on Ray.
+    
+    const sqrtTerm = Math.sqrt(BC_len*BC_len - B.y*B.y);
+    const C1 = { x: B.x - sqrtTerm, y: 0, label: 'C1' };
+    const C2 = { x: B.x + sqrtTerm, y: 0, label: 'C2' };
+    
+    objs.points.push(B, C1, C2);
+    objs.lines.push({ p1: A, p2: B, style: 'solid', label: 'c=4' });
+    objs.lines.push({ p1: A, p2: {x: 8, y:0}, style: 'ray' });
+    objs.circles.push({ center: B, r: BC_len, style: 'circle' });
+    objs.lines.push({ p1: B, p2: C1, style: 'dash', label: 'a' });
+    objs.lines.push({ p1: B, p2: C2, style: 'dash', label: 'a' });
+    objs.lines.push({ p1: A, p2: C2, style: 'solid' }); // Base line
+    
+    objs.resultType = 'two';
+    objs.meta = { h: 2, a: 3, c: 4 };
+
+  } else if (option === 'D') {
+    // D: Angles 30, 60, 90. AAA.
+    // Scale from params
+    const s = params.scaleD; 
+    // Build a 30-60-90 triangle. Sides 1 : sqrt(3) : 2.
+    // Let hypotenuse AB = 2 * s.
+    // A=(0,0). B=(AB, 0) ? No, let's keep A at origin.
+    // Angle A = 30. Angle B = 60. Angle C = 90.
+    // Let side b (AC) be on x-axis.
+    // C = (b, 0).
+    // tan(30) = a/b => 1/sqrt(3) = a/b => b = a*sqrt(3).
+    // Let's parametrise by 'a' (BC).
+    // If a = s. b = s*sqrt(3). c = 2*s.
+    
+    const C = { x: s * Math.sqrt(3), y: 0, label: 'C' };
+    const B = { x: s * Math.sqrt(3), y: s, label: 'B' }; // C is 90 deg corner? Wait.
+    // A=30, B=60, C=90.
+    // A at (0,0). AC along X axis.
+    // AC = b. BC = a (vertical).
+    // A=(0,0), C=(b,0), B=(b, a).
+    // Angle at C is 90. Correct.
+    // Angle at A: tan A = a/b = 1/sqrt(3) -> 30 deg. Correct.
+    
+    objs.points.push({x:0,y:0,label:'A'}, C, B); // Re-push A to ensure order
+    objs.lines.push({ p1: {x:0,y:0}, p2: C, style: 'solid', label: 'b' });
+    objs.lines.push({ p1: C, p2: B, style: 'solid', label: 'a' });
+    objs.lines.push({ p1: {x:0,y:0}, p2: B, style: 'solid', label: 'c' });
+    
+    // Ghost triangle to show non-uniqueness
+    const s2 = s * 0.6;
+    const C2 = { x: s2 * Math.sqrt(3), y: 0 };
+    const B2 = { x: s2 * Math.sqrt(3), y: s2 };
+    objs.ghosts = [{ pts: [{x:0,y:0}, C2, B2] }];
+    
+    objs.resultType = 'infinite';
+    objs.meta = { scale: s };
+  }
+  
+  return objs;
+}
+
+// --- PLAN STEPS BUILDER (Guided Mode) ---
+function buildPlanSteps(option, geom) {
+  const steps = [];
+  
+  // 1. GIVENS Step
+  steps.push({
+    titleCN: "第一步：分析已知条件",
+    reasoningCN: "首先确认题目给出的边角数据。注意单位与位置关系。",
+    formulasTeX: [ STATE.problem.options.find(o => o.id === option).tex ],
+    focusObjects: [],
+    checkItemNameCN: "已知条件"
+  });
+  
+  if (option === 'A') {
+    steps.push({
+      titleCN: "第二步：画出定角与邻边",
+      reasoningCN: "先作 \\(\\angle A = 120^{\\circ}\\)，并在其中一条边上截取 \\(AB=4\\)。",
+      formulasTeX: [ String.raw`\angle A = 120^{\circ}, AB=4` ],
+      focusObjects: [{ type: 'ang', ids: ['A'] }, { type: 'seg', ids: ['AB'] }]
+    });
+    steps.push({
+      titleCN: "第三步：以B为圆心画弧",
+      reasoningCN: "以点 \\(B\\) 为圆心，半径 \\(a=6\\) 画圆，寻找与 \\(AC\\) 射线的交点。",
+      formulasTeX: [ String.raw`BC = a = 6` ],
+      focusObjects: [{ type: 'circ', ids: ['B'] }]
+    });
+    steps.push({
+      titleCN: "第四步：判定交点个数",
+      reasoningCN: "因为 \\(\\angle A\\) 是钝角，且 \\(a > c\\) (\\(6 > 4\\))，圆弧与射线 \\(AC\\) 只有一个交点。",
+      formulasTeX: [ String.raw`a > c \Rightarrow \text{唯一解}` ],
+      focusObjects: [{ type: 'pt', ids: ['C'] }]
+    });
+    steps.push({
+      titleCN: "结论：唯一确定",
+      reasoningCN: "满足“边边角” (SSA) 条件，且为钝角大边对大角，故能唯一画出 \\(\\triangle ABC\\)。",
+      formulasTeX: [ String.raw`\therefore \text{选项 A 符合}` ],
+      focusObjects: [{ type: 'tri', ids: ['ABC'] }]
+    });
+  } else if (option === 'B') {
+    steps.push({
+      titleCN: "第二步：尝试构建三角形",
+      reasoningCN: "画出最长边 \\(AC=3\\)。尝试以 \\(A\\) 为圆心画 \\(r=1\\)，以 \\(C\\) 为圆心画 \\(r=2\\) (注：演示中以 A, B为端点)。",
+      formulasTeX: [ String.raw`AC=3, AB=1, BC=2` ],
+      focusObjects: [{ type: 'seg', ids: ['AB', 'AC'] }] 
+    });
+    steps.push({
+      titleCN: "第三步：检查三边关系",
+      reasoningCN: "我们发现 \\(AB + BC = 1 + 2 = 3 = AC\\)。两圆外切于一点，三点共线。",
+      formulasTeX: [ String.raw`a+b=c \Rightarrow \text{三点共线}` ],
+      focusObjects: [{ type: 'pt', ids: ['C'] }]
+    });
+    steps.push({
+      titleCN: "结论：构不成三角形",
+      reasoningCN: "不满足“三角形两边之和大于第三边”。这是一个退化三角形（线段），不符合题意。",
+      formulasTeX: [ String.raw`\therefore \text{排除选项 B}` ],
+      focusObjects: []
+    });
+  } else if (option === 'C') {
+    steps.push({
+      titleCN: "第二步：画出定角与邻边",
+      reasoningCN: "作 \\(\\angle A = 30^{\\circ}\\)，截取 \\(AB=4\\)。",
+      formulasTeX: [ String.raw`\angle A = 30^{\circ}, c=4` ],
+      focusObjects: [{ type: 'ang', ids: ['A'] }]
+    });
+    steps.push({
+      titleCN: "第三步：计算垂距 (高)",
+      reasoningCN: "点 \\(B\\) 到 \\(AC\\) 的垂直距离 \\(h = c \\cdot \\sin A = 4 \\sin 30^{\\circ} = 2\\)。",
+      formulasTeX: [ String.raw`h = 2` ],
+      focusObjects: []
+    });
+    steps.push({
+      titleCN: "第四步：比较对边与高",
+      reasoningCN: "已知对边 \\(a=3\\)。因为 \\(h < a < c\\) (\\(2 < 3 < 4\\))，圆弧与射线有两个交点。",
+      formulasTeX: [ String.raw`h < a < c \Rightarrow \text{两解}` ],
+      focusObjects: [{ type: 'pt', ids: ['C1', 'C2'] }]
+    });
+    steps.push({
+      titleCN: "结论：不唯一",
+      reasoningCN: "这是典型的“边边角” (SSA) 歧义情况，存在两个满足条件的三角形。",
+      formulasTeX: [ String.raw`\therefore \text{排除选项 C}` ],
+      focusObjects: [{ type: 'tri', ids: ['ABC1', 'ABC2'] }]
+    });
+  } else if (option === 'D') {
+    steps.push({
+      titleCN: "第二步：分析角度条件",
+      reasoningCN: "已知三个内角分别为 \\(30^{\\circ}, 60^{\\circ}, 90^{\\circ}\\)。",
+      formulasTeX: [ String.raw`\angle A+\angle B+\angle C = 180^{\\circ}` ],
+      focusObjects: [{ type: 'ang', ids: ['A', 'B', 'C'] }]
+    });
+    steps.push({
+      titleCN: "第三步：形状与大小",
+      reasoningCN: "三个角确定了三角形的形状（相似），但没有限制边长的大小。",
+      formulasTeX: [ String.raw`\triangle ABC \sim \triangle A'B'C'` ],
+      focusObjects: []
+    });
+    steps.push({
+      titleCN: "结论：无数解",
+      reasoningCN: "可以画出无数个大小不同但形状相同的三角形。不唯一。",
+      formulasTeX: [ String.raw`\therefore \text{排除选项 D}` ],
+      focusObjects: [{ type: 'tri', ids: ['ABC_ghost'] }]
+    });
+  }
+  
+  return steps;
+}
+
+// --- RENDER FUNCTIONS ---
+function drawGrid() {
+  const currentScale = STATE.view.scale;
+  stroke(220);
+  strokeWeight(1 / currentScale); // FIX: Scale stroke weight
+  // Simple grid lines
+  const sz = 100; // grid size world space ? No, huge. 1 unit.
+  // Draw axes
+  stroke(200);
+  line(-100, 0, 100, 0);
+  line(0, -100, 0, 100);
+  
+  // X Axis Ticks
+  fill(150);
+  noStroke();
+  textSize(0.4);
+  textAlign(CENTER, TOP);
+  push(); scale(1,-1);
+  for(let i=-10; i<=10; i++) {
+    if(i===0) continue;
+    text(i, i, 0.5);
+    stroke(220);
+    strokeWeight(1 / currentScale); // FIX: Scale tick marks
+    line(i, -10, i, 10);
+  }
+  pop();
+}
+
+function drawGeometry(geom) {
+  const currentScale = STATE.view.scale;
+  
+  // Check focus from current step
+  const step = STATE.planSteps[STATE.stepIndex] || {};
+  const focuses = (STATE.mode === 'guided' && step.focusObjects) ? step.focusObjects : [];
+  
+  const isFocused = (type, idLabel) => {
+    if (STATE.mode !== 'guided') return false;
+    return focuses.some(f => f.type === type && (!f.ids || f.ids.some(id => idLabel.includes(id))));
+  };
+
+  // Draw Ghosts (for Option D)
+  if (geom.ghosts) {
+    stroke(200);
+    strokeWeight(1 / currentScale); // FIX
+    noFill();
+    setLineDash([5 / currentScale, 5 / currentScale]); // FIX: Scale dash
+    geom.ghosts.forEach(g => {
+      beginShape();
+      g.pts.forEach(p => vertex(p.x, p.y));
+      endShape(CLOSE);
+    });
+    setLineDash([]);
+  }
+
+  // Draw Circles/Arcs
+  geom.circles.forEach(c => {
+    const focus = isFocused('circ', c.center.label || '');
+    stroke(focus ? '#2563eb' : '#9ca3af');
+    strokeWeight((focus ? 3 : 1) / currentScale); // FIX: Scale stroke
+    noFill();
+    if (c.style === 'dash') setLineDash([5 / currentScale, 5 / currentScale]); // FIX
+    
+    if (c.start !== undefined) {
+      // Arc
+      arc(c.center.x, c.center.y, c.r*2, c.r*2, c.start, c.end); // p5 arc takes w, h
+    } else {
+      circle(c.center.x, c.center.y, c.r*2);
+    }
+    setLineDash([]);
+  });
+
+  // Draw Lines
+  geom.lines.forEach(l => {
+    // Focus logic: match line endpoints to segment ids if needed
+    // Simple heuristic: check if line label matches or endpoints match
+    let focus = false;
+    if (STATE.mode === 'guided') {
+      // Check if this line corresponds to a focused segment ID like 'AB'
+      const label1 = l.p1.label || '';
+      const label2 = l.p2.label || '';
+      const id = label1 + label2;
+      const idRev = label2 + label1;
+      focus = focuses.some(f => f.type === 'seg' && f.ids && (f.ids.includes(id) || f.ids.includes(idRev)));
+    }
+    
+    stroke(focus ? '#2563eb' : (l.color || '#374151'));
+    strokeWeight((focus ? 4 : 2) / currentScale); // FIX: Scale stroke
+    if (l.style === 'dash') setLineDash([5 / currentScale, 5 / currentScale]); // FIX
+    else setLineDash([]);
+    
+    line(l.p1.x, l.p1.y, l.p2.x, l.p2.y);
+    
+    // Label
+    if (l.label) {
+      noStroke();
+      fill(focus ? '#2563eb' : '#6b7280');
+      textSize(0.4);
+      push(); scale(1, -1);
+      const mx = (l.p1.x + l.p2.x)/2;
+      const my = (l.p1.y + l.p2.y)/2;
+      text(l.label, mx, -my - 0.2);
+      pop();
+    }
+  });
+
+  // Draw Points
+  geom.points.forEach(p => {
+    const focus = isFocused('pt', p.label || '');
+    noStroke();
+    fill(focus ? '#ef4444' : '#1f2937');
+    const r = focus ? 0.25 : 0.15;
+    // Pulse
+    const rAnim = focus ? r + STATE.anim.focusPulse * 0.1 : r;
+    circle(p.x, p.y, rAnim * 2); // diameter (World space, works fine with scale)
+    
+    if (p.label) {
+      fill('#000');
+      textSize(0.5);
+      push(); scale(1, -1);
+      text(p.label, p.x + 0.2, -p.y - 0.2);
+      pop();
+    }
+  });
+  
+  // Highlight Triangle Fill
+  if (focuses.some(f => f.type === 'tri')) {
+    noStroke();
+    fill(37, 99, 235, 50); // Blue transparent
+    beginShape();
+    geom.points.forEach(p => vertex(p.x, p.y));
+    endShape(CLOSE);
+  }
+}
+
+function setLineDash(list) {
+  drawingContext.setLineDash(list);
+}
+
+// --- INTERACTION & UI ---
+function setOption(opt) {
+  STATE.option = opt;
+  STATE.stepIndex = 0;
+  
+  // Buttons
+  document.querySelectorAll('.option-grid .btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(`btn-opt-${opt}`).classList.add('active');
+  
+  // Slider for D
+  document.getElementById('slider-container-D').style.display = (opt === 'D') ? 'block' : 'none';
+  
+  recomputeAll();
+}
+
+function setMode(mode) {
+  STATE.mode = mode;
+  document.getElementById('mode-guided').classList.toggle('active', mode === 'guided');
+  document.getElementById('mode-explore').classList.toggle('active', mode === 'explore');
+  
+  // Overlay visibility
+  const overlay = document.getElementById('guided-overlay');
+  if (mode === 'guided') overlay.classList.add('visible');
+  else overlay.classList.remove('visible');
+  
+  recomputeAll();
+}
+
+function changeStep(delta) {
+  const newIndex = STATE.stepIndex + delta;
+  if (newIndex >= 0 && newIndex < STATE.planSteps.length) {
+    STATE.stepIndex = newIndex;
+    updateUI();
+    recomputeAll(); // To redraw focus
+  }
+}
+
+function updateParams() {
+  const val = document.getElementById('slider-scale').value;
+  STATE.params.scaleD = parseFloat(val);
+  recomputeAll();
+}
+
+function updateUI() {
+  // Overlay
+  if (STATE.mode === 'guided' && STATE.planSteps.length > 0) {
+    const step = STATE.planSteps[STATE.stepIndex];
+    document.getElementById('overlay-title').innerText = step.titleCN;
+    document.getElementById('overlay-counter').innerText = `${STATE.stepIndex + 1}/${STATE.planSteps.length}`;
+    
+    // FIX: Use innerHTML so MathJax/HTML entities are parsed
+    document.getElementById('overlay-reasoning').innerHTML = step.reasoningCN;
+    
+    const formulaEl = document.getElementById('overlay-formula');
+    const formulaTex = step.formulasTeX && step.formulasTeX.length > 0 ? `\\[ ${step.formulasTeX.join(' \\quad ')} \\]` : '';
+    renderMath(formulaEl, formulaTex);
+    
+    document.getElementById('btn-prev').disabled = (STATE.stepIndex === 0);
+    document.getElementById('btn-next').disabled = (STATE.stepIndex === STATE.planSteps.length - 1);
+  }
+
+  // Verification Panel
+  const verifEl = document.getElementById('verification-content');
+  let resultHTML = '';
+  const geom = STATE.geometry;
+  
+  if (geom) {
+    if (geom.resultType === 'unique') {
+      resultHTML += `<div class="status-item"><span class="pass">✔ 唯一解</span> <span class="status-val">1 个三角形</span></div>`;
+      resultHTML += `<div class="status-item"><span>判定:</span> <span>符合 SSA(钝)</span></div>`;
+    } else if (geom.resultType === 'none') {
+      resultHTML += `<div class="status-item"><span class="fail">✘ 无解</span> <span class="status-val">0 个三角形</span></div>`;
+      resultHTML += `<div class="status-item"><span>原因:</span> <span>三点共线 (退化)</span></div>`;
+    } else if (geom.resultType === 'two') {
+      resultHTML += `<div class="status-item"><span class="warn">! 多解</span> <span class="status-val">2 个三角形</span></div>`;
+      resultHTML += `<div class="status-item"><span>原因:</span> <span>SSA 歧义</span></div>`;
+    } else if (geom.resultType === 'infinite') {
+      resultHTML += `<div class="status-item"><span class="warn">! 无数解</span> <span class="status-val">∞ 个三角形</span></div>`;
+      resultHTML += `<div class="status-item"><span>原因:</span> <span>AAA (相似)</span></div>`;
+    }
+  }
+  verifEl.innerHTML = resultHTML;
+}
+
+function resetApp() {
+  STATE.option = 'A';
+  STATE.stepIndex = 0;
+  STATE.params.scaleD = 1.5;
+  setOption('A');
+  resetView();
+}
+
+function resetView() {
+  STATE.view.scale = 40;
+  STATE.view.offsetX = -50;
+  STATE.view.offsetY = 50;
+}
+
+// --- MATHJAX ---
+let mathJaxPending = false;
+function renderMathQueue() {
+  if (mathJaxPending) return;
+  mathJaxPending = true;
+  requestAnimationFrame(() => {
+    if (window.MathJax) {
+      MathJax.typesetPromise().then(() => {
+        document.querySelectorAll('.math-container').forEach(el => el.style.visibility = 'visible');
+        mathJaxPending = false;
+      }).catch(err => {
+        console.warn('MathJax error', err);
+        mathJaxPending = false;
+      });
+    }
+  });
+}
+
+function renderMath(el, tex) {
+  el.style.visibility = 'hidden';
+  // Fallback for control chars
+  if (/[\x00-\x1F]/.test(tex)) {
+    el.innerText = "公式含非法字符，已显示纯文本";
+    el.style.visibility = 'visible';
+    return;
+  }
+  el.innerHTML = tex; // Set raw tex
+  // Typeset will happen in queue
+}
+
+function copyProblem() {
+  const tex = document.getElementById('prob-stmt-cn').innerText; // Simplify
+  navigator.clipboard.writeText(STATE.problem.stmtCN + "\n" + STATE.problem.options.map(o=>o.label+": "+o.tex).join('\n'));
+}
+
+// --- PAN / ZOOM ---
+function handleWheel(e) {
+  e.preventDefault();
+  const zoomSensitivity = 0.001;
+  const zoomFactor = Math.exp(-e.deltaY * zoomSensitivity);
+  
+  // Zoom to mouse pointer logic
+  // Screen center is (width/2, height/2)
+  // Mouse relative to center:
+  const mx = e.offsetX - width/2 - STATE.view.offsetX;
+  const my = e.offsetY - height/2 - STATE.view.offsetY;
+  
+  const newScale = constrain(STATE.view.scale * zoomFactor, 10, 200);
+  const scaleRatio = newScale / STATE.view.scale;
+  
+  STATE.view.offsetX -= mx * (scaleRatio - 1);
+  STATE.view.offsetY -= my * (scaleRatio - 1);
+  STATE.view.scale = newScale;
+  
+  recomputeAll();
+}
+
+function handlePointerDown(e) {
+  // Only drag if clicking on blank (simple heuristic: always allow pan for now)
+  STATE.view.isDragging = true;
+  STATE.view.lastMouse = { x: e.clientX, y: e.clientY };
+  if (mainCanvas && mainCanvas.elt) {
+    mainCanvas.elt.setPointerCapture(e.pointerId);
+  }
+}
+
+function handlePointerMove(e) {
+  if (!STATE.view.isDragging) return;
+  const dx = e.clientX - STATE.view.lastMouse.x;
+  const dy = e.clientY - STATE.view.lastMouse.y;
+  
+  STATE.view.offsetX += dx;
+  STATE.view.offsetY += dy;
+  STATE.view.lastMouse = { x: e.clientX, y: e.clientY };
+  
+  // Just redraw, no need to recompute geometry
+  loop(); 
+}
+
+function handlePointerUp(e) {
+  STATE.view.isDragging = false;
+  if (mainCanvas && mainCanvas.elt) {
+    mainCanvas.elt.releasePointerCapture(e.pointerId);
+  }
+}
+
+// --- INIT ---
+// FIX: Render options in the problem box
+const probContainer = document.getElementById('prob-stmt-cn');
+let fullHtml = `<p>${STATE.problem.stmtCN}</p>`;
+fullHtml += `<div style="margin-top:8px; font-size:14px; color:#4b5563;">`;
+STATE.problem.options.forEach(opt => {
+  fullHtml += `<div style="margin-bottom:4px;">(${opt.label}) \\(${opt.tex}\\)</div>`;
+});
+fullHtml += `</div>`;
+probContainer.innerHTML = fullHtml;
+
+// Pre-render static math
+// (Handled by MathJax auto-run on load, but we trigger manually for dynamic)
+renderMathQueue();
+</script>
+</body>
+</html>

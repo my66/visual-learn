@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>几何探究：等边三角形外角与对称变换</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --secondary: #10b981;
+            --accent: #f59e0b;
+            --highlight: #ffd700;
+            --bg-light: #f8fafc;
+            --text-dark: #1e293b;
+            --border: #e2e8f0;
+            --card-bg: #ffffff;
+        }
+        body { margin: 0; padding: 0; font-family: 'Noto Sans SC', sans-serif; background: var(--bg-light); color: var(--text-dark); height: 100vh; overflow: hidden; display: flex; }
+        
+        /* Layout: Sidebar + Canvas */
+        #sidebar {
+            width: 380px; /* Slightly narrower to give more space to canvas */
+            height: 100vh;
+            background: var(--card-bg);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.05);
+            z-index: 10;
+        }
+        #canvas-container {
+            flex: 1;
+            position: relative;
+            background: #ffffff;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Problem Card */
+        .problem-card {
+            background: #eff6ff;
+            padding: 16px;
+            border-bottom: 1px solid var(--border);
+            /* Removed flex-shrink: 0 to allow proper sizing logic, but let's keep logic simple: 
+               Just let it take natural height. */
+        }
+        .problem-header {
+            font-weight: bold;
+            color: var(--primary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 0.95em;
+        }
+        .copy-btn {
+            background: white;
+            border: 1px solid var(--primary);
+            color: var(--primary);
+            padding: 2px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8em;
+            transition: all 0.2s;
+        }
+        .copy-btn:hover { background: var(--primary); color: white; }
+        
+        /* UPDATED: Problem text full height */
+        .problem-text { 
+            font-size: 0.9em; 
+            line-height: 1.6; 
+            color: #334155; 
+            /* Removed max-height and overflow-y */
+        }
+
+        /* Scrollable Content (for the rest of sidebar) */
+        .scroll-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+        }
+
+        /* NEW: Canvas Overlay for Guided Steps */
+        #guided-overlay {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            max-width: 600px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(5px);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            z-index: 100;
+            transition: opacity 0.3s;
+        }
+        #guided-overlay.hidden {
+            display: none;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* Step Guide Styling inside Overlay */
+        .step-header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .step-title { font-weight: bold; font-size: 1.1em; color: var(--primary); }
+        .step-nav { display: flex; gap: 8px; }
+        
+        .nav-btn {
+            padding: 6px 16px; border: none; border-radius: 20px; cursor: pointer;
+            font-weight: 500; transition: 0.2s; font-size: 0.9em;
+            display: flex; align-items: center; gap: 4px;
+        }
+        .btn-prev { background: #f1f5f9; color: #64748b; }
+        .btn-next { background: var(--primary); color: white; box-shadow: 0 2px 5px rgba(37, 99, 235, 0.3); }
+        .btn-prev:hover { background: #e2e8f0; }
+        .btn-next:hover { background: #1d4ed8; }
+        .btn-prev:disabled, .btn-next:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
+
+        .step-content { 
+            font-size: 0.95em; 
+            line-height: 1.6; 
+            color: #334155;
+            max-height: 200px; /* Safety limit if content is huge */
+            overflow-y: auto;
+        }
+        .step-reasoning { margin-bottom: 8px; }
+        .step-math {
+            background: #f1f5f9;
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 0.95em;
+            border-left: 3px solid var(--accent);
+        }
+
+        /* Controls Generic */
+        .control-group { margin-bottom: 20px; background: white; border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+        .control-header { font-weight: bold; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; font-size: 0.95em; }
+        .slider-container { margin: 10px 0; }
+        .slider-label { display: flex; justify-content: space-between; font-size: 0.85em; margin-bottom: 4px; color: #64748b; }
+        input[type="range"] { width: 100%; cursor: pointer; accent-color: var(--primary); }
+
+        /* Mode Tabs */
+        .tabs { display: flex; border-bottom: 2px solid var(--border); margin-bottom: 16px; }
+        .tab { flex: 1; text-align: center; padding: 10px; cursor: pointer; font-weight: 500; color: #64748b; transition: all 0.2s; }
+        .tab.active { color: var(--primary); border-bottom: 2px solid var(--primary); margin-bottom: -2px; }
+
+        /* Validation Panel */
+        .validation-panel {
+            margin-top: 20px;
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 8px;
+            padding: 12px;
+        }
+        .validation-header { color: var(--secondary); font-weight: bold; font-size: 0.9em; margin-bottom: 8px; display: flex; justify-content: space-between; }
+        .check-item { display: flex; justify-content: space-between; font-size: 0.85em; margin-bottom: 4px; padding: 4px 0; border-bottom: 1px dashed #e2e8f0; }
+        .check-pass { color: var(--secondary); font-weight: bold; }
+        .check-fail { color: #ef4444; font-weight: bold; }
+        
+        /* Status Bar */
+        #status-bar {
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 32px;
+            background: #1e293b; color: white; display: flex; align-items: center;
+            padding: 0 16px; font-size: 0.8em; justify-content: space-between; box-sizing: border-box;
+            z-index: 20;
+        }
+
+        /* MathJax hidden */
+        .mjx-container { font-size: 1.0em !important; }
+        .hidden { display: none !important; }
+        
+        /* Toggles */
+        .toggle-row { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; font-size: 0.9em; }
+        .toggle-switch { position: relative; display: inline-block; width: 36px; height: 20px; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .slider-round { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #cbd5e1; transition: .4s; border-radius: 20px; }
+        .slider-round:before { position: absolute; content: ""; height: 16px; width: 16px; left: 2px; bottom: 2px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider-round { background-color: var(--primary); }
+        input:checked + .slider-round:before { transform: translateX(16px); }
+
+        /* Responsive Text */
+        @media (max-width: 1200px) {
+            #sidebar { width: 320px; }
+            #guided-overlay { width: 90%; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<div id="sidebar">
+    <!-- 1. Mandatory Problem Card (Full Display) -->
+    <div class="problem-card">
+        <div class="problem-header">
+            <span>题目原题（可复制）</span>
+            <button class="copy-btn" onclick="copyProblem()">复制题面</button>
+        </div>
+        <div class="problem-text" id="problem-text">
+            24. 如图, \(\angle ACD\) 是等边 \(\triangle ABC\) 的一个外角, 点 \(E\) 是 \(\angle ACD\) 内部任意一点, 作直线 \(CE\).
+            <br>(1) 当 \(CE\) 平分 \(\angle ACD\) 时, 证明: \(AB \parallel CE\).
+            <br>(2) 已知点 \(A\) 关于直线 \(CE\) 的对称点为 \(F\), 连接 \(AF, BF, CF\), 其中 \(AF, BF\) 分别交直线 \(CE\) 于 \(P, Q\) 两点. 记 \(\angle ACE = \alpha\), 当 \(0^\circ < \alpha < 60^\circ\) 时, 求 \(\angle BFC\).
+            <br>(3) 若 (2) 中的 \(\alpha\) 满足 \(0^\circ < \alpha < 120^\circ\) 时,
+            <br>① \(\angle AFB =\) ______ \(^\circ\);
+            <br>② 探究线段 \(QB, QC, QP\) 之间的数量关系, 并证明.
+        </div>
+    </div>
+
+    <div class="scroll-content">
+        <!-- 2. Mode Tabs -->
+        <div class="tabs">
+            <div class="tab active" onclick="setMode('guided')">引导模式</div>
+            <div class="tab" onclick="setMode('sandbox')">探索模式</div>
+        </div>
+
+        <!-- 3. Validation Panel (Always Visible) -->
+        <div class="validation-panel">
+            <div class="validation-header">
+                <span>验证 / 自检</span>
+                <span id="verify-status">检测中...</span>
+            </div>
+            <div id="check-list">
+                <!-- Dynamic checks -->
+            </div>
+            <div style="margin-top:8px; font-size:0.8em; color:#64748b; border-top:1px solid #e2e8f0; padding-top:4px;">
+                * 数量关系猜想: \(QB = QC + 2QP\)
+            </div>
+        </div>
+        
+        <!-- 4. Sandbox Controls (Only in Sandbox) -->
+        <div id="sandbox-controls" class="hidden">
+            <div class="control-group" style="margin-top:10px;">
+                <div class="control-header">
+                    <span>自由参数调节</span>
+                </div>
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>∠ACE (α)</span>
+                        <span id="alpha-val">30°</span>
+                    </div>
+                    <input type="range" id="alpha-slider" min="0" max="120" step="0.5" value="30">
+                </div>
+                <div class="toggle-row">
+                    <span>显示答案与轨迹</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="show-answer-check">
+                        <span class="slider-round"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Legend -->
+         <div class="control-group" style="margin-top:10px;">
+            <div class="control-header">图例说明</div>
+            <div style="font-size:0.85em; color:#475569;">
+                <span style="color:#2563eb; font-weight:bold;">● A, B, C</span> : 等边三角形顶点<br>
+                <span style="color:#f59e0b; font-weight:bold;">● F</span> : A关于CE的对称点<br>
+                <span style="color:#10b981; font-weight:bold;">━ CE</span> : 动直线 (对称轴)<br>
+                <span style="color:#9333ea; font-weight:bold;">● P, Q</span> : 交点 (P为垂足中点)<br>
+                <span style="color:#64748b; font-weight:bold;">-- CN</span> : 辅助线 (CN⊥BF)<br>
+                <span style="color:#ffd700; font-weight:bold;">━ / ◠</span> : 当前步骤高亮对象
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Canvas Container -->
+<div id="canvas-container">
+    <!-- NEW: Floating Guided Overlay -->
+    <div id="guided-overlay">
+        <div class="step-header-row">
+            <div class="step-title" id="step-title">初始状态</div>
+            <div class="step-nav">
+                <button class="nav-btn btn-prev" id="btn-prev" onclick="changeStep(-1)">
+                    <span>←</span> 上一步
+                </button>
+                <button class="nav-btn btn-next" id="btn-next" onclick="changeStep(1)">
+                    下一步 <span>→</span>
+                </button>
+            </div>
+        </div>
+        <div class="step-content">
+            <div id="step-reasoning" class="step-reasoning">
+                构建等边三角形 ABC 与外角 ∠ACD。
+            </div>
+            <div id="step-formulas" class="step-math">
+                <!-- MathJax formulas will go here -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Status Bar -->
+<div id="status-bar">
+    <span>Math/Geometry Engine Active</span>
+    <span>v3.3.0 | 布局优化版</span>
+</div>
+
+<script>
+/**
+ * ARCHITECTURE:
+ * 1. STATE: Single source of truth.
+ * 2. GEOMETRY CORE: calculateGeometry() computes all coords.
+ * 3. SOLVE/PLAN: Granular steps with focus objects for highlighting.
+ * 4. RENDER: p5.js draw() with active highlighting.
+ */
+
+// --- 1. STATE & CONFIG ---
+const STATE = {
+    problem: { sideLen: 200 },
+    params: { alpha: 30 },
+    mode: 'guided',
+    stepIndex: 0,
+    showAnswer: false,
+    view: { scale: 1, offsetX: 0, offsetY: 0, isDragging: false, lastX: 0, lastY: 0 }
+};
+
+// --- 2. PLAN STEPS (Identical to previous logic) ---
+const PLAN_STEPS = [
+    // --- Initial ---
+    {
+        titleCN: "题目条件",
+        reasoningCN: "已知等边三角形 ABC 与外角 ∠ACD。",
+        revealedObjects: ["ABC", "D"],
+        focusObjects: [{type:'tri', pts:['A','B','C']}, {type:'ang', pts:['A','C','D']}],
+        formulasTeX: ["\\triangle ABC \\text{ 等边}", "\\angle ACD = 120^\\circ"],
+        checkItemNameCN: "三角形性质",
+        setAlpha: 30
+    },
+    // --- Q1 ---
+    {
+        titleCN: "(1) 平行判定",
+        reasoningCN: "当 CE 平分 ∠ACD 时，α = 60°。",
+        revealedObjects: ["ABC", "D", "E", "LineCE"],
+        focusObjects: [{type:'ang', pts:['A','C','E']}, {type:'ang', pts:['C','A','B']}],
+        formulasTeX: ["\\angle ACE = 60^\\circ", "\\angle BAC = 60^\\circ \\implies AB \\parallel CE"],
+        checkItemNameCN: "AB // CE",
+        setAlpha: 60
+    },
+    // --- Q2 Step-by-Step ---
+    {
+        titleCN: "(2) 构造对称点 F",
+        reasoningCN: "作 A 关于 CE 的对称点 F。由对称性可知 AF 垂直 CE 且被平分。",
+        revealedObjects: ["ABC", "D", "E", "LineCE", "F", "AF", "P"],
+        focusObjects: [{type:'seg', ids:['AF', 'LineCE']}, {type:'pt', ids:['P']}],
+        formulasTeX: ["AF \\perp CE", "AP = PF"],
+        checkItemNameCN: "对称性质",
+        setAlpha: 40
+    },
+    {
+        titleCN: "(2) 全等推导",
+        reasoningCN: "利用边角边 (SAS) 证明 △ACP ≌ △FCP。",
+        revealedObjects: ["ABC", "D", "E", "LineCE", "F", "AF", "BF", "CF", "P", "Q"],
+        focusObjects: [{type:'tri', pts:['A','C','P']}, {type:'tri', pts:['F','C','P']}],
+        formulasTeX: ["\\triangle ACP \\cong \\triangle FCP"],
+        checkItemNameCN: "全等验证",
+        setAlpha: 40
+    },
+    {
+        titleCN: "(2) 线段传递",
+        reasoningCN: "由全等可知对应边相等：AC = CF。",
+        revealedObjects: ["ABC", "D", "E", "LineCE", "F", "AF", "BF", "CF", "P", "Q"],
+        focusObjects: [{type:'seg', ids:['AC', 'CF']}],
+        formulasTeX: ["AC = CF"],
+        checkItemNameCN: "线段相等",
+        setAlpha: 40
+    },
+    {
+        titleCN: "(2) 等边代换",
+        reasoningCN: "因为 △ABC 等边，所以 BC = AC。",
+        revealedObjects: ["ABC", "D", "E", "LineCE", "F", "AF", "BF", "CF", "P", "Q"],
+        focusObjects: [{type:'seg', ids:['BC', 'AC']}],
+        formulasTeX: ["BC = AC"],
+        checkItemNameCN: "等边性质",
+        setAlpha: 40
+    },
+    {
+        titleCN: "(2) 等腰三角形",
+        reasoningCN: "综上 BC = CF，所以 △BCF 是等腰三角形。",
+        revealedObjects: ["ABC", "D", "E", "LineCE", "F", "AF", "BF", "CF", "P", "Q"],
+        focusObjects: [{type:'seg', ids:['BC', 'CF']}, {type:'tri', pts:['B','C','F']}],
+        formulasTeX: ["BC = CF", "\\triangle BCF \\text{ 等腰}"],
+        checkItemNameCN: "等腰验证",
+        setAlpha: 40
+    },
+    {
+        titleCN: "(2) 角度计算准备",
+        reasoningCN: "已知 ∠ACE = α，由对称性得 ∠ECF = α。",
+        revealedObjects: ["ABC", "D", "E", "LineCE", "F", "AF", "BF", "CF", "P", "Q"],
+        focusObjects: [{type:'ang', pts:['A','C','E']}, {type:'ang', pts:['E','C','F']}],
+        formulasTeX: ["\\angle ACE = \\angle ECF = \\alpha"],
+        checkItemNameCN: "角对称",
+        setAlpha: 40
+    },
+    {
+        titleCN: "(2) 顶角计算",
+        reasoningCN: "计算等腰 △BCF 的顶角 ∠BCF。",
+        revealedObjects: ["ABC", "D", "E", "LineCE", "F", "AF", "BF", "CF", "P", "Q"],
+        focusObjects: [{type:'ang', pts:['B','C','F']}],
+        formulasTeX: ["\\angle BCF = \\angle BCA + \\angle ACE + \\angle ECF", "= 60^\\circ + 2\\alpha"],
+        checkItemNameCN: "顶角计算",
+        setAlpha: 40
+    },
+    {
+        titleCN: "(2) 最终结论",
+        reasoningCN: "利用三角形内角和求底角 ∠BFC。",
+        revealedObjects: ["ABC", "D", "E", "LineCE", "F", "AF", "BF", "CF", "P", "Q"],
+        focusObjects: [{type:'ang', pts:['B','F','C']}],
+        formulasTeX: ["\\angle BFC = (180^\\circ - \\angle BCF)/2", "= (180^\\circ - (60^\\circ+2\\alpha))/2", "= 60^\\circ - \\alpha"],
+        checkItemNameCN: "∠BFC 校验",
+        setAlpha: 40
+    },
+    // --- Q3 Step-by-Step ---
+    {
+        titleCN: "(3) 探究定值",
+        reasoningCN: "由 CA=CB=CF 可知，A, B, F 三点在以 C 为圆心的圆上。",
+        revealedObjects: ["ABC", "D", "E", "LineCE", "F", "AF", "BF", "CF", "P", "Q", "CircleC"],
+        focusObjects: [{type:'seg', ids:['AC','BC','CF']}, {type:'circ', id:'CircleC'}],
+        formulasTeX: ["C \\text{ 为圆心}", "r = AC"],
+        checkItemNameCN: "四点共圆",
+        setAlpha: 20
+    },
+    {
+        titleCN: "(3) 圆周角定理",
+        reasoningCN: "圆心角 ∠ACB=60°，圆周角 ∠AFB 是其一半。",
+        revealedObjects: ["ABC", "D", "E", "LineCE", "F", "AF", "BF", "CF", "P", "Q", "CircleC"],
+        focusObjects: [{type:'ang', pts:['A','C','B']}, {type:'ang', pts:['A','F','B']}],
+        formulasTeX: ["\\angle AFB = \\frac{1}{2}\\angle ACB = 30^\\circ"],
+        checkItemNameCN: "∠AFB 校验",
+        setAlpha: 20
+    },
+    {
+        titleCN: "(3) 数量关系 - 辅助线",
+        reasoningCN: "过 C 作 CN ⊥ BF 于 N。",
+        revealedObjects: ["ABC", "D", "E", "LineCE", "F", "AF", "BF", "CF", "P", "Q", "CircleC", "N", "LineCN"],
+        focusObjects: [{type:'seg', ids:['LineCN']}, {type:'ang', pts:['C','N','B']}],
+        formulasTeX: ["CN \\perp BF", "\\angle CNB = 90^\\circ"],
+        checkItemNameCN: "作辅助线",
+        setAlpha: 20
+    },
+    // --- Detailed Steps ---
+    {
+        titleCN: "(3) 导角 I - 直角三角形",
+        reasoningCN: "在 Rt△BCN 中，两个锐角互余。",
+        revealedObjects: ["ABC", "D", "E", "LineCE", "F", "AF", "BF", "CF", "P", "Q", "CircleC", "N", "LineCN"],
+        focusObjects: [{type:'tri', pts:['B','C','N']}, {type:'ang', pts:['B','C','N']}, {type:'ang', pts:['C','B','N']}],
+        formulasTeX: ["\\angle BCN = 90^\\circ - \\angle CBN"],
+        checkItemNameCN: "互余关系",
+        setAlpha: 20
+    },
+    {
+        titleCN: "(3) 导角 II - 代入底角",
+        reasoningCN: "回顾第(2)问，等腰 △BCF 的底角 ∠CBN = 60°-α。",
+        revealedObjects: ["ABC", "D", "E", "LineCE", "F", "AF", "BF", "CF", "P", "Q", "CircleC", "N", "LineCN"],
+        focusObjects: [{type:'ang', pts:['C','B','F']}],
+        formulasTeX: ["\\angle CBN = 60^\\circ - \\alpha"],
+        checkItemNameCN: "底角代入",
+        setAlpha: 20
+    },
+    {
+        titleCN: "(3) 导角 III - 算出 ∠BCN",
+        reasoningCN: "代入计算：∠BCN = 90° - (60°-α) = 30°+α。",
+        revealedObjects: ["ABC", "D", "E", "LineCE", "F", "AF", "BF", "CF", "P", "Q", "CircleC", "N", "LineCN"],
+        focusObjects: [{type:'ang', pts:['B','C','N']}],
+        formulasTeX: ["\\angle BCN = 30^\\circ + \\alpha"],
+        checkItemNameCN: "算出局部角",
+        setAlpha: 20
+    },
+    {
+        titleCN: "(3) 导角 IV - 观察大角",
+        reasoningCN: "观察 ∠BCQ，它由 ∠BCA(60°) 和 ∠ACQ(α) 组成。",
+        revealedObjects: ["ABC", "D", "E", "LineCE", "F", "AF", "BF", "CF", "P", "Q", "CircleC", "N", "LineCN"],
+        focusObjects: [{type:'ang', pts:['B','C','Q']}],
+        formulasTeX: ["\\angle BCQ = 60^\\circ + \\alpha"],
+        checkItemNameCN: "观察大角",
+        setAlpha: 20
+    },
+    {
+        titleCN: "(3) 导角 V - 最终作差",
+        reasoningCN: "∠NCQ = ∠BCQ - ∠BCN = (60°+α) - (30°+α) = 30°。",
+        revealedObjects: ["ABC", "D", "E", "LineCE", "F", "AF", "BF", "CF", "P", "Q", "CircleC", "N", "LineCN"],
+        focusObjects: [{type:'ang', pts:['N','C','Q']}],
+        formulasTeX: ["\\angle NCQ = 30^\\circ"],
+        checkItemNameCN: "导角验证",
+        setAlpha: 20
+    },
+    // --- Rest ---
+    {
+        titleCN: "(3) 直角三角形 I",
+        reasoningCN: "在 Rt△CNQ 中，30°角所对直角边等于斜边一半。",
+        revealedObjects: ["ABC", "D", "E", "LineCE", "F", "AF", "BF", "CF", "P", "Q", "CircleC", "N", "LineCN"],
+        focusObjects: [{type:'tri', pts:['C','N','Q']}, {type:'seg', ids:['QC', 'QN']}],
+        formulasTeX: ["QC = 2QN"],
+        checkItemNameCN: "QC=2QN",
+        setAlpha: 20
+    },
+    {
+        titleCN: "(3) 直角三角形 II",
+        reasoningCN: "在 Rt△QPF 中，∠PFQ=∠AFB=30°，同样有斜边关系。",
+        revealedObjects: ["ABC", "D", "E", "LineCE", "F", "AF", "BF", "CF", "P", "Q", "CircleC", "N", "LineCN"],
+        focusObjects: [{type:'tri', pts:['Q','P','F']}, {type:'seg', ids:['QF', 'QP']}],
+        formulasTeX: ["\\angle PFQ = 30^\\circ", "QF = 2QP"],
+        checkItemNameCN: "QF=2QP",
+        setAlpha: 20
+    },
+    {
+        titleCN: "(3) 线段和差",
+        reasoningCN: "N 为等腰 △BCF 底边中点 (BN=NF)，分解 QB。",
+        revealedObjects: ["ABC", "D", "E", "LineCE", "F", "AF", "BF", "CF", "P", "Q", "CircleC", "N", "LineCN"],
+        focusObjects: [{type:'seg', ids:['QB', 'QN', 'QF']}], 
+        formulasTeX: ["QB = BN + NQ", "BN = NF = NQ + QF", "\\implies QB = (NQ + QF) + NQ", "= QF + 2NQ"],
+        checkItemNameCN: "线段代换",
+        setAlpha: 20
+    },
+    {
+        titleCN: "(3) 最终结论",
+        reasoningCN: "将 QC=2QN, QF=2QP 代入上式。",
+        revealedObjects: ["ABC", "D", "E", "LineCE", "F", "AF", "BF", "CF", "P", "Q", "CircleC", "N", "LineCN"],
+        focusObjects: [{type:'seg', ids:['QB', 'QP', 'QC']}],
+        formulasTeX: ["QB = 2QP + QC"],
+        checkItemNameCN: "数量关系",
+        setAlpha: 20
+    }
+];
+
+// --- 3. GEOMETRY CORE (Unchanged logic) ---
+function toRad(deg) { return deg * Math.PI / 180; }
+function toDeg(rad) { return rad * 180 / Math.PI; }
+
+function calculateGeometry() {
+    const s = STATE.problem.sideLen;
+    const alpha = STATE.params.alpha;
+    
+    // C at (0,0)
+    const C = { x: 0, y: 0 };
+    const B = { x: -s, y: 0 };
+    const D = { x: s, y: 0 };
+    const Ax = s * Math.cos(toRad(120));
+    const Ay = s * Math.sin(toRad(120));
+    const A = { x: Ax, y: Ay };
+    
+    const thetaCE = 120 - alpha;
+    const Ex = s * Math.cos(toRad(thetaCE));
+    const Ey = s * Math.sin(toRad(thetaCE));
+    const E = { x: Ex, y: Ey }; 
+    
+    const thetaCF = 120 - 2 * alpha;
+    const Fx = s * Math.cos(toRad(thetaCF));
+    const Fy = s * Math.sin(toRad(thetaCF));
+    const F = { x: Fx, y: Fy };
+    
+    const P = { x: (A.x + F.x) / 2, y: (A.y + F.y) / 2 };
+    
+    let Q = { x: 0, y: 0 };
+    if (Math.abs(Fx + s) > 1e-6) {
+        const m = Fy / (Fx + s);
+        const tanCE = Math.tan(toRad(thetaCE));
+        if (Math.abs(tanCE - m) > 1e-6) {
+            Q.x = (m * s) / (tanCE - m);
+            Q.y = Q.x * tanCE;
+        }
+    } else {
+        const tanCE = Math.tan(toRad(thetaCE));
+        Q.x = -s; Q.y = -s * tanCE;
+    }
+    
+    const mBF = Fy / (Fx + s);
+    let Nx, Ny;
+    if (Math.abs(Fx + s) < 1e-6) { Nx = -s; Ny = 0; } else {
+        const mSq = mBF * mBF;
+        Nx = - (mSq * s) / (mSq + 1);
+        Ny = (mBF * s) / (mSq + 1);
+    }
+    const N = { x: Nx, y: Ny };
+
+    const dist = (p1, p2) => Math.sqrt((p1.x-p2.x)**2 + (p1.y-p2.y)**2);
+    const QB = dist(Q, B); const QC = dist(Q, C); const QP = dist(Q, P);
+    const angleBFC = calculateAngle3Points(B, F, C);
+    const angleAFB = calculateAngle3Points(A, F, B);
+    
+    return {
+        points: { A, B, C, D, E, F, P, Q, N },
+        values: { QB, QC, QP, angleBFC, angleAFB },
+        meta: { thetaCE, thetaCF }
+    };
+}
+
+function calculateAngle3Points(A, Center, B) {
+    const v1 = { x: A.x - Center.x, y: A.y - Center.y };
+    const v2 = { x: B.x - Center.x, y: B.y - Center.y };
+    const dot = v1.x * v2.x + v1.y * v2.y;
+    const mag1 = Math.sqrt(v1.x**2 + v1.y**2);
+    const mag2 = Math.sqrt(v2.x**2 + v2.y**2);
+    return toDeg(Math.acos(Math.max(-1, Math.min(1, dot / (mag1 * mag2)))));
+}
+
+// --- 4. VERIFICATION ---
+function verifyState(geom) {
+    const alpha = STATE.params.alpha;
+    const results = [];
+    
+    if (Math.abs(alpha - 60) < 1) {
+        results.push({ name: "AB // CE", pass: true, val: "成立" });
+    }
+    
+    if (alpha > 0 && alpha < 60) {
+        const expected = 60 - alpha;
+        results.push({ name: "∠BFC = 60°-α", pass: Math.abs(expected - geom.values.angleBFC) < 0.1, val: `${geom.values.angleBFC.toFixed(1)}°` });
+    }
+    
+    if (alpha > 0 && alpha < 120) {
+        results.push({ name: "∠AFB = 30°", pass: Math.abs(geom.values.angleAFB - 30) < 1, val: `${geom.values.angleAFB.toFixed(1)}°` });
+    }
+    
+    const { QB, QC, QP } = geom.values;
+    const diff = Math.abs(QB - (QC + 2 * QP));
+    results.push({ name: "QB = 2QP + QC", pass: diff < 1.0, val: diff < 1.0 ? "成立" : `误差 ${diff.toFixed(2)}` });
+    
+    return results;
+}
+
+// --- 5. RENDER (P5.JS) ---
+
+function setup() {
+    const container = document.getElementById('canvas-container');
+    const canvas = createCanvas(container.offsetWidth, container.offsetHeight);
+    canvas.parent('canvas-container');
+    textFont('Noto Sans SC');
+    canvas.mouseWheel(e => {
+        STATE.view.scale *= (e.delta > 0 ? 0.9 : 1.1);
+        return false;
+    });
+    initUI();
+}
+
+function windowResized() {
+    const container = document.getElementById('canvas-container');
+    resizeCanvas(container.offsetWidth, container.offsetHeight);
+}
+
+function draw() {
+    background(255);
+    
+    if (STATE.mode === 'sandbox') {
+        STATE.params.alpha = parseFloat(document.getElementById('alpha-slider').value);
+    }
+    
+    const geom = calculateGeometry();
+    const verifyResults = verifyState(geom);
+    updateValidationUI(verifyResults);
+    
+    translate(width/2 + STATE.view.offsetX, height/2 + STATE.view.offsetY);
+    scale(STATE.view.scale);
+    scale(1, -1);
+    
+    drawGeometry(geom);
+    
+    if (mouseIsPressed && mouseX > 0 && mouseX < width && mouseY > 0 && mouseY < height) {
+        if (!STATE.view.isDragging) {
+            STATE.view.isDragging = true;
+            STATE.view.lastX = mouseX;
+            STATE.view.lastY = mouseY;
+        } else {
+            STATE.view.offsetX += (mouseX - STATE.view.lastX);
+            STATE.view.offsetY += (mouseY - STATE.view.lastY);
+            STATE.view.lastX = mouseX;
+            STATE.view.lastY = mouseY;
+        }
+    } else {
+        STATE.view.isDragging = false;
+    }
+}
+
+function drawGeometry(geom) {
+    const { A, B, C, D, E, F, P, Q, N } = geom.points;
+    const { sideLen } = STATE.problem;
+    const showHidden = STATE.mode === 'sandbox' ? document.getElementById('show-answer-check').checked : true;
+    
+    const stepObj = PLAN_STEPS[STATE.stepIndex];
+    const sandboxVisible = ["ABC", "D", "E", "LineCE", "F", "AF", "BF", "CF", "P", "Q", "N", "LineCN"];
+    const visibleSet = STATE.mode === 'guided' ? new Set(stepObj.revealedObjects) : new Set(sandboxVisible);
+    
+    // --- Styles ---
+    const colorTri = color(30, 41, 59); 
+    const colorCons = color(37, 99, 235);
+    const colorRef = color(245, 158, 11);
+    const colorAux = color(100, 116, 139, 150);
+    const colorHighlight = color(255, 215, 0); // Gold
+    const colorHighlightAlpha = color(255, 215, 0, 100);
+
+    const isFocused = (type, idOrPts) => {
+        if (STATE.mode !== 'guided') return false;
+        if (!stepObj.focusObjects) return false;
+        return stepObj.focusObjects.some(f => {
+            if (f.type !== type) return false;
+            if (type === 'seg' || type === 'pt' || type === 'circ') {
+                return Array.isArray(f.ids) ? f.ids.includes(idOrPts) : f.id === idOrPts;
+            }
+            if (type === 'ang' || type === 'tri') {
+                const p1 = f.pts;
+                const p2 = idOrPts;
+                if (p1.length !== p2.length) return false;
+                if (type === 'ang') return p1[1] === p2[1] && ((p1[0]===p2[0]&&p1[2]===p2[2]) || (p1[0]===p2[2]&&p1[2]===p2[0]));
+                const s1 = new Set(p1);
+                return p2.every(p => s1.has(p));
+            }
+            return false;
+        });
+    };
+
+    // --- 0. Highlights ---
+    if (STATE.mode === 'guided' && stepObj.focusObjects) {
+        stepObj.focusObjects.forEach(f => {
+            if (f.type === 'tri') {
+                const [p1Name, p2Name, p3Name] = f.pts;
+                const p1 = geom.points[p1Name], p2 = geom.points[p2Name], p3 = geom.points[p3Name];
+                fill(colorHighlightAlpha); noStroke();
+                triangle(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
+            }
+        });
+    }
+
+    // --- 1. Basic Geometry ---
+    strokeWeight(2);
+
+    if (visibleSet.has("ABC")) {
+        stroke(colorTri); noFill();
+        triangle(A.x, A.y, B.x, B.y, C.x, C.y);
+        line(B.x, B.y, D.x + 50, D.y);
+        drawLabel("B", B, -15, -10);
+        drawLabel("C", C, 0, -20);
+        drawLabel("A", A, 0, 20);
+        drawLabel("D", {x: D.x+40, y:0}, 10, -10);
+    }
+    
+    if (visibleSet.has("LineCE")) {
+        stroke(isFocused('seg', 'LineCE') ? colorHighlight : colorCons);
+        strokeWeight(isFocused('seg', 'LineCE') ? 4 : 2);
+        const rayLen = sideLen * 1.5;
+        const Ex_draw = rayLen * Math.cos(toRad(geom.meta.thetaCE));
+        const Ey_draw = rayLen * Math.sin(toRad(geom.meta.thetaCE));
+        line(C.x, C.y, Ex_draw, Ey_draw);
+        drawLabel("E", {x: Ex_draw, y: Ey_draw}, 10, 10);
+        strokeWeight(2);
+    }
+
+    if (visibleSet.has("F")) {
+        stroke(colorRef); strokeWeight(4);
+        point(F.x, F.y);
+        drawLabel("F", F, 15, 15);
+        strokeWeight(2);
+    }
+
+    const drawSeg = (p1Name, p2Name, styleColor, styleDash=[]) => {
+        const id = p1Name+p2Name; 
+        const revId = p2Name+p1Name;
+        const focused = isFocused('seg', id) || isFocused('seg', revId);
+        
+        stroke(focused ? colorHighlight : styleColor);
+        strokeWeight(focused ? 4 : 2);
+        drawingContext.setLineDash(styleDash);
+        line(geom.points[p1Name].x, geom.points[p1Name].y, geom.points[p2Name].x, geom.points[p2Name].y);
+        drawingContext.setLineDash([]);
+        strokeWeight(2);
+    };
+
+    if (visibleSet.has("AF")) drawSeg('A', 'F', colorAux, [5,5]);
+    if (visibleSet.has("BF")) drawSeg('B', 'F', color(16, 185, 129));
+    if (visibleSet.has("CF")) drawSeg('C', 'F', colorAux);
+    if (isFocused('seg', 'AC')) drawSeg('A', 'C', colorHighlight);
+    if (isFocused('seg', 'BC')) drawSeg('B', 'C', colorHighlight);
+    
+    if (visibleSet.has("N")) { 
+       if (isFocused('seg', 'QC')) drawSeg('Q', 'C', colorHighlight);
+       if (isFocused('seg', 'QN')) drawSeg('Q', 'N', colorHighlight);
+       if (isFocused('seg', 'QB')) drawSeg('Q', 'B', colorHighlight);
+       if (isFocused('seg', 'QF')) drawSeg('Q', 'F', colorHighlight);
+       if (isFocused('seg', 'QP')) drawSeg('Q', 'P', colorHighlight);
+    }
+
+    if (visibleSet.has("P")) {
+        fill(147, 51, 234); noStroke();
+        if (isFocused('pt', 'P')) { stroke(colorHighlight); strokeWeight(2); }
+        circle(P.x, P.y, 6);
+        drawLabel("P", P, 10, -10);
+    }
+    if (visibleSet.has("Q")) {
+        fill(147, 51, 234); noStroke();
+        circle(Q.x, Q.y, 6);
+        drawLabel("Q", Q, -15, 15);
+    }
+
+    if (visibleSet.has("CircleC") || (STATE.mode === 'sandbox' && showHidden)) {
+        noFill(); 
+        const focused = isFocused('circ', 'CircleC');
+        stroke(focused ? colorHighlight : color(255, 99, 71, 150)); 
+        strokeWeight(focused ? 3 : 1);
+        drawingContext.setLineDash([5, 5]);
+        circle(C.x, C.y, sideLen * 2); 
+        drawingContext.setLineDash([]);
+        strokeWeight(2);
+    }
+
+    if (visibleSet.has("LineCN") && visibleSet.has("N")) {
+        const focused = isFocused('seg', 'LineCN');
+        stroke(focused ? colorHighlight : 100); 
+        strokeWeight(focused ? 3 : 1);
+        drawingContext.setLineDash([2, 2]);
+        line(C.x, C.y, N.x, N.y);
+        drawingContext.setLineDash([]);
+        strokeWeight(2);
+        
+        fill(100); noStroke();
+        circle(N.x, N.y, 4);
+        drawLabel("N", N, -5, -15);
+        drawRightAngle(N, C, B, 10);
+    }
+
+    if (STATE.mode === 'guided' && stepObj.focusObjects) {
+        stepObj.focusObjects.forEach(f => {
+            if (f.type === 'ang') {
+                const [p1, pC, p2] = f.pts;
+                drawAngleHighlight(geom.points[pC], geom.points[p1], geom.points[p2]);
+            }
+        });
+    }
+}
+
+function drawAngleHighlight(center, p1, p2) {
+    const a1 = Math.atan2(p1.y - center.y, p1.x - center.x);
+    const a2 = Math.atan2(p2.y - center.y, p2.x - center.x);
+    noFill(); stroke(255, 215, 0); strokeWeight(4);
+    let start = a1;
+    let stop = a2;
+    let diff = stop - start;
+    while (diff <= -Math.PI) diff += 2*Math.PI;
+    while (diff > Math.PI) diff -= 2*Math.PI;
+    
+    if (diff < 0) {
+        let temp = start; start = stop; stop = temp;
+    }
+    const r = 40 + 5 * Math.sin(millis() / 200);
+    arc(center.x, center.y, r, r, start, stop); 
+}
+
+function drawRightAngle(Center, P1, P2, size) {
+    const vNC = {x: P1.x - Center.x, y: P1.y - Center.y};
+    const mag = Math.sqrt(vNC.x**2 + vNC.y**2);
+    const uNC = {x: vNC.x/mag, y: vNC.y/mag};
+    const uPerp = {x: uNC.y, y: -uNC.x}; 
+    const pA = {x: Center.x + uNC.x*size, y: Center.y + uNC.y*size};
+    const pB = {x: pA.x + uPerp.x*size, y: pA.y + uPerp.y*size};
+    const pC = {x: Center.x + uPerp.x*size, y: Center.y + uPerp.y*size};
+    stroke(100); noFill();
+    beginShape();
+    vertex(pA.x, pA.y);
+    vertex(pB.x, pB.y);
+    vertex(pC.x, pC.y);
+    endShape();
+}
+
+function drawLabel(txt, pos, ox, oy) {
+    push();
+    scale(1, -1); 
+    fill(0); noStroke(); textSize(14);
+    text(txt, pos.x + ox, -(pos.y + oy));
+    pop();
+}
+
+// --- 6. UI LOGIC ---
+function initUI() {
+    renderStep();
+    if (window.MathJax) MathJax.typesetPromise();
+}
+
+function setMode(m) {
+    STATE.mode = m;
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    event.target.classList.add('active');
+    
+    // Toggle Visibility
+    const overlay = document.getElementById('guided-overlay');
+    const sandboxControls = document.getElementById('sandbox-controls');
+    
+    if (m === 'guided') {
+        overlay.classList.remove('hidden');
+        sandboxControls.classList.add('hidden');
+        renderStep();
+    } else {
+        overlay.classList.add('hidden');
+        sandboxControls.classList.remove('hidden');
+    }
+}
+
+function changeStep(delta) {
+    const newIdx = STATE.stepIndex + delta;
+    if (newIdx >= 0 && newIdx < PLAN_STEPS.length) {
+        STATE.stepIndex = newIdx;
+        renderStep();
+    }
+}
+
+function renderStep() {
+    const step = PLAN_STEPS[STATE.stepIndex];
+    STATE.params.alpha = step.setAlpha;
+    
+    // Update Overlay Content
+    document.getElementById('step-title').textContent = step.titleCN;
+    document.getElementById('step-reasoning').textContent = step.reasoningCN;
+    
+    const formulaContainer = document.getElementById('step-formulas');
+    if (step.formulasTeX && step.formulasTeX.length > 0) {
+        formulaContainer.innerHTML = step.formulasTeX.map(f => `<div>\\[${f}\\]</div>`).join('');
+        formulaContainer.style.display = 'block';
+    } else {
+        formulaContainer.innerHTML = '';
+        formulaContainer.style.display = 'none';
+    }
+    
+    document.getElementById('btn-prev').disabled = STATE.stepIndex === 0;
+    document.getElementById('btn-next').disabled = STATE.stepIndex === PLAN_STEPS.length - 1;
+    
+    if (window.MathJax) MathJax.typesetPromise([formulaContainer]);
+}
+
+function updateValidationUI(results) {
+    const list = document.getElementById('check-list');
+    list.innerHTML = results.map(r => `
+        <div class="check-item">
+            <span>${r.name}</span>
+            <span class="${r.pass ? 'check-pass' : 'check-fail'}">
+                ${r.pass ? '✔' : '✘'} ${r.val}
+            </span>
+        </div>
+    `).join('');
+    
+    document.getElementById('verify-status').textContent = "检测完成";
+    if (STATE.mode === 'sandbox') {
+        document.getElementById('alpha-val').textContent = STATE.params.alpha.toFixed(1) + "°";
+    }
+}
+
+function copyProblem() {
+    const text = "24. (1) AB // CE. (2) 求 ∠BFC. (3) 求 ∠AFB; 探究 QB, QC, QP.";
+    navigator.clipboard.writeText(text);
+}
+
+document.getElementById('alpha-slider').addEventListener('input', (e) => {
+    if (STATE.mode === 'guided') return;
+    STATE.params.alpha = parseFloat(e.target.value);
+});
+
+</script>
+</body>
+</html>

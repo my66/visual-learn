@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>多变入户花园户型分析 (Math Visualizer)</title>
+  
+  <!-- CDN Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #f1f1f1; }
+    ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+    
+    body { font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; overflow: hidden; }
+    
+    /* Math Container in Overlay */
+    .math-overlay {
+      background-color: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(4px);
+      border-bottom: 1px solid #e5e7eb;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+      transition: all 0.3s ease;
+    }
+
+    /* Hide math content until processed to avoid raw tex flash */
+    .math-pending {
+       visibility: hidden;
+    }
+    
+    /* MathJax Override */
+    mjx-container { overflow-x: auto; overflow-y: hidden; max-width: 100%; vertical-align: middle; }
+  </style>
+</head>
+<body class="bg-gray-50 flex h-screen text-gray-800">
+
+  <!-- Left Sidebar (Fixed) -->
+  <aside class="w-[380px] flex flex-col bg-white border-r border-gray-200 shadow-lg z-20 flex-shrink-0">
+    
+    <!-- 1. PROBLEM CARD -->
+    <div class="p-4 border-b border-gray-200 bg-gray-50 flex-shrink-0">
+      <div class="flex justify-between items-center mb-2">
+        <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wide">题目原题</h2>
+        <button onclick="copyProblem()" class="text-xs bg-white border border-gray-300 hover:bg-gray-100 px-2 py-1 rounded transition">
+          复制题面
+        </button>
+      </div>
+      <div id="problem-text" class="text-sm text-gray-700 leading-relaxed p-3 bg-white border border-gray-200 rounded select-text h-auto max-h-[30vh] overflow-y-auto font-serif">
+        <!-- Content injected by JS -->
+      </div>
+    </div>
+
+    <!-- Mode Tabs -->
+    <div class="flex border-b border-gray-200 text-sm font-medium bg-gray-50">
+      <button id="tab-guided" onclick="setMode('guided')" class="flex-1 py-3 text-blue-600 border-b-2 border-blue-600 bg-white hover:bg-gray-50 transition">
+        引导模式
+      </button>
+      <button id="tab-sandbox" onclick="setMode('sandbox')" class="flex-1 py-3 text-gray-500 hover:text-blue-600 hover:bg-white transition">
+        自由探索
+      </button>
+    </div>
+
+    <!-- Sidebar Controls -->
+    <div class="flex-1 overflow-y-auto p-4 space-y-6">
+      
+      <!-- Slider Control -->
+      <div class="space-y-2">
+        <label class="flex justify-between text-sm font-bold text-gray-700">
+          <span>变量 b (相对于 a)</span>
+          <span id="val-b" class="text-blue-600 font-mono">b = 0.05a</span>
+        </label>
+        <input type="range" id="slider-b" min="0.01" max="0.15" step="0.005" value="0.05" 
+               class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600">
+        <div class="flex justify-between text-xs text-gray-400 px-1">
+          <span>0</span>
+          <span>上限 a/9</span>
+        </div>
+        <div id="constraint-warning" class="hidden bg-red-50 border border-red-200 text-red-600 text-xs p-2 rounded font-bold text-center">
+          ⚠️ 警告: \(b \ge a/9\)，不满足题设!
+        </div>
+      </div>
+
+      <!-- Verification Panel -->
+      <div class="bg-blue-50/50 rounded-lg border border-blue-100 p-3 text-sm">
+        <div class="flex justify-between items-center mb-2 border-b border-blue-100 pb-2">
+          <h3 class="font-bold text-blue-800">实时验证 / 自检</h3>
+          <span class="text-xs text-blue-400">Auto-Check</span>
+        </div>
+        <div id="verify-body" class="space-y-2">
+          <!-- Injected by JS -->
+        </div>
+      </div>
+
+      <!-- Settings -->
+      <div class="pt-2 border-t border-gray-100">
+        <div class="flex flex-col space-y-3">
+          <label class="flex items-center space-x-2 text-sm cursor-pointer hover:bg-gray-50 p-1 rounded">
+            <input type="checkbox" id="chk-answer" class="rounded text-blue-600 focus:ring-blue-500" onchange="updateState()">
+            <span class="font-medium text-gray-700">显示答案与结论</span>
+          </label>
+           <label class="flex items-center space-x-2 text-sm cursor-pointer hover:bg-gray-50 p-1 rounded">
+            <input type="checkbox" id="chk-large-text" class="rounded text-blue-600 focus:ring-blue-500" onchange="toggleLargeText()">
+            <span class="text-gray-600">大字模式</span>
+          </label>
+        </div>
+      </div>
+
+    </div>
+  </aside>
+
+  <!-- Main Display Area -->
+  <main class="flex-1 relative bg-gray-100 flex flex-col h-full overflow-hidden">
+    
+    <!-- TOP OVERLAY: Guided Step Content -->
+    <div id="guided-overlay" class="math-overlay flex-shrink-0 w-full px-6 py-4 z-10 hidden">
+        <div class="max-w-5xl mx-auto">
+            <!-- Nav Row -->
+            <div class="flex justify-between items-center mb-3">
+                <span class="text-xs font-bold text-blue-500 uppercase tracking-widest">STEP <span id="step-count">1/8</span></span>
+                <div class="space-x-2">
+                    <button onclick="prevStep()" class="px-4 py-1.5 text-sm bg-white border border-gray-300 hover:bg-gray-100 text-gray-700 rounded shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition" id="btn-prev">
+                        ◀ 上一步
+                    </button>
+                    <button onclick="nextStep()" class="px-4 py-1.5 text-sm bg-blue-600 text-white hover:bg-blue-700 rounded shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition font-medium" id="btn-next">
+                        下一步 ▶
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Content Row -->
+            <div id="step-content-wrapper" class="math-pending">
+                <h3 id="step-title" class="text-lg font-bold text-gray-800 mb-1"></h3>
+                <div id="step-reasoning" class="text-sm text-gray-600 mb-3"></div>
+                <!-- Math Box -->
+                <div id="step-math" class="bg-white border border-gray-200 rounded-lg p-3 text-blue-800 shadow-inner overflow-x-auto">
+                    <!-- TeX injected here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SANDBOX TOP BAR -->
+    <div id="sandbox-overlay" class="hidden bg-yellow-50 border-b border-yellow-200 px-6 py-3 text-center z-10">
+        <p class="text-sm text-yellow-800">
+            <strong>自由探索模式：</strong> 拖动左侧滑块改变 \(b\) 的大小，观察图形变化及左侧面板的实时数据。
+        </p>
+    </div>
+
+    <!-- Canvas Wrapper -->
+    <div id="canvas-wrapper" class="flex-1 relative w-full h-full bg-gray-50">
+      <!-- P5 Canvas here -->
+    </div>
+    
+    <!-- Floating Legend -->
+    <div class="absolute bottom-6 left-6 bg-white/90 backdrop-blur px-4 py-3 rounded-lg shadow-md border border-gray-200 text-xs space-y-2 pointer-events-none z-10 select-none">
+      <div class="font-bold text-gray-500 border-b border-gray-200 pb-1 mb-1">图例 (Legend)</div>
+      <div class="flex items-center"><span class="w-4 h-4 bg-blue-100 border border-blue-400 mr-2 rounded-sm"></span> 主房 (Main Room)</div>
+      <div class="flex items-center"><span class="w-4 h-4 bg-green-200 border border-green-500 mr-2 rounded-sm"></span> 入户花园 (Garden)</div>
+    </div>
+
+  </main>
+
+<script>
+/**
+ * STATE Management
+ */
+const STATE = {
+  problem: {
+    statementCN: "23. (12 分) 某地产公司为了吸引年轻人购房，特推出“主房+多变入户花园”的两种户型. 即在图1中边长为 a 米的正方形主房进行改造.\n户型一是在主房两侧均加长 b 米 (0<9b<a). 阴影部分作为入户花园，如图2所示.\n户型二是在主房一边减少 b 米后，另一边再增加 b 米，阴影部分作为入户花园. 如图3所示.\n(1) 设两种户型的主房面积差为 M, 入户花园的面积差为 N, 试比较 M 和 N 的大小.\n(2) 若户型一的总价为 50 万元，户型二的总价为 40 万元，试判断哪种户型单价较低，并说明理由.",
+    statementTeX: String.raw`\text{户型一: } (a+b)^2, \text{ 户型二: } (a+b)(a-b) = a^2-b^2. \quad 0 < 9b < a.`,
+  },
+  mode: 'guided',
+  stepIndex: 0,
+  params: {
+    a: 200, 
+    bRatio: 0.05,
+    showAnswer: false
+  },
+  planSteps: [] 
+};
+
+// Math Logic
+function solveProblem() {
+  const { a, bRatio } = STATE.params;
+  const b = a * bRatio;
+  const mathA = 1;
+  const mathB = bRatio;
+  
+  const S_total1 = Math.pow(mathA + mathB, 2);
+  const S_main1 = Math.pow(mathA, 2);
+  const S_garden1 = S_total1 - S_main1;
+  
+  const S_total2 = (mathA + mathB) * (mathA - mathB); 
+  const S_main2 = mathA * (mathA - mathB);
+  const S_garden2 = mathB * (mathA - mathB);
+  
+  const M = Math.abs(S_main1 - S_main2);
+  const N = Math.abs(S_garden1 - S_garden2);
+  
+  const constraintCheck = mathA > 9 * mathB;
+  
+  return {
+    S_total1, S_main1, S_garden1,
+    S_total2, S_main2, S_garden2,
+    M, N,
+    constraintCheck,
+    isNGreaterThanM: N > M
+  };
+}
+
+function buildPlanSteps() {
+  STATE.planSteps = [
+    {
+      titleCN: "第一步：理解基本图形与变量",
+      reasoningCN: "首先明确基准正方形边长为 \\(a\\)，以及改造变量 \\(b\\)。注意约束条件 \\(0 < 9b < a\\)。",
+      contentTeX: String.raw`\text{基准主房: } a \times a, \quad \text{约束: } 0 < 9b < a`,
+      checkItem: "constraint"
+    },
+    {
+      titleCN: "第二步：户型一面积分析",
+      reasoningCN: "户型一双向加长，形成更大的正方形。主房保持 \\(a^2\\)，阴影为新增花园。",
+      contentTeX: String.raw`S_{\text{总1}} = (a+b)^2, \quad S_{\text{主1}} = a^2, \\ S_{\text{园1}} = (a+b)^2 - a^2 = 2ab + b^2`,
+      checkItem: "type1"
+    },
+    {
+      titleCN: "第三步：户型二面积分析",
+      reasoningCN: "户型二一边减 \\(b\\) 一边加 \\(b\\)。右侧阴影为花园(宽 \\(b\\))，左侧为主房(宽 \\(a\\))。",
+      contentTeX: String.raw`S_{\text{总2}} = (a+b)(a-b) = a^2 - b^2, \\ S_{\text{主2}} = a(a-b) = a^2 - ab, \quad S_{\text{园2}} = b(a-b) = ab - b^2`,
+      checkItem: "type2"
+    },
+    {
+      titleCN: "第四步：比较 M 与 N",
+      reasoningCN: "计算主房面积差 \\(M\\) 与花园面积差 \\(N\\)。",
+      contentTeX: String.raw`M = |a^2 - (a^2-ab)| = ab, \quad N = |(2ab+b^2) - (ab-b^2)| = ab + 2b^2, \\ \because b>0, \quad \therefore N > M`,
+      checkItem: "mn_compare"
+    },
+    // 将原第五步和第六步细拆，总步骤变为 8 步
+    {
+      titleCN: "第五步：建立单价公式",
+      reasoningCN: "单价等于总价除以总面积。已知户型一总价50万，户型二总价40万。",
+      contentTeX: String.raw`\text{单价}_1 = \frac{50}{S_{\text{总1}}} = \frac{50}{(a+b)^2}, \quad \text{单价}_2 = \frac{40}{S_{\text{总2}}} = \frac{40}{(a+b)(a-b)}`,
+      checkItem: "price_formula"
+    },
+    {
+      titleCN: "第六步：提取公因式约分",
+      reasoningCN: "观察分式，两边都含有因子 10 和分母 \\((a+b)\\)。两边同时乘以 \\(\\frac{a+b}{10}\\) 进行简化。",
+      contentTeX: String.raw`\text{比较: } \frac{50}{(a+b)^2} \text{ vs } \frac{40}{(a+b)(a-b)} \quad \xrightarrow{\text{同乘} \frac{a+b}{10}} \quad \frac{5}{a+b} \text{ vs } \frac{4}{a-b}`,
+      checkItem: "price_simplify_1"
+    },
+    {
+      titleCN: "第七步：去分母与展开",
+      reasoningCN: "为了避开繁琐的分式比较，我们将问题转化为整式。依据不等式性质：**两边同乘正数，不等号方向不变**。由于 \\(a,b\\) 为长度且 \\(a>b\\)，分母 \\(a+b\\) 和 \\(a-b\\) 恒为正数，因此可以直接交叉相乘，比较结果与原式等价。",
+      contentTeX: String.raw`\frac{5}{a+b} \text{ vs } \frac{4}{a-b} \iff 5(a-b) \text{ vs } 4(a+b) \\ \iff 5a - 5b \text{ vs } 4a + 4b`,
+      checkItem: "price_simplify_2"
+    },
+    {
+      titleCN: "第八步：移项合并得出结论",
+      reasoningCN: "移项合并同类项，利用题目已知条件 \\(a > 9b\\) 进行最终判断。",
+      contentTeX: String.raw`5a - 4a \text{ vs } 4b + 5b \iff a \text{ vs } 9b, \\ \because a > 9b, \quad \therefore \text{左边} > \text{右边} \Rightarrow \text{单价}_1 > \text{单价}_2`,
+      checkItem: "price_conclusion"
+    }
+  ];
+}
+
+/**
+ * P5.js Visualization
+ */
+let p5Params = { font: 'sans-serif' };
+
+function setup() {
+  const container = document.getElementById('canvas-wrapper');
+  const canvas = createCanvas(container.clientWidth, container.clientHeight);
+  canvas.parent('canvas-wrapper');
+  textFont(p5Params.font);
+}
+
+function windowResized() {
+  const container = document.getElementById('canvas-wrapper');
+  resizeCanvas(container.clientWidth, container.clientHeight);
+}
+
+function draw() {
+  clear(); 
+  background(248); 
+  
+  const { a, bRatio } = STATE.params;
+  const b = a * bRatio;
+  
+  // Layout Logic
+  const gapLogic = a * 0.8; 
+  const totalLogicW = a + gapLogic + (a+b) + gapLogic + (a+b);
+  
+  const scaleX = (width * 0.9) / totalLogicW;
+  const scaleY = (height * 0.5) / (a + b + 100);
+  const s = min(1.2, min(scaleX, scaleY)); 
+  
+  // Position
+  const startX = (width - totalLogicW * s) / 2;
+  // Center vertically: (Canvas Height - Graphic Height) / 2
+  const graphicH = (a + b + 80) * s; // 80 for text allowance
+  const startY = (height - graphicH) / 2 + 20 * s; 
+  
+  // --- Column 1: Figure 1 ---
+  push();
+  translate(startX, startY);
+  scale(s);
+  
+  const colMain = color(219, 234, 254);
+  const colBorder = color(59, 130, 246);
+  const colGarden = color(187, 247, 208);
+  const colGardenBorder = color(34, 197, 94);
+  
+  fill(colMain); stroke(colBorder); strokeWeight(2/s);
+  rect(0, 0, a, a);
+  
+  drawDim(0, a+15, a, 0, 'a', s);
+  drawDim(-15, 0, 0, a, 'a', s);
+  
+  noStroke(); fill(50); textAlign(CENTER); textSize(16); textStyle(BOLD);
+  text("图1: 基准主房", a/2, a + 50);
+  textStyle(NORMAL); textSize(14); fill(100);
+  text("面积: a²", a/2, a + 75);
+  
+  pop();
+  
+  // --- Column 2: Figure 2 ---
+  push();
+  translate(startX + (a + gapLogic) * s, startY);
+  scale(s);
+  
+  fill(colMain); stroke(colBorder); strokeWeight(2/s);
+  rect(0, 0, a, a);
+  fill(colGarden); stroke(colGardenBorder);
+  rect(0, -b, a, b); 
+  rect(a, -b, b, a + b);
+  
+  drawDim(0, a + 15, a, 0, 'a', s);
+  drawDim(-15, 0, 0, a, 'a', s);
+  drawDim(a + b + 15, -b, 0, a+b, 'a+b', s);
+  drawDim(0, -b - 15, a+b, 0, 'a+b', s);
+  
+  noStroke(); fill(50); textAlign(CENTER); textSize(16); textStyle(BOLD);
+  text("图2: 户型一", (a+b)/2, a + 50);
+  textStyle(NORMAL); textSize(14); fill(100);
+  text("面积: (a+b)²", (a+b)/2, a + 75);
+  
+  if (STATE.mode === 'guided' && STATE.stepIndex === 1) {
+      drawHighlightText(a/2, a/2, "主房", s);
+      drawHighlightText(a + b/2, a/2, "花园", s);
+  }
+  
+  pop();
+  
+  // --- Column 3: Figure 3 ---
+  push();
+  translate(startX + (a + gapLogic + a + b + gapLogic) * s, startY);
+  scale(s);
+  
+  const type2Y = b;
+  fill(colMain); stroke(colBorder); strokeWeight(2/s);
+  rect(0, type2Y, a, a-b);
+  fill(colGarden); stroke(colGardenBorder);
+  rect(a, type2Y, b, a-b);
+  
+  noFill(); stroke(150); setLineDash([5/s, 5/s]); strokeWeight(1/s);
+  rect(0, 0, a, a);
+  setLineDash([]);
+  
+  drawDim(0, a + 15, a, 0, 'a', s);
+  drawDim(a, a + 15, b, 0, 'b', s);
+  drawDim(-15, type2Y, 0, a-b, 'a-b', s);
+  
+  noStroke(); fill(50); textAlign(CENTER); textSize(16); textStyle(BOLD);
+  text("图3: 户型二", (a+b)/2, a + 50);
+  textStyle(NORMAL); textSize(14); fill(100);
+  text("面积: a²-b²", (a+b)/2, a + 75);
+  
+  if (STATE.mode === 'guided' && STATE.stepIndex === 2) {
+     drawHighlightText(a/2, type2Y + (a-b)/2, "主房", s);
+     drawHighlightText(a + b/2, type2Y + (a-b)/2, "花园", s);
+  }
+  
+  pop();
+}
+
+function drawDim(x, y, w, h, label, s) {
+  push();
+  stroke(100); fill(80); strokeWeight(1/s);
+  const tick = 4/s;
+  if (w !== 0) { 
+    line(x, y, x+w, y);
+    line(x, y-tick, x, y+tick);
+    line(x+w, y-tick, x+w, y+tick);
+    noStroke(); textAlign(CENTER, TOP); textSize(12); text(label, x+w/2, y+tick+2);
+  } else { 
+    line(x, y, x, y+h);
+    line(x-tick, y, x+tick, y);
+    line(x-tick, y+h, x+tick, y+h);
+    noStroke(); textAlign(RIGHT, CENTER); textSize(12); text(label, x-tick-2, y+h/2);
+  }
+  pop();
+}
+
+function drawHighlightText(x, y, str, s) {
+    fill(0); noStroke(); textAlign(CENTER, CENTER); textSize(14);
+    text(str, x, y);
+}
+
+function setLineDash(list) {
+  drawingContext.setLineDash(list);
+}
+
+/**
+ * UI Interaction & Logic
+ */
+function init() {
+  STATE.problem.statementCN = document.getElementById('problem-text').innerText = STATE.problem.statementCN;
+  buildPlanSteps();
+  
+  // Init UI
+  // FORCE GUIDED MODE ON LOAD
+  setMode('guided'); 
+  updateStepUI();
+  updateVerifyUI();
+  
+  // MathJax Force typeset warning on load too
+  MathJax.typesetPromise();
+}
+
+function setMode(mode) {
+  STATE.mode = mode;
+  
+  const tabGuided = document.getElementById('tab-guided');
+  const tabSandbox = document.getElementById('tab-sandbox');
+  if (mode === 'guided') {
+      tabGuided.className = "flex-1 py-3 text-blue-600 border-b-2 border-blue-600 bg-white hover:bg-gray-50 transition";
+      tabSandbox.className = "flex-1 py-3 text-gray-500 hover:text-blue-600 hover:bg-white transition";
+      
+      document.getElementById('guided-overlay').classList.remove('hidden');
+      document.getElementById('sandbox-overlay').classList.add('hidden');
+  } else {
+      tabSandbox.className = "flex-1 py-3 text-blue-600 border-b-2 border-blue-600 bg-white hover:bg-gray-50 transition";
+      tabGuided.className = "flex-1 py-3 text-gray-500 hover:text-blue-600 hover:bg-white transition";
+      
+      document.getElementById('guided-overlay').classList.add('hidden');
+      document.getElementById('sandbox-overlay').classList.remove('hidden');
+  }
+  
+  updateVerifyUI();
+}
+
+function prevStep() {
+  if (STATE.stepIndex > 0) {
+    STATE.stepIndex--;
+    updateStepUI();
+  }
+}
+
+function nextStep() {
+  if (STATE.stepIndex < STATE.planSteps.length - 1) {
+    STATE.stepIndex++;
+    updateStepUI();
+  }
+}
+
+function updateStepUI() {
+  const step = STATE.planSteps[STATE.stepIndex];
+  const total = STATE.planSteps.length;
+  
+  document.getElementById('step-count').innerText = `${STATE.stepIndex + 1}/${total}`;
+  document.getElementById('btn-prev').disabled = STATE.stepIndex === 0;
+  document.getElementById('btn-next').disabled = STATE.stepIndex === total - 1;
+  
+  document.getElementById('step-title').innerText = step.titleCN;
+  document.getElementById('step-reasoning').innerHTML = step.reasoningCN; // Use HTML to allow span wrapping if needed
+  
+  const mathContainer = document.getElementById('step-math');
+  mathContainer.innerHTML = `\\[ ${step.contentTeX} \\]`;
+  
+  // Typeset the WHOLE wrapper to catch reasoning math + formulas
+  const wrapper = document.getElementById('step-content-wrapper');
+  wrapper.classList.add('math-pending');
+  
+  MathJax.typesetPromise([wrapper]).then(() => {
+    wrapper.classList.remove('math-pending');
+    wrapper.style.visibility = 'visible';
+  });
+  
+  updateVerifyUI();
+}
+
+function updateVerifyUI() {
+  const res = solveProblem();
+  const container = document.getElementById('verify-body');
+  const showAnswer = STATE.params.showAnswer;
+  const step = STATE.planSteps[STATE.stepIndex];
+  
+  let html = `<div class="text-xs space-y-2">`;
+
+  // 1. Constraint Check
+  const cStatus = res.constraintCheck ? 
+    `<span class="text-green-600 font-bold">满足</span>` : 
+    `<span class="text-red-600 font-bold">违背!</span>`;
+  html += `<div class="flex justify-between border-b border-blue-100 pb-1">
+             <span class="text-gray-600">假设检验 (0<9b<a):</span> ${cStatus}
+           </div>`;
+  
+  // 2. Data Logic
+  // Show logic: If mode is guided, show relevant block for step. If sandbox, show all.
+  const activeKey = STATE.mode === 'guided' ? step.checkItem : 'all';
+  const currentIndex = STATE.stepIndex;
+  
+  if (['mn_compare', 'all'].includes(activeKey) || currentIndex > 3) {
+     const valM = res.M.toFixed(2);
+     const valN = res.N.toFixed(2);
+     const icon = res.isNGreaterThanM ? '✅' : '❌';
+     const showConclusion = showAnswer;
+     
+     html += `
+        <div class="mt-2 bg-white p-2 rounded border border-blue-100 shadow-sm">
+          <div class="flex justify-between mb-1"><span class="text-gray-500">M (主房差):</span> <span class="font-mono">${valM}</span></div>
+          <div class="flex justify-between mb-1"><span class="text-gray-500">N (花园差):</span> <span class="font-mono">${valN}</span></div>
+          <div class="flex justify-between font-bold pt-1 border-t border-gray-100 items-center">
+             <span class="text-blue-800">结论 N > M:</span> 
+             <span>${showConclusion ? icon : '<span class="text-[10px] text-gray-400 font-normal border px-1 rounded">结论隐藏</span>'}</span>
+          </div>
+        </div>`;
+  }
+  
+  // Price analysis
+  // Logic: Show Price analysis block if we are in ANY of the price steps (Formula, Simplify, Conclusion)
+  // or if we have passed them (index > 4).
+  const isPriceStep = ['price_formula', 'price_simplify_1', 'price_simplify_2', 'price_conclusion', 'all'].includes(activeKey);
+  
+  if (isPriceStep || currentIndex > 4) {
+      const showConclusion = showAnswer;
+      const pRes = res.constraintCheck ? "户型二单价低" : "条件不足";
+      html += `
+      <div class="mt-2 bg-green-50 p-2 rounded border border-green-200">
+         <div class="flex justify-between items-center">
+            <span class="font-bold text-green-800">单价结论:</span>
+            <span class="text-sm">${showConclusion ? pRes : '<span class="text-[10px] text-gray-400 bg-white border px-1 rounded">结论隐藏</span>'}</span>
+         </div>
+      </div>`;
+  }
+
+  html += `</div>`;
+  container.innerHTML = html;
+}
+
+document.getElementById('slider-b').addEventListener('input', (e) => {
+  STATE.params.bRatio = parseFloat(e.target.value);
+  const ratio = STATE.params.bRatio;
+  document.getElementById('val-b').innerText = `b = ${ratio.toFixed(3)}a`;
+  
+  const warning = document.getElementById('constraint-warning');
+  if (ratio > 1/9) {
+      warning.classList.remove('hidden');
+  } else {
+      warning.classList.add('hidden');
+  }
+  updateVerifyUI();
+});
+
+function copyProblem() {
+  const text = STATE.problem.statementCN + "\n" + STATE.problem.statementTeX;
+  navigator.clipboard.writeText(text).then(() => {
+    alert("题面已复制");
+  });
+}
+
+function updateState() {
+    STATE.params.showAnswer = document.getElementById('chk-answer').checked;
+    updateVerifyUI();
+}
+
+function toggleLargeText() {
+    document.body.classList.toggle('text-lg');
+    setTimeout(windowResized, 50);
+}
+
+window.addEventListener('load', init);
+window.addEventListener('resize', windowResized);
+
+</script>
+</body>
+</html>

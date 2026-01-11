@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>不等式比较方法通用演示 (Inequality Master)</title>
+  
+  <!-- Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    /* UI Tweaks */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #f8fafc; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    
+    body { font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; overflow: hidden; }
+    
+    /* Overlay Styles */
+    .step-overlay {
+      background: rgba(255, 255, 255, 0.96);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid #e2e8f0;
+      box-shadow: 0 4px 20px -5px rgba(0, 0, 0, 0.1);
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .math-box {
+      font-size: 1.1rem;
+      color: #1e3a8a;
+    }
+    
+    mjx-container { overflow-x: auto; overflow-y: hidden; max-width: 100%; vertical-align: middle; }
+  </style>
+</head>
+<body class="bg-slate-50 flex h-screen text-slate-800">
+
+  <!-- Left Sidebar: Controls -->
+  <aside class="w-[360px] flex flex-col bg-white border-r border-slate-200 z-20 flex-shrink-0 shadow-lg">
+    
+    <!-- Header -->
+    <div class="p-5 border-b border-slate-100 bg-slate-50">
+      <h1 class="text-lg font-bold text-slate-800 flex items-center">
+        <span class="w-1.5 h-6 bg-blue-600 mr-2 rounded-full"></span>
+        不等式比较方法演示
+      </h1>
+      <p class="text-xs text-slate-500 mt-1">通用原理与可视化教学</p>
+    </div>
+
+    <!-- Scrollable Content -->
+    <div class="flex-1 overflow-y-auto p-5 space-y-8">
+      
+      <!-- Method Selector -->
+      <div class="space-y-3">
+        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">核心方法 (Method)</h3>
+        <div class="grid grid-cols-2 gap-3">
+          <button onclick="setMethod('diff')" id="btn-diff" class="p-3 rounded-lg border-2 text-sm font-bold transition flex flex-col items-center justify-center gap-1">
+            <span>➖ 作差法</span>
+            <span class="text-[10px] font-normal opacity-70">A - B vs 0</span>
+          </button>
+          <button onclick="setMethod('ratio')" id="btn-ratio" class="p-3 rounded-lg border-2 text-sm font-bold transition flex flex-col items-center justify-center gap-1">
+            <span>➗ 作商法</span>
+            <span class="text-[10px] font-normal opacity-70">A / B vs 1</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Example Selector -->
+      <div class="space-y-3">
+         <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">经典例题 (Examples)</h3>
+         <select id="example-select" onchange="loadExample()" class="w-full p-2.5 text-sm border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+           <!-- Populated by JS -->
+         </select>
+         <div id="example-desc" class="text-xs text-slate-500 bg-slate-50 p-2 rounded border border-slate-100 italic">
+           <!-- Description -->
+         </div>
+      </div>
+
+      <!-- Dynamic Inputs -->
+      <div class="space-y-4">
+        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">变量控制 (Variables)</h3>
+        
+        <div id="controls-container" class="space-y-4">
+          <!-- Sliders injected here -->
+        </div>
+      </div>
+
+      <!-- Validation Panel -->
+      <div class="bg-blue-50 rounded-xl p-4 border border-blue-100">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-bold text-blue-800 uppercase">实时数值验证</span>
+          <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+        </div>
+        <div id="verify-content" class="text-sm font-mono text-blue-900 space-y-1">
+          <!-- Verify Data -->
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Footer Settings -->
+    <div class="p-4 border-t border-slate-100 bg-slate-50 text-xs">
+      <label class="flex items-center space-x-2 cursor-pointer text-slate-600 hover:text-blue-600">
+        <input type="checkbox" id="chk-auto-play" class="rounded text-blue-600" onchange="toggleAutoPlay()">
+        <span>自动演示步骤动画</span>
+      </label>
+    </div>
+  </aside>
+
+  <!-- Main Stage -->
+  <main class="flex-1 relative bg-slate-100 flex flex-col h-full overflow-hidden">
+    
+    <!-- TOP GUIDED STEPS OVERLAY -->
+    <div id="steps-overlay" class="step-overlay w-full px-8 py-5 z-30 flex flex-col justify-center min-h-[160px]">
+       <div class="max-w-5xl mx-auto w-full">
+         
+         <!-- Progress Bar -->
+         <div class="flex items-center justify-between mb-4">
+           <div class="flex items-center space-x-2">
+             <span class="text-xs font-black text-blue-500 bg-blue-100 px-2 py-0.5 rounded uppercase tracking-widest">STEP <span id="step-num">1</span></span>
+             <h2 id="step-title" class="text-base font-bold text-slate-800"></h2>
+           </div>
+           
+           <div class="flex space-x-2">
+             <button onclick="changeStep(-1)" id="btn-prev" class="px-4 py-1.5 text-xs font-bold bg-white border border-slate-300 text-slate-600 rounded-md hover:bg-slate-50 disabled:opacity-50 transition shadow-sm">
+               ◀ 上一步
+             </button>
+             <button onclick="changeStep(1)" id="btn-next" class="px-6 py-1.5 text-xs font-bold bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 transition shadow-md hover:shadow-lg">
+               下一步 ▶
+             </button>
+           </div>
+         </div>
+
+         <!-- Math Content -->
+         <div class="flex flex-col md:flex-row gap-6">
+           <!-- Text Explanation -->
+           <div class="md:w-1/3 text-sm text-slate-600 leading-relaxed border-l-4 border-blue-200 pl-3 flex items-center">
+             <span id="step-desc"></span>
+           </div>
+           
+           <!-- Formula Display -->
+           <div class="md:w-2/3 bg-slate-50 border border-slate-200 rounded-lg p-3 flex items-center relative overflow-hidden group">
+             <div class="absolute top-0 right-0 p-1 opacity-0 group-hover:opacity-100 transition">
+                <span class="text-[10px] text-slate-400">MathJax Rendering</span>
+             </div>
+             <div id="step-formula" class="math-box w-full overflow-x-auto">
+               <!-- Formula Injected -->
+             </div>
+           </div>
+         </div>
+
+       </div>
+    </div>
+
+    <!-- CANVAS AREA -->
+    <div id="canvas-container" class="flex-1 relative w-full h-full">
+      <!-- P5 Canvas -->
+    </div>
+
+    <!-- Legend/Tip -->
+    <div class="absolute bottom-6 left-6 pointer-events-none select-none">
+       <div class="bg-white/80 backdrop-blur px-4 py-2 rounded-full shadow-sm border border-white/50 text-xs text-slate-500 flex items-center gap-4">
+         <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-blue-500"></span> <span>数值 A</span></div>
+         <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-orange-400"></span> <span>数值 B</span></div>
+         <div class="pl-2 border-l border-slate-300 italic">拖动左侧滑块改变变量</div>
+       </div>
+    </div>
+
+  </main>
+
+<script>
+/**
+ * DATA & LOGIC
+ */
+const DATA = {
+  method: 'diff', // 'diff' (作差) | 'ratio' (作商)
+  exampleId: 'poly', 
+  params: { x: 2, a: 10, b: 2 }, // dynamic params
+  step: 0,
+  stepsData: [],
+  autoPlay: false
+};
+
+const EXAMPLES = {
+  'poly': {
+    name: "例1：多项式比较 (作差)",
+    method: 'diff',
+    desc: "比较 A = x² + 1 与 B = 2x 的大小 (完全平方式模型)",
+    paramsConfig: [{id: 'x', label: '变量 x', min: -3, max: 5, step: 0.1, val: 2}],
+    calc: (p) => {
+      const A = p.x * p.x + 1;
+      const B = 2 * p.x;
+      return { A, B, val: A - B, label: 'A - B', valid: true };
+    },
+    steps: [
+      { t: "1. 明确比较对象", d: "首先确定要比较的两个代数式 A 和 B。", f: String.raw`A = x^2 + 1, \quad B = 2x` },
+      { t: "2. 作差 (Subtract)", d: "作差法核心第一步：列出 A - B 的式子。", f: String.raw`A - B = (x^2 + 1) - 2x` },
+      { t: "3. 变形 (Simplify)", d: "整理多项式，尝试配方成完全平方式，这是判断符号的关键。", f: String.raw`= x^2 - 2x + 1 = (x - 1)^2` },
+      { t: "4. 判别符号 (Sign)", d: "利用实数性质：任何实数的平方是非负的。", f: String.raw`\because (x-1)^2 \ge 0, \quad \text{当且仅当 } x=1 \text{ 时取等号}` },
+      { t: "5. 下结论 (Conclusion)", d: "根据差值符号得出结论。", f: String.raw`A - B \ge 0 \implies A \ge B` }
+    ]
+  },
+  'geom': {
+    name: "例2：分式比较 (作差法标准示范)",
+    method: 'diff',
+    desc: "源自户型单价比较：比较 A = 5/(a+b) 与 B = 4/(a-b)，已知 a > 9b > 0",
+    paramsConfig: [
+      {id: 'a', label: '变量 a', min: 10, max: 20, step: 1, val: 10},
+      {id: 'b', label: '变量 b', min: 0.5, max: 1.5, step: 0.1, val: 0.5} // logic constraints handled in calc
+    ],
+    calc: (p) => {
+      // Use fractional values directly
+      const A = 5 / (p.a + p.b);
+      const B = 4 / (p.a - p.b);
+      return { A, B, val: A - B, label: 'A - B', valid: p.a > 9*p.b };
+    },
+    steps: [
+      { t: "1. 明确比较对象", d: "这是两个分式。为了严谨，我们直接对分式进行作差。", f: String.raw`A = \frac{5}{a+b}, \quad B = \frac{4}{a-b}, \quad (a > 9b > 0)` },
+      { t: "2. 作差与通分 (Subtract)", d: "列出 A - B，并通分。公分母为 (a+b)(a-b)。", f: String.raw`A - B = \frac{5}{a+b} - \frac{4}{a-b} = \frac{5(a-b) - 4(a+b)}{(a+b)(a-b)}` },
+      { t: "3. 分子变形 (Simplify)", d: "展开分子并合并同类项。分母保持不变。", f: String.raw`\text{分子} = 5a - 5b - 4a - 4b = a - 9b` },
+      { t: "4. 判别符号 (Sign)", d: "分别判断分子和分母的符号。因为 a, b 为正长度且 a > 9b。", f: String.raw`\text{分子 } a - 9b > 0, \quad \text{分母 } (a+b)(a-b) > 0` },
+      { t: "5. 下结论 (Conclusion)", d: "正数除以正数得正。差大于 0，故前项大于后项。", f: String.raw`\therefore A - B > 0 \implies A > B` }
+    ]
+  },
+  'exp': {
+    name: "例3：指数比较 (作商)",
+    method: 'ratio',
+    desc: "比较 A = 3^{n+1} 与 B = 2·3^n (n ∈ N*)",
+    paramsConfig: [{id: 'n', label: '变量 n', min: 1, max: 10, step: 1, val: 1}],
+    calc: (p) => {
+      const n = Math.round(p.n);
+      const A = Math.pow(3, n + 1);
+      const B = 2 * Math.pow(3, n);
+      return { A, B, val: A / B, label: 'A / B', valid: true };
+    },
+    steps: [
+      { t: "1. 明确比较对象", d: "观察式子结构，含有同底数幂，适合用作商法。", f: String.raw`A = 3^{n+1}, \quad B = 2 \cdot 3^n` },
+      { t: "2. 作商 (Divide)", d: "前提 A, B > 0。计算 A / B。", f: String.raw`\frac{A}{B} = \frac{3^{n+1}}{2 \cdot 3^n}` },
+      { t: "3. 变形 (Simplify)", d: "利用指数运算性质约分。", f: String.raw`= \frac{3 \cdot 3^n}{2 \cdot 3^n} = \frac{3}{2} = 1.5` },
+      { t: "4. 与 1 比较 (Compare)", d: "将商与 1 进行比较（作商法是比 1，作差法是比 0）。", f: String.raw`\because 1.5 > 1` },
+      { t: "5. 下结论 (Conclusion)", d: "商大于 1 且 B > 0，故分子大于分母。", f: String.raw`\frac{A}{B} > 1 \implies A > B` }
+    ]
+  }
+};
+
+/**
+ * UI CONTROLLER
+ */
+function init() {
+  const sel = document.getElementById('example-select');
+  sel.innerHTML = '';
+  for (let k in EXAMPLES) {
+    let opt = document.createElement('option');
+    opt.value = k;
+    opt.text = EXAMPLES[k].name;
+    sel.add(opt);
+  }
+  loadExample();
+}
+
+function loadExample() {
+  const key = document.getElementById('example-select').value;
+  const ex = EXAMPLES[key];
+  DATA.exampleId = key;
+  DATA.method = ex.method;
+  DATA.stepsData = ex.steps;
+  DATA.step = 0;
+  
+  document.getElementById('example-desc').innerText = ex.desc;
+  
+  document.getElementById('btn-diff').className = `p-3 rounded-lg border-2 text-sm font-bold transition flex flex-col items-center justify-center gap-1 ${ex.method === 'diff' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-400 opacity-50'}`;
+  document.getElementById('btn-ratio').className = `p-3 rounded-lg border-2 text-sm font-bold transition flex flex-col items-center justify-center gap-1 ${ex.method === 'ratio' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-400 opacity-50'}`;
+  
+  const ctrls = document.getElementById('controls-container');
+  ctrls.innerHTML = '';
+  ex.paramsConfig.forEach(cfg => {
+    DATA.params[cfg.id] = cfg.val;
+    
+    let div = document.createElement('div');
+    div.innerHTML = `
+      <div class="flex justify-between text-xs mb-1">
+        <span class="font-bold text-slate-600">${cfg.label}</span>
+        <span class="font-mono text-blue-600" id="disp-${cfg.id}">${cfg.val}</span>
+      </div>
+      <input type="range" min="${cfg.min}" max="${cfg.max}" step="${cfg.step}" value="${cfg.val}"
+             class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+             oninput="updateParam('${cfg.id}', this.value)">
+    `;
+    ctrls.appendChild(div);
+  });
+  
+  updateStepUI();
+  updateVerify();
+}
+
+function updateParam(id, val) {
+  DATA.params[id] = parseFloat(val);
+  document.getElementById(`disp-${id}`).innerText = val;
+  updateVerify();
+}
+
+function setMethod(m) {
+  const currentKey = document.getElementById('example-select').value;
+  if (EXAMPLES[currentKey].method === m) return;
+  for (let k in EXAMPLES) {
+    if (EXAMPLES[k].method === m) {
+      document.getElementById('example-select').value = k;
+      loadExample();
+      return;
+    }
+  }
+}
+
+function changeStep(dir) {
+  const max = DATA.stepsData.length - 1;
+  let next = DATA.step + dir;
+  if (next < 0) next = 0;
+  if (next > max) next = max;
+  DATA.step = next;
+  updateStepUI();
+}
+
+function updateStepUI() {
+  const s = DATA.stepsData[DATA.step];
+  if (!s) return;
+  
+  document.getElementById('step-num').innerText = `${DATA.step + 1} / ${DATA.stepsData.length}`;
+  document.getElementById('step-title').innerText = s.t.split(' ')[1] || s.t;
+  document.getElementById('step-desc').innerText = s.d;
+  
+  const formulaBox = document.getElementById('step-formula');
+  formulaBox.innerHTML = `\\[ ${s.f} \\]`;
+  formulaBox.style.visibility = 'hidden';
+  MathJax.typesetPromise([formulaBox]).then(() => {
+    formulaBox.style.visibility = 'visible';
+  });
+  
+  document.getElementById('btn-prev').disabled = DATA.step === 0;
+  document.getElementById('btn-next').disabled = DATA.step === DATA.stepsData.length - 1;
+}
+
+function updateVerify() {
+  const ex = EXAMPLES[DATA.exampleId];
+  const res = ex.calc(DATA.params);
+  
+  // Format numbers nicely (handle small fractions)
+  const fA = res.A.toFixed(4);
+  const fB = res.B.toFixed(4);
+  const fVal = res.val.toFixed(4);
+  
+  let html = `
+    <div class="flex justify-between"><span>A:</span> <span>${fA}</span></div>
+    <div class="flex justify-between"><span>B:</span> <span>${fB}</span></div>
+    <div class="h-px bg-blue-200 my-1"></div>
+  `;
+  
+  if (DATA.method === 'diff') {
+     let sign = res.val > 1e-9 ? '>' : (res.val < -1e-9 ? '<' : '=');
+     if (res.valid === false) sign = "⚠️"; 
+     html += `
+       <div class="flex justify-between font-bold">
+         <span>A - B:</span> <span>${fVal}</span>
+       </div>
+       <div class="text-center mt-2 bg-white/50 rounded p-1 text-xs">
+         ${res.valid===false ? '条件不满足 (a > 9b)' : `结论: A ${sign} B`}
+       </div>
+     `;
+  } else {
+     let sign = res.val > 1.0000001 ? '>' : (res.val < 0.9999999 ? '<' : '=');
+     html += `
+       <div class="flex justify-between font-bold">
+         <span>A / B:</span> <span>${fVal}</span>
+       </div>
+       <div class="text-center mt-2 bg-white/50 rounded p-1 text-xs">
+         结论: A ${sign} B
+       </div>
+     `;
+  }
+  
+  document.getElementById('verify-content').innerHTML = html;
+}
+
+/**
+ * P5 VISUALIZATION
+ */
+function setup() {
+  const container = document.getElementById('canvas-container');
+  const cvs = createCanvas(container.clientWidth, container.clientHeight);
+  cvs.parent('canvas-container');
+  textFont('sans-serif');
+}
+
+function windowResized() {
+  const container = document.getElementById('canvas-container');
+  resizeCanvas(container.clientWidth, container.clientHeight);
+}
+
+function draw() {
+  clear();
+  drawGrid();
+  
+  const ex = EXAMPLES[DATA.exampleId];
+  const res = ex.calc(DATA.params);
+  
+  if (res.valid === false) {
+    fill(239, 68, 68); textAlign(CENTER); textStyle(BOLD); textSize(18);
+    text("⚠️ 参数不满足约束条件 (a > 9b)", width/2, height/2 - 20);
+    textStyle(NORMAL); textSize(14); fill(100);
+    text("请调整滑块", width/2, height/2 + 10);
+    return;
+  }
+
+  push();
+  translate(width/2, height/2 + 30); 
+  
+  if (DATA.method === 'diff') {
+     drawDifferenceVis(res);
+  } else {
+     drawRatioVis(res);
+  }
+  
+  pop();
+}
+
+function drawGrid() {
+  background(241, 245, 249);
+  stroke(226, 232, 240); strokeWeight(1);
+  for (let x = 0; x < width; x += 40) line(x, 0, x, height);
+  for (let y = 0; y < height; y += 40) line(0, y, width, y);
+}
+
+function drawDifferenceVis(res) {
+  // Use AUTO-SCALING for small fraction differences
+  // Find max amplitude to fit screen
+  const absA = Math.abs(res.A);
+  const absB = Math.abs(res.B);
+  const maxVal = Math.max(absA, absB, 0.001); // avoid div zero
+  
+  // Scale so maxVal takes up about 35% of width
+  const scaleX = (width * 0.35) / maxVal;
+  
+  // Number line
+  stroke(100); strokeWeight(2);
+  line(-width/2 + 40, 0, width/2 - 40, 0);
+  fill(100); noStroke();
+  triangle(width/2 - 40, -5, width/2 - 40, 5, width/2 - 30, 0);
+  
+  // Zero Tick
+  stroke(100); line(0, -10, 0, 10);
+  noStroke(); fill(100); textAlign(CENTER, TOP); textSize(12); text("0", 0, 15);
+  
+  const posA = res.A * scaleX;
+  const posB = res.B * scaleX;
+  
+  drawPoint(posB, "B", color(251, 146, 60), -40);
+  drawPoint(posA, "A", color(59, 130, 246), -40);
+  
+  // Draw difference indicator
+  if (DATA.step >= 1) {
+    drawConnector(posB, posA, res.A - res.B);
+  }
+}
+
+function drawPoint(x, label, col, yOffset) {
+  fill(col); noStroke(); circle(x, 0, 12);
+  stroke(col); strokeWeight(1); setLineDash([3,3]);
+  line(x, 0, x, yOffset);
+  setLineDash([]);
+  
+  // Floating Label
+  rectMode(CENTER); fill(255); stroke(col);
+  rect(x, yOffset - 12, 40, 24, 6);
+  fill(col); noStroke(); textAlign(CENTER, CENTER); textStyle(BOLD); textSize(14);
+  text(label, x, yOffset - 12);
+  textStyle(NORMAL);
+}
+
+function drawConnector(x1, x2, diffVal) {
+  const y = -70;
+  stroke(100); strokeWeight(1); fill(100);
+  line(x1, y, x2, y);
+  line(x1, y-5, x1, y+5);
+  line(x2, y-5, x2, y+5);
+  
+  const mid = (x1 + x2) / 2;
+  noStroke(); fill(80); textAlign(CENTER, BOTTOM); textSize(12);
+  // Show "A-B > 0" or "< 0" visually
+  const sign = diffVal > 0 ? "> 0" : "< 0";
+  text(`A - B ${sign}`, mid, y - 8);
+  
+  // Highlight region
+  const gapCol = diffVal > 0 ? color(34, 197, 94, 40) : color(239, 68, 68, 40);
+  rectMode(CORNERS); noStroke(); fill(gapCol);
+  rect(x1, -5, x2, 5);
+}
+
+function drawRatioVis(res) {
+  // Bar Chart
+  const maxVal = Math.max(res.A, res.B, 0.001);
+  const s = (height * 0.4) / maxVal; // Scale to height
+  
+  const hA = res.A * s;
+  const hB = res.B * s;
+  const wBar = 60;
+  const gap = 100;
+  
+  stroke(150); strokeWeight(2);
+  line(-200, 100, 200, 100); // Ground
+  
+  // B (Ref)
+  const xB = -gap/2 - wBar/2;
+  fill(251, 146, 60); noStroke();
+  rect(xB, 100 - hB, wBar, hB);
+  fill(100); textAlign(CENTER, TOP); text("B", xB + wBar/2, 110);
+  
+  // A
+  const xA = gap/2 - wBar/2;
+  fill(59, 130, 246); noStroke();
+  rect(xA, 100 - hA, wBar, hA);
+  fill(100); textAlign(CENTER, TOP); text("A", xA + wBar/2, 110);
+  
+  // Threshold Line
+  if (DATA.step >= 1) {
+    stroke(251, 146, 60); setLineDash([5,5]); strokeWeight(1);
+    line(xB - 20, 100 - hB, xA + wBar + 20, 100 - hB);
+    setLineDash([]);
+    
+    fill(251, 146, 60); textAlign(RIGHT, BOTTOM); textSize(11);
+    text("基准线 (100%)", xB - 25, 100 - hB + 5);
+    
+    // Result Indicator
+    const diffH = hA - hB;
+    if (Math.abs(diffH) > 2) {
+       fill(diffH > 0 ? 'green' : 'red'); textAlign(CENTER); textStyle(BOLD); textSize(16);
+       text(diffH > 0 ? "A > B" : "A < B", 0, -100);
+    }
+  }
+}
+
+function setLineDash(list) {
+  drawingContext.setLineDash(list);
+}
+
+// Init
+window.addEventListener('load', init);
+window.addEventListener('resize', windowResized);
+
+</script>
+</body>
+</html>

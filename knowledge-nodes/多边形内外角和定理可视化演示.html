@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>多边形内外角和定理可视化演示</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        :root {
+            --bg-color: #f8f9fa;
+            --sidebar-bg: #ffffff;
+            --primary-color: #2563eb;
+            --accent-color: #f59e0b;
+            --text-color: #1f2937;
+            --border-color: #e5e7eb;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+            font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+            color: var(--text-color);
+            background-color: var(--bg-color);
+        }
+
+        #app-container {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* Sidebar Styling */
+        #sidebar {
+            width: 400px;
+            min-width: 400px;
+            background: var(--sidebar-bg);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            z-index: 10;
+            box-shadow: 2px 0 8px rgba(0,0,0,0.05);
+        }
+
+        .card {
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .card-title {
+            font-weight: bold;
+            font-size: 1.1em;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            color: var(--primary-color);
+        }
+
+        .problem-text {
+            background: #f1f5f9;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 0.95em;
+            line-height: 1.6;
+            margin-bottom: 10px;
+            border-left: 4px solid var(--primary-color);
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        input[type="range"] {
+            width: 100%;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        button {
+            flex: 1;
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.9em;
+        }
+
+        button:hover {
+            background: #f3f4f6;
+        }
+
+        button.active {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+        /* Canvas Stage */
+        #stage-container {
+            flex-grow: 1;
+            position: relative;
+            background: #e5e7eb;
+            overflow: hidden;
+            cursor: crosshair;
+        }
+
+        #guided-overlay {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            max-width: 600px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(8px);
+            border-radius: 12px;
+            padding: 15px 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            border: 1px solid rgba(255,255,255,0.3);
+            display: none;
+            z-index: 100;
+        }
+
+        .step-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .step-title {
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+
+        .reasoning-text {
+            font-size: 0.95em;
+            line-height: 1.5;
+            margin-bottom: 10px;
+        }
+
+        .formula-container {
+            background: #f8fafc;
+            padding: 8px;
+            border-radius: 6px;
+            text-align: center;
+            min-height: 40px;
+        }
+
+        /* Verification Panel */
+        #verify-panel {
+            font-size: 0.85em;
+        }
+
+        .verify-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            border-bottom: 1px dashed #eee;
+        }
+
+        .status-ok { color: #059669; font-weight: bold; }
+        .status-err { color: #dc2626; }
+
+        /* Helpers */
+        .hidden { display: none !important; }
+        .math-jax-hidden { visibility: hidden; }
+
+        /* Zoom Info */
+        #view-info {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.5);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+<div id="app-container">
+    <div id="sidebar">
+        <!-- 题目卡片 -->
+        <div class="card">
+            <div class="card-title">📖 演示目标</div>
+            <div id="problem-display" class="problem-text"></div>
+            <button onclick="copyProblemText()">复制需求描述</button>
+        </div>
+
+        <!-- 模式切换 -->
+        <div class="card">
+            <div class="card-title">🎮 交互模式</div>
+            <div class="btn-group">
+                <button id="mode-interior-btn" class="active" onclick="setMode('interior')">内角和</button>
+                <button id="mode-exterior-btn" onclick="setMode('exterior')">外角和</button>
+            </div>
+            <div class="btn-group" style="margin-top:10px;">
+                <button id="teaching-guided-btn" class="active" onclick="setTeachingMode('guided')">分步引导</button>
+                <button id="teaching-sandbox-btn" onclick="setTeachingMode('sandbox')">自由探索</button>
+            </div>
+        </div>
+
+        <!-- 参数控制 -->
+        <div class="card" id="sandbox-controls">
+            <div class="card-title">⚙️ 参数调节</div>
+            <div class="control-group">
+                <label id="label-n">多边形边数 (n): 5</label>
+                <input type="range" id="input-n" min="3" max="10" step="1" value="5" oninput="updateN(this.value)">
+            </div>
+            <button onclick="resetPolygon()">重置多边形形状</button>
+            <button onclick="resetView()">重置视图(平移/缩放)</button>
+        </div>
+
+        <!-- 验证面板 -->
+        <div class="card">
+            <div class="card-title">🔍 实时验证/自检</div>
+            <div id="verify-panel">
+                <!-- 动态插入验证项 -->
+            </div>
+        </div>
+
+        <!-- 详细步骤 (折叠) -->
+        <div class="card">
+            <details>
+                <summary style="cursor:pointer; font-weight:bold; color:var(--text-color);">📑 原理详解 (TeX)</summary>
+                <div id="theory-content" style="font-size:0.9em; margin-top:10px;"></div>
+            </details>
+        </div>
+    </div>
+
+    <div id="stage-container">
+        <!-- 引导悬浮层 -->
+        <div id="guided-overlay">
+            <div class="step-header">
+                <div class="step-title" id="overlay-step-title">步骤标题</div>
+                <div style="display:flex; gap:5px;">
+                    <button onclick="prevStep()">上一步</button>
+                    <button onclick="nextStep()">下一步</button>
+                </div>
+            </div>
+            <div class="reasoning-text" id="overlay-reasoning">推理说明文字...</div>
+            <div class="formula-container" id="overlay-formula">
+                <div id="math-display" class="math-jax-hidden"></div>
+            </div>
+            <div style="margin-top:8px; text-align:right; font-size:10px; color:#666;" id="step-counter">1/4</div>
+        </div>
+        <div id="view-info">缩放: 1.0x</div>
+    </div>
+</div>
+
+<script>
+/**
+ * STATE AND CONFIG
+ */
+const STATE = {
+    domain: 'Mathematics',
+    subdomain: 'Plane Geometry',
+    type: 'TYPE_B',
+    mode: 'interior', // interior | exterior
+    teachingMode: 'guided', // guided | sandbox
+    n: 5,
+    vertices: [], // {x, y} in world coords
+    stepIndex: 0,
+    problem: {
+        statementCN: "演示任意多边形的内角和与外角和规律。探究其数学原理，并通过动态几何方式进行验证。",
+        statementTeX: "探究 \(n\) 边形内角和 \((n-2) \times 180^\circ\) 与外角和恒为 \(360^\circ\) 的几何本质。"
+    },
+    view: {
+        offsetX: 0,
+        offsetY: 0,
+        scale: 1.0,
+        isPanning: false,
+        lastMouseX: 0,
+        lastMouseY: 0
+    },
+    dragVertexIndex: -1,
+    planSteps: []
+};
+
+const COLORS = {
+    polygon: [37, 99, 235],
+    interior: [245, 158, 11, 150],
+    exterior: [220, 38, 38, 150],
+    auxLine: [156, 163, 175, 150],
+    accent: [245, 158, 11], // Added missing accent color
+    highlight: [234, 88, 12, 255]
+};
+
+/**
+ * MATH RENDERING HELPER
+ */
+async function renderMath(elId, tex, fallback) {
+    const el = document.getElementById(elId);
+    el.classList.add('math-jax-hidden');
+    try {
+        el.innerHTML = `\\(${tex}\\)`;
+        await MathJax.typesetPromise([el]);
+        el.classList.remove('math-jax-hidden');
+    } catch (e) {
+        console.error("MathJax Error", e);
+        el.innerText = fallback || tex.replace(/\\/g, '');
+        el.classList.remove('math-jax-hidden');
+    }
+}
+
+/**
+ * GEOMETRY CORE
+ */
+function calculateInitialPolygon(n, radius = 150) {
+    const pts = [];
+    for (let i = 0; i < n; i++) {
+        const angle = map(i, 0, n, -HALF_PI, TWO_PI - HALF_PI);
+        pts.push({
+            x: radius * cos(angle),
+            y: radius * sin(angle)
+        });
+    }
+    return pts;
+}
+
+function getAngles() {
+    const n = STATE.vertices.length;
+    const angles = [];
+    for (let i = 0; i < n; i++) {
+        const pPrev = STATE.vertices[(i + n - 1) % n];
+        const pCurr = STATE.vertices[i];
+        const pNext = STATE.vertices[(i + 1) % n];
+        
+        const v1 = createVector(pPrev.x - pCurr.x, pPrev.y - pCurr.y);
+        const v2 = createVector(pNext.x - pCurr.x, pNext.y - pCurr.y);
+        
+        let a = v1.angleBetween(v2);
+        // Ensure we get the interior angle. For convex polygons, it's straightforward.
+        if (a < 0) a += TWO_PI;
+        
+        angles.push(a);
+    }
+    return angles;
+}
+
+/**
+ * PLAN GENERATOR
+ */
+function updatePlan() {
+    if (STATE.mode === 'interior') {
+        STATE.planSteps = [
+            {
+                titleCN: "绘制多边形",
+                reasoningCN: `当前是一个任意的 ${STATE.n} 边形。我们可以通过拖动顶点改变它的形状。`,
+                formulasTeX: String.raw`n = ${STATE.n}`,
+                focusObjects: [{ type: 'tri', ids: ['poly'] }]
+            },
+            {
+                titleCN: "三角形分割法",
+                reasoningCN: "从任意一个顶点（如顶点0）向其他不相邻的顶点连线，可以将多边形分割为三角形。",
+                formulasTeX: String.raw`三角形数量 = n - 2 = ${STATE.n - 2}`,
+                focusObjects: [{ type: 'seg', ids: ['diagonals'] }]
+            },
+            {
+                titleCN: "内角和推导",
+                reasoningCN: "每个三角形的内角和为 180°，多边形的内角总和等于所有分割三角形内角之和。",
+                formulasTeX: String.raw`S_{in} = (n-2) \times 180^\circ = ${(STATE.n - 2) * 180}^\circ`,
+                focusObjects: [{ type: 'ang', ids: ['all_interior'] }]
+            }
+        ];
+    } else {
+        STATE.planSteps = [
+            {
+                titleCN: "外角定义",
+                reasoningCN: "延长多边形的每一条边，边与相邻边的延长线所组成的角叫做外角。",
+                formulasTeX: String.raw`外角 + 内角 = 180^\circ`,
+                focusObjects: [{ type: 'seg', ids: ['extensions'] }]
+            },
+            {
+                titleCN: "路径转角视角",
+                reasoningCN: "想象你在多边形的边界上走一圈。每到一个顶点，你转过的角度正是该处的外角。",
+                formulasTeX: String.raw`\text{总转角} = 360^\circ`,
+                focusObjects: [{ type: 'ang', ids: ['all_exterior'] }]
+            },
+            {
+                titleCN: "平移汇聚验证",
+                reasoningCN: "如果我们将所有的外角平移到一个中心点，它们恰好拼成一个周角。",
+                formulasTeX: String.raw`S_{ex} = 360^\circ \text{ (恒等)}`,
+                focusObjects: [{ type: 'pt', ids: ['center'] }]
+            }
+        ];
+    }
+}
+
+/**
+ * P5.JS SKETCH
+ */
+function setup() {
+    const canvas = createCanvas(windowWidth - 400, windowHeight);
+    canvas.parent('stage-container');
+    STATE.vertices = calculateInitialPolygon(STATE.n);
+    
+    // UI Initialization
+    document.getElementById('problem-display').innerText = STATE.problem.statementCN;
+    updateN(STATE.n);
+    updatePlan();
+    syncUI();
+    
+    // Event listeners for Pan/Zoom
+    const stage = document.getElementById('stage-container');
+    stage.addEventListener('wheel', handleWheel, { passive: false });
+    stage.addEventListener('pointerdown', handlePointerDown);
+    stage.addEventListener('pointermove', handlePointerMove);
+    stage.addEventListener('pointerup', handlePointerUp);
+    stage.addEventListener('pointercancel', handlePointerUp);
+}
+
+function draw() {
+    background(240);
+    
+    push();
+    translate(width / 2 + STATE.view.offsetX, height / 2 + STATE.view.offsetY);
+    scale(STATE.view.scale);
+    
+    drawGrid();
+    drawPolygon();
+    
+    if (STATE.teachingMode === 'guided') {
+        drawGuidedOverlayVisuals();
+    }
+    
+    drawVertices();
+    pop();
+    
+    updateVerification();
+}
+
+function drawGrid() {
+    stroke(220);
+    strokeWeight(1 / STATE.view.scale);
+    const step = 50;
+    const limit = 2000;
+    for (let x = -limit; x <= limit; x += step) line(x, -limit, x, limit);
+    for (let y = -limit; y <= limit; y += step) line(-limit, y, limit, y);
+}
+
+function drawPolygon() {
+    // Fill
+    fill(COLORS.polygon[0], COLORS.polygon[1], COLORS.polygon[2], 30);
+    stroke(COLORS.polygon);
+    strokeWeight(3 / STATE.view.scale);
+    beginShape();
+    for (let p of STATE.vertices) vertex(p.x, p.y);
+    endShape(CLOSE);
+}
+
+function drawVertices() {
+    for (let i = 0; i < STATE.vertices.length; i++) {
+        const p = STATE.vertices[i];
+        const isHover = dist(screenToWorldX(mouseX), screenToWorldY(mouseY), p.x, p.y) < 15 / STATE.view.scale;
+        
+        // Fixed: Use COLORS.accent instead of accent_color
+        fill(isHover || STATE.dragVertexIndex === i ? COLORS.accent : 255);
+        stroke(COLORS.polygon);
+        strokeWeight(2 / STATE.view.scale);
+        circle(p.x, p.y, 10 / STATE.view.scale);
+        
+        // Label
+        fill(0);
+        noStroke();
+        textSize(14 / STATE.view.scale);
+        text(`V${i}`, p.x + 10 / STATE.view.scale, p.y - 10 / STATE.view.scale);
+    }
+}
+
+function drawGuidedOverlayVisuals() {
+    const step = STATE.planSteps[STATE.stepIndex];
+    if (!step) return;
+
+    if (STATE.mode === 'interior') {
+        if (STATE.stepIndex >= 1) { // Triangulation
+            stroke(COLORS.auxLine);
+            strokeWeight(2 / STATE.view.scale);
+            drawingContext.setLineDash([5, 5]);
+            for (let i = 2; i < STATE.n - 1; i++) {
+                line(STATE.vertices[0].x, STATE.vertices[0].y, STATE.vertices[i].x, STATE.vertices[i].y);
+            }
+            drawingContext.setLineDash([]);
+        }
+        
+        if (STATE.stepIndex >= 2) { // Highlight Angles
+            drawInteriorAngles();
+        }
+    } else {
+        drawExteriorAngles();
+    }
+}
+
+function drawInteriorAngles() {
+    const angles = getAngles();
+    noStroke();
+    fill(COLORS.interior[0], COLORS.interior[1], COLORS.interior[2], 100);
+    for (let i = 0; i < STATE.vertices.length; i++) {
+        const p = STATE.vertices[i];
+        const pPrev = STATE.vertices[(i + STATE.n - 1) % STATE.n];
+        const pNext = STATE.vertices[(i + 1) % STATE.n];
+        const a1 = atan2(pPrev.y - p.y, pPrev.x - p.x);
+        const a2 = atan2(pNext.y - p.y, pNext.x - p.x);
+        
+        let start = a1;
+        let end = a2;
+        if (a2 < a1) end += TWO_PI;
+        if (end - start > PI) {
+            let temp = start;
+            start = end;
+            end = temp + TWO_PI;
+        }
+        
+        arc(p.x, p.y, 40 / STATE.view.scale, 40 / STATE.view.scale, start, end, PIE);
+    }
+}
+
+function drawExteriorAngles() {
+    stroke(COLORS.exterior);
+    strokeWeight(2 / STATE.view.scale);
+    for (let i = 0; i < STATE.vertices.length; i++) {
+        const p = STATE.vertices[i];
+        const pNext = STATE.vertices[(i + 1) % STATE.n];
+        const pNextNext = STATE.vertices[(i + 2) % STATE.n];
+        
+        // Extension line
+        const vExt = createVector(pNext.x - p.x, pNext.y - p.y).normalize().mult(60 / STATE.view.scale);
+        line(pNext.x, pNext.y, pNext.x + vExt.x, pNext.y + vExt.y);
+        
+        // Arc for exterior angle
+        if (STATE.stepIndex >= 1) {
+            const v1 = createVector(vExt.x, vExt.y);
+            const v2 = createVector(pNextNext.x - pNext.x, pNextNext.y - pNext.y);
+            const aStart = v1.heading();
+            const aEnd = v2.heading();
+            
+            fill(COLORS.exterior[0], COLORS.exterior[1], COLORS.exterior[2], 80);
+            arc(pNext.x, pNext.y, 40 / STATE.view.scale, 40 / STATE.view.scale, aStart, aEnd, PIE);
+        }
+    }
+}
+
+/**
+ * UTILS & COORDINATES
+ */
+function screenToWorldX(mx) { return (mx - width / 2 - STATE.view.offsetX) / STATE.view.scale; }
+function screenToWorldY(my) { return (my - height / 2 - STATE.view.offsetY) / STATE.view.scale; }
+
+function handleWheel(e) {
+    e.preventDefault();
+    const zoomFactor = 1.05;
+    const delta = e.deltaY > 0 ? 1 / zoomFactor : zoomFactor;
+    const newScale = constrain(STATE.view.scale * delta, 0.4, 5.0);
+    
+    const worldMouseX = screenToWorldX(mouseX);
+    const worldMouseY = screenToWorldY(mouseY);
+    
+    STATE.view.scale = newScale;
+    STATE.view.offsetX = mouseX - width / 2 - worldMouseX * STATE.view.scale;
+    STATE.view.offsetY = mouseY - height / 2 - worldMouseY * STATE.view.scale;
+    
+    document.getElementById('view-info').innerText = `缩放: ${STATE.view.scale.toFixed(1)}x`;
+}
+
+function handlePointerDown(e) {
+    const stageOffset = document.getElementById('sidebar').offsetWidth;
+    const wx = screenToWorldX(e.clientX - stageOffset);
+    const wy = screenToWorldY(e.clientY);
+    
+    // Check vertex hit
+    for (let i = 0; i < STATE.vertices.length; i++) {
+        if (dist(wx, wy, STATE.vertices[i].x, STATE.vertices[i].y) < 15 / STATE.view.scale) {
+            STATE.dragVertexIndex = i;
+            e.target.setPointerCapture(e.pointerId);
+            return;
+        }
+    }
+    
+    // Check blank area for pan
+    STATE.view.isPanning = true;
+    STATE.view.lastMouseX = e.clientX;
+    STATE.view.lastMouseY = e.clientY;
+    e.target.setPointerCapture(e.pointerId);
+}
+
+function handlePointerMove(e) {
+    if (STATE.dragVertexIndex !== -1) {
+        const stageOffset = document.getElementById('sidebar').offsetWidth;
+        STATE.vertices[STATE.dragVertexIndex].x = screenToWorldX(e.clientX - stageOffset);
+        STATE.vertices[STATE.dragVertexIndex].y = screenToWorldY(e.clientY);
+    } else if (STATE.view.isPanning) {
+        STATE.view.offsetX += (e.clientX - STATE.view.lastMouseX);
+        STATE.view.offsetY += (e.clientY - STATE.view.lastMouseY);
+        STATE.view.lastMouseX = e.clientX;
+        STATE.view.lastMouseY = e.clientY;
+    }
+}
+
+function handlePointerUp(e) {
+    STATE.dragVertexIndex = -1;
+    STATE.view.isPanning = false;
+}
+
+/**
+ * UI SYNC & LOGIC
+ */
+function updateN(val) {
+    STATE.n = parseInt(val);
+    document.getElementById('label-n').innerText = `多边形边数 (n): ${STATE.n}`;
+    STATE.vertices = calculateInitialPolygon(STATE.n);
+    updatePlan();
+    syncUI();
+}
+
+function setMode(m) {
+    STATE.mode = m;
+    document.getElementById('mode-interior-btn').className = m === 'interior' ? 'active' : '';
+    document.getElementById('mode-exterior-btn').className = m === 'exterior' ? 'active' : '';
+    STATE.stepIndex = 0;
+    updatePlan();
+    syncUI();
+}
+
+function setTeachingMode(m) {
+    STATE.teachingMode = m;
+    document.getElementById('teaching-guided-btn').className = m === 'guided' ? 'active' : '';
+    document.getElementById('teaching-sandbox-btn').className = m === 'sandbox' ? 'active' : '';
+    document.getElementById('guided-overlay').style.display = m === 'guided' ? 'block' : 'none';
+    syncUI();
+}
+
+function syncUI() {
+    const step = STATE.planSteps[STATE.stepIndex];
+    if (STATE.teachingMode === 'guided') {
+        document.getElementById('overlay-step-title').innerText = step.titleCN;
+        document.getElementById('overlay-reasoning').innerText = step.reasoningCN;
+        renderMath('math-display', step.formulasTeX, step.formulasTeX);
+        document.getElementById('step-counter').innerText = `${STATE.stepIndex + 1} / ${STATE.planSteps.length}`;
+    }
+    
+    // Summary TeX Content
+    const summaryTeX = STATE.mode === 'interior' 
+        ? String.raw`内角和定理：对于任意 $n$ 边形，其内角之和为：\[ S_{in} = (n-2) \times 180^\circ \] 这是因为多边形可以被分割成 $(n-2)$ 个三角形。`
+        : String.raw`外角和定理：对于任意凸多边形，其外角之和（每个顶点处取一个外角）恒等于：\[ S_{ex} = 360^\circ \] 该性质与边数 $n$ 无关。`;
+    
+    document.getElementById('theory-content').innerHTML = summaryTeX;
+    MathJax.typesetPromise([document.getElementById('theory-content')]);
+}
+
+function updateVerification() {
+    const panel = document.getElementById('verify-panel');
+    const angles = getAngles();
+    const sumDeg = angles.reduce((a, b) => a + b, 0) * (180 / PI);
+    
+    let html = "";
+    if (STATE.mode === 'interior') {
+        const expected = (STATE.n - 2) * 180;
+        const diff = Math.abs(sumDeg - expected);
+        html = `
+            <div class="verify-item"><span>理论内角和:</span> <span>${expected}°</span></div>
+            <div class="verify-item"><span>实测内角和:</span> <span>${sumDeg.toFixed(2)}°</span></div>
+            <div class="verify-item"><span>误差:</span> <span class="${diff < 0.1 ? 'status-ok' : 'status-err'}">${diff.toFixed(4)}°</span></div>
+        `;
+    } else {
+        const expected = 360;
+        const extSum = STATE.n * 180 - sumDeg; 
+        const diff = Math.abs(extSum - expected);
+        html = `
+            <div class="verify-item"><span>理论外角和:</span> <span>360°</span></div>
+            <div class="verify-item"><span>实测外角和:</span> <span>${extSum.toFixed(2)}°</span></div>
+            <div class="verify-item"><span>误差:</span> <span class="${diff < 0.1 ? 'status-ok' : 'status-err'}">${diff.toFixed(4)}°</span></div>
+        `;
+    }
+    panel.innerHTML = html;
+}
+
+function nextStep() {
+    if (STATE.stepIndex < STATE.planSteps.length - 1) {
+        STATE.stepIndex++;
+        syncUI();
+    }
+}
+
+function prevStep() {
+    if (STATE.stepIndex > 0) {
+        STATE.stepIndex--;
+        syncUI();
+    }
+}
+
+function resetPolygon() {
+    STATE.vertices = calculateInitialPolygon(STATE.n);
+}
+
+function resetView() {
+    STATE.view = {
+        offsetX: 0,
+        offsetY: 0,
+        scale: 1.0,
+        isPanning: false,
+        lastMouseX: 0,
+        lastMouseY: 0
+    };
+    document.getElementById('view-info').innerText = `缩放: 1.0x`;
+}
+
+function copyProblemText() {
+    const text = STATE.problem.statementCN + "\n" + STATE.problem.statementTeX;
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    document.body.appendChild(textArea);
+    textArea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textArea);
+    alert("题面已复制到剪贴板");
+}
+
+window.addEventListener('resize', () => {
+    resizeCanvas(windowWidth - 400, windowHeight);
+});
+</script>
+</body>
+</html>

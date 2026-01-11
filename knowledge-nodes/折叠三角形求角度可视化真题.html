@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>折叠三角形求角度可视化 - MathPhysics Visualizer v3.1</title>
+    <!-- CDN Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --success: #16a34a;
+            --warning: #ca8a04;
+            --danger: #dc2626;
+            --bg-sidebar: #f8fafc;
+            --border: #e2e8f0;
+            --bg-canvas: #ffffff;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: #fff;
+            display: flex;
+            height: 100vh;
+        }
+
+        /* Sidebar Styling */
+        #sidebar {
+            width: 360px;
+            background: var(--bg-sidebar);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            flex-shrink: 0;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+            z-index: 20;
+            padding: 12px;
+            gap: 12px;
+        }
+
+        /* Main Display Area */
+        #main-area {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-canvas);
+            position: relative;
+        }
+
+        /* Top Steps Panel (New Layout) */
+        #steps-panel {
+            background: #fff;
+            border-bottom: 1px solid var(--border);
+            padding: 16px 24px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            z-index: 15;
+            min-height: 160px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            transition: all 0.3s ease;
+        }
+
+        .method-tabs {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 8px;
+        }
+
+        .tab-btn {
+            padding: 6px 16px;
+            border-radius: 20px;
+            border: 1px solid transparent;
+            background: #f1f5f9;
+            color: #64748b;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+        .tab-btn.active {
+            background: var(--primary);
+            color: #fff;
+            box-shadow: 0 2px 4px rgba(37, 99, 235, 0.3);
+        }
+
+        .knowledge-tags {
+            font-size: 0.8rem;
+            color: #64748b;
+            margin-left: auto;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .tag {
+            background: #e2e8f0;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        /* Step Content Area */
+        #step-content-box {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+        }
+        .step-text {
+            flex-grow: 1;
+            font-size: 1.05rem;
+            line-height: 1.6;
+            color: #334155;
+        }
+        .step-title {
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 4px;
+            display: block;
+            font-size: 1.1rem;
+        }
+        
+        /* Big Navigation Buttons */
+        .nav-controls {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        .big-btn {
+            padding: 10px 24px;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            border: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: transform 0.1s, background 0.2s;
+        }
+        .big-btn:active { transform: scale(0.98); }
+        
+        .btn-next { background: var(--primary); color: white; box-shadow: 0 4px 6px rgba(37, 99, 235, 0.2); }
+        .btn-next:hover { background: var(--primary-dark); }
+        
+        .btn-prev { background: #fff; border: 1px solid #cbd5e1; color: #475569; }
+        .btn-prev:hover { background: #f8fafc; }
+        .btn-prev:disabled, .btn-next:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
+
+        /* Canvas */
+        #canvas-container {
+            flex-grow: 1;
+            position: relative;
+            background: #f8fafc; /* Slight contrast to distinct from panel */
+            overflow: hidden;
+            cursor: crosshair;
+        }
+
+        /* Common Card Styles */
+        .card {
+            background: #fff;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+        .card-header {
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 8px;
+            font-size: 0.95rem;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        /* Range Slider */
+        input[type="range"] { width: 100%; margin: 8px 0; cursor: pointer; }
+        
+        /* Badges */
+        .status-badge { padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+        .status-ok { background: #dcfce7; color: #166534; }
+        .status-warn { background: #fef9c3; color: #854d0e; }
+
+        .verify-item {
+            display: flex; justify-content: space-between; padding: 6px 0;
+            border-bottom: 1px dashed var(--border); font-size: 0.85rem;
+        }
+        .verify-item:last-child { border-bottom: none; }
+        
+        /* Problem Box */
+        .problem-text {
+            font-size: 0.9rem; line-height: 1.5; color: #334155;
+            background: #f1f5f9; padding: 10px; border-radius: 6px;
+        }
+    </style>
+</head>
+<body>
+
+<!-- Left Sidebar: Context & Controls -->
+<div id="sidebar">
+    <!-- Problem -->
+    <div class="card">
+        <div class="card-header">
+            <span>题目原题</span>
+            <button onclick="copyProblem()" style="border:1px solid #cbd5e1; background:#fff; border-radius:4px; cursor:pointer; font-size:0.8rem; padding:2px 6px;">复制</button>
+        </div>
+        <div class="problem-text">
+            16. 如图，\(\triangle ABC\) 中，\(\angle C = 90^{\circ}\)，\(AC \le BC\)，将 \(\triangle ABC\) 沿 \(EF\) 折叠，使点 \(A\) 落在直角边 \(BC\) 上的 \(D\) 点处，设 \(EF\) 与 \(AB\)、\(AC\) 边分别交于点 \(E\)、\(F\)，如果折叠后 \(\triangle CDF\) 与 \(\triangle BDE\) 均为等腰三角形，那么 \(\angle B =\) ______ .
+        </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="card">
+        <div class="card-header">
+            <span>探索参数</span>
+            <span class="status-badge status-ok" id="mode-badge">探索模式</span>
+        </div>
+        <div style="margin-bottom:12px">
+            <div style="display:flex; justify-content:space-between; font-size:0.9rem; margin-bottom:4px">
+                <span>∠B 大小 (x)</span>
+                <span id="val-angleB" class="font-mono" style="font-weight:bold; color:var(--primary)">35°</span>
+            </div>
+            <input type="range" id="input-angleB" min="15" max="60" step="0.5" value="35">
+            <div style="font-size:0.75rem; color:var(--warning)">提示：拖动寻找符合题意的角度</div>
+        </div>
+        <div>
+            <label style="display:flex; align-items:center; gap:8px; font-size:0.9rem; cursor:pointer">
+                <input type="checkbox" id="check-showAux" checked> 显示折痕与辅助线
+            </label>
+        </div>
+    </div>
+
+    <!-- Verification -->
+    <div class="card" style="flex-grow:1; display:flex; flex-direction:column">
+        <div class="card-header">验证条件</div>
+        <div id="verify-list" style="flex-grow:1"></div>
+    </div>
+</div>
+
+<!-- Main Area: Steps & Canvas -->
+<div id="main-area">
+    <!-- Top: Steps Panel -->
+    <div id="steps-panel">
+        <div class="method-tabs">
+            <button class="tab-btn active" onclick="setMethod('geo')" id="btn-method-geo">解法一：几何推导</button>
+            <button class="tab-btn" onclick="setMethod('alg')" id="btn-method-alg">解法二：代数方程</button>
+            <div class="knowledge-tags" id="knowledge-tags">
+                <!-- Injected via JS -->
+            </div>
+        </div>
+
+        <div id="step-content-box">
+            <div class="step-text" id="step-text-container">
+                <span class="step-title">准备开始</span>
+                请选择一种解法，点击“下一步”开始逐步推导。
+            </div>
+            
+            <div class="nav-controls">
+                <button class="big-btn btn-prev" onclick="prevStep()" id="btn-prev" disabled>
+                    <span>←</span> 上一步
+                </button>
+                <div style="font-size:0.9rem; color:#94a3b8; font-weight:bold; min-width:40px; text-align:center" id="step-indicator">
+                    0/0
+                </div>
+                <button class="big-btn btn-next" onclick="nextStep()" id="btn-next">
+                    下一步 <span>→</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom: Canvas -->
+    <div id="canvas-container"></div>
+</div>
+
+<!-- Hidden MathJax Source -->
+<div id="math-hidden"></div>
+
+<script>
+/**
+ * MathPhysics Visualizer v3.1
+ * Dual-Method Logic: Geometric & Algebraic
+ */
+
+// --- 1. Global State ---
+const STATE = {
+    method: 'geo', // 'geo' or 'alg'
+    problem: {
+        statementTeX: String.raw`16. 如图，\triangle ABC中，\angle ACB = 90^{\circ}，AC \le BC，将\triangle ABC沿EF折叠，使点A落在直角边BC上的D点处，设EF与AB、AC边分别交于点E、点F，如果折叠后\triangle CDF与\triangle BDE均为等腰三角形，那么\angle B = \underline{\hspace{4em}} .`
+    },
+    params: {
+        angleB: 35,
+        scale: 1.0
+    },
+    geo: { A:null, B:null, C:null, D:null, E:null, F:null },
+    stepIndex: -1,
+    planSteps: [],
+    verification: [],
+    AC_LEN: 280
+};
+
+// --- 2. Step Definitions (Dual Methods) ---
+
+// Knowledge Points
+const KNOWLEDGE = {
+    geo: ["等腰直角三角形", "平角定义", "三角形内角和", "分类讨论"],
+    alg: ["代数设元(x)", "三角形外角定理", "一元一次方程", "不等式范围"]
+};
+
+// Method 1: Geometric Logic
+function getGeometricSteps() {
+    return [
+        {
+            title: "步骤 1: 确定基本图形",
+            text: "由题意知 \\(\\triangle CDF\\) 为等腰三角形且 \\(\\angle C=90^{\\circ}\\)，因此它只能是**等腰直角三角形**，可得 \\(\\angle CDF = 45^{\\circ}\\)。",
+            math: [],
+            highlights: [{ type: 'poly', pts: ['C','D','F'], color: 'green' }, { type: 'angle', pts: ['C','D','F'], label: '45°', radius: 40 }]
+        },
+        {
+            title: "步骤 2: 折叠与角度关系",
+            text: "由折叠性质知 \\(\\angle FDE = \\angle A\\)。此即 \\(\\angle FDE\\) 等于 \\(\\text{Rt}\\triangle ABC\\) 中的 \\(\\angle A\\)。",
+            math: ["\\angle A = 90^{\\circ} - \\angle B", "\\therefore \\angle FDE = 90^{\\circ} - \\angle B"],
+            highlights: [
+                { type: 'angle', pts: ['F','D','E'], label: '∠FDE=∠A', radius: 40, color: 'orange' }, 
+                { type: 'angle', pts: ['C','A','B'], label: '∠A', radius: 40 }
+            ]
+        },
+        {
+            title: "步骤 3: 建立核心关系式（利用平角）",
+            text: "点 C, D, B 共线，构成一个**平角 (180°)**。\\(\\angle EDB\\) 可以通过平角减去另外两个角求得。",
+            math: ["\\angle EDB = 180^{\\circ} - \\angle CDF - \\angle FDE", "\\angle EDB = 180^{\\circ} - 45^{\\circ} - (90^{\\circ}-\\angle B) = 45^{\\circ} + \\angle B"],
+            highlights: [
+                { type: 'line', pts: ['C','B'], color: 'black' }, 
+                { type: 'text', pos: 'D', text: '平角 C-D-B = 180°', offset: [0, 35] },
+                { type: 'angle', pts: ['C','D','F'], label: '45°', color: 'green', radius: 30 },
+                { type: 'angle', pts: ['F','D','E'], label: '∠A', color: 'orange', radius: 50 },
+                { type: 'angle', pts: ['E','D','B'], label: '?', color: 'red', radius: 70 }
+            ]
+        },
+        {
+            title: "步骤 4: 分类讨论 (情形一)",
+            text: "若 \\(BD=ED\\)，则 \\(\\triangle BDE\\) 为等腰三角形，底角相等：\\(\\angle BED = \\angle B\\)。",
+            math: ["\\angle EDB = 180^{\\circ} - 2\\angle B", "45^{\\circ} + \\angle B = 180^{\\circ} - 2\\angle B \\implies 3\\angle B = 135^{\\circ} \\implies \\angle B = 45^{\\circ}"],
+            highlights: [{ type: 'poly', pts: ['B','D','E'], color: 'blue' }, { type: 'line', pts: ['B','D'], color:'red' }, { type: 'line', pts: ['D','E'], color:'red' }]
+        },
+        {
+            title: "步骤 5: 分类讨论 (情形二)",
+            text: "若 \\(BD=BE\\)，则 \\(\\angle BED = \\angle BDE\\)。根据内角和定理：",
+            math: ["\\angle B + 2\\angle BDE = 180^{\\circ}", "\\angle B + 2(45^{\\circ}+\\angle B) = 180^{\\circ} \\implies 3\\angle B = 90^{\\circ} \\implies \\angle B = 30^{\\circ}"],
+            highlights: [{ type: 'poly', pts: ['B','D','E'], color: 'blue' }, { type: 'line', pts: ['B','D'], color:'red' }, { type: 'line', pts: ['B','E'], color:'red' }]
+        },
+        {
+            title: "步骤 6: 排除情形 (DE=EB)",
+            text: "若 \\(DE=EB\\)，则 \\(\\triangle BDE\\) 为等腰三角形，底角相等：\\(\\angle BDE = \\angle B\\)。",
+            math: ["\\text{已知 } \\angle EDB = 45^{\\circ} + \\angle B", "\\therefore 45^{\\circ} + \\angle B = \\angle B \\implies 45^{\\circ} = 0", "\\text{矛盾，故此情况不成立。}"],
+            highlights: [{ type: 'poly', pts: ['B','D','E'], color: 'gray' }, { type: 'line', pts: ['D','E'], color:'red' }, { type: 'line', pts: ['B','E'], color:'red' }]
+        }
+    ];
+}
+
+// Method 2: Algebraic Logic
+function getAlgebraicSteps() {
+    return [
+        {
+            title: "步骤 1: 设元与范围",
+            text: "设 \\(\\angle B = x\\)。在 \\(\\text{Rt}\\triangle ABC\\) 中，\\(\\angle BAC = 90^{\\circ}-x\\)。\n由于 \\(AC \\le BC\\)，故 \\(\\angle B \\le \\angle A\\)，即 \\(x \\le 90^{\\circ}-x\\)，解得 \\(0 < x \\le 45^{\\circ}\\)。",
+            math: [],
+            highlights: [{ type: 'angle', pts: ['C','B','A'], label: 'x', radius: 40 }]
+        },
+        {
+            title: "步骤 2: 计算折叠角",
+            text: "折叠后 \\(AF=DF\\)，故 \\(\\triangle AFD\\) 为等腰三角形。由外角定理 \\(\\angle CFD = \\angle FAD + \\angle FDA = 2\\angle FAD\\)。\n已知 \\(\\triangle CDF\\) 为等腰直角三角形，\\(\\angle CFD=45^{\\circ}\\)。",
+            math: ["2\\angle FAD = 45^{\\circ} \\implies \\angle FAD = 22.5^{\\circ}"],
+            highlights: [{ type: 'angle', pts: ['F','A','D'], label: '22.5°', radius: 40 }, { type: 'poly', pts: ['A','F','D'], color: 'yellow' }]
+        },
+        {
+            title: "步骤 3: 表达 \\(\\angle BED\\) (外角)",
+            text: "计算 \\(\\angle EAD = \\angle BAC - \\angle FAD = (90^{\\circ}-x) - 22.5^{\\circ} = 67.5^{\\circ}-x\\)。\n由折叠 \\(AE=DE\\)，\\(\\angle EDA = \\angle EAD\\)。利用外角定理求 \\(\\angle BED\\)：",
+            math: ["\\angle BED = \\angle EAD + \\angle EDA = 2(67.5^{\\circ}-x) = 135^{\\circ}-2x"],
+            highlights: [{ type: 'poly', pts: ['A','D','E'], color: 'purple' }, { type: 'angle', pts: ['B','E','D'], label: '135°-2x', color:'red', radius: 40 }]
+        },
+        {
+            title: "步骤 4: 表达 \\(\\angle BDE\\) (内角)",
+            text: "在 \\(\\triangle BDE\\) 中，利用内角和定理：",
+            math: ["\\angle BDE = 180^{\\circ} - x - (135^{\\circ}-2x) = 45^{\\circ} + x"],
+            highlights: [{ type: 'angle', pts: ['E','D','B'], label: '45°+x', color:'red', radius: 40 }]
+        },
+        {
+            title: "步骤 5: 列方程求解 (DE=BD)",
+            text: "若 \\(DE=BD\\)，则 \\(\\angle BED = \\angle B\\)。列方程：",
+            math: ["135^{\\circ}-2x = x \\implies 3x = 135^{\\circ} \\implies x = 45^{\\circ}", "(符合 x\\le45^{\\circ})"],
+            highlights: [{ type: 'line', pts: ['D','E'], color:'red' }, { type: 'line', pts: ['B','D'], color:'red' }]
+        },
+        {
+            title: "步骤 6: 列方程求解 (BE=BD)",
+            text: "若 \\(BE=BD\\)，则 \\(\\angle BED = \\angle BDE\\)。列方程：",
+            math: ["135^{\\circ}-2x = 45^{\\circ}+x \\implies 3x = 90^{\\circ} \\implies x = 30^{\\circ}", "(符合 x\\le45^{\\circ})"],
+            highlights: [{ type: 'line', pts: ['B','E'], color:'red' }, { type: 'line', pts: ['B','D'], color:'red' }]
+        },
+        {
+            title: "步骤 7: 排除情形 (DE=EB)",
+            text: "若 \\(DE=EB\\)，则 \\(\\angle BDE = \\angle B\\)。列方程：",
+            math: ["45^{\\circ} + x = x \\implies 45^{\\circ} = 0", "\\text{方程无解，故此情况舍去。}"],
+            highlights: [{ type: 'line', pts: ['D','E'], color:'red' }, { type: 'line', pts: ['B','E'], color:'red' }]
+        }
+    ];
+}
+
+// --- 3. UI Logic ---
+
+function setMethod(m) {
+    STATE.method = m;
+    STATE.planSteps = m === 'geo' ? getGeometricSteps() : getAlgebraicSteps();
+    
+    // UI Updates
+    document.getElementById('btn-method-geo').className = `tab-btn ${m==='geo'?'active':''}`;
+    document.getElementById('btn-method-alg').className = `tab-btn ${m==='alg'?'active':''}`;
+    
+    // Knowledge Tags
+    const tagsContainer = document.getElementById('knowledge-tags');
+    tagsContainer.innerHTML = '涉及知识点: ' + KNOWLEDGE[m].map(k => `<span class="tag">${k}</span>`).join('');
+    
+    // Reset Steps
+    STATE.stepIndex = -1;
+    updateStepUI();
+    redraw();
+}
+
+function nextStep() {
+    if (STATE.stepIndex < STATE.planSteps.length - 1) {
+        STATE.stepIndex++;
+        updateStepUI();
+        redraw();
+    }
+}
+
+function prevStep() {
+    if (STATE.stepIndex > -1) {
+        STATE.stepIndex--;
+        updateStepUI();
+        redraw();
+    }
+}
+
+function updateStepUI() {
+    const container = document.getElementById('step-text-container');
+    const indicator = document.getElementById('step-indicator');
+    const btnNext = document.getElementById('btn-next');
+    const btnPrev = document.getElementById('btn-prev');
+    
+    // Nav State
+    const total = STATE.planSteps.length;
+    indicator.innerText = `${STATE.stepIndex + 1}/${total}`;
+    btnPrev.disabled = (STATE.stepIndex === -1);
+    btnNext.disabled = (STATE.stepIndex === total - 1);
+    
+    if (STATE.stepIndex === -1) {
+        container.innerHTML = `<span class="step-title">准备就绪</span><div style="color:#64748b">请点击“下一步”开始${STATE.method==='geo'?'几何推导':'代数求解'}演示。</div>`;
+        return;
+    }
+    
+    const step = STATE.planSteps[STATE.stepIndex];
+    let mathHtml = step.math.length > 0 ? step.math.map(m => `\\[ ${m} \\]`).join('') : '';
+    
+    container.innerHTML = `
+        <span class="step-title">${step.title}</span>
+        <div style="margin-bottom:8px">${step.text}</div>
+        <div style="font-size:0.95rem">${mathHtml}</div>
+    `;
+    
+    MathJax.typesetPromise([container]);
+}
+
+// --- 4. Geometry Engine (P5) ---
+
+function calculateGeometry() {
+    const AC_len = STATE.AC_LEN;
+    const angB = STATE.params.angleB;
+    const angB_rad = angB * Math.PI / 180;
+    
+    const BC_len = AC_len / Math.tan(angB_rad);
+    const h = AC_len * Math.cos(angB_rad);
+    const AH = AC_len * Math.sin(angB_rad);
+    const HB = BC_len * Math.cos(angB_rad);
+    
+    const C = createVector(0, -h);
+    const A = createVector(-AH, 0); // Ghost A
+    const B = createVector(HB, 0);
+    
+    // Force CDF Isosceles Right (Condition 1)
+    const CD_len = AC_len / (1 + Math.sqrt(2));
+    const vecCB = p5.Vector.sub(B, C).normalize();
+    const D = p5.Vector.add(C, p5.Vector.mult(vecCB, CD_len));
+    const vecCA = p5.Vector.sub(A, C).normalize();
+    const F = p5.Vector.add(C, p5.Vector.mult(vecCA, CD_len));
+    
+    // Calculate E
+    const numerator = (D.x*D.x + D.y*D.y) - (A.x*A.x); 
+    const denominator = 2 * (D.x - A.x);
+    let Ex = (Math.abs(denominator) > 1e-5) ? numerator / denominator : 0;
+    const E = createVector(Ex, 0);
+
+    STATE.geo = { A, B, C, D, E, F };
+    
+    // Verify
+    const E_on_AB = E.x >= Math.min(A.x, B.x) - 1.0 && E.x <= Math.max(A.x, B.x) + 1.0;
+    const BD = p5.Vector.dist(B, D);
+    const DE = p5.Vector.dist(D, E);
+    const BE = p5.Vector.dist(B, E);
+    const sides = [BD, DE, BE].sort((a,b)=>a-b);
+    const isIsoBDE = (Math.abs(sides[1] - sides[0]) < 1.0) || (Math.abs(sides[2] - sides[1]) < 1.0);
+    
+    STATE.verification = [
+        { label: "条件1: △CDF等腰直角", pass: true, info: "构造保证" },
+        { label: "E点在AB上", pass: E_on_AB, info: E_on_AB?"有效":"越界" },
+        { label: "条件2: △BDE等腰", pass: isIsoBDE, info: isIsoBDE?"满足(找到解)":"未满足" }
+    ];
+}
+
+let canvas;
+function setup() {
+    const container = document.getElementById('canvas-container');
+    canvas = createCanvas(container.offsetWidth, container.offsetHeight);
+    canvas.parent('canvas-container');
+    
+    // Init
+    setMethod('geo');
+    updateLogic();
+    
+    // Events
+    document.getElementById('input-angleB').addEventListener('input', (e) => {
+        let val = parseFloat(e.target.value);
+        if(Math.abs(val-30)<1.5) val=30;
+        if(Math.abs(val-45)<1.5) val=45;
+        STATE.params.angleB = val;
+        document.getElementById('val-angleB').innerText = val + "°";
+        updateLogic();
+    });
+    
+    document.getElementById('check-showAux').addEventListener('change', () => redraw());
+    window.addEventListener('resize', () => {
+        resizeCanvas(container.offsetWidth, container.offsetHeight);
+        redraw();
+    });
+}
+
+function updateLogic() {
+    calculateGeometry();
+    updateVerifyUI();
+    redraw();
+}
+
+function draw() {
+    background(248, 250, 252); // Match bg-sidebar slightly
+    
+    // Auto-center
+    translate(width/2, height * 0.75); 
+    
+    const { A, B, C, D, E, F } = STATE.geo;
+    
+    // 1. Ghost A
+    stroke(200); drawingContext.setLineDash([5,5]);
+    line(A.x, A.y, F.x, F.y);
+    line(A.x, A.y, E.x, E.y);
+    drawingContext.setLineDash([]);
+    
+    // 2. Main Polygon
+    stroke(0); strokeWeight(2); noFill();
+    line(A.x, A.y, B.x, B.y); // AB Ground
+    line(F.x, F.y, C.x, C.y); // FC
+    line(C.x, C.y, B.x, B.y); // CB
+    
+    // 3. Fold Flap
+    fill(37, 99, 235, 30); stroke(37, 99, 235);
+    triangle(D.x, D.y, E.x, E.y, F.x, F.y);
+    
+    // 4. Labels
+    fill(0); noStroke(); textSize(16); textStyle(BOLD);
+    text("A", A.x-20, A.y+10);
+    text("B", B.x+10, B.y+10);
+    text("C", C.x-5, C.y-15);
+    text("D", D.x+5, D.y+5);
+    text("E", E.x-5, E.y+20);
+    text("F", F.x-25, F.y+5);
+    
+    // 5. Aux
+    if(document.getElementById('check-showAux').checked) {
+        stroke(220, 38, 38); drawingContext.setLineDash([5,5]);
+        line(E.x, E.y, F.x, F.y);
+        drawingContext.setLineDash([]);
+    }
+    
+    // 6. Highlights
+    if (STATE.stepIndex >= 0) {
+        drawHighlights(STATE.planSteps[STATE.stepIndex].highlights);
+    }
+    
+    // 7. Found Answer Highlight
+    const isIso = STATE.verification[2].pass;
+    if (isIso) {
+        stroke(22, 163, 74); strokeWeight(3); noFill();
+        triangle(B.x, B.y, D.x, D.y, E.x, E.y);
+        fill(22, 163, 74); noStroke(); textAlign(CENTER);
+        text("找到解: " + STATE.params.angleB + "°", B.x, B.y + 40);
+    }
+}
+
+function drawHighlights(items) {
+    if(!items) return;
+    const { A, B, C, D, E, F } = STATE.geo;
+    const getPt = (c) => ({'A':A, 'B':B, 'C':C, 'D':D, 'E':E, 'F':F}[c]);
+    
+    const pulse = 150 + 100 * Math.sin(millis()*0.005);
+    
+    items.forEach(item => {
+        if(item.type === 'text') {
+            const p = (typeof item.pos === 'string') ? getPt(item.pos) : item.pos;
+            fill(0); noStroke(); textSize(14); textAlign(CENTER);
+            const off = item.offset || [0,0];
+            text(item.text, p.x + off[0], p.y + off[1]);
+        }
+        else {
+            const pts = item.pts.map(getPt);
+            if(item.type === 'poly') {
+                fill(0,255,0, pulse/4); stroke(0,200,0, pulse); strokeWeight(2);
+                beginShape(); pts.forEach(p=>vertex(p.x,p.y)); endShape(CLOSE);
+            } else if(item.type === 'line') {
+                stroke(255,0,0, pulse); strokeWeight(4);
+                line(pts[0].x, pts[0].y, pts[1].x, pts[1].y);
+            } else if(item.type === 'angle') {
+                const [p1, v, p2] = pts;
+                fill(item.color === 'green' ? [0,128,0,pulse] : 
+                     item.color === 'blue' ? [0,0,255,pulse] : 
+                     item.color === 'orange' ? [255,165,0,pulse] : [255, 69, 0, pulse]); 
+                noStroke();
+                let ang1 = p5.Vector.sub(p1,v).heading();
+                let ang2 = p5.Vector.sub(p2,v).heading();
+                let start = Math.min(ang1, ang2);
+                let stop = Math.max(ang1, ang2);
+                if(stop-start > PI) { let t=start; start=stop; stop=t+TWO_PI; }
+                
+                const rad = item.radius || 40;
+                arc(v.x, v.y, rad, rad, start, stop);
+                
+                fill(0); textSize(12); textAlign(CENTER);
+                // Simple label positioning
+                let midAng = start + (stop-start)/2;
+                let lx = v.x + Math.cos(midAng)*(rad/2 + 15);
+                let ly = v.y + Math.sin(midAng)*(rad/2 + 15);
+                text(item.label, lx, ly);
+            }
+        }
+    });
+}
+
+function updateVerifyUI() {
+    const list = document.getElementById('verify-list');
+    list.innerHTML = '';
+    STATE.verification.forEach(v => {
+        const div = document.createElement('div');
+        div.className = 'verify-item';
+        div.innerHTML = `<span>${v.label}</span><span class="status-badge ${v.pass?'status-ok':'status-warn'}">${v.info}</span>`;
+        list.appendChild(div);
+    });
+}
+
+function copyProblem() {
+    navigator.clipboard.writeText(STATE.problem.statementTeX).then(() => alert("已复制"));
+}
+</script>
+</body>
+</html>

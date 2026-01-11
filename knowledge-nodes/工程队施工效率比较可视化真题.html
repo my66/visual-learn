@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>工程队施工效率比较可视化</title>
+  <!-- 引入 p5.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <!-- 引入 MathJax -->
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <style>
+    /* CSS Reset & Layout */
+    body, html { margin: 0; padding: 0; overflow: hidden; height: 100%; font-family: "Noto Sans SC", "Microsoft YaHei", sans-serif; background: #f0f2f5; }
+    
+    /* Layout: App Mode */
+    #app-container { display: flex; height: 100vh; width: 100vw; }
+    
+    /* Sidebar */
+    #sidebar {
+      width: 400px;
+      min-width: 350px;
+      background: #ffffff;
+      box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+      display: flex;
+      flex-direction: column;
+      z-index: 20;
+      overflow-y: auto;
+      border-right: 1px solid #ddd;
+    }
+    
+    /* Canvas Stage */
+    #stage-container {
+      flex: 1;
+      position: relative;
+      background: #fafafa;
+      overflow: hidden;
+      touch-action: none; /* Prevent browser pinch/scroll */
+      cursor: grab;
+    }
+    #stage-container:active { cursor: grabbing; }
+    
+    /* UI Components */
+    .card { background: #fff; margin: 12px; padding: 16px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); border: 1px solid #eee; }
+    .card-title { font-weight: bold; font-size: 16px; margin-bottom: 12px; color: #333; display: flex; justify-content: space-between; align-items: center; }
+    
+    .btn {
+      background: #1890ff; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 14px; transition: all 0.2s;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    .btn:hover { background: #40a9ff; }
+    .btn:active { transform: translateY(1px); }
+    .btn-secondary { background: #f5f5f5; color: #333; border: 1px solid #d9d9d9; }
+    .btn-secondary:hover { background: #e6e6e6; }
+    .btn-sm { padding: 4px 8px; font-size: 12px; }
+    
+    .control-group { margin-bottom: 16px; }
+    .control-label { display: block; margin-bottom: 6px; font-size: 14px; color: #555; }
+    .slider-container { display: flex; align-items: center; gap: 10px; }
+    input[type=range] { flex: 1; }
+    .value-display { font-family: monospace; font-weight: bold; color: #1890ff; min-width: 40px; text-align: right; }
+    
+    /* Problem Statement */
+    .problem-text { font-size: 14px; line-height: 1.6; color: #333; background: #f9f9f9; padding: 10px; border-radius: 4px; border-left: 4px solid #1890ff; }
+    
+    /* Guided Overlay */
+    #guided-overlay {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 600px;
+      max-width: 90%;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+      padding: 20px;
+      z-index: 100;
+      border: 1px solid rgba(0,0,0,0.05);
+      display: none; /* Toggled by JS */
+      transition: opacity 0.3s;
+    }
+    .step-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 8px; }
+    .step-title { font-weight: bold; font-size: 18px; color: #1890ff; }
+    .step-content { font-size: 15px; line-height: 1.6; color: #333; min-height: 80px; }
+    .math-block { background: #f8f9fa; padding: 8px 12px; border-radius: 6px; margin: 8px 0; border: 1px solid #eee; text-align: center; font-size: 1.1em; }
+    
+    /* Verification Panel */
+    #verify-panel {
+      margin-top: auto;
+      border-top: 1px solid #eee;
+      background: #fafafa;
+    }
+    .verify-item { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 13px; }
+    .status-pass { color: #52c41a; font-weight: bold; }
+    .status-fail { color: #ff4d4f; font-weight: bold; }
+    
+    /* Utility */
+    .hidden { display: none !important; }
+    .tex-fallback { font-family: sans-serif; color: #666; font-style: italic; }
+  </style>
+</head>
+<body>
+
+<div id="app-container">
+  <!-- Sidebar -->
+  <aside id="sidebar">
+    <!-- Problem Card (Top Priority) -->
+    <div class="card">
+      <div class="card-title">
+        题目原题
+        <button class="btn btn-sm btn-secondary" onclick="copyProblem()">复制题面</button>
+      </div>
+      <div class="problem-text" id="problem-text">
+        甲、乙两个工程队分别完成 36 千米的道路施工任务。甲队计划前 18 千米按每天施工 \(m\) 千米完成，剩下的 18 千米按每天施工 \(n\) 千米完成；乙队计划一半的时间每天施工 \(m\) 千米，另一半的时间每天施工 \(n\) 千米。
+        <br>(1) 当 \(n=2m\) 时，甲队恰好 6 天完成任务，求 \(m\) 的值；
+        <br>(2) 如果按照各自施工计划，甲队和乙队谁更早完成施工任务？请说明理由。
+      </div>
+    </div>
+
+    <!-- Mode Toggle -->
+    <div class="card">
+      <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+        <button class="btn" id="btn-guided" style="flex:1;" onclick="setMode('guided')">引导模式</button>
+        <button class="btn btn-secondary" id="btn-sandbox" style="flex:1;" onclick="setMode('sandbox')">探索模式</button>
+      </div>
+      
+      <!-- Sandbox Controls -->
+      <div id="sandbox-controls" class="hidden">
+        <div class="control-group">
+          <label class="control-label">参数 \(m\) (km/天)</label>
+          <div class="slider-container">
+            <input type="range" id="input-m" min="1" max="10" step="0.5" value="4.5">
+            <span class="value-display" id="val-m">4.5</span>
+          </div>
+        </div>
+        <div class="control-group">
+          <label class="control-label">参数 \(n\) (km/天)</label>
+          <div class="slider-container">
+            <input type="range" id="input-n" min="1" max="10" step="0.5" value="9">
+            <span class="value-display" id="val-n">9</span>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px;">
+           <button class="btn btn-sm btn-secondary" onclick="setPresetQ1()">设为第(1)问数据</button>
+           <button class="btn btn-sm btn-secondary" onclick="togglePlay()">播放/暂停动画</button>
+           <button class="btn btn-sm btn-secondary" onclick="resetSim()">重置动画</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats & Verification -->
+    <div class="card" id="verify-panel">
+      <div class="card-title">实时验证/数据</div>
+      <div class="verify-item">
+        <span>甲队总用时 \(t_{\text{甲}}\):</span>
+        <span id="stat-tA">--</span>
+      </div>
+      <div class="verify-item">
+        <span>乙队总用时 \(t_{\text{乙}}\):</span>
+        <span id="stat-tB">--</span>
+      </div>
+      <div class="verify-item">
+        <span>差值 \(\Delta t = t_{\text{甲}} - t_{\text{乙}}\):</span>
+        <span id="stat-diff">--</span>
+      </div>
+      <div class="verify-item" style="margin-top: 8px; border-top: 1px dashed #eee; padding-top: 5px;">
+        <span id="verify-conclusion" style="font-weight:bold; color:#1890ff;">结论: 计算中...</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Stage -->
+  <div id="stage-container">
+    <div id="guided-overlay">
+      <div class="step-header">
+        <span class="step-title" id="step-title">步骤标题</span>
+        <div>
+          <span id="step-counter" style="color:#999; font-size:14px; margin-right:8px;">1/5</span>
+          <button class="btn btn-sm btn-secondary" onclick="prevStep()">上一步</button>
+          <button class="btn btn-sm" onclick="nextStep()">下一步</button>
+        </div>
+      </div>
+      <div class="step-content">
+        <div id="step-reasoning">解析内容...</div>
+        <div id="step-math" class="math-block"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/**
+ * MathPhysics Engine: Construction Teams v3.1.4
+ * Logic: Logic-First Construction + Micro-step Visualization
+ */
+
+// --- 1. Global State ---
+const STATE = {
+  type: 'TYPE_A',
+  domain: 'Math',
+  mode: 'guided', // 'guided' | 'sandbox'
+  stepIndex: 0,
+  isPlaying: false,
+  simTime: 0,
+  
+  // Physics/Model Params
+  totalDist: 36, // km
+  m: 4.5,
+  n: 9.0, // Default to Q1 case
+  
+  // View Transform
+  view: { scale: 1.0, offsetX: 0, offsetY: 0 },
+  
+  // Logic
+  tA: 0,
+  tB: 0,
+  
+  // Problem Definition
+  problem: {
+    statementCN: "甲、乙两个工程队分别完成 36 千米的道路施工任务。甲队计划前 18 千米按每天施工 m 千米完成，剩下的 18 千米按每天施工 n 千米完成；乙队计划一半的时间每天施工 m 千米，另一半的时间每天施工 n 千米。(1) 当 n=2m 时，甲队恰好 6 天完成任务，求 m 的值；(2) 如果按照各自施工计划，甲队和乙队谁更早完成施工任务？请说明理由。",
+    statementTeX: String.raw`\text{总路程 } S=36. \text{ 甲: 前18km速度 } m, \text{ 后18km速度 } n. \text{ 乙: 前一半时间速度 } m, \text{ 后一半时间速度 } n.`
+  }
+};
+
+// --- 2. Plan Steps (Logic > Vision) ---
+const planSteps = [
+  {
+    titleCN: "1. 理解甲队的施工方案",
+    reasoningCN: "甲队按路程分段。总路程36km，前一半(18km)速度为 \\(m\\)，后一半(18km)速度为 \\(n\\)。总时间是两段路程用时之和。",
+    formulasTeX: [String.raw`t_{\text{甲}} = \frac{18}{m} + \frac{18}{n}`],
+    focusObjects: [{ type: 'road', ids: ['roadA_part1', 'roadA_part2'] }],
+    checkItemNameCN: "甲队时间公式"
+  },
+  {
+    titleCN: "2. 理解乙队的施工方案",
+    reasoningCN: "乙队按时间分段。设总时间为 \\(t_{\\text{乙}}\\)，则前 \\(t_{\\text{乙}}/2\\) 天速度 \\(m\\)，后 \\(t_{\\text{乙}}/2\\) 天速度 \\(n\\)。总路程等于两段时间内完成的路程之和。",
+    formulasTeX: [
+      String.raw`\frac{t_{\text{乙}}}{2} \cdot m + \frac{t_{\text{乙}}}{2} \cdot n = 36`,
+      String.raw`t_{\text{乙}} = \frac{72}{m+n}`
+    ],
+    focusObjects: [{ type: 'road', ids: ['roadB'] }],
+    checkItemNameCN: "乙队时间公式"
+  },
+  {
+    titleCN: "3. 求解第(1)问",
+    reasoningCN: "已知 \\(n=2m\\)，甲队用时 6 天。代入甲队的时间公式求解 \\(m\\)。",
+    formulasTeX: [
+      String.raw`18\left(\frac{1}{m} + \frac{1}{2m}\right) = 6`,
+      String.raw`\frac{27}{m} = 6 \Rightarrow m = 4.5`
+    ],
+    focusObjects: [{ type: 'formula', ids: ['calc_m'] }],
+    checkItemNameCN: "m的求解"
+  },
+  {
+    titleCN: "4. 比较总用时 (作差法)",
+    reasoningCN: "比较 \\(t_{\\text{甲}}\\) 和 \\(t_{\\text{乙}}\\) 的大小，最常用的方法是作差。将两式相减并通分。",
+    formulasTeX: [
+      String.raw`t_{\text{甲}} - t_{\text{乙}} = 18\left(\frac{1}{m}+\frac{1}{n}\right) - \frac{72}{m+n}`,
+      String.raw`= \frac{18(m+n)}{mn} - \frac{72}{m+n}`
+    ],
+    focusObjects: [{ type: 'chart', ids: ['comparison'] }],
+    checkItemNameCN: "作差变形"
+  },
+  {
+    titleCN: "5. 得出结论",
+    reasoningCN: "继续化简差值公式。由于完全平方数非负，且 \\(m,n,m+n > 0\\)，因此差值恒大于等于 0。",
+    formulasTeX: [
+      String.raw`t_{\text{甲}} - t_{\text{乙}} = \frac{18(m+n)^2 - 72mn}{mn(m+n)} = \frac{18(m-n)^2}{mn(m+n)} \ge 0`,
+      String.raw`\therefore t_{\text{甲}} \ge t_{\text{乙}} \quad (\text{当 } m=n \text{ 时相等})`
+    ],
+    focusObjects: [{ type: 'chart', ids: ['conclusion'] }],
+    checkItemNameCN: "结论证明"
+  }
+];
+
+// --- 3. p5.js Sketch ---
+let canvas;
+let robotoFont; // Just standard font fallback
+
+function setup() {
+  const container = document.getElementById('stage-container');
+  canvas = createCanvas(container.offsetWidth, container.offsetHeight);
+  canvas.parent('stage-container');
+  
+  // Event Listeners for Pan/Zoom
+  canvas.elt.addEventListener('wheel', handleWheel, { passive: false });
+  canvas.elt.addEventListener('pointerdown', handlePointerDown);
+  canvas.elt.addEventListener('pointermove', handlePointerMove);
+  canvas.elt.addEventListener('pointerup', handlePointerUp);
+  canvas.elt.addEventListener('pointercancel', handlePointerUp);
+  canvas.elt.addEventListener('lostpointercapture', handlePointerUp);
+  
+  // Input Listeners
+  document.getElementById('input-m').addEventListener('input', (e) => updateParam('m', parseFloat(e.target.value)));
+  document.getElementById('input-n').addEventListener('input', (e) => updateParam('n', parseFloat(e.target.value)));
+  
+  // Initialize App State
+  setMode('guided'); 
+  
+  // Initialize MathJax
+  if (window.MathJax) {
+    MathJax.typesetPromise();
+  }
+}
+
+function windowResized() {
+  const container = document.getElementById('stage-container');
+  resizeCanvas(container.offsetWidth, container.offsetHeight);
+}
+
+// --- 4. Logic Pipeline ---
+
+function updateParam(key, val) {
+  if (key === 'm' || key === 'n') {
+    STATE[key] = val;
+    document.getElementById(`val-${key}`).textContent = val.toFixed(1);
+    
+    // In guided mode, if we are on Step 3 (Solution), force specific values or warn?
+    // Actually, guided mode usually locks values or explains specific logic. 
+    // We allow playing with values in guided mode to see the formula update conceptually.
+  }
+  recomputeAll();
+}
+
+function setPresetQ1() {
+  updateParam('m', 4.5);
+  updateParam('n', 9.0);
+  document.getElementById('input-m').value = 4.5;
+  document.getElementById('input-n').value = 9.0;
+  
+  // Start simulation
+  STATE.simTime = 0;
+  STATE.isPlaying = true;
+}
+
+function recomputeAll() {
+  // 1. Calculate Times
+  const m = STATE.m;
+  const n = STATE.n;
+  const S = STATE.totalDist; // 36
+  
+  // Team A: Distance Split (18km @ m, 18km @ n)
+  STATE.tA = (S/2)/m + (S/2)/n;
+  
+  // Team B: Time Split (T/2 @ m, T/2 @ n -> Dist = 36)
+  // T/2 * m + T/2 * n = 36 => T(m+n)/2 = 36 => T = 72/(m+n)
+  STATE.tB = (2 * S) / (m + n);
+  
+  // Update Verification Panel
+  const diff = STATE.tA - STATE.tB;
+  
+  const elTA = document.getElementById('stat-tA');
+  const elTB = document.getElementById('stat-tB');
+  const elDiff = document.getElementById('stat-diff');
+  const elConc = document.getElementById('verify-conclusion');
+  
+  if (elTA) elTA.textContent = STATE.tA.toFixed(2) + " 天";
+  if (elTB) elTB.textContent = STATE.tB.toFixed(2) + " 天";
+  if (elDiff) elDiff.textContent = diff.toFixed(4);
+  
+  if (Math.abs(diff) < 1e-6) {
+    elConc.textContent = "结论: 两人用时相同 (m=n)";
+    elConc.style.color = "#faad14";
+  } else if (diff > 0) {
+    elConc.textContent = "结论: 乙队更快 (甲用时 > 乙用时)";
+    elConc.style.color = "#52c41a";
+  } else {
+    // Should mathematically not happen for m,n > 0
+    elConc.textContent = "错误: 逻辑矛盾";
+    elConc.style.color = "#ff4d4f";
+  }
+  
+  // MathJax updates in Overlay are handled by renderGuidedStep()
+}
+
+// --- 5. Visualization / Draw ---
+
+function draw() {
+  background(250); // Light gray background
+  
+  // Coordinate System Setup
+  push();
+  translate(width/2 + STATE.view.offsetX, height/2 + STATE.view.offsetY);
+  scale(STATE.view.scale);
+  
+  // Logic: Animation Update
+  if (STATE.isPlaying) {
+    const dt = 1/60 * 0.5; // speed factor
+    STATE.simTime += dt;
+    // Auto-pause if both finished (add some buffer)
+    if (STATE.simTime > Math.max(STATE.tA, STATE.tB) + 1) {
+      STATE.isPlaying = false;
+    }
+  }
+  
+  // Draw Scene
+  drawTracks();
+  drawCars();
+  drawGraphs();
+  
+  pop();
+  
+  // Overlay UI (HTML) is handled separately
+}
+
+function drawTracks() {
+  const trackLength = 600;
+  const startX = -300;
+  const yA = -100; // Track A Y-pos
+  const yB = 50;   // Track B Y-pos
+  
+  strokeWeight(1);
+  textAlign(CENTER, CENTER);
+  
+  // --- Track A (甲) ---
+  // Background Road
+  noStroke();
+  fill(220);
+  rect(startX, yA - 15, trackLength, 30, 15);
+  
+  // Segment Marker (18km mark)
+  stroke(150);
+  strokeWeight(2);
+  line(startX + trackLength/2, yA - 20, startX + trackLength/2, yA + 20);
+  
+  // Labels
+  fill(50);
+  noStroke();
+  textSize(14);
+  text("甲队 (路程分段)", startX - 80, yA);
+  text("0km", startX, yA + 30);
+  text("18km", startX + trackLength/2, yA + 30);
+  text("36km", startX + trackLength, yA + 30);
+  
+  // Speed Labels
+  fill(100);
+  text(`前段: ${STATE.m} km/d`, startX + trackLength/4, yA - 30);
+  text(`后段: ${STATE.n} km/d`, startX + 3*trackLength/4, yA - 30);
+  
+  // Highlight for Step 1
+  if (STATE.mode === 'guided' && STATE.stepIndex === 0) {
+    noFill();
+    stroke(24, 144, 255, 150);
+    strokeWeight(4);
+    rect(startX - 5, yA - 25, trackLength + 10, 50, 10);
+  }
+
+  // --- Track B (乙) ---
+  // Background Road
+  noStroke();
+  fill(220);
+  rect(startX, yB - 15, trackLength, 30, 15);
+  
+  // Segment Marker (Time Split)
+  // Distance covered in half time = (T_B / 2) * m
+  const distSplitB = (STATE.tB / 2) * STATE.m;
+  const pixelSplitB = map(distSplitB, 0, 36, 0, trackLength);
+  
+  stroke(150);
+  strokeWeight(2);
+  // Dashed line for dynamic split
+  drawingContext.setLineDash([5, 5]);
+  line(startX + pixelSplitB, yB - 20, startX + pixelSplitB, yB + 20);
+  drawingContext.setLineDash([]);
+  
+  // Labels
+  fill(50);
+  noStroke();
+  text("乙队 (时间分段)", startX - 80, yB);
+  
+  // Speed Labels
+  fill(100);
+  text(`前 T/2: ${STATE.m} km/d`, startX + pixelSplitB/2, yB - 30);
+  text(`后 T/2: ${STATE.n} km/d`, startX + pixelSplitB + (trackLength - pixelSplitB)/2, yB - 30);
+  
+  // Highlight for Step 2
+  if (STATE.mode === 'guided' && STATE.stepIndex === 1) {
+    noFill();
+    stroke(24, 144, 255, 150);
+    strokeWeight(4);
+    rect(startX - 5, yB - 25, trackLength + 10, 50, 10);
+  }
+}
+
+function drawCars() {
+  const trackLength = 600;
+  const startX = -300;
+  const yA = -100;
+  const yB = 50;
+  
+  // Calculate Position A
+  let distA = 0;
+  // Time needed for first half
+  const timeA1 = 18 / STATE.m;
+  
+  if (STATE.simTime <= timeA1) {
+    distA = STATE.simTime * STATE.m;
+  } else {
+    distA = 18 + (STATE.simTime - timeA1) * STATE.n;
+  }
+  distA = Math.min(distA, 36);
+  
+  // Calculate Position B
+  let distB = 0;
+  const timeB_half = STATE.tB / 2;
+  
+  if (STATE.simTime <= timeB_half) {
+    distB = STATE.simTime * STATE.m;
+  } else {
+    distB = (timeB_half * STATE.m) + (STATE.simTime - timeB_half) * STATE.n;
+  }
+  distB = Math.min(distB, 36);
+  
+  // Map to pixels
+  const pxA = map(distA, 0, 36, 0, trackLength);
+  const pxB = map(distB, 0, 36, 0, trackLength);
+  
+  // Draw Car A
+  fill(255, 100, 100);
+  noStroke();
+  circle(startX + pxA, yA, 20);
+  fill(255);
+  textSize(10);
+  text("甲", startX + pxA, yA + 4);
+  
+  // Draw Car B
+  fill(100, 200, 100);
+  noStroke();
+  circle(startX + pxB, yB, 20);
+  fill(255);
+  text("乙", startX + pxB, yB + 4);
+  
+  // Draw Time Text on Cars
+  fill(0);
+  textSize(12);
+  text(`${distA.toFixed(1)}km`, startX + pxA, yA - 15);
+  text(`${distB.toFixed(1)}km`, startX + pxB, yB - 15);
+}
+
+function drawGraphs() {
+  // Bar Chart Comparison
+  const cx = 0;
+  const cy = 200;
+  
+  // Only show in Step 4/5 or Sandbox
+  if (STATE.mode === 'guided' && STATE.stepIndex < 3) return;
+  
+  textAlign(CENTER, BOTTOM);
+  textSize(14);
+  fill(50);
+  text("总用时对比", cx, cy - 130);
+  
+  const maxTime = Math.max(STATE.tA, STATE.tB) * 1.2 || 10;
+  const barHeightScale = 100 / maxTime;
+  
+  const hA = STATE.tA * barHeightScale;
+  const hB = STATE.tB * barHeightScale;
+  
+  // Bar A
+  fill(255, 100, 100);
+  rect(cx - 60, cy - hA, 40, hA);
+  fill(0);
+  text(`甲: ${STATE.tA.toFixed(2)}d`, cx - 40, cy - hA - 5);
+  
+  // Bar B
+  fill(100, 200, 100);
+  rect(cx + 20, cy - hB, 40, hB);
+  fill(0);
+  text(`乙: ${STATE.tB.toFixed(2)}d`, cx + 40, cy - hB - 5);
+  
+  // Difference highlight
+  if (STATE.tA > STATE.tB) {
+    stroke(50);
+    line(cx - 20, cy - hB, cx + 20, cy - hB); // cut line
+    
+    noStroke();
+    fill(255, 0, 0, 50);
+    rect(cx - 60, cy - hA, 40, hA - hB); // highlight excess
+    
+    fill(255, 0, 0);
+    textAlign(LEFT, CENTER);
+    text(`慢 ${(STATE.tA - STATE.tB).toFixed(2)}d`, cx - 100, cy - (hA + hB)/2);
+  }
+}
+
+// --- 6. View Controls (Pan/Zoom) ---
+let isDragging = false;
+let lastPointerX, lastPointerY;
+let activePointerId = null;
+
+function handleWheel(e) {
+  e.preventDefault();
+  const zoomSensitivity = 0.001;
+  const delta = -e.deltaY * zoomSensitivity;
+  const newScale = Math.min(Math.max(STATE.view.scale + delta, 0.4), 3.0);
+  
+  // Zoom to mouse logic could be added here, currently simple center zoom
+  STATE.view.scale = newScale;
+}
+
+function handlePointerDown(e) {
+  // Only pan if clicking on blank area (simple logic: all area is "blank" for now unless UI hit)
+  canvas.elt.setPointerCapture(e.pointerId);
+  isDragging = true;
+  lastPointerX = e.clientX;
+  lastPointerY = e.clientY;
+  activePointerId = e.pointerId;
+}
+
+function handlePointerMove(e) {
+  if (!isDragging || e.pointerId !== activePointerId) return;
+  const dx = e.clientX - lastPointerX;
+  const dy = e.clientY - lastPointerY;
+  STATE.view.offsetX += dx;
+  STATE.view.offsetY += dy;
+  lastPointerX = e.clientX;
+  lastPointerY = e.clientY;
+}
+
+function handlePointerUp(e) {
+  if (e.pointerId === activePointerId) {
+    isDragging = false;
+    activePointerId = null;
+    canvas.elt.releasePointerCapture(e.pointerId);
+  }
+}
+
+// --- 7. Mode & Step Logic ---
+
+function setMode(mode) {
+  STATE.mode = mode;
+  STATE.stepIndex = 0;
+  
+  document.getElementById('btn-guided').className = mode === 'guided' ? 'btn' : 'btn btn-secondary';
+  document.getElementById('btn-sandbox').className = mode === 'sandbox' ? 'btn' : 'btn btn-secondary';
+  
+  const guidedOverlay = document.getElementById('guided-overlay');
+  const sandboxControls = document.getElementById('sandbox-controls');
+  
+  if (mode === 'guided') {
+    guidedOverlay.style.display = 'block';
+    sandboxControls.classList.add('hidden');
+    renderGuidedStep();
+    setPresetQ1(); // guided mode usually starts with the problem context
+  } else {
+    guidedOverlay.style.display = 'none';
+    sandboxControls.classList.remove('hidden');
+    STATE.isPlaying = false;
+    STATE.simTime = 0;
+  }
+  recomputeAll();
+}
+
+function renderGuidedStep() {
+  const step = planSteps[STATE.stepIndex];
+  if (!step) return;
+  
+  document.getElementById('step-title').textContent = step.titleCN;
+  document.getElementById('step-reasoning').textContent = step.reasoningCN;
+  document.getElementById('step-counter').textContent = `${STATE.stepIndex + 1}/${planSteps.length}`;
+  
+  // Render Math safely
+  const mathContainer = document.getElementById('step-math');
+  // Construct HTML with safety check
+  let html = '';
+  step.formulasTeX.forEach(tex => {
+    // Basic sanitization
+    if (tex.includes('$')) tex = tex.replace(/\$/g, '');
+    html += `<div style="margin:6px 0;">\\[ ${tex} \\]</div>`;
+  });
+  mathContainer.innerHTML = html;
+  
+  // Trigger MathJax on the ENTIRE overlay (including reasoning text)
+  if (window.MathJax) {
+    const overlay = document.getElementById('guided-overlay');
+    MathJax.typesetPromise([overlay]).catch(err => {
+      console.warn("MathJax Error:", err);
+      mathContainer.innerHTML = `<div class="tex-fallback">公式显示错误 (TeX error)</div>`;
+    });
+  }
+}
+
+function nextStep() {
+  if (STATE.stepIndex < planSteps.length - 1) {
+    STATE.stepIndex++;
+    renderGuidedStep();
+    recomputeAll(); // Trigger any focus highlights
+  }
+}
+
+function prevStep() {
+  if (STATE.stepIndex > 0) {
+    STATE.stepIndex--;
+    renderGuidedStep();
+    recomputeAll();
+  }
+}
+
+function copyProblem() {
+  const text = STATE.problem.statementTeX || STATE.problem.statementCN;
+  navigator.clipboard.writeText(text).then(() => {
+    alert("题面已复制到剪贴板");
+  }).catch(() => {
+    alert("复制失败，请手动复制");
+  });
+}
+
+function togglePlay() {
+  STATE.isPlaying = !STATE.isPlaying;
+  if (STATE.isPlaying && STATE.simTime >= Math.max(STATE.tA, STATE.tB)) {
+    STATE.simTime = 0;
+  }
+}
+
+function resetSim() {
+  STATE.simTime = 0;
+  STATE.isPlaying = false;
+}
+
+// No window.onload needed; setMode called in setup()
+</script>
+</body>
+</html>

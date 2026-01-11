@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三角形三边关系与代数式求值互动课件</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        :root {
+            --primary-bg: #f8f9fa;
+            --sidebar-width: 420px;
+            --accent-color: #007bff;
+            --success-color: #28a745;
+            --error-color: #dc3545;
+            --text-main: #333;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            background-color: var(--primary-bg);
+        }
+
+        /* 布局控制 */
+        #sidebar {
+            width: var(--sidebar-width);
+            height: 100%;
+            background: white;
+            border-right: 1px solid #ddd;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+            z-index: 10;
+        }
+
+        #canvas-container {
+            flex: 1;
+            position: relative;
+            background: #eee;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* 顶部题目卡片 (v3.1 强制) */
+        .problem-card {
+            background: #f1f3f5;
+            margin: 15px;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 5px solid var(--accent-color);
+        }
+        .problem-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .problem-title {
+            font-weight: bold;
+            color: #495057;
+        }
+        .copy-btn {
+            background: #fff;
+            border: 1px solid #ced4da;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .copy-btn:hover { background: #e9ecef; }
+
+        /* 内容板块 */
+        .section {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+        }
+        .tab-group {
+            display: flex;
+            background: #e9ecef;
+            margin: 10px 15px;
+            border-radius: 6px;
+            padding: 3px;
+        }
+        .tab {
+            flex: 1;
+            text-align: center;
+            padding: 8px;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .tab.active {
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-weight: bold;
+        }
+
+        .step-content {
+            min-height: 120px;
+            background: #fff9db;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            border: 1px dashed #fab005;
+        }
+
+        .control-panel { padding: 10px 0; }
+        .slider-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        .slider-row input { flex: 1; }
+        .slider-row label { width: 40px; font-weight: bold; }
+
+        .verification-panel {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: white;
+            font-weight: bold;
+        }
+        .status-pass { background: var(--success-color); }
+        .status-fail { background: var(--error-color); }
+
+        .formula-box {
+            background: #fdfdfe;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            visibility: hidden; /* MathJax 渲染前隐藏 */
+        }
+
+        #status-bar {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(255,255,255,0.9);
+            padding: 8px 15px;
+            border-radius: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="sidebar">
+    <!-- (TOP) 题目原题 -->
+    <div class="problem-card">
+        <div class="problem-header">
+            <span class="problem-title">题目原题 (可复制)</span>
+            <button class="copy-btn" onclick="copyProblem()">复制题面</button>
+        </div>
+        <div id="problem-statement-display">
+            已知 \(\triangle ABC\) 的三边分别为 3, \(a-2\), 7, \(a\) 为偶数，则代数式 \(4a^2 b^{-3} \cdot (-a^{-1} b^3)\) 的值为 <span style="border-bottom: 1px solid #333; padding: 0 20px;"></span>。
+        </div>
+    </div>
+
+    <!-- 模式切换 -->
+    <div class="tab-group">
+        <div id="tab-guided" class="tab active" onclick="switchMode('guided')">引导模式</div>
+        <div id="tab-sandbox" class="tab" onclick="switchMode('sandbox')">题境探索</div>
+        <div id="tab-principles" class="tab" onclick="switchMode('principles')" style="color: var(--accent-color);">原理演示</div>
+    </div>
+
+    <!-- 步骤/控制区 -->
+    <div class="section">
+        <!-- 引导模式 -->
+        <div id="guided-ui">
+            <div id="step-title" style="font-weight: bold; color: var(--accent-color); margin-bottom: 5px;"></div>
+            <div id="step-reasoning" class="step-content"></div>
+            <div id="step-formula" class="formula-box"></div>
+            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                <button onclick="prevStep()" id="prev-btn" style="flex:1; padding: 8px;">上一步</button>
+                <button onclick="nextStep()" id="next-btn" style="flex:1; padding: 8px;">下一步</button>
+            </div>
+        </div>
+
+        <!-- 题境探索模式 -->
+        <div id="sandbox-ui" style="display: none;">
+            <div class="control-panel">
+                <div class="slider-row">
+                    <label>a:</label>
+                    <input type="range" id="a-slider" min="0" max="20" step="0.1" oninput="updateParamA(this.value)">
+                    <span id="a-val" style="width: 30px;">8</span>
+                </div>
+                <div style="font-size:12px; color:#666; margin-top:5px; line-height:1.4;">
+                    对应题目中的边：<br>
+                    边1 = 3<br>
+                    边2 = 7<br>
+                    边3 = a - 2
+                </div>
+                <button onclick="resetApp()" style="width: 100%; padding: 8px; margin-top: 10px;">重置题目参数</button>
+            </div>
+        </div>
+
+        <!-- 原理演示模式 (新增) -->
+        <div id="principles-ui" style="display: none;">
+            <div style="background: #e3f2fd; padding: 10px; border-radius: 5px; margin-bottom: 10px; font-size: 13px; color: #0d47a1;">
+                <b>自由实验室</b>：此处脱离题目，任意调节三边长度，观察三角形形成条件。
+            </div>
+            <div class="control-panel">
+                <div class="slider-row">
+                    <label style="color:#28a745">底(c)</label>
+                    <input type="range" oninput="updatePrincipleParam('c', this.value)" min="1" max="15" step="0.1" value="8">
+                    <span id="p-c-val">8.0</span>
+                </div>
+                <div class="slider-row">
+                    <label style="color:#007bff">左(a)</label>
+                    <input type="range" oninput="updatePrincipleParam('a', this.value)" min="1" max="15" step="0.1" value="4">
+                    <span id="p-a-val">4.0</span>
+                </div>
+                <div class="slider-row">
+                    <label style="color:#fd7e14">右(b)</label>
+                    <input type="range" oninput="updatePrincipleParam('b', this.value)" min="1" max="15" step="0.1" value="5">
+                    <span id="p-b-val">5.0</span>
+                </div>
+            </div>
+            <div id="principle-feedback" style="margin-top:10px; font-weight:bold; font-size:14px; text-align:center;">
+                <!-- 动态反馈 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 验证/自检面板 -->
+    <div class="section">
+        <div style="font-weight: bold; margin-bottom: 8px;">验证 / 自检</div>
+        <div id="verification-list" class="verification-panel">
+            <!-- 动态生成 -->
+        </div>
+    </div>
+
+    <!-- 解答步骤 (折叠) -->
+    <div class="section">
+        <details>
+            <summary style="cursor: pointer; font-weight: bold; color: #666;">查看完整解答步骤</summary>
+            <div style="padding-top: 10px; font-size: 14px; line-height: 1.6;">
+                1. <b>确定范围</b>：根据三角形三边关系，\(|7-3| < a-2 < 7+3\)，即 \(4 < a-2 < 10\)。<br>
+                2. <b>解不等式</b>：\(6 < a < 12\)。<br>
+                3. <b>确定数值</b>：已知 \(a\) 为偶数，则 \(a\) 可取 8 或 10。<br>
+                4. <b>化简代数式</b>：原式 = \(-4 \cdot a^{2-1} \cdot b^{-3+3} = -4a\)。<br>
+                5. <b>求值</b>：<br>
+                当 \(a=8\) 时，值为 -32；<br>
+                当 \(a=10\) 时，值为 -40。<br>
+            </div>
+        </details>
+    </div>
+
+    <!-- 底部功能 -->
+    <div class="section" style="margin-top: auto;">
+        <label style="font-size: 13px; display: flex; align-items: center; gap: 5px;">
+            <input type="checkbox" id="large-font-toggle" onchange="toggleLargeFont()"> 大字模式
+        </label>
+        <div style="font-size: 11px; color: #999; margin-top: 10px;">
+            v3.5 | 单文件 HTML5 | 体验优化：0.1步长高精度调节
+        </div>
+    </div>
+</div>
+
+<div id="canvas-container">
+    <div id="status-bar">准备就绪</div>
+</div>
+
+<script>
+/** * v3.1 Logic-First STEM Courseware
+ * STATE Management
+ */
+const STATE = {
+    mode: 'guided', // 'guided' | 'sandbox' | 'principles'
+    stepIndex: 0,
+    params: {
+        a: 8, // 题目中的参数
+        b: 1
+    },
+    // 独立的原理演示参数
+    principles: {
+        a: 4, // 左边
+        b: 5, // 右边
+        c: 8  // 底边
+    },
+    problem: {
+        statementCN: "已知 \triangle ABC 的三边分别为 3, a-2, 7, a 为偶数，则代数式 4a^2 b^{-3} \cdot (-a^{-1} b^3) 的值为_______。",
+        statementTeX: String.raw`已知 \(\triangle ABC\) 的三边分别为 3, \(a-2\), 7, \(a\) 为偶数，则代数式 \(4a^2 b^{-3} \cdot (-a^{-1} b^3)\) 的值为_______。`,
+        constraints: ["a 是偶数", "能构成三角形"]
+    },
+    expected: null,
+    planSteps: []
+};
+
+/** * Solve Phase */
+function solveProblem() {
+    STATE.expected = {
+        rangeA: [6, 12],
+        possibleA: [8, 10],
+        simplifiedForm: "-4a",
+        finalValues: [-32, -40]
+    };
+
+    STATE.planSteps = [
+        {
+            titleCN: "第一步：演示三边关系结论",
+            reasoningCN: "观察图中虚线圆与下方线段图。两圆相交（即两边之和大于第三边，之差小于第三边）才能构成三角形。拖动滑块体验何时“断开”。",
+            formulasTeX: [String.raw`|7 - 3| < a - 2 < 7 + 3`],
+            revealedObjects: ['inequality_range', 'circles'],
+            checkItemNameCN: "三角形构成条件"
+        },
+        {
+            titleCN: "第二步：确定 a 的范围",
+            reasoningCN: "解不等式 4 < a - 2 < 10，得到 a 的取值区间。",
+            formulasTeX: [String.raw`6 < a < 12`],
+            revealedObjects: ['range_visual'],
+            checkItemNameCN: "数值范围判定"
+        },
+        {
+            titleCN: "第三步：结合已知条件",
+            reasoningCN: "在 (6, 12) 范围内寻找满足条件的偶数。",
+            formulasTeX: [String.raw`a \in \{8, 10\}`],
+            revealedObjects: ['even_points'],
+            checkItemNameCN: "偶数条件"
+        },
+        {
+            titleCN: "第四步：代数式化简",
+            reasoningCN: "利用幂的运算性质：同底数幂相乘，底数不变，指数相加。",
+            formulasTeX: [String.raw`4a^2 b^{-3} \cdot (-a^{-1} b^3) = -4 a^{2-1} b^{-3+3} = -4a`],
+            revealedObjects: ['simplified_formula'],
+            checkItemNameCN: "化简正确性"
+        },
+        {
+            titleCN: "第五步：代入求值",
+            reasoningCN: "将确定出的 a 值代入化简后的结果中。",
+            formulasTeX: [String.raw`a=8 \rightarrow -32`, String.raw`a=10 \rightarrow -40`],
+            revealedObjects: ['final_result'],
+            checkItemNameCN: "结果核对"
+        }
+    ];
+}
+
+/** Verification Phase */
+// 缓存上一次的原理验证HTML，避免不必要的重绘
+let lastPrinciplesHTML = "";
+
+function verifyAll() {
+    if (STATE.mode === 'principles') {
+        const { a, b, c } = STATE.principles;
+        const sumOK = a + b > c;
+        const diffOK = Math.abs(a - b) < c;
+        const formTriangle = sumOK && diffOK;
+        
+        // 生成内容
+        const newHTML = `
+            <div style="margin-bottom:5px;"><b>原理验证：</b></div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+               <span>两边之和 (${a.toFixed(1)}+${b.toFixed(1)} > ${c.toFixed(1)})</span>
+               <span class="status-badge ${sumOK?'status-pass':'status-fail'}">${sumOK?'满足':'不满足'}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+               <span>两边之差 (|${a.toFixed(1)}-${b.toFixed(1)}| < ${c.toFixed(1)})</span>
+               <span class="status-badge ${diffOK?'status-pass':'status-fail'}">${diffOK?'满足':'不满足'}</span>
+            </div>
+             <div style="display:flex; justify-content:space-between; margin-bottom:5px; border-top:1px solid #ddd; padding-top:5px;">
+               <span>结论</span>
+               <span class="status-badge ${formTriangle?'status-pass':'status-fail'}">${formTriangle?'构成三角形':'无法构成'}</span>
+            </div>
+        `;
+        
+        const container = document.getElementById('verification-list');
+        // 简单DOM优化：只有内容变化时才更新innerHTML
+        if (newHTML !== lastPrinciplesHTML) {
+            container.innerHTML = newHTML;
+            lastPrinciplesHTML = newHTML;
+        }
+        
+        const feedback = document.getElementById('principle-feedback');
+        if (!sumOK) {
+            feedback.innerHTML = `<span style="color:red">两边之和不够 (过短)</span>`;
+        } else if (!diffOK) {
+            feedback.innerHTML = `<span style="color:red">两边之差太大 (过长)</span>`;
+        } else {
+            feedback.innerHTML = `<span style="color:green">完美构成三角形</span>`;
+        }
+        return;
+    }
+
+    // Default problem verification
+    const a = STATE.params.a;
+    const s3 = a - 2;
+    const isTriangle = (3 + 7 > s3) && (3 + s3 > 7) && (7 + s3 > 3);
+    const isEven = a % 2 === 0;
+
+    const items = [
+        { nameCN: "三角形构成条件", pass: isTriangle, msg: isTriangle ? "符合" : "三边无法成三角形" },
+        { nameCN: "数值范围判定", pass: (a > 6 && a < 12), msg: (a > 6 && a < 12) ? "在(6,12)内" : "超出理论范围" },
+        { nameCN: "偶数条件", pass: isEven, msg: isEven ? "是偶数" : "当前非偶数" },
+        { nameCN: "化简正确性", pass: true, msg: "代数式化简为 -4a" },
+        { nameCN: "结果核对", pass: (a === 8 || a === 10), msg: `结果为 ${-4*a}` }
+    ];
+
+    const container = document.getElementById('verification-list');
+    container.innerHTML = items.map(item => `
+        <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+            <span>${item.nameCN}:</span>
+            <span class="status-badge ${item.pass ? 'status-pass' : 'status-fail'}">${item.msg}</span>
+        </div>
+    `).join('');
+}
+
+/** P5.js Visualization */
+let p5AppInstance;
+function initP5() {
+    p5AppInstance = new p5(sketch, 'canvas-container');
+}
+
+const sketch = (s) => {
+    s.setup = () => {
+        let canvas = s.createCanvas(s.windowWidth - 420, s.windowHeight);
+        s.textAlign(s.CENTER, s.CENTER);
+    };
+
+    s.draw = () => {
+        s.background(250);
+        
+        if (STATE.mode === 'principles') {
+            drawPrinciples(s);
+        } else {
+            drawProblem(s);
+        }
+    };
+    
+    // --- 原理模式绘制 (Enhanced) ---
+    function drawPrinciples(s) {
+        const { a, b, c } = STATE.principles;
+        const scale = 25; // 稍微缩小一点比例以容纳更多内容
+        
+        // 1. 顶部：圆规作图
+        s.push();
+        s.translate(s.width/2, s.height/2 - 120);
+        
+        // 设 C边 (Base) 中心在原点
+        const p1x = -c * scale / 2;
+        const p1y = 0;
+        const p2x = c * scale / 2;
+        const p2y = 0;
+        
+        let cosA = (c*c + a*a - b*b) / (2 * c * a);
+        let valid = Math.abs(cosA) <= 1;
+        let p3x, p3y;
+        
+        // 绘制辅助圆
+        s.noFill();
+        s.strokeWeight(1);
+        s.drawingContext.setLineDash([5, 5]);
+        s.stroke(0, 123, 255, 200); // Blue
+        s.circle(p1x, p1y, a * scale * 2);
+        s.stroke(253, 126, 20, 200); // Orange
+        s.circle(p2x, p2y, b * scale * 2);
+        s.drawingContext.setLineDash([]);
+        
+        // Base C
+        s.stroke(40, 167, 69); // Green
+        s.strokeWeight(4);
+        s.line(p1x, p1y, p2x, p2y);
+        
+        if (valid) {
+            let angle = Math.acos(cosA);
+            p3x = p1x + Math.cos(angle) * a * scale;
+            p3y = p1y - Math.sin(angle) * a * scale;
+            s.stroke(0, 123, 255);
+            s.line(p1x, p1y, p3x, p3y);
+            s.stroke(253, 126, 20);
+            s.line(p2x, p2y, p3x, p3y);
+            s.noStroke(); s.fill(0); s.circle(p3x, p3y, 5);
+        } else {
+            // 无法构成时的倒伏线
+            s.stroke(0, 123, 255);
+            s.strokeWeight(4);
+            s.line(p1x, p1y, p1x + a * scale, 0);
+            s.stroke(253, 126, 20);
+            s.line(p2x, p2y, p2x - b * scale, 0);
+        }
+        
+        // 标签
+        s.noStroke(); s.fill(0); s.textSize(16);
+        s.text(`c=${c.toFixed(1)}`, 0, 20);
+        s.pop();
+
+        // 2. 中部：两边之和演示
+        s.push();
+        s.translate(s.width/2 - c*scale/2, s.height/2 + 20);
+        drawSumVisualization(s, scale, a, b, c);
+        s.pop();
+
+        // 3. 底部：两边之差演示 (全新直观版)
+        s.push();
+        s.translate(s.width/2 - c*scale/2, s.height/2 + 100); // 放在下方
+        drawDiffVisualization(s, scale, a, b, c);
+        s.pop();
+    }
+
+    function drawSumVisualization(s, scale, a, b, c) {
+        // Line 1: a + b
+        let y1 = 0;
+        s.stroke(0, 123, 255); s.strokeWeight(4);
+        s.line(0, y1, a*scale, y1);
+        s.stroke(253, 126, 20);
+        s.line(a*scale, y1, (a+b)*scale, y1);
+        
+        // Line 2: c
+        let y2 = 25;
+        s.stroke(40, 167, 69);
+        s.line(0, y2, c*scale, y2);
+
+        // Labels
+        s.noStroke(); s.fill(100); s.textSize(12); s.textAlign(s.RIGHT);
+        s.text("两边之和:", -10, y1+5);
+        s.text("第三边 c:", -10, y2+5);
+
+        // Result
+        let total = a + b;
+        let ok = total > c;
+        s.textAlign(s.LEFT);
+        s.fill(ok ? varColor('--success-color') : varColor('--error-color'));
+        s.text(ok ? `✅ ${total.toFixed(1)} > ${c.toFixed(1)}` : `❌ ${total.toFixed(1)} <= ${c.toFixed(1)}`, Math.max(total, c)*scale + 10, y1 + 15);
+    }
+
+    function drawDiffVisualization(s, scale, a, b, c) {
+        // 逻辑：画出较长边，然后把较短边叠上去，空出的就是“差”。然后把c和这个“差”比。
+        const maxS = Math.max(a, b);
+        const minS = Math.min(a, b);
+        const diff = maxS - minS;
+
+        // Line 1: 长边 (底色)
+        let y1 = 0;
+        let cLong = (a >= b) ? [0, 123, 255] : [253, 126, 20];
+        s.stroke(cLong); s.strokeWeight(4);
+        s.line(0, y1, maxS*scale, y1);
+
+        // Line 1 Overlay: 短边 (覆盖在左侧)
+        let cShort = (a >= b) ? [253, 126, 20] : [0, 123, 255];
+        s.stroke(cShort);
+        s.line(0, y1, minS*scale, y1);
+
+        // 标注 "差" 的部分 (虚线框 + 文字)
+        s.stroke(100); s.strokeWeight(1);
+        s.drawingContext.setLineDash([3, 3]);
+        // 画一个括号或者标记
+        let diffStartX = minS * scale;
+        let diffEndX = maxS * scale;
+        // 上方连线
+        s.line(diffStartX, y1 - 8, diffEndX, y1 - 8);
+        s.line(diffStartX, y1 - 8, diffStartX, y1);
+        s.line(diffEndX, y1 - 8, diffEndX, y1);
+        s.drawingContext.setLineDash([]);
+        
+        s.noStroke(); s.fill(100); s.textSize(12); s.textAlign(s.CENTER);
+        s.text(`差 (${diff.toFixed(1)})`, (diffStartX + diffEndX)/2, y1 - 12);
+
+        // Line 2: c (放在差的下方，起点对齐差的起点，直观对比)
+        let y2 = 25;
+        
+        // 关键视觉升级：把 c 放在差值区间下方
+        // 如果 c 比差值大，它会“超出”差值区间，这是好的 (diff < c)
+        // 如果 c 比差值小，它会“掉进”差值区间，这是坏的 (diff > c)
+        
+        s.stroke(40, 167, 69); s.strokeWeight(4);
+        // 起点与 Difference 的起点对齐
+        s.line(diffStartX, y2, diffStartX + c*scale, y2);
+        
+        // Labels
+        s.noStroke(); s.fill(100); s.textAlign(s.RIGHT);
+        s.text("两边重叠:", -10, y1+5);
+        s.text("第三边 c:", -10, y2+5); // 稍微不准确，为了布局对齐
+
+        // Result
+        let ok = diff < c;
+        let endX = Math.max(diffEndX, diffStartX + c*scale);
+        s.textAlign(s.LEFT);
+        s.fill(ok ? varColor('--success-color') : varColor('--error-color'));
+        s.text(ok ? `✅ 差 < c` : `❌ 差 >= c`, endX + 10, y2 + 5);
+        
+        // 辅助线连接 c 和 差
+        s.stroke(200); s.strokeWeight(1);
+        s.drawingContext.setLineDash([2, 2]);
+        s.line(diffStartX, y1, diffStartX, y2); // 起点对齐线
+        s.drawingContext.setLineDash([]);
+    }
+
+    // --- 题目模式绘制 (Original) ---
+    function drawProblem(s) {
+        s.push();
+        s.translate(s.width/2 - 100, s.height/2 - 50);
+        
+        const scale = 30;
+        const side1 = 3 * scale;
+        const side2 = 7 * scale;
+        const aVal = STATE.params.a;
+        const side3 = (aVal - 2) * scale;
+
+        let Ax = 0, Ay = 0;
+        let Bx = side2, By = 0;
+        
+        let Cx, Cy;
+        let cosA = (side2*side2 + side1*side1 - side3*side3) / (2 * side2 * side1);
+        let canForm = Math.abs(cosA) <= 1;
+
+        // 辅助圆
+        s.noFill();
+        s.drawingContext.setLineDash([5, 5]);
+        s.stroke(50, 150, 250, 200); 
+        s.circle(Ax, Ay, side1 * 2);
+        s.stroke(255, 165, 0, 200); 
+        s.circle(Bx, By, side3 * 2);
+        s.drawingContext.setLineDash([]);
+
+        s.strokeWeight(2);
+        
+        // 绘制
+        s.stroke(200);
+        if (canForm) {
+            let angle = Math.acos(cosA);
+            Cx = Math.cos(angle) * side1;
+            Cy = -s.abs(Math.sin(angle) * side1);
+            s.stroke(50, 150, 250);
+            s.line(Ax, Ay, Cx, Cy);
+            s.line(Bx, By, Cx, Cy);
+            s.noStroke(); s.fill(0); s.text("C", Cx, Cy - 15);
+        } else {
+            s.stroke(varColor('--error-color'));
+            s.drawingContext.setLineDash([5, 5]);
+            s.stroke(50, 150, 250);
+            s.line(Ax, Ay, side1, 0); 
+            s.stroke(255, 165, 0);
+            s.line(Bx, By, Bx - side3, 0); 
+            s.drawingContext.setLineDash([]);
+            
+            s.fill(varColor('--error-color'));
+            s.noStroke();
+            let msg = (side1 + side3 < side2) ? "够不着 (和 < 第三边)" : "包含了 (差 > 第三边)";
+            s.text(msg, (Bx - side1)/2, -40);
+        }
+
+        s.stroke(100); s.strokeWeight(2);
+        s.line(Ax, Ay, Bx, By);
+
+        // 标签
+        s.noStroke(); s.fill(50); s.textSize(STATE.largeFont ? 20 : 16);
+        s.text("7", (Ax + Bx)/2, 20);
+        s.fill(50, 100, 200);
+        if (canForm) {
+            s.text("3", (Ax + Cx)/2 - 15, (Ay + Cy)/2);
+            s.fill(200, 100, 0);
+            s.text(`a-2 (${(aVal-2).toFixed(1)})`, (Bx + Cx)/2 + 40, (By + Cy)/2 - 10);
+        } else {
+            s.text("3", side1/2, -15);
+            s.fill(200, 100, 0);
+            s.text(`a-2 (${(aVal-2).toFixed(1)})`, Bx - side3/2, -15);
+        }
+
+        s.fill(0); s.text("A", Ax - 15, Ay); s.text("B", Bx + 15, By);
+        s.pop();
+
+        // 题目模式下方的对比条
+        drawInequalityBar(s, scale, aVal);
+        drawUIOverlay(s);
+    }
+
+    function drawInequalityBar(s, scale, aVal) {
+        s.push();
+        s.translate(s.width/2 - 100, s.height/2 + 150);
+
+        const L_base = 7 * scale;
+        const L_side1 = 3 * scale;
+        const L_side3 = (aVal - 2) * scale;
+        
+        s.noStroke(); s.fill(100); s.textAlign(s.LEFT); s.textSize(12);
+        s.text("基准边 (7):", -80, 5);
+        
+        s.stroke(80); s.strokeWeight(4);
+        s.line(0, 0, L_base, 0);
+        
+        s.noStroke(); s.fill(100); s.text(`两边之和:`, -80, 35);
+
+        let yOffset = 30;
+        s.stroke(50, 150, 250);
+        s.line(0, yOffset, L_side1, yOffset);
+        s.stroke(255, 165, 0);
+        s.line(L_side1, yOffset, L_side1 + L_side3, yOffset);
+
+        let sumLen = L_side1 + L_side3;
+        s.noStroke();
+        if (sumLen > L_base) {
+            if (L_side3 > L_base + L_side1) {
+                 s.fill(varColor('--error-color')); s.text(`❌ 太长!`, sumLen + 10, yOffset + 5);
+            } else {
+                 s.fill(varColor('--success-color')); s.text("✅ > 7", sumLen + 10, yOffset + 5);
+            }
+        } else {
+            s.fill(varColor('--error-color')); s.text("❌ < 7", sumLen + 10, yOffset + 5);
+        }
+        s.pop();
+    }
+
+    function drawUIOverlay(s) {
+        s.resetMatrix();
+        s.fill(240, 240, 240, 200);
+        s.rect(20, 20, 250, 100, 10);
+        s.fill(0);
+        s.textSize(14);
+        s.textAlign(s.LEFT);
+        s.text(`当前 a = ${STATE.params.a.toFixed(1)}`, 30, 45);
+        s.text(`三边: [3, 7, ${(STATE.params.a - 2).toFixed(1)}]`, 30, 70);
+        let msg = (STATE.params.a > 6 && STATE.params.a < 12) ? "✅ 构成三角形" : "❌ 无法构成";
+        s.text(msg, 30, 95);
+    }
+    
+    function varColor(name) {
+        return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    }
+};
+
+/** UI Actions */
+function switchMode(mode) {
+    STATE.mode = mode;
+    ['guided', 'sandbox', 'principles'].forEach(m => {
+        document.getElementById(`tab-${m}`).className = (mode === m) ? 'tab active' : 'tab';
+        document.getElementById(`${m}-ui`).style.display = (mode === m) ? 'block' : 'none';
+    });
+    updateUI();
+}
+
+function updateParamA(val) {
+    STATE.params.a = parseFloat(val);
+    document.getElementById('a-val').innerText = parseFloat(val).toFixed(1); // 统一保留1位
+    document.getElementById('a-slider').value = val;
+    recompute();
+}
+
+function updatePrincipleParam(key, val) {
+    STATE.principles[key] = parseFloat(val);
+    document.getElementById(`p-${key}-val`).innerText = parseFloat(val).toFixed(1); // 统一保留1位
+    recompute();
+}
+
+function nextStep() {
+    if (STATE.stepIndex < STATE.planSteps.length - 1) {
+        STATE.stepIndex++;
+        if (STATE.stepIndex === 2) updateParamA(8); 
+        updateUI();
+    }
+}
+
+function prevStep() {
+    if (STATE.stepIndex > 0) {
+        STATE.stepIndex--;
+        updateUI();
+    }
+}
+
+async function updateUI() {
+    recompute();
+    if (STATE.mode !== 'guided') return;
+    
+    const step = STATE.planSteps[STATE.stepIndex];
+    document.getElementById('step-title').innerText = step.titleCN;
+    document.getElementById('step-reasoning').innerText = step.reasoningCN;
+    
+    const formulaEl = document.getElementById('step-formula');
+    formulaEl.style.visibility = 'hidden';
+    const tex = step.formulasTeX.map(f => `\\[ ${f} \\]`).join('');
+    formulaEl.innerHTML = tex;
+    
+    document.getElementById('prev-btn').disabled = (STATE.stepIndex === 0);
+    document.getElementById('next-btn').disabled = (STATE.stepIndex === STATE.planSteps.length - 1);
+
+    await MathJax.typesetPromise([formulaEl]);
+    formulaEl.style.visibility = 'visible';
+}
+
+function recompute() {
+    verifyAll();
+    const status = document.getElementById('status-bar');
+    if (STATE.mode === 'principles') {
+        status.innerText = "🧪 原理演示模式 - 自由调节三边";
+        status.style.color = "#007bff";
+    } else {
+        const a = STATE.params.a;
+        if (a < 6 || a > 12) {
+            status.innerText = "⚠️ 题目模式：三边关系不成立";
+            status.style.color = "red";
+        } else {
+            status.innerText = "✅ 题目模式：条件满足";
+            status.style.color = "green";
+        }
+    }
+}
+
+function resetApp() {
+    updateParamA(8);
+    STATE.stepIndex = 0;
+    STATE.principles = { a: 4, b: 5, c: 8 };
+    ['a', 'b', 'c'].forEach(k => {
+        const el = document.querySelector(`input[oninput="updatePrincipleParam('${k}', this.value)"]`);
+        if(el) {
+            el.value = STATE.principles[k];
+            document.getElementById(`p-${k}-val`).innerText = STATE.principles[k].toFixed(1);
+        }
+    });
+    switchMode('guided');
+}
+
+function toggleLargeFont() {
+    STATE.largeFont = document.getElementById('large-font-toggle').checked;
+    document.body.style.fontSize = STATE.largeFont ? '18px' : '14px';
+}
+
+function copyProblem() {
+    const text = STATE.problem.statementCN;
+    const dummy = document.createElement("textarea");
+    document.body.appendChild(dummy);
+    dummy.value = text;
+    dummy.select();
+    document.execCommand("copy");
+    document.body.removeChild(dummy);
+    
+    const btn = document.querySelector('.copy-btn');
+    const old = btn.innerText;
+    btn.innerText = "已复制！";
+    setTimeout(() => btn.innerText = old, 2000);
+}
+
+window.onload = () => {
+    solveProblem();
+    initP5();
+    updateUI();
+};
+</script>
+
+</body>
+</html>

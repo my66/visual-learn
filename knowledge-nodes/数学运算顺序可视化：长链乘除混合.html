@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数学运算顺序可视化：长链乘除混合</title>
+    
+    <!-- Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+            background-color: #f5f5f7;
+            color: #333;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* Layout Container */
+        #main-container {
+            display: flex;
+            flex-direction: row; /* Horizontal layout for PC */
+            width: 100%;
+            max-width: 1400px;
+            margin: 20px auto;
+            background: white;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+            border-radius: 12px;
+            overflow: hidden;
+            min-height: 750px;
+        }
+
+        /* Control Panel */
+        #control-panel {
+            width: 340px;
+            background: #fafafa;
+            border-right: 1px solid #eee;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+            max-height: 90vh;
+            flex-shrink: 0;
+        }
+
+        /* Visualization Area */
+        #canvas-container {
+            flex-grow: 1;
+            position: relative;
+            background: #ffffff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 20px;
+            overflow: hidden;
+        }
+
+        /* UI Elements */
+        h1, h2, h3 { margin: 0; font-weight: 600; color: #1d1d1f; }
+        h1 { font-size: 20px; margin-bottom: 10px; }
+        h2 { font-size: 16px; margin-bottom: 8px; color: #666; }
+
+        .panel-section {
+            border-bottom: 1px solid #eee;
+            padding-bottom: 20px;
+        }
+
+        .control-group {
+            margin-bottom: 16px;
+        }
+
+        label {
+            display: block;
+            font-size: 14px;
+            margin-bottom: 6px;
+            color: #444;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            accent-color: #0071e3;
+        }
+
+        .value-display {
+            font-family: "SF Mono", "Menlo", monospace;
+            font-size: 14px;
+            color: #0071e3;
+            float: right;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: #0071e3;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        button:hover { background-color: #005bb5; }
+        button:active { transform: scale(0.98); }
+        
+        button.secondary { background-color: #e5e5ea; color: #333; }
+        button.secondary:hover { background-color: #d1d1d6; }
+        
+        button.add-mul { background-color: #34c759; }
+        button.add-mul:hover { background-color: #248a3d; }
+        
+        button.add-div { background-color: #ff9500; }
+        button.add-div:hover { background-color: #c47200; }
+
+        .btn-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .formula-box {
+            background: #fbfbfd;
+            border: 1px solid #e5e5ea;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+            min-height: 60px;
+            width: 90%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            visibility: hidden; /* Prevent flash */
+            overflow-x: auto;
+        }
+
+        /* Status Bar */
+        #status-bar {
+            width: 100%;
+            padding: 10px 24px;
+            background: #f5f5f7;
+            border-top: 1px solid #e5e5ea;
+            font-size: 13px;
+            color: #666;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        /* Toggle Switch */
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            padding: 8px 0;
+            cursor: pointer;
+        }
+        .toggle-label { font-size: 14px; color: #333; }
+        
+        /* Custom Switch CSS */
+        .switch {
+          position: relative;
+          display: inline-block;
+          width: 40px;
+          height: 24px;
+        }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+          position: absolute;
+          cursor: pointer;
+          top: 0; left: 0; right: 0; bottom: 0;
+          background-color: #ccc;
+          transition: .4s;
+          border-radius: 24px;
+        }
+        .slider:before {
+          position: absolute;
+          content: "";
+          height: 18px;
+          width: 18px;
+          left: 3px;
+          bottom: 3px;
+          background-color: white;
+          transition: .4s;
+          border-radius: 50%;
+        }
+        input:checked + .slider { background-color: #0071e3; }
+        input:checked + .slider:before { transform: translateX(16px); }
+
+        /* Problem Statement */
+        .problem-statement {
+            background: #fff9e6;
+            border: 1px solid #ffeeba;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            line-height: 1.5;
+            color: #856404;
+            margin-bottom: 20px;
+        }
+        
+        .mode-selector {
+            display: flex;
+            background: #e5e5ea;
+            padding: 4px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .mode-btn {
+            flex: 1;
+            padding: 8px;
+            text-align: center;
+            font-size: 13px;
+            border-radius: 6px;
+            cursor: pointer;
+            color: #666;
+            font-weight: 500;
+        }
+        .mode-btn.active {
+            background: white;
+            color: #0071e3;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="main-container">
+        <!-- Control Panel -->
+        <div id="control-panel">
+            <div class="panel-section">
+                <h1>乘除混合运算演示</h1>
+                <div class="mode-selector">
+                    <div id="mode-classic" class="mode-btn active" onclick="setMode('classic')">基础模式 (3项)</div>
+                    <div id="mode-chain" class="mode-btn" onclick="setMode('chain')">长链模式 (任意项)</div>
+                </div>
+                
+                <div id="desc-classic" class="problem-statement">
+                    <strong>基础问题：</strong><br>
+                    计算 \( a \div b \times c \) 时，除号后的 \(b\) 和乘号后的 \(c\) 分别去哪里？
+                </div>
+                <div id="desc-chain" class="problem-statement" style="display:none;">
+                    <strong>长链问题：</strong><br>
+                    验证 \( a \div b \times c \div d \times y \div x \) 是否遵循“乘号上楼，除号下楼”。
+                </div>
+            </div>
+
+            <!-- Classic Controls -->
+            <div id="controls-classic" class="panel-section">
+                <h2>输入数值</h2>
+                <div class="control-group">
+                    <label>数值 a <span id="val-a" class="value-display">12</span></label>
+                    <input type="range" id="slider-a" min="1" max="50" step="1" value="12">
+                </div>
+                <div class="control-group">
+                    <label>数值 b <span id="val-b" class="value-display">3</span></label>
+                    <input type="range" id="slider-b" min="1" max="20" step="1" value="3">
+                </div>
+                <div class="control-group">
+                    <label>数值 c <span id="val-c" class="value-display">2</span></label>
+                    <input type="range" id="slider-c" min="1" max="20" step="1" value="2">
+                </div>
+                
+                <div class="toggle-row">
+                    <span class="toggle-label">显示错误路径对比</span>
+                    <label class="switch">
+                        <input type="checkbox" id="check-compare" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Chain Controls -->
+            <div id="controls-chain" class="panel-section" style="display:none;">
+                <h2>构建长算式</h2>
+                <div style="font-size:13px; color:#666; margin-bottom:10px;">
+                    当前算式项数：<span id="term-count">6</span>
+                </div>
+                
+                <div class="btn-row">
+                    <button class="add-mul" onclick="addTerm('mul')">
+                        <span>×</span> 乘以数
+                    </button>
+                    <button class="add-div" onclick="addTerm('div')">
+                        <span>÷</span> 除以数
+                    </button>
+                </div>
+                <div class="btn-row">
+                    <button class="secondary" onclick="popTerm()">
+                        ↩ 撤销最后一项
+                    </button>
+                    <button class="secondary" onclick="resetChainDefault()">
+                         重置为 a÷b×c÷d×y÷x
+                    </button>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <div class="toggle-row">
+                    <span class="toggle-label">显示“上下楼”原理图</span>
+                    <label class="switch">
+                        <input type="checkbox" id="check-fraction" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+            
+            <div style="font-size: 12px; color: #888; margin-top: auto;">
+                说明：无论算式多长，除号总是把数推向分母，乘号总是把数留在分子。
+            </div>
+        </div>
+
+        <!-- Canvas Area -->
+        <div id="canvas-container">
+            <!-- Math Display Area (HTML/MathJax) -->
+            <div id="formula-main" class="formula-box">
+                <!-- MathJax injected here -->
+            </div>
+
+            <!-- p5.js Canvas will be injected here -->
+            <div id="p5-canvas-wrapper" style="position: relative; flex-grow: 1; width: 100%; display: flex; justify-content: center; align-items: center; background: #fff;"></div>
+        </div>
+    </div>
+
+    <!-- Status Bar -->
+    <div id="status-bar">
+        <span id="status-text">就绪</span>
+        <span>Math Visualization v1.5</span>
+    </div>
+
+    <script>
+        // --- Configuration & State ---
+        const CONFIG = {
+            colors: {
+                primary: '#0071e3',    // Blue for numerator/mul
+                error: '#ff3b30',      // Red for error path
+                neutral: '#86868b',    // Grey
+                highlight: '#34c759',  // Green
+                denom: '#ff9500',      // Orange for denominator/div
+                bg: '#ffffff'
+            },
+            maxTerms: 8 // Limit for UI space
+        };
+
+        let state = {
+            mode: 'classic', // 'classic' or 'chain'
+            // Classic mode data
+            a: 12, b: 3, c: 2,
+            showCompare: true,
+            // Chain mode data
+            chain: [], // Array of {op: '*'|'/', val: number, id: string}
+            
+            showFraction: true,
+            animProgress: 1
+        };
+
+        // UI References
+        let sliderA, sliderB, sliderC;
+        let formulaMain;
+        let canvas;
+
+        // --- p5.js Sketch ---
+        function setup() {
+            const wrapper = document.getElementById('p5-canvas-wrapper');
+            let w = wrapper.clientWidth;
+            let h = wrapper.clientHeight || 600;
+            
+            canvas = createCanvas(w, h);
+            canvas.parent('p5-canvas-wrapper');
+            
+            rectMode(CENTER);
+            textAlign(CENTER, CENTER);
+            
+            // Initial UI Setup
+            sliderA = document.getElementById('slider-a');
+            sliderB = document.getElementById('slider-b');
+            sliderC = document.getElementById('slider-c');
+            formulaMain = document.getElementById('formula-main');
+
+            // Listeners
+            sliderA.addEventListener('input', (e) => updateParam('a', +e.target.value));
+            sliderB.addEventListener('input', (e) => updateParam('b', +e.target.value));
+            sliderC.addEventListener('input', (e) => updateParam('c', +e.target.value));
+
+            document.getElementById('check-compare').addEventListener('change', (e) => {
+                state.showCompare = e.target.checked;
+                redraw();
+            });
+            document.getElementById('check-fraction').addEventListener('change', (e) => {
+                state.showFraction = e.target.checked;
+                redraw();
+            });
+
+            // Initialize Chain Data
+            resetChainDefault();
+
+            // Initial Render
+            updateDOMFormula();
+        }
+
+        function windowResized() {
+            const wrapper = document.getElementById('p5-canvas-wrapper');
+            if (wrapper) {
+                resizeCanvas(wrapper.clientWidth, wrapper.clientHeight || 600);
+            }
+        }
+
+        function draw() {
+            background(255);
+            
+            if (state.mode === 'classic') {
+                drawClassicMode();
+            } else {
+                drawChainMode();
+            }
+        }
+
+        // --- Classic Mode Drawing ---
+        function drawClassicMode() {
+            // Calculate values
+            let resLeft = (state.a / state.b) * state.c; 
+            let resRight = state.a / (state.b * state.c); 
+
+            let isResInteger = Number.isInteger(resLeft);
+            let displayResLeft = isResInteger ? resLeft : resLeft.toFixed(2);
+            let displayResRight = Number.isInteger(resRight) ? resRight : resRight.toFixed(2);
+
+            let centerY = height * 0.3; 
+            let gap = width * 0.25;
+            let startX = width / 2;
+            
+            if (state.showCompare) {
+                drawPath(startX - gap, centerY, true, displayResLeft);
+                drawPath(startX + gap, centerY, false, displayResRight);
+                
+                textSize(32);
+                fill(CONFIG.colors.neutral);
+                text(resLeft === resRight ? "=" : "≠", startX, centerY);
+            } else {
+                drawPath(startX, centerY, true, displayResLeft);
+            }
+
+            if (state.showFraction) {
+                // Classic Mapping Diagram
+                // Convert state.a, b, c into chain format for generic drawing?
+                // Or just keep custom drawing for classic specific layout
+                drawMappingDiagram(width/2, height * 0.75, [
+                    {op: 'init', val: state.a},
+                    {op: 'div', val: state.b},
+                    {op: 'mul', val: state.c}
+                ]);
+            }
+        }
+
+        // --- Chain Mode Drawing ---
+        function drawChainMode() {
+            let startY = height * 0.25;
+            let centerX = width / 2;
+            
+            // Draw result calculation steps? 
+            // For chain mode, we focus on the Fraction Structure Principle
+            
+            // 1. Show the linear calculation result
+            let result = calculateChainResult(state.chain);
+            let displayRes = Number.isInteger(result) ? result : result.toFixed(2);
+            
+            textSize(24);
+            fill(0);
+            text(`计算结果 = ${displayRes}`, centerX, startY - 80);
+            
+            if (state.showFraction) {
+                drawMappingDiagram(centerX, height * 0.55, state.chain);
+            } else {
+                // If diagram hidden, just show simple text
+                fill(100);
+                text("开启下方的“原理图”开关以查看分子分母分布", centerX, height/2);
+            }
+        }
+
+        // --- Core Visualizer: Mapping Diagram ---
+        // Generic function to draw mapping for ANY chain of operations
+        function drawMappingDiagram(cx, cy, terms) {
+            push();
+            translate(cx, cy);
+            
+            // Layout constants
+            const termSpacing = 90; 
+            const totalWidth = (terms.length - 1) * termSpacing;
+            const startX = -totalWidth / 2;
+            const rowTopY = -100; // Equation row
+            const fracCenterY = 50; // Fraction bar center
+            
+            // 1. Draw Title
+            textAlign(CENTER);
+            fill(80);
+            textSize(16);
+            noStroke();
+            text("原理演示：乘号上楼，除号下楼", 0, rowTopY - 60);
+
+            // 2. Draw Fraction Bar
+            stroke(0);
+            strokeWeight(3);
+            // Dynamic width based on terms
+            let fracWidth = Math.max(200, terms.length * 60); 
+            line(-fracWidth/2, fracCenterY, fracWidth/2, fracCenterY);
+            
+            noStroke();
+            textSize(14);
+            fill(100);
+            text("分子 (楼上)", -fracWidth/2 - 50, fracCenterY - 20);
+            text("分母 (楼下)", -fracWidth/2 - 50, fracCenterY + 20);
+
+            // 3. Loop through terms to draw Top Row & Arrows & Fraction Parts
+            
+            // We need to layout numerator and denominator items in the fraction
+            let numItems = terms.filter(t => t.op !== 'div');
+            let denItems = terms.filter(t => t.op === 'div');
+            
+            let numSpacing = fracWidth / (numItems.length + 1);
+            let denSpacing = denItems.length > 0 ? fracWidth / (denItems.length + 1) : 0;
+            
+            let numXStart = -fracWidth/2;
+            let denXStart = -fracWidth/2;
+            
+            let currentNumIndex = 0;
+            let currentDenIndex = 0;
+
+            for (let i = 0; i < terms.length; i++) {
+                let t = terms[i];
+                let tx = startX + i * termSpacing;
+                let ty = rowTopY;
+                
+                // --- A. Draw Equation Row Term ---
+                textSize(22);
+                textStyle(BOLD);
+                
+                let label = "";
+                let col = CONFIG.colors.neutral;
+                
+                if (t.op === 'init') {
+                    label = t.val;
+                    col = 0; // Black
+                } else if (t.op === 'mul') {
+                    label = `× ${t.val}`;
+                    col = CONFIG.colors.primary;
+                } else if (t.op === 'div') {
+                    label = `÷ ${t.val}`;
+                    col = CONFIG.colors.denom;
+                }
+                
+                fill(col);
+                text(label, tx, ty);
+                
+                // --- B. Draw Arrow & Fraction Term ---
+                let destX, destY;
+                let isNum = (t.op !== 'div');
+                
+                if (isNum) {
+                    currentNumIndex++;
+                    destX = numXStart + currentNumIndex * numSpacing;
+                    destY = fracCenterY - 25;
+                } else {
+                    currentDenIndex++;
+                    destX = denXStart + currentDenIndex * denSpacing;
+                    destY = fracCenterY + 35;
+                }
+                
+                // Draw Arrow
+                drawCurvedArrow(tx, ty + 15, destX, isNum ? destY - 15 : destY - 20, col);
+                
+                // Draw Term in Fraction
+                fill(col);
+                // For fraction, we usually omit the operator symbol visually for cleanliness, 
+                // or keep it to show multiplication relation?
+                // Standard notation: numerator is product, denominator is product.
+                // Let's just show the number, maybe with a small dot if not first.
+                
+                let fracLabel = t.val;
+                if (isNum && currentNumIndex > 1) fracLabel = "· " + fracLabel;
+                if (!isNum && currentDenIndex > 1) fracLabel = "· " + fracLabel;
+                
+                text(fracLabel, destX, destY);
+            }
+            
+            // If denominator empty, show "1"
+            if (denItems.length === 0) {
+                fill(150);
+                textSize(18);
+                text("1", 0, fracCenterY + 35);
+            }
+            
+            pop();
+        }
+
+        // --- Helper for Classic Path Drawing (reused) ---
+        function drawPath(x, y, isCorrect, result) {
+            push();
+            translate(x, y);
+            noStroke();
+            textSize(18);
+            fill(isCorrect ? CONFIG.colors.primary : CONFIG.colors.error);
+            text(isCorrect ? "正确路径 (从左到右)" : "常见错误 (先乘后除)", 0, -80);
+            
+            let step1Val = 0;
+            strokeWeight(2);
+            
+            if (isCorrect) {
+                stroke(CONFIG.colors.primary);
+                fill(240, 248, 255);
+                rect(0, -30, 160, 50, 8);
+                noStroke();
+                fill(0);
+                textSize(20);
+                text(`${state.a} ÷ ${state.b}`, 0, -30);
+                step1Val = state.a / state.b;
+                let step1Display = Number.isInteger(step1Val) ? step1Val : step1Val.toFixed(2);
+                drawArrow(0, 0, 0, 30, CONFIG.colors.primary);
+                stroke(CONFIG.colors.primary);
+                fill(255);
+                rect(0, 60, 160, 50, 8);
+                noStroke();
+                fill(0);
+                text(`${step1Display} × ${state.c}`, 0, 60);
+                drawArrow(0, 90, 0, 120, CONFIG.colors.primary);
+                fill(CONFIG.colors.primary);
+                textSize(28);
+                textStyle(BOLD);
+                text(`= ${result}`, 0, 150);
+            } else {
+                stroke(CONFIG.colors.error);
+                fill(255, 240, 240);
+                rect(0, -30, 160, 50, 8);
+                noStroke();
+                fill(0);
+                textSize(20);
+                text(`${state.b} × ${state.c}`, 0, -30); 
+                fill(CONFIG.colors.error);
+                textSize(12);
+                text("错误地先算乘法", 0, -65);
+                step1Val = state.b * state.c;
+                drawArrow(0, 0, 0, 30, CONFIG.colors.error);
+                stroke(CONFIG.colors.error);
+                fill(255);
+                rect(0, 60, 160, 50, 8);
+                noStroke();
+                fill(0);
+                text(`${state.a} ÷ ${step1Val}`, 0, 60);
+                drawArrow(0, 90, 0, 120, CONFIG.colors.error);
+                fill(CONFIG.colors.error);
+                textSize(28);
+                textStyle(BOLD);
+                text(`= ${result}`, 0, 150);
+            }
+            pop();
+        }
+
+        // --- Utils ---
+        function drawCurvedArrow(x1, y1, x2, y2, col) {
+            push();
+            noFill();
+            stroke(col);
+            strokeWeight(2);
+            let cx1 = x1;
+            let cy1 = (y1 + y2) / 2;
+            let cx2 = x2;
+            let cy2 = (y1 + y2) / 2;
+            bezier(x1, y1, cx1, cy1, cx2, cy2, x2, y2);
+            let t = 0.95;
+            let tx = bezierPoint(x1, cx1, cx2, x2, t);
+            let ty = bezierPoint(y1, cy1, cy2, y2, t);
+            let angle = atan2(y2 - ty, x2 - tx);
+            translate(x2, y2);
+            rotate(angle);
+            fill(col);
+            noStroke();
+            triangle(0, 0, -6, 3, -6, -3);
+            pop();
+        }
+
+        function drawArrow(x1, y1, x2, y2, col) {
+            push();
+            stroke(col);
+            strokeWeight(2);
+            line(x1, y1, x2, y2);
+            translate(x2, y2);
+            let angle = atan2(y2 - y1, x2 - x1);
+            rotate(angle);
+            fill(col);
+            noStroke();
+            triangle(0, 0, -8, 4, -8, -4);
+            pop();
+        }
+
+        // --- Logic & Controller ---
+
+        function setMode(m) {
+            state.mode = m;
+            document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(`mode-${m}`).classList.add('active');
+            
+            document.getElementById('controls-classic').style.display = m === 'classic' ? 'block' : 'none';
+            document.getElementById('controls-chain').style.display = m === 'chain' ? 'block' : 'none';
+            
+            document.getElementById('desc-classic').style.display = m === 'classic' ? 'block' : 'none';
+            document.getElementById('desc-chain').style.display = m === 'chain' ? 'block' : 'none';
+
+            updateDOMFormula();
+            redraw();
+        }
+
+        function updateParam(key, val) {
+            state[key] = val;
+            document.getElementById(`val-${key}`).innerText = val;
+            updateDOMFormula();
+            redraw();
+        }
+
+        // Chain Logic
+        function resetChainDefault() {
+            // "a / b * c / d * y / x"
+            // Let's use numbers: 100 / 4 * 2 / 5 * 3 / 2
+            // 100 / 4 = 25
+            // 25 * 2 = 50
+            // 50 / 5 = 10
+            // 10 * 3 = 30
+            // 30 / 2 = 15
+            state.chain = [
+                {op: 'init', val: 100},
+                {op: 'div', val: 4},
+                {op: 'mul', val: 2},
+                {op: 'div', val: 5},
+                {op: 'mul', val: 3},
+                {op: 'div', val: 2}
+            ];
+            updateChainUI();
+        }
+
+        function addTerm(type) {
+            if (state.chain.length >= CONFIG.maxTerms) return;
+            // Add a random small integer 2-9
+            let val = Math.floor(Math.random() * 8) + 2;
+            state.chain.push({op: type, val: val});
+            updateChainUI();
+        }
+
+        function popTerm() {
+            if (state.chain.length > 1) { // Keep at least one term
+                state.chain.pop();
+                updateChainUI();
+            }
+        }
+
+        function updateChainUI() {
+            document.getElementById('term-count').innerText = state.chain.length;
+            updateDOMFormula();
+            redraw();
+        }
+
+        function calculateChainResult(terms) {
+            if (terms.length === 0) return 0;
+            let res = terms[0].val;
+            for (let i = 1; i < terms.length; i++) {
+                if (terms[i].op === 'mul') res *= terms[i].val;
+                else if (terms[i].op === 'div') res /= terms[i].val;
+            }
+            return res;
+        }
+
+        async function updateDOMFormula() {
+            let tex = "";
+            if (state.mode === 'classic') {
+                tex = String.raw`\[ ${state.a} \div ${state.b} \times ${state.c} \]`;
+            } else {
+                // Build Chain Tex
+                let s = "";
+                state.chain.forEach((t, i) => {
+                    if (i === 0) s += t.val;
+                    else if (t.op === 'mul') s += ` \\times ${t.val}`;
+                    else if (t.op === 'div') s += ` \\div ${t.val}`;
+                });
+                tex = String.raw`\[ ${s} \]`;
+            }
+            
+            await renderMath(formulaMain, tex);
+        }
+
+        async function renderMath(container, tex) {
+            container.style.visibility = 'hidden';
+            container.innerHTML = tex;
+            try {
+                await MathJax.typesetPromise([container]);
+                container.style.visibility = 'visible';
+            } catch (err) {
+                console.error("MathJax error:", err);
+                container.textContent = tex;
+                container.style.visibility = 'visible';
+            }
+        }
+    </script>
+</body>
+</html>

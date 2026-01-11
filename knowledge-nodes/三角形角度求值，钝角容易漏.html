@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三角形角度求值，钝角容易漏</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- P5.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <!-- MathJax -->
+    <script>
+        window.MathJax = {
+            tex: {
+                // FIXED: Added '$' to inlineMath to correctly parse step texts
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['\\[', '\\]']],
+                processEscapes: true
+            },
+            options: {
+                ignoreHtmlClass: 'tex2jax_ignore',
+                processHtmlClass: 'tex2jax_process'
+            },
+            startup: {
+                typeset: false 
+            }
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        body { font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; overflow: hidden; background-color: #f8fafc; }
+        .canvas-container { position: relative; width: 100%; height: 100vh; overflow: hidden; touch-action: none; user-select: none; }
+        
+        /* Custom Scrollbar */
+        .custom-scroll::-webkit-scrollbar { width: 6px; }
+        .custom-scroll::-webkit-scrollbar-track { background: #f1f5f9; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        
+        /* Floating Overlay (Module 2) */
+        #guided-overlay {
+            position: absolute;
+            top: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.96);
+            backdrop-filter: blur(8px);
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.1);
+            width: 500px;
+            max-width: 90%;
+            z-index: 50;
+            transition: all 0.3s ease;
+        }
+
+        /* UI Buttons */
+        .btn-active { background-color: #3b82f6; color: white; border-color: #3b82f6; box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3); }
+        .btn-inactive { background-color: white; color: #64748b; border-color: #e2e8f0; }
+        .btn-inactive:hover { background-color: #f1f5f9; }
+    </style>
+</head>
+<body class="flex h-screen w-screen overflow-hidden text-slate-800">
+
+    <!-- Sidebar Controls -->
+    <aside class="w-[400px] flex-shrink-0 bg-white shadow-xl z-20 flex flex-col h-full border-r border-slate-200">
+        <!-- Problem Card -->
+        <div class="p-5 border-b border-slate-100 bg-slate-50">
+            <div class="flex justify-between items-center mb-2">
+                <h2 class="text-xs font-bold text-slate-500 uppercase tracking-wider">题目原题</h2>
+                <span class="bg-amber-100 text-amber-700 text-[10px] px-2 py-0.5 rounded-full font-bold">易错题型</span>
+            </div>
+            <div id="problem-text" class="text-sm text-slate-800 leading-7 font-medium select-text tex2jax_process">
+                <!-- Injected via JS -->
+            </div>
+            <button onclick="copyProblemText()" class="mt-3 flex items-center gap-2 text-xs text-blue-600 font-semibold hover:bg-blue-50 px-2 py-1 rounded transition-colors">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+                复制题面
+            </button>
+        </div>
+
+        <!-- Controls -->
+        <div class="flex-1 overflow-y-auto custom-scroll p-5 space-y-6" onpointerdown="stopProp(event)" onwheel="stopProp(event)">
+            
+            <!-- Case Switcher -->
+            <div class="bg-white rounded-xl border border-slate-200 p-1.5 shadow-sm">
+                <div class="text-[10px] font-bold text-slate-400 text-center mb-1.5 uppercase tracking-wide">构型选择 (Case Selection)</div>
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="setCase('acute')" id="btn-acute" class="py-2.5 rounded-lg text-sm font-bold border transition-all btn-active">
+                        情形一：锐角
+                        <div class="text-[10px] font-normal opacity-80 mt-0.5">高在内部 (常规)</div>
+                    </button>
+                    <button onclick="setCase('obtuse')" id="btn-obtuse" class="py-2.5 rounded-lg text-sm font-bold border transition-all btn-inactive">
+                        情形二：钝角
+                        <div class="text-[10px] font-normal opacity-80 mt-0.5">高在外部 (易漏)</div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Teaching Mode -->
+            <div class="flex bg-slate-100 p-1 rounded-lg">
+                <button onclick="setMode('guided')" id="mode-guided" class="flex-1 py-1.5 text-xs font-bold rounded shadow-sm bg-white text-blue-600 transition-all">分步引导</button>
+                <button onclick="setMode('explore')" id="mode-explore" class="flex-1 py-1.5 text-xs font-bold rounded text-slate-500 hover:text-slate-700 transition-all">自由探索</button>
+            </div>
+
+            <!-- Parameters (Explore) -->
+            <div id="panel-explore" class="hidden space-y-4 animate-fade-in">
+                <div class="bg-white rounded-lg border border-slate-200 p-4">
+                    <h3 class="text-sm font-bold text-slate-700 mb-3 border-l-4 border-green-500 pl-2">参数调整</h3>
+                    <label class="block text-xs font-medium text-slate-500 mb-2 flex justify-between">
+                        <span>∠CAD 大小</span>
+                        <span class="font-mono text-slate-700"><span id="val-angleCAD">50</span>°</span>
+                    </label>
+                    <input type="range" min="10" max="80" step="1" value="50" oninput="updateParam('angleCAD', this.value)" class="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-500">
+                </div>
+            </div>
+
+            <!-- Verification -->
+            <div class="bg-white rounded-lg border border-slate-200 p-4 shadow-sm">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="text-sm font-bold text-slate-700 border-l-4 border-purple-500 pl-2">验证/自检</h3>
+                    <span id="verify-badge" class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-500">计算中...</span>
+                </div>
+                <div id="verify-list" class="space-y-2 text-xs font-mono text-slate-600">
+                    <!-- Injected -->
+                </div>
+            </div>
+
+            <!-- Answer Toggle -->
+            <div class="border-t border-slate-100 pt-4">
+                <button onclick="toggleAnswer()" class="w-full flex items-center justify-between group">
+                    <span class="text-sm font-bold text-slate-700 group-hover:text-blue-600 transition-colors">显示完整解析</span>
+                    <span id="ans-arrow" class="text-slate-400 group-hover:text-blue-600 transition-colors">▼</span>
+                </button>
+                <div id="answer-section" class="hidden mt-3 text-sm text-slate-600 bg-slate-50 p-3 rounded border border-slate-200 tex2jax_process leading-relaxed">
+                    <p class="font-bold text-slate-800 mb-1">【易错点分析】</p>
+                    <p>题目未指明 $\triangle ABC$ 的形状。高 $AD$ 可能落在 $BC$ 上（锐角三角形），也可能落在 $BC$ 延长线上（钝角三角形）。</p>
+                    <div class="my-2 border-t border-slate-200"></div>
+                    <p><strong>解 1：</strong> 若 $\angle C$ 为锐角，则 $\angle C = 40^\circ$，$\angle B = 70^\circ$。</p>
+                    <p><strong>解 2：</strong> 若 $\angle C$ 为钝角，则 $\angle ACB = 140^\circ$，$\angle B = 20^\circ$。</p>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="grid grid-cols-2 gap-2 mt-auto">
+                <button onclick="resetApp()" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded transition-colors">重置所有</button>
+                <button onclick="resetView()" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded transition-colors">重置视图</button>
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <div class="p-2 bg-slate-50 border-t border-slate-200 text-center">
+            <p class="text-[10px] text-slate-400 font-mono">MathPhysics Engine v3.1.7</p>
+        </div>
+    </aside>
+
+    <!-- Main Canvas Area -->
+    <main class="flex-1 relative bg-slate-50 cursor-move" id="canvas-wrapper">
+        <div id="canvas-container" class="w-full h-full"></div>
+
+        <!-- Guided Overlay (Floating) -->
+        <div id="guided-overlay" class="hidden flex flex-col p-6 tex2jax_process">
+            <div class="flex justify-between items-center mb-3">
+                <h3 id="step-title" class="text-base font-bold text-slate-800">步骤标题</h3>
+                <div class="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5">
+                    <button onclick="prevStep()" id="btn-prev" class="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white text-slate-500 disabled:opacity-30 transition">←</button>
+                    <span id="step-counter" class="text-xs font-mono px-2 text-slate-500">1/5</span>
+                    <button onclick="nextStep()" id="btn-next" class="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white text-blue-600 disabled:opacity-30 transition">→</button>
+                </div>
+            </div>
+            
+            <div id="step-content" class="text-sm text-slate-600 leading-relaxed min-h-[60px]">
+                <!-- Content -->
+            </div>
+            
+            <!-- Warning Box -->
+            <div id="step-warning" class="hidden mt-3 p-2.5 bg-amber-50 border border-amber-100 rounded-lg flex items-start gap-2">
+                <span class="text-amber-500 text-lg mt-0.5">⚠️</span>
+                <div class="text-xs text-amber-800">
+                    <span class="font-bold">易错陷阱：</span>
+                    <span id="warning-text">D点一定在线段BC上吗？</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Canvas Hint -->
+        <div class="absolute bottom-5 left-5 bg-white/80 backdrop-blur px-3 py-1.5 rounded-full border border-slate-200 shadow-sm pointer-events-none select-none">
+            <span class="text-[10px] text-slate-500 font-medium">滚轮缩放视图 · 空白处拖拽平移</span>
+        </div>
+    </main>
+
+<script>
+/**
+ * MathPhysics Engine v3.1.7
+ * Fixed: MathJax parsing for '$' delimiters to prevent "\triangle" raw text.
+ * Enhanced: Canvas-based visual labels using Unicode.
+ */
+
+// --- Constants ---
+const CONFIG = {
+    color: {
+        primary: '#3b82f6',    // Blue
+        secondary: '#10b981',  // Emerald
+        accent: '#f59e0b',     // Amber
+        danger: '#ef4444',     // Red
+        text: '#334155',       // Slate-700
+        grid: '#e2e8f0'
+    }
+};
+
+const STATE = {
+    mode: 'guided',
+    stepIndex: 0,
+    case: 'acute', // 'acute' | 'obtuse'
+    params: { angleCAD: 50 },
+    view: { scale: 1.2, offsetX: 0, offsetY: 0 },
+    problem: {
+        // We ensure strict TeX syntax for MathJax
+        statementCN: "已知 AD 是 $\\triangle ABC$ 的高， $AC = BC$， $\\angle CAD = 50^{\\circ}$， 则 $\\angle B$ 的度数为 ______。",
+    },
+    geometry: null,
+    planSteps: []
+};
+
+// --- P5.js Setup ---
+function setup() {
+    const container = document.getElementById('canvas-container');
+    const canvas = createCanvas(container.clientWidth, container.clientHeight);
+    canvas.parent(container);
+    window.addEventListener('resize', () => resizeCanvas(container.clientWidth, container.clientHeight));
+
+    // Interaction Events
+    const el = canvas.elt;
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    el.addEventListener('pointerdown', handlePointerDown);
+    el.addEventListener('pointermove', handlePointerMove);
+    el.addEventListener('pointerup', handlePointerUp);
+    el.addEventListener('pointercancel', handlePointerUp);
+    el.addEventListener('contextmenu', e => e.preventDefault());
+
+    // Init
+    renderProblemText();
+    recomputeAll();
+    updateUI();
+}
+
+function stopProp(e) { e.stopPropagation(); }
+
+// --- Logic & Solve ---
+function solveAndPlan() {
+    const cad = STATE.params.angleCAD;
+    const angleC_rt = 90 - cad; 
+
+    let resultB, angleACB;
+    if (STATE.case === 'acute') {
+        angleACB = angleC_rt;
+        resultB = (180 - angleACB) / 2;
+    } else {
+        angleACB = 180 - angleC_rt;
+        resultB = (180 - angleACB) / 2;
+    }
+
+    // Generate Steps
+    // Note: We use '$' delimiters which are now supported by our MathJax config
+    STATE.planSteps = [
+        {
+            title: "第一步：分析已知",
+            text: `题目已知 $AD \\perp BC$，$AC=BC$，且 $\\angle CAD = ${cad}^\\circ$。`,
+            formulas: [`AD \\perp BC`, `AC = BC`, `\\angle CAD = ${cad}^\\circ`],
+            focus: [{type: 'seg', ids: ['AD', 'AC', 'BC']}, {type: 'ang', ids: ['CAD']}],
+            warn: false
+        },
+        {
+            title: "第二步：求解 Rt△ADC",
+            text: `在 $\\text{Rt}\\triangle ADC$ 中，两锐角互余。`,
+            formulas: [`\\angle ACD = 90^\\circ - \\angle CAD`, `= 90^\\circ - ${cad}^\\circ = ${angleC_rt}^\\circ`],
+            focus: [{type: 'tri', ids: ['ADC']}, {type: 'ang', ids: ['C_rt']}],
+            warn: false
+        },
+        {
+            title: "第三步：判断 C 点位置 (易错)",
+            text: `$\\triangle ABC$ 的形状未确定。$D$ 点可能在 $B,C$ 之间，也可能在外部。`,
+            formulas: [`\\text{情况 1: } D \\in BC`, `\\text{情况 2: } D \\in BC \\text{ 延长线}`],
+            focus: [{type: 'pt', ids: ['D', 'C']}],
+            warn: true,
+            warnText: "请尝试切换左侧的“锐角/钝角”按钮查看不同构型。"
+        },
+        {
+            title: STATE.case === 'acute' ? "第四步：锐角情况计算" : "第四步：钝角情况计算",
+            text: STATE.case === 'acute' 
+                ? `当 $\\triangle ABC$ 为锐角三角形时，$D$ 在边上，$\\angle ACB = \\angle ACD$。`
+                : `当 $\\triangle ABC$ 为钝角三角形时，$D$ 在延长线上，$\\angle ACB$ 是 $\\angle ACD$ 的补角。`,
+            formulas: STATE.case === 'acute'
+                ? [`\\angle ACB = ${angleC_rt}^\\circ`]
+                : [`\\angle ACB = 180^\\circ - ${angleC_rt}^\\circ = ${angleACB}^\\circ`],
+            focus: [{type: 'ang', ids: ['ACB']}, {type: 'tri', ids: ['ABC']}],
+            warn: false
+        },
+        {
+            title: "第五步：求解 ∠B",
+            text: `根据等腰三角形底角相等，计算 $\\angle B$。`,
+            formulas: [`\\angle B = (180^\\circ - \\angle ACB)/2`, `= ${resultB}^\\circ`],
+            focus: [{type: 'ang', ids: ['B', 'BAC']}, {type: 'seg', ids: ['AC', 'BC']}],
+            warn: false
+        }
+    ];
+}
+
+function calculateGeometry() {
+    const cad = STATE.params.angleCAD;
+    const radCAD = radians(cad);
+    const scale = 2.5; 
+    const h = 100 * scale; 
+
+    const D = createVector(0, 0);
+    const A = createVector(0, -h);
+    const distCD = h * Math.tan(radCAD);
+    const C = createVector(distCD, 0);
+    const distAC = p5.Vector.dist(A, C);
+    const distBC = distAC;
+
+    let B;
+    if (STATE.case === 'acute') {
+        B = createVector(C.x - distBC, 0);
+    } else {
+        B = createVector(C.x + distBC, 0);
+    }
+
+    STATE.geometry = {
+        pts: {A, B, C, D},
+        vals: {
+            angleB: STATE.case === 'acute' ? (180-(90-cad))/2 : (180-(180-(90-cad)))/2,
+            angleC_rt: 90 - cad,
+            angleACB: STATE.case === 'acute' ? (90-cad) : (180-(90-cad))
+        }
+    };
+}
+
+function recomputeAll() {
+    solveAndPlan();
+    calculateGeometry();
+    updateVerifyList();
+    updateOverlayContent();
+}
+
+// --- Interaction ---
+function setCase(c) {
+    STATE.case = c;
+    recomputeAll();
+    updateUI();
+}
+
+function setMode(m) {
+    STATE.mode = m;
+    updateUI();
+}
+
+function updateParam(k, v) {
+    STATE.params[k] = parseInt(v);
+    document.getElementById('val-angleCAD').innerText = v;
+    recomputeAll();
+}
+
+function nextStep() {
+    if (STATE.stepIndex < STATE.planSteps.length - 1) {
+        STATE.stepIndex++;
+        recomputeAll();
+    }
+}
+function prevStep() {
+    if (STATE.stepIndex > 0) {
+        STATE.stepIndex--;
+        recomputeAll();
+    }
+}
+
+// --- UI Rendering ---
+function updateUI() {
+    const btnAcute = document.getElementById('btn-acute');
+    const btnObtuse = document.getElementById('btn-obtuse');
+    if (STATE.case === 'acute') {
+        btnAcute.className = "py-2.5 rounded-lg text-sm font-bold border transition-all btn-active";
+        btnObtuse.className = "py-2.5 rounded-lg text-sm font-bold border transition-all btn-inactive";
+    } else {
+        btnAcute.className = "py-2.5 rounded-lg text-sm font-bold border transition-all btn-inactive";
+        btnObtuse.className = "py-2.5 rounded-lg text-sm font-bold border transition-all btn-active";
+    }
+
+    const pExplore = document.getElementById('panel-explore');
+    const overlay = document.getElementById('guided-overlay');
+    const mGuided = document.getElementById('mode-guided');
+    const mExplore = document.getElementById('mode-explore');
+
+    if (STATE.mode === 'guided') {
+        pExplore.classList.add('hidden');
+        overlay.classList.remove('hidden');
+        mGuided.classList.replace('text-slate-500', 'text-blue-600');
+        mGuided.classList.add('bg-white', 'shadow-sm');
+        mExplore.classList.replace('text-slate-700', 'text-slate-500');
+        mExplore.classList.remove('bg-white', 'shadow-sm');
+    } else {
+        pExplore.classList.remove('hidden');
+        overlay.classList.add('hidden');
+        mExplore.classList.replace('text-slate-500', 'text-slate-700');
+        mExplore.classList.add('bg-white', 'shadow-sm');
+        mGuided.classList.replace('text-blue-600', 'text-slate-500');
+        mGuided.classList.remove('bg-white', 'shadow-sm');
+    }
+}
+
+function updateVerifyList() {
+    const list = document.getElementById('verify-list');
+    const badge = document.getElementById('verify-badge');
+    const g = STATE.geometry;
+    
+    const AC = p5.Vector.dist(g.pts.A, g.pts.C);
+    const BC = p5.Vector.dist(g.pts.B, g.pts.C);
+    const diff = Math.abs(AC - BC);
+    const pass = diff < 0.1;
+
+    list.innerHTML = `
+        <div class="flex justify-between">
+            <span>构型状态:</span>
+            <span class="font-bold text-blue-600">${STATE.case === 'acute' ? '锐角 (形内)' : '钝角 (形外)'}</span>
+        </div>
+        <div class="flex justify-between">
+            <span>约束 AC=BC:</span>
+            <span class="${pass ? 'text-green-600' : 'text-red-500'} font-bold">${pass ? 'OK' : 'FAIL'}</span>
+        </div>
+        <div class="flex justify-between mt-2 pt-2 border-t border-dashed border-slate-200">
+            <span>当前 ∠B:</span>
+            <span class="font-bold text-slate-800 bg-slate-100 px-1 rounded">${g.vals.angleB.toFixed(1)}°</span>
+        </div>
+    `;
+    badge.innerText = "数据实时校验";
+    badge.className = "px-2 py-0.5 rounded text-[10px] font-bold bg-green-100 text-green-700";
+}
+
+function updateOverlayContent() {
+    const step = STATE.planSteps[STATE.stepIndex];
+    document.getElementById('step-title').innerText = step.title;
+    document.getElementById('step-counter').innerText = `${STATE.stepIndex + 1}/${STATE.planSteps.length}`;
+    
+    // Replace $ with \( for stricter parsing if needed, but config now handles $
+    let html = `<p class="mb-3">${step.text}</p>`;
+    if (step.formulas && step.formulas.length) {
+        html += `<div class="bg-blue-50/50 rounded border border-blue-100 p-2 text-center text-blue-900">`;
+        step.formulas.forEach(f => {
+            html += `\\[ ${f} \\]`;
+        });
+        html += `</div>`;
+    }
+    document.getElementById('step-content').innerHTML = html;
+    
+    const wBox = document.getElementById('step-warning');
+    if (step.warn) {
+        wBox.classList.remove('hidden');
+        document.getElementById('warning-text').innerText = step.warnText;
+    } else {
+        wBox.classList.add('hidden');
+    }
+
+    if (window.MathJax) MathJax.typesetPromise([document.getElementById('guided-overlay')]);
+
+    document.getElementById('btn-prev').disabled = STATE.stepIndex === 0;
+    document.getElementById('btn-next').disabled = STATE.stepIndex === STATE.planSteps.length - 1;
+}
+
+// --- P5 Drawing ---
+function draw() {
+    background(248, 250, 252);
+    if (!STATE.geometry) return;
+
+    const { A, B, C, D } = STATE.geometry.pts;
+
+    push();
+    translate(width/2 + STATE.view.offsetX, height/2 + 150 + STATE.view.offsetY);
+    scale(STATE.view.scale);
+
+    // Ground
+    stroke(220); strokeWeight(1);
+    line(-2000, 0, 2000, 0);
+
+    // Geometry
+    strokeJoin(ROUND);
+    
+    if (STATE.case === 'obtuse') {
+        // Dashed Extension
+        stroke(180); strokeWeight(2); drawingContext.setLineDash([5, 5]);
+        line(D.x, D.y, C.x, C.y);
+        drawingContext.setLineDash([]);
+        
+        // Solid Base
+        stroke(0); strokeWeight(2);
+        line(C.x, C.y, B.x, B.y);
+
+        // Ext Altitude
+        stroke(CONFIG.color.accent); strokeWeight(2);
+        line(A.x, A.y, D.x, D.y);
+    } else {
+        stroke(0); strokeWeight(2);
+        line(B.x, B.y, C.x, C.y);
+        stroke(100); strokeWeight(1);
+        line(A.x, A.y, D.x, D.y);
+    }
+
+    stroke(0); strokeWeight(2);
+    line(A.x, A.y, B.x, B.y);
+    line(A.x, A.y, C.x, C.y);
+
+    drawRightAngle(D, 15);
+
+    // Labels (Unicode)
+    noStroke(); fill(CONFIG.color.text); textStyle(BOLD); textSize(14);
+    text("A", A.x - 5, A.y - 15);
+    text("B", B.x - 5, B.y + 20);
+    text("C", C.x - 5, C.y + 20);
+    text("D", D.x - 5, D.y + 20);
+
+    // Canvas Visuals (Unicode based labels)
+    drawCanvasHUD(A, B, C, D);
+
+    if (STATE.mode === 'guided') {
+        const step = STATE.planSteps[STATE.stepIndex];
+        if (step && step.focus) {
+            step.focus.forEach(f => highlightObject(f));
+        }
+    }
+
+    pop();
+}
+
+function drawCanvasHUD(A, B, C, D) {
+    fill(100); textStyle(NORMAL); textSize(12);
+    
+    // Label for Angle CAD
+    text(`${STATE.params.angleCAD}°`, A.x + 10, A.y + 40);
+
+    // Label for Angle B
+    text(`${STATE.geometry.vals.angleB.toFixed(1)}°`, B.x, B.y - 15);
+    
+    // Dynamic Geometry Label (Unicode)
+    fill(STATE.case === 'acute' ? CONFIG.color.primary : CONFIG.color.danger);
+    textStyle(BOLD);
+    const labelX = (B.x + C.x) / 2;
+    const labelY = B.y + 40;
+    text(STATE.case === 'acute' ? "△ABC (锐角)" : "△ABC (钝角)", labelX - 30, labelY);
+
+    if (STATE.case === 'obtuse') {
+        fill(CONFIG.color.danger); textStyle(NORMAL);
+        text("高在外部", D.x - 30, D.y - 10);
+    }
+}
+
+function highlightObject(f) {
+    const { A, B, C, D } = STATE.geometry.pts;
+    const col = color(CONFIG.color.primary);
+    col.setAlpha(150);
+    stroke(col); noFill(); strokeCap(ROUND);
+    const pulse = 2 + 0.5 * sin(millis() * 0.005);
+    strokeWeight(3 * pulse);
+
+    if (f.type === 'seg') {
+        f.ids.forEach(id => {
+            if(id==='AD') line(A.x, A.y, D.x, D.y);
+            if(id==='AC') line(A.x, A.y, C.x, C.y);
+            if(id==='BC') line(B.x, B.y, C.x, C.y);
+        });
+    } else if (f.type === 'ang') {
+        strokeWeight(2 * pulse);
+        f.ids.forEach(id => {
+            if(id==='CAD') drawArc(A, D, C, 40);
+            if(id==='B') drawArc(B, A, C, 40);
+            if(id==='ACB') drawArc(C, A, B, 40);
+            if(id==='C_rt') drawArc(C, A, D, 30);
+        });
+    } else if (f.type === 'tri') {
+        noStroke(); fill(col); col.setAlpha(30);
+        f.ids.forEach(id => {
+            if(id==='ADC') triangle(A.x, A.y, D.x, D.y, C.x, C.y);
+            if(id==='ABC') triangle(A.x, A.y, B.x, B.y, C.x, C.y);
+        });
+    } else if (f.type === 'pt') {
+        strokeWeight(8 * pulse);
+        f.ids.forEach(id => point(STATE.geometry.pts[id].x, STATE.geometry.pts[id].y));
+    }
+}
+
+function drawRightAngle(D, s) {
+    push();
+    stroke(150); strokeWeight(1); noFill();
+    line(D.x, D.y - s, D.x + s, D.y - s);
+    line(D.x + s, D.y - s, D.x + s, D.y);
+    pop();
+}
+
+function drawArc(center, p1, p2, r) {
+    let v1 = p5.Vector.sub(p1, center);
+    let v2 = p5.Vector.sub(p2, center);
+    let a1 = v1.heading();
+    let a2 = v2.heading();
+    if (a2 < a1) a2 += TWO_PI;
+    arc(center.x, center.y, r, r, a1, a2);
+}
+
+// --- Utils ---
+function renderProblemText() {
+    const el = document.getElementById('problem-text');
+    el.innerHTML = STATE.problem.statementCN;
+    if (window.MathJax) MathJax.typesetPromise([el]);
+}
+function copyProblemText() { navigator.clipboard.writeText(STATE.problem.statementCN); }
+function toggleAnswer() {
+    const el = document.getElementById('answer-section');
+    el.classList.toggle('hidden');
+    document.getElementById('ans-arrow').innerText = el.classList.contains('hidden') ? '▼' : '▲';
+}
+function resetApp() {
+    STATE.case = 'acute';
+    STATE.params.angleCAD = 50;
+    STATE.stepIndex = 0;
+    setMode('guided');
+    resetView();
+    updateParam('angleCAD', 50);
+    recomputeAll();
+    updateUI();
+}
+function radians(d) { return d * Math.PI / 180; }
+
+let isDragging = false, dragStart = {x:0, y:0}, viewStart = {x:0, y:0}, activePointer = null;
+function handleWheel(e) { e.preventDefault(); STATE.view.scale = constrain(STATE.view.scale * (1 - e.deltaY * 0.001), 0.4, 5); }
+function handlePointerDown(e) { isDragging=true; activePointer=e.pointerId; e.target.setPointerCapture(e.pointerId); dragStart={x:e.clientX, y:e.clientY}; viewStart={...STATE.view}; }
+function handlePointerMove(e) { if(!isDragging || e.pointerId!==activePointer) return; STATE.view.offsetX = viewStart.offsetX + (e.clientX - dragStart.x); STATE.view.offsetY = viewStart.offsetY + (e.clientY - dragStart.y); }
+function handlePointerUp(e) { if(e.pointerId===activePointer) { isDragging=false; activePointer=null; e.target.releasePointerCapture(e.pointerId); }}
+function resetView() { STATE.view = {scale:1.2, offsetX:0, offsetY:0}; }
+
+</script>
+</body>
+</html>

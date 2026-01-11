@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>几何全等判定辨析 - 互动课件</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <style>
+    /* CSS Reset & Basic Layout */
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Noto Sans SC', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background-color: #f0f2f5;
+      color: #333;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+    }
+
+    /* Sidebar - Control Panel */
+    #sidebar {
+      width: 400px;
+      height: 100vh;
+      background: #ffffff;
+      border-right: 1px solid #ddd;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+      z-index: 10;
+      overflow-y: auto;
+    }
+
+    /* Problem Card (Top of Sidebar) */
+    .problem-card {
+      background: #e6f7ff;
+      border-left: 5px solid #1890ff;
+      padding: 15px;
+      margin: 15px;
+      border-radius: 4px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    .problem-title {
+      font-weight: bold;
+      color: #0050b3;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .problem-text {
+      font-size: 14px;
+      line-height: 1.6;
+      color: #262626;
+      margin-bottom: 10px;
+    }
+    .copy-btn {
+      background: #fff;
+      border: 1px solid #1890ff;
+      color: #1890ff;
+      padding: 2px 8px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .copy-btn:hover {
+      background: #e6f7ff;
+    }
+
+    /* Controls Section */
+    .controls {
+      padding: 0 15px 15px 15px;
+    }
+
+    .section-title {
+      font-size: 16px;
+      font-weight: bold;
+      margin: 15px 0 10px 0;
+      color: #333;
+      border-bottom: 2px solid #f0f0f0;
+      padding-bottom: 5px;
+    }
+
+    /* Mode Tabs */
+    .mode-tabs {
+      display: flex;
+      margin-bottom: 15px;
+      background: #f5f5f5;
+      border-radius: 6px;
+      padding: 3px;
+    }
+    .mode-tab {
+      flex: 1;
+      text-align: center;
+      padding: 8px;
+      cursor: pointer;
+      border-radius: 4px;
+      font-size: 14px;
+      font-weight: 500;
+      color: #666;
+      transition: all 0.2s;
+    }
+    .mode-tab.active {
+      background: #fff;
+      color: #1890ff;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    /* Option Buttons */
+    .options-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    .option-btn {
+      background: #fff;
+      border: 1px solid #d9d9d9;
+      padding: 10px;
+      border-radius: 6px;
+      text-align: left;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+    }
+    .option-btn:hover {
+      border-color: #1890ff;
+      color: #1890ff;
+    }
+    .option-btn.active {
+      background: #e6f7ff;
+      border-color: #1890ff;
+      color: #1890ff;
+      font-weight: bold;
+    }
+    .option-badge {
+      background: #f0f0f0;
+      color: #666;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 8px;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    .option-btn.active .option-badge {
+      background: #1890ff;
+      color: #fff;
+    }
+
+    /* Verification Panel */
+    .verify-panel {
+      background: #f9f9f9;
+      border: 1px solid #eee;
+      border-radius: 6px;
+      padding: 12px;
+      margin-top: 10px;
+    }
+    .verify-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 13px;
+    }
+    .verify-label {
+      color: #555;
+    }
+    .verify-status {
+      font-weight: bold;
+    }
+    .status-pass { color: #52c41a; }
+    .status-fail { color: #ff4d4f; }
+    .status-info { color: #1890ff; }
+
+    /* Guided Steps UI */
+    .step-navigation {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 15px;
+      background: #f0f5ff;
+      padding: 10px;
+      border-radius: 6px;
+    }
+    .nav-btn {
+      background: #1890ff;
+      color: white;
+      border: none;
+      padding: 6px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .nav-btn:disabled {
+      background: #d9d9d9;
+      cursor: not-allowed;
+    }
+    .step-indicator {
+      font-size: 13px;
+      color: #666;
+    }
+    .step-content {
+      margin-top: 15px;
+      padding: 12px;
+      background: #fff;
+      border-left: 3px solid #faad14;
+      border-radius: 0 4px 4px 0;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    /* MathJax Hidden Container */
+    #math-buffer {
+      visibility: hidden;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 0;
+      height: 0;
+    }
+
+    /* Canvas Area */
+    #canvas-container {
+      flex: 1;
+      position: relative;
+      background-color: #f0f2f5;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    /* Floating Canvas Label Overlay (Only for non-moving text if needed, but we use p5 for moving) */
+    .canvas-overlay {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      pointer-events: none;
+      background: rgba(255,255,255,0.8);
+      padding: 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      color: #666;
+    }
+    
+    /* Toggle Switch */
+    .toggle-container {
+      display: flex;
+      align-items: center;
+      margin-bottom: 8px;
+      cursor: pointer;
+    }
+    .toggle-switch {
+      position: relative;
+      width: 40px;
+      height: 20px;
+      background-color: #ccc;
+      border-radius: 20px;
+      transition: .4s;
+      margin-right: 10px;
+    }
+    .toggle-switch:before {
+      position: absolute;
+      content: "";
+      height: 16px;
+      width: 16px;
+      left: 2px;
+      bottom: 2px;
+      background-color: white;
+      border-radius: 50%;
+      transition: .4s;
+    }
+    input:checked + .toggle-switch {
+      background-color: #1890ff;
+    }
+    input:checked + .toggle-switch:before {
+      transform: translateX(20px);
+    }
+    .toggle-checkbox {
+      display: none;
+    }
+    .toggle-label {
+      font-size: 13px;
+      color: #333;
+    }
+
+  </style>
+</head>
+<body>
+
+  <!-- Sidebar -->
+  <div id="sidebar">
+    
+    <!-- Problem Capture (v3.1 Mandatory) -->
+    <div class="problem-card">
+      <div class="problem-title">
+        <span>题目原题</span>
+        <button class="copy-btn" onclick="copyProblem()">复制</button>
+      </div>
+      <div class="problem-text" id="problem-text-cn">
+        如图，已知 \(\angle 1 = \angle 2\)，添加下列条件，不能判定 \(\triangle ABD \cong \triangle ACD\) 的是(    )<br>
+        A. \(AD \perp BC\)<br>
+        B. \(AD\) 平分 \(\angle BAC\)<br>
+        C. \(E\) 为 \(BC\) 的中点<br>
+        D. \(AB = AC\)
+      </div>
+      <!-- Hidden TeX Source for Copying -->
+      <textarea id="problem-tex-source" style="display:none;">如图，已知 \angle 1 = \angle 2，添加下列条件，不能判定 \triangle ABD \cong \triangle ACD 的是(    )
+A. AD \perp BC
+B. AD 平分 \angle BAC
+C. E 为 BC 的中点
+D. AB = AC</textarea>
+    </div>
+
+    <div class="controls">
+      <div class="mode-tabs">
+        <div class="mode-tab active" onclick="setMode('guided')" id="tab-guided">引导模式</div>
+        <div class="mode-tab" onclick="setMode('explore')" id="tab-explore">探索模式</div>
+      </div>
+
+      <!-- Guided Mode Controls -->
+      <div id="guided-controls">
+        <div class="step-navigation">
+          <button class="nav-btn" onclick="prevStep()" id="btn-prev">上一步</button>
+          <span class="step-indicator">步骤 <span id="step-count">1</span> / <span id="step-total">5</span></span>
+          <button class="nav-btn" onclick="nextStep()" id="btn-next">下一步</button>
+        </div>
+        <div id="step-explanation" class="step-content">
+          <!-- Dynamic Step Content -->
+        </div>
+      </div>
+
+      <!-- Explore Mode Controls -->
+      <div id="explore-controls" style="display:none;">
+        <div class="section-title">添加条件（点击切换）</div>
+        <div class="options-grid">
+          <div class="option-btn" onclick="selectOption('A')" id="opt-A">
+            <span class="option-badge">A</span> \(AD \perp BC\)
+          </div>
+          <div class="option-btn" onclick="selectOption('B')" id="opt-B">
+            <span class="option-badge">B</span> 平分 \(\angle BAC\)
+          </div>
+          <div class="option-btn" onclick="selectOption('C')" id="opt-C">
+            <span class="option-badge">C</span> \(E\) 为中点
+          </div>
+          <div class="option-btn" onclick="selectOption('D')" id="opt-D">
+            <span class="option-badge">D</span> \(AB = AC\)
+          </div>
+        </div>
+        <div style="font-size:12px; color:#888; margin-top:5px;">
+          * 点击上方选项模拟不同假设。在选项 B 下，可拖动点 A 观察反例。
+        </div>
+      </div>
+
+      <!-- Verification Panel (Always Visible) -->
+      <div class="section-title">验证/自检</div>
+      <div class="verify-panel">
+        <div class="verify-item">
+          <span class="verify-label">已知条件 (\(DB=DC\)):</span>
+          <span class="verify-status status-pass">成立</span>
+        </div>
+        <div class="verify-item">
+          <span class="verify-label">当前假设:</span>
+          <span class="verify-status status-info" id="verify-assumption">无</span>
+        </div>
+        <div class="verify-item">
+          <span class="verify-label">全等判定 (\(\triangle ABD \cong \triangle ACD\)):</span>
+          <span class="verify-status" id="verify-result">待判定</span>
+        </div>
+      </div>
+      
+      <div class="section-title">显示设置</div>
+      <label class="toggle-container">
+        <input type="checkbox" class="toggle-checkbox" id="show-answer-toggle" onchange="toggleAnswer()">
+        <span class="toggle-switch"></span>
+        <span class="toggle-label">显示正确答案</span>
+      </label>
+      <div id="answer-reveal" style="display:none; margin-top:10px; padding:10px; background:#fff1f0; border:1px solid #ffa39e; border-radius:4px; color:#cf1322;">
+        <strong>正确答案：B</strong><br>
+        解析：当 \(A\) 位于 \(\triangle DBC\) 的外接圆上时，\(AD\) 平分 \(\angle BAC\)，但 \(AB \neq AC\)，此时三角形不全等（如右图所示反例）。这是一般情况下的“SSA”模型，不能判定全等。
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Canvas Container -->
+  <div id="canvas-container">
+    <div class="canvas-overlay" id="canvas-hint">
+      <!-- Dynamic Hints overlay on canvas -->
+    </div>
+  </div>
+
+  <!-- MathJax Buffer -->
+  <div id="math-buffer"></div>
+
+<script>
+/**
+ * STATE MANAGEMENT (Single Source of Truth)
+ */
+const STATE = {
+  mode: 'guided', // 'guided' | 'explore'
+  stepIndex: 0,
+  activeOption: null, // 'A', 'B', 'C', 'D' or null
+  showAnswer: false,
+  
+  // Geometric State
+  points: {
+    B: { x: -100, y: 100 },
+    C: { x: 100, y: 100 },
+    D: { x: 0, y: 40 },  // Isosceles base setup
+    A: { x: 0, y: -120 }, // Default position (symmetrical)
+    E: { x: 0, y: 100 }   // Intersection
+  },
+  
+  // Logic State
+  isCongruent: true,
+  assumptionMet: true,
+  circumCircle: null,
+  dragStarted: false,
+  
+  // Problem Data
+  problem: {
+    statementCN: "如图，已知 ∠1 = ∠2，添加下列条件，不能判定 △ABD ≅ △ACD 的是( )",
+    givens: ["∠1 = ∠2 (即 DB=DC)", "AD为公共边"],
+    options: ["AD ⊥ BC", "AD 平分 ∠BAC", "E 为 BC 中点", "AB = AC"]
+  }
+};
+
+/**
+ * PLAN STEPS (Logic-First)
+ */
+const PLAN_STEPS = [
+  {
+    titleCN: "第一步：分析已知条件",
+    reasoningCN: "题目已知 \\(\\angle 1 = \\angle 2\\)。这意味着 \\(\\triangle DBC\\) 是什么三角形？",
+    revealedObjects: ["base_iso"],
+    checkItemNameCN: "已知条件",
+    contentHTML: "由 \\(\\angle 1 = \\angle 2\\) (即 \\(\\angle DBC = \\angle DCB\\)) 可知，\\(\\triangle DBC\\) 是<strong>等腰三角形</strong>，所以 \\(DB = DC\\)。<br>点 \\(D\\) 一定在 \\(BC\\) 的垂直平分线上。",
+    activeOption: null
+  },
+  {
+    titleCN: "第二步：分析选项 A (\\(AD \\perp BC\\))",
+    reasoningCN: "若 \\(AD \\perp BC\\)，点 \\(A\\) 在哪里？",
+    revealedObjects: ["perp_bisector"],
+    checkItemNameCN: "选项A",
+    contentHTML: "若 \\(AD \\perp BC\\)，且 \\(D\\) 在 \\(BC\\) 垂直平分线上，则直线 \\(AD\\) 就是 \\(BC\\) 的垂直平分线。<br>根据垂直平分线性质，\\(AB = AC\\)。<br>由 \\(SSS\\) (\\(AB=AC, DB=DC, AD=AD\\))，可判定全等。",
+    activeOption: 'A'
+  },
+  {
+    titleCN: "第三步：分析选项 C (\\(E\\) 为 \\(BC\\) 中点)",
+    reasoningCN: "若 \\(E\\) 是中点，与选项 A 有何联系？",
+    revealedObjects: ["median_perp"],
+    checkItemNameCN: "选项C",
+    contentHTML: "在等腰 \\(\\triangle DBC\\) 中，底边上的中线 \\(DE\\) 也是高。<br>即 \\(DE \\perp BC\\)，这蕴含了 \\(AD \\perp BC\\)。<br>同理可得 \\(AB = AC\\)，可判定全等。",
+    activeOption: 'C'
+  },
+  {
+    titleCN: "第四步：分析选项 D (\\(AB = AC\\))",
+    reasoningCN: "若直接给出 \\(AB = AC\\)？",
+    revealedObjects: ["sss"],
+    checkItemNameCN: "选项D",
+    contentHTML: "若 \\(AB = AC\\)，结合已知 \\(DB = DC\\) 和公共边 \\(AD = AD\\)。<br>直接符合 \\(SSS\\) 判定定理，可判定全等。",
+    activeOption: 'D'
+  },
+  {
+    titleCN: "第五步：分析选项 B (\\(AD\\) 平分 \\(\\angle BAC\\))",
+    reasoningCN: "这是“SSA”模型吗？能否构造反例？",
+    revealedObjects: ["circumcircle_locus"],
+    checkItemNameCN: "选项B",
+    contentHTML: "若 \\(\\angle BAD = \\angle CAD\\)，我们能找到不全等的反例吗？<br><strong>请尝试拖动右图中的点 A</strong>。<br>当点 \\(A\\) 位于 \\(\\triangle DBC\\) 的外接圆上时，\\(AD\\) 平分 \\(\\angle BAC\\)（同弧对应的圆周角相等），但此时 \\(AB \\neq AC\\)。<br><strong>结论：不能判定全等。</strong>",
+    activeOption: 'B'
+  }
+];
+
+/**
+ * P5.JS ENGINE
+ */
+let canvas;
+
+function setup() {
+  const container = document.getElementById('canvas-container');
+  canvas = createCanvas(container.offsetWidth, container.offsetHeight);
+  canvas.parent('canvas-container');
+  
+  // Initialize MathJax
+  if (window.MathJax) {
+    MathJax.typesetPromise().catch(err => console.log('MathJax error:', err));
+  }
+  
+  // Set initial update
+  updateUI();
+}
+
+function windowResized() {
+  const container = document.getElementById('canvas-container');
+  resizeCanvas(container.offsetWidth, container.offsetHeight);
+}
+
+function draw() {
+  background(240, 242, 245);
+  
+  push();
+  translate(width / 2, height / 2 + 50); // Shift down a bit to give room for A
+  scale(1, -1); // Y up
+  
+  // 1. Calculate Geometry based on State
+  calculateGeometry();
+  
+  // 2. Draw Geometry
+  drawGeometry();
+  
+  pop();
+  
+  // 3. Interaction Handling
+  handleInteraction();
+}
+
+/**
+ * INTERACTION HANDLER
+ */
+function handleInteraction() {
+  let activeOpt = STATE.mode === 'guided' ? PLAN_STEPS[STATE.stepIndex].activeOption : STATE.activeOption;
+  
+  // Only Option B has interaction (dragging Point A)
+  if (activeOpt === 'B' && STATE.circumCircle) {
+    // Check if mouse is near circumcircle or Point A to change cursor
+    if (isMouseOverCanvas()) {
+      cursor(MOVE); // Indicate interactivity
+      
+      // Update A if dragging
+      if (mouseIsPressed) {
+        // Map mouse to local coords (reverse transform of draw)
+        let mx = mouseX - width/2;
+        let my = -(mouseY - (height/2 + 50));
+        
+        let cy = STATE.circumCircle.y;
+        let R = STATE.circumCircle.r;
+        
+        // Project mouse to circle
+        let dx = mx - 0;
+        let dy = my - cy;
+        let distVal = sqrt(dx*dx + dy*dy);
+        
+        if (distVal > 0) {
+          STATE.points.A = {
+            x: 0 + (dx/distVal)*R,
+            y: cy + (dy/distVal)*R
+          };
+        }
+        STATE.dragStarted = true;
+      }
+    } else {
+      cursor(ARROW);
+    }
+  } else {
+    cursor(ARROW);
+  }
+}
+
+/**
+ * CORE GEOMETRY LOGIC
+ */
+function calculateGeometry() {
+  // Constants
+  const w = 120; // Half width of BC
+  STATE.points.B = { x: -w, y: 0 };
+  STATE.points.C = { x: w, y: 0 };
+  STATE.points.E = { x: 0, y: 0 }; 
+  
+  // D is fixed by problem statement (isosceles base)
+  const d_depth = -60;
+  STATE.points.D = { x: 0, y: d_depth };
+  
+  // Determine A based on active option
+  let activeOpt = STATE.mode === 'guided' ? PLAN_STEPS[STATE.stepIndex].activeOption : STATE.activeOption;
+  
+  if (activeOpt === 'B') {
+    // Calculate Circumcircle of Triangle BCD
+    // Center (0, cy), Radius R
+    // w^2 + cy^2 = R^2  AND  (d_depth-cy)^2 = R^2
+    const cy = (d_depth*d_depth - w*w) / (2*d_depth);
+    const R = sqrt(w*w + cy*cy);
+    STATE.circumCircle = { x: 0, y: cy, r: R };
+    
+    // Initial Position for A in Option B if not set or just started
+    // We want to show the counter-example (not symmetric)
+    if (!STATE.points.A || Math.abs(STATE.points.A.x) < 0.1) {
+      if (!STATE.dragStarted) {
+        let angle = PI/2 + 0.5; // Slightly to the left to show inequality
+        STATE.points.A = {
+          x: R * cos(angle),
+          y: cy + R * sin(angle)
+        };
+      }
+    }
+    // Note: Actual mouse dragging logic moved to handleInteraction()
+    
+  } else {
+    // Options A, C, D imply A is on Perp Bisector (Symmetry)
+    STATE.points.A = { x: 0, y: 180 }; 
+    STATE.dragStarted = false;
+    STATE.circumCircle = null;
+  }
+}
+
+function drawGeometry() {
+  const p = STATE.points;
+  
+  // Styles
+  strokeWeight(2);
+  noFill();
+  
+  // Draw Circumcircle (Locus) only in Option B
+  let activeOpt = STATE.mode === 'guided' ? PLAN_STEPS[STATE.stepIndex].activeOption : STATE.activeOption;
+  if (activeOpt === 'B' && STATE.circumCircle) {
+    stroke(255, 165, 0, 100);
+    strokeWeight(3);
+    ellipse(STATE.circumCircle.x, STATE.circumCircle.y, STATE.circumCircle.r * 2);
+    noStroke();
+    fill(255, 165, 0);
+    
+    // Label for locus
+    push();
+    scale(1, -1);
+    text("轨迹", STATE.circumCircle.r + 20, -(STATE.circumCircle.y));
+    pop();
+  }
+
+  // Draw Triangles
+  stroke(0);
+  strokeWeight(2);
+  
+  // Triangle ABD
+  fill(230, 247, 255, 150);
+  triangle(p.A.x, p.A.y, p.B.x, p.B.y, p.D.x, p.D.y);
+  
+  // Triangle ACD
+  fill(255, 241, 240, 150);
+  triangle(p.A.x, p.A.y, p.C.x, p.C.y, p.D.x, p.D.y);
+  
+  // Edges
+  stroke(50);
+  line(p.A.x, p.A.y, p.B.x, p.B.y); // AB
+  line(p.A.x, p.A.y, p.C.x, p.C.y); // AC
+  line(p.B.x, p.B.y, p.C.x, p.C.y); // BC
+  line(p.A.x, p.A.y, p.D.x, p.D.y); // AD (Diagonal)
+  line(p.B.x, p.B.y, p.D.x, p.D.y); // BD
+  line(p.C.x, p.C.y, p.D.x, p.D.y); // CD
+  
+  // Marks
+  drawAngleMark(p.B, p.D, p.C, "1", 25); // Angle 1: DBC
+  drawAngleMark(p.C, p.D, p.B, "2", 25); // Angle 2: DCB
+  
+  // If Option B, mark Angle BAD and CAD
+  if (activeOpt === 'B') {
+    stroke(0, 0, 255);
+    drawAngleMark(p.A, p.B, p.D, "", 40, true);
+    drawAngleMark(p.A, p.C, p.D, "", 40, true);
+  }
+  
+  // Draw Points & Labels
+  fill(0);
+  noStroke();
+  textSize(16);
+  drawLabel("A", p.A, 0, 20);
+  drawLabel("B", p.B, -15, -10);
+  drawLabel("C", p.C, 15, -10);
+  drawLabel("D", p.D, 0, -25);
+  drawLabel("E", p.E, 10, 10);
+  
+  // Points
+  stroke(0);
+  strokeWeight(5);
+  point(p.A.x, p.A.y);
+  point(p.B.x, p.B.y);
+  point(p.C.x, p.C.y);
+  point(p.D.x, p.D.y);
+  point(p.E.x, p.E.y);
+  
+  // Verification Visuals
+  checkCongruence();
+}
+
+// Helper: Angle Mark
+function drawAngleMark(center, p1, p2, label, r, isDouble=false) {
+  let v1 = createVector(p1.x - center.x, p1.y - center.y);
+  let v2 = createVector(p2.x - center.x, p2.y - center.y);
+  let a1 = v1.heading();
+  let a2 = v2.heading();
+  
+  noFill();
+  stroke(0);
+  strokeWeight(1);
+  
+  // Ensure smallest arc
+  if (a2 < a1) a2 += TWO_PI;
+  if (a2 - a1 > PI) {
+     let t = a1; a1 = a2 - TWO_PI; a2 = t; 
+  }
+  
+  arc(center.x, center.y, r*2, r*2, a1, a2);
+  if (isDouble) {
+    arc(center.x, center.y, r*2 - 8, r*2 - 8, a1, a2);
+  }
+  
+  if (label) {
+    let midA = (a1 + a2) / 2;
+    let lx = center.x + (r + 15) * cos(midA);
+    let ly = center.y + (r + 15) * sin(midA);
+    
+    push();
+    scale(1, -1); // Flip text back
+    fill(0);
+    noStroke();
+    textAlign(CENTER, CENTER);
+    text(label, lx, -ly);
+    pop();
+  }
+}
+
+function drawLabel(txt, p, ox, oy) {
+  push();
+  scale(1, -1);
+  text(txt, p.x + ox, -(p.y + oy));
+  pop();
+}
+
+function isMouseOverCanvas() {
+  return mouseX >= 0 && mouseX <= width && mouseY >= 0 && mouseY <= height;
+}
+
+/**
+ * LOGIC & VERIFICATION
+ */
+function checkCongruence() {
+  const p = STATE.points;
+  const AB = dist(p.A.x, p.A.y, p.B.x, p.B.y);
+  const AC = dist(p.A.x, p.A.y, p.C.x, p.C.y);
+  const diff = Math.abs(AB - AC);
+  
+  STATE.isCongruent = diff < 1.0;
+  
+  // Update Verify Panel Text
+  const assumptionEl = document.getElementById('verify-assumption');
+  const resultEl = document.getElementById('verify-result');
+  
+  let activeOpt = STATE.mode === 'guided' ? PLAN_STEPS[STATE.stepIndex].activeOption : STATE.activeOption;
+  
+  let textAssumption = "无";
+  if (activeOpt === 'A') textAssumption = "AD ⊥ BC";
+  if (activeOpt === 'B') textAssumption = "AD 平分 ∠BAC (拖动A验证)";
+  if (activeOpt === 'C') textAssumption = "E 为 BC 中点";
+  if (activeOpt === 'D') textAssumption = "AB = AC";
+  
+  assumptionEl.innerText = textAssumption;
+  
+  if (STATE.isCongruent) {
+    resultEl.innerText = "全等 (AB = AC)";
+    resultEl.className = "verify-status status-pass";
+  } else {
+    resultEl.innerText = "不全等 (AB ≠ AC)";
+    resultEl.className = "verify-status status-fail";
+  }
+  
+  // Hint overlay for option B
+  const hintEl = document.getElementById('canvas-hint');
+  if (activeOpt === 'B' && !STATE.isCongruent) {
+    hintEl.innerHTML = "观察：满足角平分线条件，但 AB ≠ AC<br>反例构造成功";
+    hintEl.style.display = "block";
+    hintEl.style.color = "#cf1322";
+  } else if (activeOpt === 'B' && STATE.isCongruent) {
+    hintEl.innerHTML = "特殊情况：A 在对称轴上时全等。<br>请拖动 A 寻找反例。";
+    hintEl.style.display = "block";
+    hintEl.style.color = "#faad14";
+  } else {
+    hintEl.style.display = "none";
+  }
+}
+
+
+/**
+ * UI CONTROLLERS
+ */
+function setMode(mode) {
+  STATE.mode = mode;
+  document.getElementById('tab-guided').className = mode === 'guided' ? 'mode-tab active' : 'mode-tab';
+  document.getElementById('tab-explore').className = mode === 'explore' ? 'mode-tab active' : 'mode-tab';
+  
+  document.getElementById('guided-controls').style.display = mode === 'guided' ? 'block' : 'none';
+  document.getElementById('explore-controls').style.display = mode === 'explore' ? 'block' : 'none';
+  
+  if (mode === 'explore') {
+    selectOption('B'); // Default to B for exploration as it's the key one
+  } else {
+    updateUI();
+  }
+}
+
+function prevStep() {
+  if (STATE.stepIndex > 0) {
+    STATE.stepIndex--;
+    updateUI();
+  }
+}
+
+function nextStep() {
+  if (STATE.stepIndex < PLAN_STEPS.length - 1) {
+    STATE.stepIndex++;
+    updateUI();
+  }
+}
+
+function selectOption(opt) {
+  STATE.activeOption = opt;
+  // Update buttons
+  ['A','B','C','D'].forEach(o => {
+    document.getElementById(`opt-${o}`).className = o === opt ? 'option-btn active' : 'option-btn';
+  });
+  // Force redraw
+  loop(); 
+}
+
+function updateUI() {
+  // Update Guided Steps
+  const step = PLAN_STEPS[STATE.stepIndex];
+  document.getElementById('step-count').innerText = STATE.stepIndex + 1;
+  document.getElementById('step-explanation').innerHTML = `
+    <div style="font-weight:bold; margin-bottom:5px;">${step.titleCN}</div>
+    <div style="color:#666; margin-bottom:8px;">${step.reasoningCN}</div>
+    <div>${step.contentHTML}</div>
+  `;
+  document.getElementById('btn-prev').disabled = STATE.stepIndex === 0;
+  document.getElementById('btn-next').disabled = STATE.stepIndex === PLAN_STEPS.length - 1;
+  
+  // MathJax re-render
+  if (window.MathJax) {
+    MathJax.typesetPromise([document.getElementById('step-explanation')]).catch(err => {});
+  }
+}
+
+function toggleAnswer() {
+  STATE.showAnswer = document.getElementById('show-answer-toggle').checked;
+  document.getElementById('answer-reveal').style.display = STATE.showAnswer ? 'block' : 'none';
+}
+
+function copyProblem() {
+  const text = document.getElementById('problem-tex-source').value;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector('.copy-btn');
+    const original = btn.innerText;
+    btn.innerText = "已复制";
+    setTimeout(() => btn.innerText = original, 2000);
+  });
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>等边三角形综合性质探究</title>
+    <!-- 引入 p5.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <!-- 引入 MathJax -->
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        /* CSS Reset & Basic Layout */
+        body { margin: 0; padding: 0; overflow: hidden; font-family: "Noto Sans SC", sans-serif; background: #f0f2f5; display: flex; height: 100vh; }
+        
+        /* Sidebar Styles */
+        #sidebar { width: 400px; background: #ffffff; display: flex; flex-direction: column; border-right: 1px solid #ddd; z-index: 10; overflow-y: auto; box-shadow: 2px 0 5px rgba(0,0,0,0.05); }
+        .card { margin: 12px; padding: 16px; background: #fff; border-radius: 8px; border: 1px solid #e0e0e0; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .card-title { font-weight: bold; font-size: 16px; color: #333; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
+        .btn { cursor: pointer; padding: 6px 12px; border-radius: 4px; border: 1px solid #ccc; background: #f8f9fa; font-size: 14px; transition: all 0.2s; }
+        .btn:hover { background: #e9ecef; border-color: #adb5bd; }
+        .btn-primary { background: #007bff; color: white; border-color: #007bff; }
+        .btn-primary:hover { background: #0056b3; }
+        .btn-sm { padding: 2px 8px; font-size: 12px; }
+        
+        /* Problem Statement Area */
+        .problem-box { background: #f8f9fa; padding: 12px; border-radius: 6px; font-size: 14px; line-height: 1.6; color: #2c3e50; border: 1px solid #dee2e6; }
+        .tex-source { display: none; white-space: pre-wrap; font-family: monospace; font-size: 12px; color: #555; margin-top: 8px; padding: 8px; background: #eee; border-radius: 4px; }
+        
+        /* Control Panel */
+        .control-group { margin-bottom: 12px; }
+        .label-row { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 14px; color: #555; }
+        input[type="range"] { width: 100%; cursor: pointer; }
+        
+        /* Verification Panel */
+        .verify-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px dashed #eee; font-size: 13px; }
+        .verify-item:last-child { border-bottom: none; }
+        .status-pass { color: #28a745; font-weight: bold; }
+        .status-fail { color: #dc3545; font-weight: bold; }
+        .status-val { font-family: monospace; color: #666; margin-left: 8px; }
+
+        /* Steps Navigation */
+        .step-nav { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+        .step-content { min-height: 80px; background: #f1f8ff; border: 1px solid #cce5ff; border-radius: 6px; padding: 12px; margin-top: 10px; font-size: 14px; color: #004085; }
+        
+        /* Main Canvas Area */
+        #canvas-container { flex: 1; position: relative; display: flex; justify-content: center; align-items: center; background: #ffffff; overflow: hidden; }
+        #p5-canvas { border: 1px solid #eee; box-shadow: 0 0 20px rgba(0,0,0,0.05); }
+        
+        /* Floating HUD */
+        #hud-status { position: absolute; bottom: 10px; left: 10px; background: rgba(255,255,255,0.9); padding: 5px 10px; border-radius: 4px; font-size: 12px; color: #666; pointer-events: none; border: 1px solid #ddd; }
+        
+        /* Accessibility */
+        .large-text .card-title { font-size: 18px; }
+        .large-text .problem-box, .large-text .step-content, .large-text .verify-item { font-size: 16px; }
+        
+        /* Print/Export */
+        @media print {
+            #sidebar { display: none; }
+            #canvas-container { width: 100%; height: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- SIDEBAR -->
+    <div id="sidebar">
+        <!-- 1. 题目原题 (Mandatory) -->
+        <div class="card">
+            <div class="card-title">
+                题目原题
+                <button class="btn btn-sm" onclick="copyProblemTeX()">复制 TeX</button>
+            </div>
+            <div class="problem-box" id="problem-text">
+                <!-- Content injected by JS -->
+            </div>
+            <div id="problem-tex-hidden" class="tex-source"></div>
+        </div>
+
+        <!-- 2. 模式切换 -->
+        <div class="card">
+            <div class="card-title">教学模式</div>
+            <div style="display: flex; gap: 8px;">
+                <button class="btn btn-primary" id="btn-mode-explore" style="flex:1" onclick="setMode('explore')">探索模式</button>
+                <button class="btn" id="btn-mode-guide" style="flex:1" onclick="setMode('guide')">引导模式</button>
+            </div>
+        </div>
+
+        <!-- 3. 探索控制 (Visible in Explore Mode) -->
+        <div class="card" id="panel-explore">
+            <div class="card-title">变量控制</div>
+            <div class="control-group">
+                <div class="label-row">
+                    <span>点 D 位置 (在 BC 上)</span>
+                    <span id="val-d-pos">66%</span>
+                </div>
+                <!-- UPDATED DEFAULT VALUE TO 66 -->
+                <input type="range" id="slider-d" min="5" max="95" value="66" step="1" oninput="updateParams()">
+            </div>
+            <div class="control-group">
+                <label style="display:flex; align-items:center; cursor:pointer;">
+                    <input type="checkbox" id="chk-show-answer" onchange="updateParams()">
+                    <span style="margin-left:8px;">显示正确答案</span>
+                </label>
+            </div>
+             <div class="control-group">
+                <label style="display:flex; align-items:center; cursor:pointer;">
+                    <input type="checkbox" id="chk-show-aux" checked onchange="updateParams()">
+                    <span style="margin-left:8px;">显示辅助线/角度 (BQ, P)</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- 4. 引导步骤 (Visible in Guide Mode) -->
+        <div class="card" id="panel-guide" style="display:none;">
+            <div class="card-title">
+                <span>分步解析</span>
+                <span id="step-counter" style="font-size:12px; color:#666; font-weight:normal;">1/4</span>
+            </div>
+            <div class="step-nav">
+                <button class="btn btn-sm" onclick="prevStep()">上一步</button>
+                <button class="btn btn-sm" onclick="nextStep()">下一步</button>
+            </div>
+            <div class="step-content" id="step-desc">
+                <!-- Step text injected by JS -->
+            </div>
+        </div>
+
+        <!-- 5. 验证/自检 (Always Visible) -->
+        <div class="card">
+            <div class="card-title">验证/自检 <span style="font-size:12px; font-weight:normal; color:#888;">(实时计算)</span></div>
+            <div id="verification-list">
+                <!-- Items injected by JS -->
+            </div>
+        </div>
+        
+        <!-- 6. 辅助功能 -->
+        <div class="card">
+             <div style="display: flex; gap: 8px;">
+                <button class="btn btn-sm" onclick="toggleLargeText()">大字模式</button>
+                <button class="btn btn-sm" onclick="resetApp()">重置</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- CANVAS AREA -->
+    <div id="canvas-container">
+        <div id="p5-canvas"></div>
+        <div id="hud-status">系统就绪 | 数学引擎: p5.js</div>
+    </div>
+
+<script>
+/**
+ * STATE MANAGEMENT
+ * Single Source of Truth
+ */
+const STATE = {
+    type: 'TYPE_A',
+    domain: 'Mathematics',
+    subdomain: 'Plane Geometry',
+    mode: 'explore', // 'explore' | 'guide'
+    stepIndex: 0,
+    animStartTime: 0, // For resetting animation on step change
+    params: {
+        t: 0.66, // UPDATED DEFAULT TO 0.66
+        showAnswer: false,
+        showAux: true,
+        largeText: false
+    },
+    // Canonical Problem Object
+    problem: {
+        statementCN: "已知，如图，△ABC是等边三角形，AE = CD，BQ ⊥ AD于Q，BE交AD于点P。下列说法：①∠APE = ∠C，②AQ = BQ，③BP = 2PQ，④AE + BD = AB，其正确的结论有（ ）。",
+        statementTeX: String.raw`\text{已知，如图，}\triangle ABC \text{是等边三角形，} AE = CD \text{，} BQ \perp AD \text{于} Q \text{，} BE \text{交} AD \text{于点} P \text{。下列说法：} \\ ① \angle APE = \angle C \quad ② AQ = BQ \\ ③ BP = 2PQ \quad ④ AE + BD = AB`,
+        options: ["A. ①②④", "B. ①②③", "C. ②③④", "D. ①③④"],
+        givens: [
+            { name: "Shape", value: "Equilateral Triangle ABC" },
+            { name: "Equality", value: "AE = CD" },
+            { name: "Perpendicular", value: "BQ ⊥ AD" }
+        ],
+        asks: ["Verify statements ①, ②, ③, ④"]
+    },
+    // Computed Geometry (recalculated every frame/update)
+    geo: {},
+    // Expected Truths (from logic solver)
+    expected: null,
+    // Plan Steps (for guided mode)
+    planSteps: []
+};
+
+// Global P5 Instance
+let p5App;
+
+/**
+ * LOGIC SOLVER & PLANNER
+ * "Solve-Then-Draw"
+ */
+function solveExpected(state) {
+    // Logic as before...
+    return {
+        s1: true,
+        s2: false,
+        s3: true,
+        s4: true,
+        correctOption: 'D'
+    };
+}
+
+function buildPlanSteps(state, expected) {
+    // Modified to use split lines and add highlight metadata
+    return [
+        {
+            titleCN: "第一步：全等三角形判定",
+            reasoningCN: "利用 SAS 证明 △ABE ≌ △CAD",
+            // Broken into aligned block for better width fit
+            formulaTeX: String.raw`\begin{aligned} &\because AB=AC, \\ &\quad \angle BAC=\angle C=60^\circ, \\ &\quad AE=CD \\ &\therefore \triangle ABE \cong \triangle CAD \end{aligned}`,
+            checkItem: "AE_CD_Equal",
+            // Define highlights: { type: 'triangle'|'line'|'angle', ids: [...], color: 'hex' }
+            highlights: [
+                { type: 'triangle', ids: ['ABE'], color: '#3498db', label: '△ABE' },
+                { type: 'triangle', ids: ['CAD'], color: '#e74c3c', label: '△CAD' }
+            ]
+        },
+        {
+            titleCN: "第二步：角度转化与计算",
+            reasoningCN: "利用全等性质及三角形内角和求 ∠APE",
+            formulaTeX: String.raw`\begin{aligned} &\because \triangle ABE \cong \triangle CAD \\ &\therefore \angle ABE = \angle CAD \\ &\angle APB = 180^\circ - \angle ABE - \angle BAP \\ &= 180^\circ - \angle CAD - \angle BAP \\ &= 180^\circ - \angle BAC = 120^\circ \\ &\therefore \angle APE = 60^\circ = \angle C \end{aligned}`,
+            checkItem: "Angle_APE",
+            highlights: [
+                { type: 'angle', ids: ['ABE'], color: '#3498db', label: '∠ABE' },
+                { type: 'angle', ids: ['CAD'], color: '#e74c3c', label: '∠CAD' },
+                { type: 'angle', ids: ['APE'], color: '#9b59b6', label: '∠APE' }
+            ]
+        },
+        {
+            titleCN: "第三步：直角三角形性质",
+            reasoningCN: "在 Rt△BQP 中利用 30°-60°-90° 关系",
+            formulaTeX: String.raw`\begin{aligned} &\text{在 Rt}\triangle BQP \text{ 中：} \\ &\angle BPQ = \angle APE = 60^\circ \\ &\therefore \angle PBQ = 30^\circ \\ &\implies BP = 2PQ \end{aligned}`,
+            checkItem: "Ratio_BP_PQ",
+            highlights: [
+                { type: 'triangle', ids: ['BQP'], color: '#2ecc71', label: 'Rt△BQP' },
+                { type: 'line', ids: ['BP', 'PQ'], color: '#f1c40f', label: 'BP=2PQ' }
+            ]
+        },
+        {
+            titleCN: "第四步：线段和差验证",
+            reasoningCN: "代数转换验证结论 ④",
+            formulaTeX: String.raw`\begin{aligned} &BD = BC - CD \\ &= AB - AE \quad (\because AE=CD) \\ &\therefore AE + BD = AB \end{aligned}`,
+            checkItem: "Sum_AE_BD",
+            highlights: [
+                { type: 'line', ids: ['AE', 'BD'], color: '#e67e22', label: 'AE+BD' },
+                { type: 'line', ids: ['AB'], color: '#34495e', label: 'AB' }
+            ]
+        }
+    ];
+}
+
+/**
+ * INITIALIZATION
+ */
+function initApp() {
+    STATE.expected = solveExpected(STATE);
+    STATE.planSteps = buildPlanSteps(STATE, STATE.expected);
+    
+    // Render Static Problem Text
+    const probBox = document.getElementById('problem-text');
+    probBox.innerHTML = STATE.problem.statementCN;
+    document.getElementById('problem-tex-hidden').innerText = STATE.problem.statementTeX;
+    
+    // Initialize P5
+    new p5((p) => {
+        p5App = p;
+        
+        p.setup = () => {
+            const container = document.getElementById('canvas-container');
+            const canvas = p.createCanvas(container.offsetWidth, container.offsetHeight);
+            canvas.parent('canvas-container');
+            p.textFont('Noto Sans SC');
+            updateParams(); // First compute
+        };
+
+        p.draw = () => {
+            p.background(255);
+            p.translate(p.width/2, p.height/2 + 50); // Center, slightly shift down
+            p.scale(1, -1); // Flip Y to standard math coords
+            
+            drawGeometry(p, STATE.geo);
+            
+            // Draw Highlights if in Guide Mode
+            if (STATE.mode === 'guide') {
+                drawGuidedHighlights(p, STATE.geo);
+            }
+        };
+
+        p.windowResized = () => {
+            const container = document.getElementById('canvas-container');
+            p.resizeCanvas(container.offsetWidth, container.offsetHeight);
+        };
+    });
+
+    renderUI();
+}
+
+/**
+ * GEOMETRY ENGINE
+ */
+function calculateGeometry(state) {
+    const s = 300; 
+    const t = state.params.t; 
+    
+    const h = s * Math.sqrt(3) / 2;
+    const cy = h / 3;
+    
+    const A = { x: 0, y: h - cy };
+    const B = { x: -s/2, y: -cy };
+    const C = { x: s/2, y: -cy };
+    
+    const D = {
+        x: B.x + t * (C.x - B.x),
+        y: B.y + t * (C.y - B.y)
+    };
+    
+    const lenCD = Math.sqrt((C.x - D.x)**2 + (C.y - D.y)**2);
+    const vecAC = { x: C.x - A.x, y: C.y - A.y };
+    const E = {
+        x: A.x + (lenCD / s) * vecAC.x,
+        y: A.y + (lenCD / s) * vecAC.y
+    };
+    
+    const P = lineIntersection(A, D, B, E);
+    const Q = projectPointToLine(B, A, D);
+    
+    state.geo = { A, B, C, D, E, P, Q, s, lenCD };
+    
+    const angAPE = calculateAngle(A, P, E);
+    const lenAQ = dist(A, Q);
+    const lenBQ = dist(B, Q);
+    const lenBP = dist(B, P);
+    const lenPQ = dist(P, Q);
+    const lenAE = dist(A, E);
+    const lenBD = dist(B, D);
+    const lenAB = s;
+    
+    state.verify = {
+        angAPE,
+        diffAQBQ: Math.abs(lenAQ - lenBQ),
+        diffBP2PQ: Math.abs(lenBP - 2 * lenPQ),
+        diffSum: Math.abs((lenAE + lenBD) - lenAB)
+    };
+}
+
+/**
+ * MATH HELPERS
+ */
+function dist(p1, p2) {
+    return Math.sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2);
+}
+
+function lineIntersection(p1, p2, p3, p4) {
+    const x1 = p1.x, y1 = p1.y, x2 = p2.x, y2 = p2.y;
+    const x3 = p3.x, y3 = p3.y, x4 = p4.x, y4 = p4.y;
+    const denom = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1);
+    if (denom === 0) return null;
+    const ua = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / denom;
+    return { x: x1 + ua * (x2 - x1), y: y1 + ua * (y2 - y1) };
+}
+
+function projectPointToLine(p, a, b) {
+    const ab = { x: b.x - a.x, y: b.y - a.y };
+    const ap = { x: p.x - a.x, y: p.y - a.y };
+    const ab2 = ab.x**2 + ab.y**2;
+    const dot = ap.x * ab.x + ap.y * ab.y;
+    const t = dot / ab2;
+    return { x: a.x + t * ab.x, y: a.y + t * ab.y };
+}
+
+function calculateAngle(A, B, C) {
+    const BA = { x: A.x - B.x, y: A.y - B.y };
+    const BC = { x: C.x - B.x, y: C.y - B.y };
+    const dot = BA.x * BC.x + BA.y * BC.y;
+    const magBA = Math.sqrt(BA.x**2 + BA.y**2);
+    const magBC = Math.sqrt(BC.x**2 + BC.y**2);
+    let cosTheta = dot / (magBA * magBC);
+    cosTheta = Math.max(-1, Math.min(1, cosTheta));
+    return Math.acos(cosTheta) * 180 / Math.PI;
+}
+
+/**
+ * DRAWING
+ */
+function drawGeometry(p, geo) {
+    if (!geo.A) return;
+    const { A, B, C, D, E, P, Q } = geo;
+    
+    // Base Styles
+    const colMain = '#333';
+    const colAux = '#e67e22';
+    const colHigh = '#e74c3c';
+    
+    // 1. Base Triangle
+    p.stroke(colMain);
+    p.strokeWeight(2);
+    p.noFill();
+    p.triangle(A.x, A.y, B.x, B.y, C.x, C.y);
+    
+    // 2. Internal Lines
+    p.stroke(colMain);
+    p.line(A.x, A.y, D.x, D.y);
+    p.line(B.x, B.y, E.x, E.y);
+    
+    // 3. Aux BQ
+    const showAux = STATE.params.showAux || (STATE.mode === 'guide' && STATE.stepIndex >= 2);
+    if (showAux) {
+        p.stroke(colAux);
+        p.strokeWeight(1.5);
+        p.drawingContext.setLineDash([5, 5]);
+        p.line(B.x, B.y, Q.x, Q.y);
+        p.drawingContext.setLineDash([]);
+        drawRightAngle(p, B, Q, A, 10);
+    }
+    
+    // 4. Ticks
+    drawTick(p, A, E, 1, colHigh);
+    drawTick(p, C, D, 1, colHigh);
+    
+    // 5. Labels (Standard)
+    p.fill(0);
+    p.noStroke();
+    p.textSize(16);
+    p.scale(1, -1);
+    drawLabel(p, "A", A, 0, -15);
+    drawLabel(p, "B", B, -15, 15);
+    drawLabel(p, "C", C, 15, 15);
+    drawLabel(p, "D", D, 0, 20);
+    drawLabel(p, "E", E, 15, -5);
+    drawLabel(p, "P", P, 5, -15);
+    if (showAux) drawLabel(p, "Q", Q, -15, -5);
+    p.scale(1, -1);
+}
+
+// Helper to draw highlighted elements with "breathing" animation
+function drawGuidedHighlights(p, geo) {
+    const step = STATE.planSteps[STATE.stepIndex];
+    if (!step.highlights) return;
+
+    // Animation factor: 0.0 to 1.0 sine wave over time
+    const time = p.millis() - STATE.animStartTime;
+    const alpha = (Math.sin(time * 0.003) + 1) * 0.5 * 150 + 50; // 50-200 alpha
+    const thickness = 4 + (Math.sin(time * 0.003) + 1) * 1.5; // 4-7px stroke
+
+    step.highlights.forEach(h => {
+        p.push();
+        // Convert hex to rgb with alpha
+        const c = p.color(h.color);
+        c.setAlpha(alpha);
+        p.stroke(c);
+        p.fill(c);
+        
+        if (h.type === 'triangle') {
+            const [p1, p2, p3] = h.ids[0].split('').map(k => geo[k]); // "ABE" -> A, B, E
+            if (p1 && p2 && p3) {
+                p.strokeWeight(thickness);
+                p.noFill();
+                p.triangle(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
+                c.setAlpha(40); // Light fill
+                p.fill(c);
+                p.triangle(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
+            }
+        } else if (h.type === 'line') {
+            p.strokeWeight(thickness);
+            p.noFill();
+            h.ids.forEach(lineId => {
+                // "AE" -> A, E
+                const [k1, k2] = lineId.split('');
+                const p1 = geo[k1], p2 = geo[k2];
+                if (p1 && p2) p.line(p1.x, p1.y, p2.x, p2.y);
+            });
+        } else if (h.type === 'angle') {
+            // "ABE" -> Angle at B
+            const [k1, center, k3] = h.ids[0].split('');
+            const p1 = geo[k1], pc = geo[center], p3 = geo[k3];
+            if (p1 && pc && p3) {
+                p.strokeWeight(thickness);
+                p.noFill();
+                drawAngleArc(p, p1, pc, p3, 25, c);
+            }
+        }
+        p.pop();
+    });
+}
+
+function drawAngleArc(p, p1, corner, p2, r, col) {
+    const a1 = Math.atan2(p1.y - corner.y, p1.x - corner.x);
+    const a2 = Math.atan2(p2.y - corner.y, p2.x - corner.x);
+    p.push();
+    p.translate(corner.x, corner.y);
+    p.stroke(col);
+    p.noFill();
+    // Ensure we draw the smaller arc
+    let start = Math.min(a1, a2);
+    let stop = Math.max(a1, a2);
+    if (stop - start > Math.PI) {
+        // Draw the other way
+        p.arc(0, 0, r*2, r*2, stop, start + 2*Math.PI);
+    } else {
+        p.arc(0, 0, r*2, r*2, start, stop);
+    }
+    p.pop();
+}
+
+function drawLabel(p, txt, pt, offX, offY) {
+    p.text(txt, pt.x + offX, -(pt.y + offY));
+}
+
+function drawRightAngle(p, p1, corner, p2, size) {
+    let v1 = p.createVector(p1.x - corner.x, p1.y - corner.y).normalize().mult(size);
+    let v2 = p.createVector(p2.x - corner.x, p2.y - corner.y).normalize().mult(size);
+    let p3 = p.createVector(corner.x + v1.x + v2.x, corner.y + v1.y + v2.y);
+    p.stroke(100);
+    p.strokeWeight(1);
+    p.line(corner.x + v1.x, corner.y + v1.y, p3.x, p3.y);
+    p.line(corner.x + v2.x, corner.y + v2.y, p3.x, p3.y);
+}
+
+function drawTick(p, p1, p2, count, col) {
+    let mid = { x: (p1.x + p2.x)/2, y: (p1.y + p2.y)/2 };
+    p.push();
+    p.stroke(col);
+    p.strokeWeight(2);
+    p.translate(mid.x, mid.y);
+    let angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+    p.rotate(angle);
+    for(let i=0; i<count; i++) {
+        let off = (i - (count-1)/2) * 4;
+        p.line(off, -5, off, 5);
+    }
+    p.pop();
+}
+
+/**
+ * UI & INTERACTION
+ */
+function updateParams() {
+    STATE.params.t = parseFloat(document.getElementById('slider-d').value) / 100;
+    STATE.params.showAnswer = document.getElementById('chk-show-answer').checked;
+    STATE.params.showAux = document.getElementById('chk-show-aux').checked;
+    calculateGeometry(STATE);
+    updateVerificationPanel();
+    updateStepUI();
+    document.getElementById('val-d-pos').innerText = Math.round(STATE.params.t * 100) + '%';
+}
+
+function renderUI() {
+    document.getElementById('slider-d').value = STATE.params.t * 100;
+    document.getElementById('chk-show-answer').checked = STATE.params.showAnswer;
+    document.getElementById('chk-show-aux').checked = STATE.params.showAux;
+    setMode(STATE.mode);
+}
+
+function updateVerificationPanel() {
+    const v = STATE.verify;
+    const eps = 0.5;
+    const items = [
+        { id: 'Angle_APE', label: '① ∠APE = ∠C (60°)', pass: Math.abs(v.angAPE - 60) < eps, val: v.angAPE.toFixed(1) + '°' },
+        { id: 'Check_AQ_BQ', label: '② AQ = BQ', pass: v.diffAQBQ < eps, val: (v.diffAQBQ < eps ? '相等' : '不相等') },
+        { id: 'Ratio_BP_PQ', label: '③ BP = 2PQ', pass: v.diffBP2PQ < eps, val: (v.diffBP2PQ < eps ? '成立' : '不成立') },
+        { id: 'Sum_AE_BD', label: '④ AE + BD = AB', pass: v.diffSum < eps, val: (v.diffSum < eps ? '成立' : '不成立') }
+    ];
+    const list = document.getElementById('verification-list');
+    list.innerHTML = '';
+    items.forEach(item => {
+        const el = document.createElement('div');
+        el.className = 'verify-item';
+        const statusClass = item.pass ? 'status-pass' : 'status-fail';
+        const icon = item.pass ? '✔' : '✘';
+        el.innerHTML = `<span>${item.label}</span><span><span class="${statusClass}">${icon}</span><span class="status-val">${item.val}</span></span>`;
+        list.appendChild(el);
+    });
+}
+
+function setMode(mode) {
+    STATE.mode = mode;
+    document.getElementById('btn-mode-explore').className = mode === 'explore' ? 'btn btn-primary' : 'btn';
+    document.getElementById('btn-mode-guide').className = mode === 'guide' ? 'btn btn-primary' : 'btn';
+    document.getElementById('panel-explore').style.display = mode === 'explore' ? 'block' : 'none';
+    document.getElementById('panel-guide').style.display = mode === 'guide' ? 'block' : 'none';
+    if(mode === 'guide') {
+        STATE.stepIndex = 0;
+        STATE.animStartTime = p5App ? p5App.millis() : 0; // Reset animation
+        STATE.params.showAux = true; 
+        updateStepUI();
+    } else {
+        STATE.params.showAux = document.getElementById('chk-show-aux').checked;
+    }
+    updateParams();
+}
+
+function updateStepUI() {
+    if (STATE.mode !== 'guide') return;
+    const step = STATE.planSteps[STATE.stepIndex];
+    document.getElementById('step-counter').innerText = `${STATE.stepIndex + 1}/${STATE.planSteps.length}`;
+    const content = document.getElementById('step-desc');
+    content.innerHTML = `
+        <div style="font-weight:bold; margin-bottom:6px;">${step.titleCN}</div>
+        <div style="margin-bottom:8px;">${step.reasoningCN}</div>
+        <div style="background:white; padding:8px; border-radius:4px; border:1px solid #ddd; overflow-x: auto;">
+            \\[ ${step.formulaTeX} \\]
+        </div>
+    `;
+    MathJax.typesetPromise([content]);
+}
+
+function nextStep() {
+    if (STATE.stepIndex < STATE.planSteps.length - 1) {
+        STATE.stepIndex++;
+        STATE.animStartTime = p5App.millis(); // Reset animation
+        updateStepUI();
+        updateParams();
+    }
+}
+
+function prevStep() {
+    if (STATE.stepIndex > 0) {
+        STATE.stepIndex--;
+        STATE.animStartTime = p5App.millis(); // Reset animation
+        updateStepUI();
+        updateParams();
+    }
+}
+
+function toggleLargeText() {
+    STATE.params.largeText = !STATE.params.largeText;
+    document.body.classList.toggle('large-text', STATE.params.largeText);
+}
+
+function copyProblemTeX() {
+    const tex = STATE.problem.statementTeX;
+    navigator.clipboard.writeText(tex).then(() => {
+        alert('TeX 代码已复制到剪贴板');
+    });
+}
+
+function resetApp() {
+    document.getElementById('slider-d').value = 66; // UPDATED RESET VALUE TO 66
+    document.getElementById('chk-show-answer').checked = false;
+    document.getElementById('chk-show-aux').checked = true;
+    setMode('explore');
+}
+
+window.STATE = STATE;
+initApp();
+</script>
+</body>
+</html>

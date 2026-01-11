@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>格点几何：对称、最值与距离</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --secondary: #10b981;
+      --accent: #f59e0b;
+      --danger: #ef4444;
+      --bg: #f8fafc;
+      --text: #1e293b;
+      --sidebar-width: 320px;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+    /* Layout */
+    #sidebar {
+      width: var(--sidebar-width);
+      background: white;
+      border-right: 1px solid #e2e8f0;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 2px 0 10px rgba(0,0,0,0.05);
+      z-index: 10;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+    #stage {
+      flex: 1;
+      position: relative;
+      background: #ffffff;
+      display: flex;
+      flex-direction: column; 
+      overflow: hidden;
+    }
+    
+    /* Top Guided Panel Overlay */
+    #guided-top-panel {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(5px);
+      border-bottom: 1px solid #e2e8f0;
+      padding: 12px 24px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      z-index: 20;
+      transition: all 0.3s ease;
+      display: none; /* Toggled by JS */
+    }
+    #guided-content-wrapper {
+      max-width: 900px;
+      margin: 0 auto;
+      display: flex;
+      gap: 20px;
+      align-items: flex-start;
+    }
+    .step-text {
+      flex: 1;
+      font-size: 1rem;
+      line-height: 1.6;
+    }
+    .step-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-width: 100px;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #canvas-container {
+      flex: 1;
+      width: 100%;
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: grab; /* Default cursor for canvas */
+    }
+    #canvas-container:active {
+      cursor: grabbing;
+    }
+
+    /* Components */
+    .card {
+      padding: 16px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .card-title {
+      font-weight: 600;
+      color: #334155;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .btn {
+      padding: 6px 12px;
+      border: 1px solid #cbd5e1;
+      background: white;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .btn:hover { background: #f1f5f9; }
+    .btn-primary { background: var(--primary); color: white; border-color: var(--primary); }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-sm { padding: 2px 8px; font-size: 0.8rem; }
+    
+    .problem-box {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 12px;
+      font-size: 0.9rem;
+      line-height: 1.6;
+      margin-bottom: 10px;
+      position: relative;
+    }
+    .tex-source {
+      font-family: monospace;
+      font-size: 0.8rem;
+      color: #64748b;
+      background: #f1f5f9;
+      padding: 8px;
+      border-radius: 4px;
+      margin-top: 8px;
+      display: none;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    /* Controls */
+    .control-group { margin-bottom: 12px; }
+    .control-label { display: block; font-size: 0.85rem; color: #64748b; margin-bottom: 4px; }
+    .slider-row { display: flex; align-items: center; gap: 8px; }
+    input[type="range"] { flex: 1; }
+    
+    /* Status & Verify */
+    .status-bar {
+      margin-top: auto;
+      padding: 12px;
+      background: #f8fafc;
+      border-top: 1px solid #e2e8f0;
+      font-size: 0.85rem;
+    }
+    .verify-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 0;
+      border-bottom: 1px dotted #e2e8f0;
+    }
+    .pass { color: var(--secondary); font-weight: bold; }
+    .fail { color: var(--danger); font-weight: bold; }
+
+    .math-container {
+      visibility: hidden; 
+    }
+    .math-container.loaded {
+      visibility: visible;
+    }
+    
+    .step-indicator {
+      font-size: 0.85rem;
+      color: #64748b;
+      margin-bottom: 4px;
+      text-align: center;
+    }
+    
+    /* Highlight styles for list items */
+    .calc-list li {
+        margin-bottom: 6px;
+    }
+    .badge {
+        display: inline-block;
+        padding: 1px 6px;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        font-weight: bold;
+        color: white;
+        margin-right: 6px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Sidebar -->
+  <div id="sidebar">
+    <!-- 1. PROBLEM CARD -->
+    <div class="card">
+      <div class="card-title">
+        题目原题
+        <button class="btn btn-sm" onclick="copyProblem()" aria-label="复制题目TeX">复制</button>
+      </div>
+      <div class="problem-box">
+        <div id="problem-text" class="math-container"></div>
+        <div id="problem-tex" class="tex-source"></div>
+      </div>
+    </div>
+
+    <!-- 2. MODE & CONTROLS -->
+    <div class="card">
+      <div class="control-group">
+        <div class="slider-row">
+          <button class="btn btn-primary" onclick="setMode('guided')" id="btn-guided">引导模式</button>
+          <button class="btn" onclick="setMode('sandbox')" id="btn-sandbox">探索模式</button>
+        </div>
+      </div>
+      
+      <div class="control-group">
+        <label class="control-label">网格显示大小</label>
+        <div class="slider-row">
+          <input type="range" min="20" max="60" value="40" oninput="updateGridSize(this.value)">
+          <span id="grid-size-val">40px</span>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <label class="control-label">显示选项</label>
+        <label style="display:flex; align-items:center; gap:8px; font-size:0.9rem; margin-bottom:6px;">
+          <input type="checkbox" id="chk-answer" onchange="toggleAnswer(this.checked)">
+          显示答案与计算细节
+        </label>
+        <label style="display:flex; align-items:center; gap:8px; font-size:0.9rem;">
+          <input type="checkbox" id="chk-coords" onchange="toggleCoords(this.checked)" checked>
+          显示坐标数值
+        </label>
+      </div>
+    </div>
+
+    <!-- VERIFICATION -->
+    <div class="card">
+      <div class="card-title">
+        验证/自检
+        <span style="font-size:0.8rem; font-weight:normal; color:#64748b">实时监测</span>
+      </div>
+      <div id="verify-list">
+        <!-- Dynamic items -->
+      </div>
+    </div>
+
+    <!-- STATUS -->
+    <div class="status-bar">
+      <div>当前状态: <span id="status-text">就绪</span></div>
+      <div style="font-size:0.8rem; color:#94a3b8; margin-top:4px;">
+        提示: 拖动空白处平移网格，拖动红点调整形状。
+      </div>
+    </div>
+  </div>
+
+  <!-- Stage -->
+  <div id="stage">
+    <!-- TOP GUIDED PANEL -->
+    <div id="guided-top-panel">
+      <div id="guided-content-wrapper">
+        <div class="step-text math-container" id="step-content">
+          <!-- Step content goes here -->
+        </div>
+        <div class="step-actions">
+          <div class="step-indicator">
+            步骤 <span id="step-current">1</span> / <span id="step-total">5</span>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button class="btn" onclick="prevStep()">上一步</button>
+            <button class="btn btn-primary" onclick="nextStep()">下一步</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="canvas-container"></div>
+  </div>
+
+<script>
+// --- 1. STATE & PROBLEM DEFINITION ---
+const PROBLEM = {
+  statementCN: `21. (8 分) 如图，每一个小正方形的边长为 1。
+(1) 画出格点 \\(\\triangle ABC\\) 关于直线 \\(DE\\) 的对称的 \\(\\triangle A'B'C'\\);
+(2) 在 \\(DE\\) 上画出点 \\(P\\)，使 \\(PA + PC\\) 最小;
+(3) 若 \\(AC=5\\), 则点 \\(B\\) 到 \\(AC\\) 所在直线的距离为 \\(\\underline{\\hspace{2em}}\\).`,
+  statementTeX: `21. (8 分) 如图，每一个小正方形的边长为 1。
+(1) 画出格点 \\triangle ABC 关于直线 DE 的对称的 \\triangle A'B'C';
+(2) 在 DE 上画出点 P，使 PA + PC 最小;
+(3) 若 AC=5, 则点 B 到 AC 所在直线的距离为 \\underline{\\hspace{2em}}.`,
+  givens: [
+    { name: "网格边长", val: 1 },
+    { name: "AC长度", val: 5 }
+  ]
+};
+
+const STATE = {
+  mode: 'guided',
+  stepIndex: 0,
+  showAnswer: false,
+  showCoords: true, 
+  gridSize: 40,
+  geo: {
+    A: { x: 5, y: 6 },
+    B: { x: 7, y: 7 }, 
+    C: { x: 8, y: 2 }, 
+    lineX: 9,          
+    P_y: 0             
+  },
+  view: {
+    panX: -100,
+    panY: 0,    
+    lastMouseX: 0,
+    lastMouseY: 0
+  },
+  dragging: null,
+  computed: {},        
+  planSteps: []
+};
+
+// --- 2. SOLVE & LOGIC ---
+function solveGeometry() {
+  const { A, B, C, lineX } = STATE.geo;
+  
+  // Reflection
+  const reflect = (p) => ({ x: 2 * lineX - p.x, y: p.y });
+  const Ap = reflect(A);
+  const Bp = reflect(B);
+  const Cp = reflect(C);
+
+  // Shortest Path P
+  const denom = Cp.x - A.x;
+  let Py = 0;
+  if (Math.abs(denom) > 1e-6) {
+    const m = (Cp.y - A.y) / denom;
+    Py = A.y + m * (lineX - A.x);
+  } else {
+    Py = (A.y + Cp.y) / 2; 
+  }
+
+  // Distance & Area Logic
+  const doubleArea = Math.abs(A.x * (B.y - C.y) + B.x * (C.y - A.y) + C.x * (A.y - B.y));
+  const AC_sq = (C.x - A.x)**2 + (C.y - A.y)**2;
+  const AC_len = Math.sqrt(AC_sq);
+  const distB_AC = AC_len > 1e-6 ? doubleArea / AC_len : 0;
+  
+  // Cut Method Calculation Details
+  const minX = Math.min(A.x, B.x, C.x);
+  const maxX = Math.max(A.x, B.x, C.x);
+  const minY = Math.min(A.y, B.y, C.y);
+  const maxY = Math.max(A.y, B.y, C.y);
+  const width = maxX - minX;
+  const height = maxY - minY;
+  const rectArea = width * height;
+  
+  // S1: Side AC (Assume top-left ish context for standard shape, but calculate strictly)
+  // Actually we need the area of the 3 right triangles outside ABC inside bounding box.
+  // Triangle 1: based on AC. Triangle 2: based on CB. Triangle 3: based on BA.
+  // Area = 0.5 * |dx| * |dy|
+  const s1_w = Math.abs(C.x - A.x);
+  const s1_h = Math.abs(C.y - A.y);
+  const s1_area = 0.5 * s1_w * s1_h;
+  
+  const s2_w = Math.abs(B.x - C.x);
+  const s2_h = Math.abs(B.y - C.y);
+  const s2_area = 0.5 * s2_w * s2_h;
+  
+  const s3_w = Math.abs(A.x - B.x);
+  const s3_h = Math.abs(A.y - B.y);
+  const s3_area = 0.5 * s3_w * s3_h;
+
+  STATE.computed = {
+    Ap, Bp, Cp,
+    P: { x: lineX, y: Py },
+    AC_len,
+    distB_AC,
+    doubleArea,
+    cutMethod: {
+      minX, maxX, minY, maxY, width, height, rectArea,
+      s1: { w: s1_w, h: s1_h, area: s1_area },
+      s2: { w: s2_w, h: s2_h, area: s2_area },
+      s3: { w: s3_w, h: s3_h, area: s3_area }
+    }
+  };
+}
+
+function buildPlanSteps() {
+  const { A, B, C } = STATE.geo;
+  const { cutMethod } = STATE.computed;
+  const { s1, s2, s3, rectArea, width, height } = cutMethod;
+  const ac = STATE.computed.AC_len.toFixed(2);
+  const area = STATE.computed.doubleArea / 2;
+  const d = STATE.computed.distB_AC.toFixed(1);
+  const isAC5 = Math.abs(STATE.computed.AC_len - 5) < 0.1;
+  const dx = Math.abs(C.x - A.x);
+  const dy = Math.abs(C.y - A.y);
+  
+  // Step 1: Symmetry
+  const step1 = {
+    title: "第一问：作对称图形",
+    content: String.raw`
+      <div style="font-weight:600; color:#2563eb; margin-bottom:4px;">第一问：作对称图形</div>
+      <div><strong>方法：</strong>过点 \(A, B, C\) 分别向 \(DE\) 作垂线并延长相同距离。</div>
+    `,
+    showReflections: true, showP: false, showDist: false, showCutMethod: false, showSlopeTriangle: false
+  };
+
+  // Step 2: Shortest Path
+  const step2 = {
+    title: "第二问：将军饮马问题",
+    content: String.raw`
+      <div style="font-weight:600; color:#2563eb; margin-bottom:4px;">第二问：将军饮马 (求 \(PA+PC\) 最小值)</div>
+      <div><strong>原理：</strong>利用对称性，将折线 \(A-P-C\) 转化为直线段 \(A-P-C'\)。</div>
+    `,
+    showReflections: true, showP: true, showDist: false, showCutMethod: false, showSlopeTriangle: false
+  };
+
+  const warningAC = isAC5 ? "" : `<span style='color:#ef4444; font-weight:bold; margin-left:8px;'>(注意：当前 \(AC \approx ${ac} \neq 5\))</span>`;
+
+  // Step 3: Base Calculation (Pythagoras)
+  const step3 = {
+    title: "第三问 (1/3)：求底边 AC",
+    content: String.raw`
+      <div style="font-weight:600; color:#2563eb; margin-bottom:4px;">第一步：勾股定理求底边长 ${warningAC}</div>
+      <div style="font-size:0.95rem; margin-bottom:8px;"><strong>目标：</strong>计算 \(\triangle ABC\) 中 \(AC\) 边的长度。</div>
+      
+      <ul class="calc-list" style="padding-left:10px; list-style:none;">
+        <li>
+            <span class="badge" style="background:#9333ea;">水平</span>
+            \(\Delta x = |x_C - x_A| = |${C.x} - ${A.x}| = \mathbf{${dx}}\)
+        </li>
+        <li>
+            <span class="badge" style="background:#db2777;">垂直</span>
+            \(\Delta y = |y_C - y_A| = |${C.y} - ${A.y}| = \mathbf{${dy}}\)
+        </li>
+      </ul>
+      
+      <div style="background:#f3e8ff; padding:8px; border-radius:4px; border-left:4px solid #9333ea;">
+        <strong>勾股定理：</strong><br>
+        \(AC = \sqrt{\Delta x^2 + \Delta y^2} = \sqrt{${dx}^2 + ${dy}^2} = \sqrt{${dx*dx+dy*dy}} = \mathbf{${parseFloat(ac)}}\)
+      </div>
+    `,
+    showReflections: false, showP: false, showDist: false, showCutMethod: false, showSlopeTriangle: true
+  };
+
+  // Step 4: Area Calculation (Cut Method)
+  const step4 = {
+    title: "第三问 (2/3)：求面积 S",
+    content: String.raw`
+      <div style="font-weight:600; color:#2563eb; margin-bottom:4px;">第二步：割补法求面积</div>
+      <div style="font-size:0.95rem; margin-bottom:8px;"><strong>方法：</strong>外接矩形面积减去三个角的直角三角形。</div>
+      
+      <ul class="calc-list" style="padding-left:10px; list-style:none; font-size:0.9rem;">
+        <li>
+            <span class="badge" style="background:#64748b;">矩形</span>
+            总面积 = \(${width} \times ${height}\) = <strong>${rectArea}</strong>
+        </li>
+        <li>
+            <span class="badge" style="background:#f87171;">S1</span>
+            减左上 = \(\frac{1}{2} \times ${s1.w} \times ${s1.h}\) = ${s1.area}
+        </li>
+        <li>
+            <span class="badge" style="background:#4ade80;">S2</span>
+            减右下 = \(\frac{1}{2} \times ${s2.w} \times ${s2.h}\) = ${s2.area}
+        </li>
+        <li>
+            <span class="badge" style="background:#c084fc;">S3</span>
+            减左下 = \(\frac{1}{2} \times ${s3.w} \times ${s3.h}\) = ${s3.area}
+        </li>
+      </ul>
+      
+      <div style="background:#f0fdf4; padding:8px; border-radius:4px; border-left:4px solid #10b981;">
+        <strong>三角形面积 S</strong> = ${rectArea} - ${s1.area} - ${s2.area} - ${s3.area} = <strong>${area}</strong>
+      </div>
+    `,
+    showReflections: false, showP: false, showDist: false, showCutMethod: true, showSlopeTriangle: false
+  };
+
+  // Step 5: Final Result
+  const step5 = {
+    title: "第三问 (3/3)：最终求高 h (即BM)",
+    content: String.raw`
+      <div style="font-weight:600; color:#2563eb; margin-bottom:4px;">第三步：等面积法求高</div>
+      <div><strong>辅助线说明：</strong>作 \(BM \perp AC\) 于 \(M\)，则 \(BM\) 即为所求距离 \(h\)。</div>
+      
+      <ul class="calc-list" style="padding-left:10px; list-style:none;">
+        <li><strong>底边 AC</strong> = ${parseFloat(ac)} (步骤1结果)</li>
+        <li><strong>面积 S</strong> = ${area} (步骤2结果)</li>
+      </ul>
+      
+      <div style="background:#fff7ed; padding:8px; border-radius:4px; border-left:4px solid #f59e0b;">
+        <strong>公式：</strong> \(S = \frac{1}{2} \cdot AC \cdot BM \implies BM = \frac{2S}{AC}\)<br>
+        <strong>计算：</strong> \(BM = \frac{2 \times ${area}}{${parseFloat(ac)}} = \frac{${area*2}}{${parseFloat(ac)}} = \mathbf{${parseFloat(d)}}\)
+      </div>
+    `,
+    showReflections: false, showP: false, showDist: true, showCutMethod: false, showSlopeTriangle: false
+  };
+
+  STATE.planSteps = [step1, step2, step3, step4, step5];
+}
+
+// --- 3. UI HANDLERS ---
+function initApp() {
+  solveGeometry();
+  buildPlanSteps();
+  renderProblem();
+  updateStepUI();
+  updateVerifyUI();
+  setMode('guided');
+  
+  MathJax.typesetPromise().then(() => {
+    document.querySelectorAll('.math-container').forEach(el => el.classList.add('loaded'));
+  });
+}
+
+function renderProblem() {
+  document.getElementById('problem-text').innerHTML = PROBLEM.statementCN.replace(/\n/g, '<br>');
+  document.getElementById('problem-tex').textContent = PROBLEM.statementTeX;
+}
+
+function copyProblem() {
+  navigator.clipboard.writeText(PROBLEM.statementTeX);
+  const btn = document.querySelector('.card-title .btn');
+  const original = btn.innerText;
+  btn.innerText = "已复制";
+  setTimeout(() => btn.innerText = original, 1500);
+}
+
+function setMode(m) {
+  STATE.mode = m;
+  document.getElementById('btn-guided').className = m === 'guided' ? 'btn btn-primary' : 'btn';
+  document.getElementById('btn-sandbox').className = m === 'sandbox' ? 'btn btn-primary' : 'btn';
+  
+  const panel = document.getElementById('guided-top-panel');
+  panel.style.display = m === 'guided' ? 'block' : 'none';
+}
+
+function updateGridSize(val) {
+  STATE.gridSize = parseInt(val);
+  document.getElementById('grid-size-val').innerText = val + 'px';
+}
+
+function toggleAnswer(checked) {
+  STATE.showAnswer = checked;
+}
+
+function toggleCoords(checked) {
+  STATE.showCoords = checked;
+}
+
+function prevStep() {
+  if (STATE.stepIndex > 0) {
+    STATE.stepIndex--;
+    updateStepUI();
+  }
+}
+
+function nextStep() {
+  if (STATE.stepIndex < STATE.planSteps.length - 1) {
+    STATE.stepIndex++;
+    updateStepUI();
+  }
+}
+
+function updateStepUI() {
+  buildPlanSteps(); 
+  const step = STATE.planSteps[STATE.stepIndex];
+  const container = document.getElementById('step-content');
+  
+  container.innerHTML = step.content;
+  
+  document.getElementById('step-current').innerText = STATE.stepIndex + 1;
+  document.getElementById('step-total').innerText = STATE.planSteps.length;
+  
+  MathJax.typesetPromise([container]);
+}
+
+function updateVerifyUI() {
+  const list = document.getElementById('verify-list');
+  const { AC_len, distB_AC } = STATE.computed;
+  
+  const isAC5 = Math.abs(AC_len - 5) < 0.1;
+  const acStatus = isAC5 ? '<span class="pass">✔ 通过</span>' : `<span class="fail">✘ 偏差 (${AC_len.toFixed(2)})</span>`;
+  const distVal = distB_AC.toFixed(2);
+  
+  list.innerHTML = `
+    <div class="verify-item">
+      <span>条件 \(AC=5\)</span>
+      ${acStatus}
+    </div>
+    <div class="verify-item">
+      <span>计算距离 \(h\)</span>
+      <span style="font-family:monospace; font-weight:bold;">${distVal}</span>
+    </div>
+  `;
+  
+  MathJax.typesetPromise([list]);
+}
+
+// --- 4. P5.JS RENDER LOOP ---
+let canvas;
+
+function setup() {
+  const container = document.getElementById('canvas-container');
+  const w = container.clientWidth;
+  const h = container.clientHeight || window.innerHeight - 150; 
+  canvas = createCanvas(w, h);
+  canvas.parent('canvas-container');
+  canvas.elt.oncontextmenu = () => false;
+  
+  initApp();
+}
+
+function windowResized() {
+  const container = document.getElementById('canvas-container');
+  if (container) {
+    resizeCanvas(container.clientWidth, container.clientHeight || window.innerHeight - 150);
+  }
+}
+
+function draw() {
+  background(255);
+  
+  solveGeometry(); 
+  buildPlanSteps(); 
+  
+  let showReflections, showP, showDist, showCutMethod, showSlopeTriangle;
+  
+  if (STATE.mode === 'sandbox') {
+    showReflections = true;
+    showP = true;
+    showDist = STATE.showAnswer;
+    showCutMethod = false;
+    showSlopeTriangle = false;
+  } else {
+    const step = STATE.planSteps[STATE.stepIndex];
+    showReflections = step ? step.showReflections : false;
+    showP = step ? step.showP : false;
+    showDist = step ? step.showDist : false;
+    showCutMethod = step ? step.showCutMethod : false;
+    showSlopeTriangle = step ? step.showSlopeTriangle : false;
+  }
+
+  const gs = STATE.gridSize;
+  const offsetX = width/2 - 5*gs + STATE.view.panX; 
+  const offsetY = height/2 - 5*gs + STATE.view.panY;
+  const toScreen = (pt) => ({ x: pt.x * gs + offsetX, y: pt.y * gs + offsetY });
+  
+  // 1. Grid
+  stroke(226, 232, 240);
+  strokeWeight(1);
+  const rows = Math.floor((height)/gs);
+  const cols = Math.floor((width)/gs);
+  const startCol = -Math.floor(offsetX/gs);
+  const startRow = -Math.floor(offsetY/gs);
+  textAlign(CENTER, CENTER);
+  textSize(10);
+  for(let i=startCol; i<=startCol+cols+1; i++) {
+    const x = offsetX + i*gs;
+    line(x, 0, x, height);
+    if (i >= 0 && i % 1 === 0) { fill(150); noStroke(); text(i, x, 10); stroke(226, 232, 240); }
+  }
+  for(let j=startRow; j<=startRow+rows+1; j++) {
+    const y = offsetY + j*gs;
+    line(0, y, width, y);
+    if (j >= 0 && j % 1 === 0) { fill(150); noStroke(); text(j, 10, y); stroke(226, 232, 240); }
+  }
+  
+  // 2. Line DE
+  const deX = STATE.geo.lineX * gs + offsetX;
+  stroke(0);
+  strokeWeight(2);
+  line(deX, 0, deX, height);
+  noStroke();
+  fill(0);
+  textSize(14);
+  text("D", deX - 15, 30);
+  text("E", deX - 15, height - 30);
+  fill(200);
+  circle(deX, 40, 10);
+  
+  const A = toScreen(STATE.geo.A);
+  const B = toScreen(STATE.geo.B);
+  const C = toScreen(STATE.geo.C);
+  
+  // CUT METHOD VISUALIZATION (Step 4)
+  if (showCutMethod) {
+    const { minX, maxX, minY, maxY, cutMethod } = STATE.computed;
+    const tl = toScreen({x: minX, y: minY});
+    const br = toScreen({x: maxX, y: maxY});
+    const wRect = br.x - tl.x;
+    const hRect = br.y - tl.y;
+    
+    // Draw Bounding Box (Outer)
+    noFill();
+    stroke(100, 116, 139);
+    strokeWeight(1);
+    drawingContext.setLineDash([5, 5]);
+    rect(tl.x, tl.y, wRect, hRect);
+    drawingContext.setLineDash([]);
+    
+    noStroke();
+    
+    // S1 (AC): Draw triangle A, C, (A.x, C.y)
+    fill(248, 113, 113, 80); // Red
+    triangle(A.x, A.y, C.x, C.y, toScreen({x:STATE.geo.A.x, y:STATE.geo.C.y}).x, toScreen({x:STATE.geo.A.x, y:STATE.geo.C.y}).y);
+    fill(220, 38, 38);
+    text("S1", (A.x+C.x+toScreen({x:STATE.geo.A.x, y:STATE.geo.C.y}).x)/3, (A.y+C.y+toScreen({x:STATE.geo.A.x, y:STATE.geo.C.y}).y)/3);
+    text(cutMethod.s1.w, (A.x+toScreen({x:STATE.geo.A.x, y:STATE.geo.C.y}).x)/2, toScreen({x:STATE.geo.A.x, y:STATE.geo.C.y}).y + 15);
+    text(cutMethod.s1.h, toScreen({x:STATE.geo.A.x, y:STATE.geo.C.y}).x - 15, (A.y+toScreen({x:STATE.geo.A.x, y:STATE.geo.C.y}).y)/2);
+
+    // S2 (CB): Draw triangle C, B, (C.x, B.y)
+    fill(74, 222, 128, 80); // Green
+    triangle(C.x, C.y, B.x, B.y, toScreen({x:STATE.geo.C.x, y:STATE.geo.B.y}).x, toScreen({x:STATE.geo.C.x, y:STATE.geo.B.y}).y);
+    fill(22, 163, 74);
+    text("S2", (C.x+B.x+toScreen({x:STATE.geo.C.x, y:STATE.geo.B.y}).x)/3, (C.y+B.y+toScreen({x:STATE.geo.C.x, y:STATE.geo.B.y}).y)/3);
+    
+    // S3 (BA): Draw triangle B, A, (B.x, A.y)
+    fill(192, 132, 252, 80); // Purple
+    triangle(B.x, B.y, A.x, A.y, toScreen({x:STATE.geo.A.x, y:STATE.geo.B.y}).x, toScreen({x:STATE.geo.A.x, y:STATE.geo.B.y}).y);
+    fill(147, 51, 234);
+    text("S3", (B.x+A.x+toScreen({x:STATE.geo.A.x, y:STATE.geo.B.y}).x)/3, (B.y+A.y+toScreen({x:STATE.geo.A.x, y:STATE.geo.B.y}).y)/3);
+  }
+
+  // 3. Triangle ABC
+  // Fill white if in specific teaching steps to make it stand out from colored bg
+  if (showCutMethod || showSlopeTriangle) {
+    fill(255); noStroke();
+    triangle(A.x, A.y, B.x, B.y, C.x, C.y);
+  }
+  
+  fill(37, 99, 235, 30); 
+  stroke(37, 99, 235);
+  strokeWeight(2);
+  triangle(A.x, A.y, B.x, B.y, C.x, C.y);
+
+  // SLOPE TRIANGLE VISUALIZATION (Step 3) - Moved AFTER triangle to prevent occlusion
+  if (showSlopeTriangle) {
+    const corner = toScreen({ x: STATE.geo.C.x, y: STATE.geo.A.y });
+    
+    // Horizontal dx
+    stroke(147, 51, 234); // Purple
+    strokeWeight(3); // Thicker for visibility
+    drawingContext.setLineDash([5, 5]);
+    line(A.x, A.y, corner.x, corner.y);
+    
+    // Vertical dy
+    stroke(219, 39, 119); // Pink
+    line(C.x, C.y, corner.x, corner.y);
+    drawingContext.setLineDash([]);
+    
+    // Labels
+    noStroke();
+    textSize(14);
+    fill(147, 51, 234);
+    text(STATE.computed.cutMethod.s1.w, (A.x + corner.x)/2, corner.y + 20); // dx
+    
+    fill(219, 39, 119);
+    text(STATE.computed.cutMethod.s1.h, corner.x + 20, (C.y + corner.y)/2); // dy
+    
+    // Right angle symbol
+    stroke(150); strokeWeight(1); noFill();
+    rect(corner.x, corner.y, corner.x > A.x ? -10 : 10, corner.y > C.y ? -10 : 10);
+  }
+  
+  // 4. Reflections
+  if (showReflections) {
+    const Ap = toScreen(STATE.computed.Ap);
+    const Bp = toScreen(STATE.computed.Bp);
+    const Cp = toScreen(STATE.computed.Cp);
+    
+    fill(16, 185, 129, 30);
+    stroke(16, 185, 129);
+    drawingContext.setLineDash([5, 5]);
+    triangle(Ap.x, Ap.y, Bp.x, Bp.y, Cp.x, Cp.y);
+    drawingContext.setLineDash([]);
+    
+    stroke(150);
+    strokeWeight(1);
+    drawingContext.setLineDash([2, 4]);
+    line(A.x, A.y, Ap.x, Ap.y);
+    line(B.x, B.y, Bp.x, Bp.y);
+    line(C.x, C.y, Cp.x, Cp.y);
+    drawingContext.setLineDash([]);
+
+    noStroke();
+    fill(16, 185, 129);
+    drawLabelAndCoord("A'", Ap, STATE.computed.Ap, 10, 0);
+    drawLabelAndCoord("B'", Bp, STATE.computed.Bp, 10, 0);
+    drawLabelAndCoord("C'", Cp, STATE.computed.Cp, 10, -10);
+  }
+
+  // Labels
+  fill(37, 99, 235);
+  noStroke();
+  drawLabelAndCoord("A", A, STATE.geo.A, -20, 0);
+  drawLabelAndCoord("B", B, STATE.geo.B, 10, 0);
+  drawLabelAndCoord("C", C, STATE.geo.C, -10, -10);
+  
+  // 5. P
+  if (showP) {
+    const P = toScreen(STATE.computed.P);
+    const Cp = toScreen(STATE.computed.Cp);
+    stroke(245, 158, 11); strokeWeight(3);
+    line(A.x, A.y, P.x, P.y); line(P.x, P.y, C.x, C.y);
+    stroke(245, 158, 11, 100); strokeWeight(1);
+    line(A.x, A.y, Cp.x, Cp.y);
+    fill(245, 158, 11); noStroke(); circle(P.x, P.y, 8);
+    drawLabelAndCoord("P", P, {x:STATE.computed.P.x, y:STATE.computed.P.y.toFixed(1)}, 10, 20);
+  }
+  
+  // 6. Distance h
+  if (showDist) {
+    const { A: Ag, B: Bg, C: Cg } = STATE.geo;
+    const acX = Cg.x - Ag.x;
+    const acY = Cg.y - Ag.y;
+    const abX = Bg.x - Ag.x;
+    const abY = Bg.y - Ag.y;
+    const t = (abX * acX + abY * acY) / (acX * acX + acY * acY);
+    const projX = Ag.x + t * acX;
+    const projY = Ag.y + t * acY;
+    const Proj = toScreen({x: projX, y: projY});
+    stroke(239, 68, 68); strokeWeight(2); drawingContext.setLineDash([4, 4]);
+    line(B.x, B.y, Proj.x, Proj.y); drawingContext.setLineDash([]);
+    
+    // Label Point M
+    noStroke();
+    fill(239, 68, 68);
+    circle(Proj.x, Proj.y, 6);
+    text("M", Proj.x + 10, Proj.y + 10);
+    
+    // Right Angle at M
+    // Vector AC direction: (C.x-A.x, C.y-A.y) normalized
+    // Or just simple generic right angle mark if not strictly rotated
+    // Let's draw it simple aligned with screen for now or slightly better
+    // Since AC is rotated, drawing a correct right angle needs rotation.
+    // Simplified: visual cue is enough.
+    
+    stroke(30); strokeWeight(3);
+    line(A.x, A.y, C.x, C.y);
+    fill(239, 68, 68); noStroke();
+    text("h", (B.x + Proj.x)/2 + 5, (B.y + Proj.y)/2);
+    if (STATE.showAnswer) {
+      fill(0);
+      text(`S = ${STATE.computed.doubleArea/2}`, (A.x+B.x+C.x)/3, (A.y+B.y+C.y)/3);
+    }
+  }
+
+  drawHandle(A, 'A', STATE.geo.A);
+  drawHandle(B, 'B', STATE.geo.B);
+  drawHandle(C, 'C', STATE.geo.C);
+  
+  if (frameCount % 10 === 0) updateVerifyUI();
+}
+
+function drawLabelAndCoord(label, screenPt, gridPt, offX, offY) {
+  textSize(16);
+  text(label, screenPt.x + offX, screenPt.y + offY);
+  if (STATE.showCoords) {
+    textSize(11); fill(100);
+    text(`(${gridPt.x}, ${gridPt.y})`, screenPt.x + offX, screenPt.y + offY + 14);
+  }
+}
+
+function drawHandle(pos, label, gridPt) {
+  const isHover = dist(mouseX, mouseY, pos.x, pos.y) < 15;
+  const isDragging = STATE.dragging && STATE.dragging.pt === gridPt;
+  if (isHover || isDragging) { fill(255, 0, 0); cursor('pointer'); } else { fill(255); }
+  stroke(255, 0, 0); strokeWeight(2); circle(pos.x, pos.y, 12);
+}
+
+function mousePressed() {
+  const gs = STATE.gridSize;
+  const offsetX = width/2 - 5*gs + STATE.view.panX;
+  const offsetY = height/2 - 5*gs + STATE.view.panY;
+  const deX = STATE.geo.lineX * gs + offsetX;
+  if (dist(mouseX, mouseY, deX, 40) < 20) { STATE.dragging = { type: 'line', offset: mouseX - deX }; return; }
+  const pts = [{ pt: STATE.geo.A }, { pt: STATE.geo.B }, { pt: STATE.geo.C }];
+  for (let p of pts) {
+    const sx = p.pt.x * gs + offsetX; const sy = p.pt.y * gs + offsetY;
+    if (dist(mouseX, mouseY, sx, sy) < 15) { STATE.dragging = p; return; }
+  }
+  STATE.dragging = { type: 'pan', lastX: mouseX, lastY: mouseY }; cursor('grabbing');
+}
+
+function mouseDragged() {
+  if (!STATE.dragging) return;
+  const gs = STATE.gridSize;
+  if (STATE.dragging.type === 'pan') {
+    STATE.view.panX += mouseX - STATE.dragging.lastX; STATE.view.panY += mouseY - STATE.dragging.lastY;
+    STATE.dragging.lastX = mouseX; STATE.dragging.lastY = mouseY; return;
+  }
+  const offsetX = width/2 - 5*gs + STATE.view.panX;
+  const offsetY = height/2 - 5*gs + STATE.view.panY;
+  if (STATE.dragging.type === 'line') {
+    const rawX = (mouseX - offsetX) / gs; const gridX = Math.round(rawX);
+    if (gridX > -5 && gridX < 30) STATE.geo.lineX = gridX;
+  } else {
+    const rawX = (mouseX - offsetX) / gs; const rawY = (mouseY - offsetY) / gs;
+    const gridX = Math.round(rawX); const gridY = Math.round(rawY);
+    if (gridX >= -10 && gridX < 30) STATE.dragging.pt.x = gridX;
+    if (gridY >= -10 && gridY < 30) STATE.dragging.pt.y = gridY;
+  }
+  solveGeometry(); updateVerifyUI();
+}
+
+function mouseReleased() { STATE.dragging = null; cursor('default'); updateStepUI(); }
+</script>
+</body>
+</html>

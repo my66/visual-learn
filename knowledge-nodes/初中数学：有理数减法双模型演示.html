@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>初中数学：有理数减法双模型演示</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <style>
+        :root {
+            --c-pos: #27ae60; /* 绿色：正数/增加 */
+            --c-neg: #c0392b; /* 红色：负数/减少 */
+            --c-neutral: #2c3e50;
+            --bg-balloon: #87CEEB;
+            --bg-debt: #dcdde1;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-balloon);
+            font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            transition: background-color 0.5s;
+        }
+        
+        body.mode-debt { background-color: var(--bg-debt); }
+
+        /* 左侧控制面板 */
+        #controls {
+            width: 320px;
+            background: rgba(255, 255, 255, 0.98);
+            padding: 20px;
+            box-shadow: 2px 0 20px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            z-index: 10;
+        }
+
+        h1 {
+            font-size: 18px;
+            color: #2c3e50;
+            margin: 0 0 10px 0;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #3498db;
+            text-align: center;
+        }
+
+        .mode-switch {
+            display: flex;
+            gap: 5px;
+            background: #e9ecef;
+            padding: 4px;
+            border-radius: 8px;
+        }
+        
+        .mode-btn {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+            background: transparent;
+            color: #666;
+            transition: all 0.2s;
+        }
+        
+        .mode-btn.active {
+            background: #fff;
+            color: #2c3e50;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .btn-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        /* 操作按钮样式优化 */
+        button.op-btn {
+            padding: 15px 10px;
+            border: 2px solid transparent;
+            border-radius: 10px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: bold;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            background: white;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            position: relative;
+            overflow: hidden;
+        }
+
+        button.op-btn:active { transform: scale(0.98); box-shadow: 0 2px 3px rgba(0,0,0,0.05); }
+
+        /* 颜色对应系统 */
+        /* 加正数：绿色加号，绿色数 */
+        .btn-add-pos { border-color: var(--c-pos); color: var(--c-pos); }
+        .btn-add-pos::before { content: ""; position: absolute; top:0; left:0; right:0; height: 4px; background: var(--c-pos); }
+        
+        /* 减正数：红色减号，绿色数 */
+        .btn-sub-pos { border-color: var(--c-neg); color: #888; } 
+        .btn-sub-pos span.math { color: var(--c-pos); } /* 数本身是正的 */
+        .btn-sub-pos::before { content: ""; position: absolute; top:0; left:0; right:0; height: 4px; background: var(--c-neg); }
+
+        /* 加负数：绿色加号，红色数 */
+        .btn-add-neg { border-color: var(--c-pos); color: #888; }
+        .btn-add-neg span.math { color: var(--c-neg); }
+        .btn-add-neg::before { content: ""; position: absolute; top:0; left:0; right:0; height: 4px; background: var(--c-pos); }
+
+        /* 减负数：红色减号，红色数 (核心) */
+        .btn-sub-neg { 
+            grid-column: span 2; 
+            border-color: var(--c-neg); 
+            background: #fff5f5;
+            color: var(--c-neg);
+            font-size: 16px;
+        }
+        .btn-sub-neg span.math { color: var(--c-neg); font-weight: 900; font-size: 18px; }
+        .btn-sub-neg::before { content: ""; position: absolute; top:0; left:0; right:0; height: 4px; background: var(--c-neg); }
+
+        .btn-label { font-size: 12px; color: #666; margin-top: 4px; font-weight: normal; }
+
+        /* 右侧画布区域 */
+        #canvas-wrapper {
+            flex-grow: 1;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* HUD 算式显示 (悬浮在画布上方) */
+        #hud-equation {
+            position: absolute;
+            top: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.9);
+            padding: 15px 40px;
+            border-radius: 50px;
+            font-family: 'Courier New', monospace;
+            font-size: 32px;
+            font-weight: bold;
+            color: #333;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            pointer-events: none;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            z-index: 20;
+            min-width: 300px;
+            justify-content: center;
+            border: 2px solid #fff;
+        }
+        
+        /* 算式内的颜色类 */
+        .math-pos { color: var(--c-pos); }
+        .math-neg { color: var(--c-neg); }
+        .math-op { color: #555; margin: 0 5px; }
+        .math-result { color: #2c3e50; border-bottom: 2px solid #2c3e50; }
+
+        /* 重置按钮 */
+        .reset-btn {
+            margin-top: auto;
+            padding: 15px;
+            background: #95a5a6;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .reset-btn:hover { background: #7f8c8d; }
+
+    </style>
+</head>
+<body class="mode-balloon">
+
+    <div id="controls">
+        <h1>🔢 有理数运算可视化</h1>
+        
+        <div class="mode-switch">
+            <button class="mode-btn active" onclick="switchMode('balloon')">🎈 热气球模式</button>
+            <button class="mode-btn" onclick="switchMode('debt')">💰 资产负债模式</button>
+        </div>
+
+        <div style="flex:1; display:flex; flex-direction:column; justify-content:center;">
+            <div class="btn-grid">
+                <!-- 减去负数 (核心) -->
+                <button class="op-btn btn-sub-neg" id="btn-sub-neg" onclick="operate('-', -2)">
+                    <div><span class="math">- (-2)</span></div>
+                    <span class="btn-label" id="label-sub-neg">剪断沙袋 -> 负负得正</span>
+                </button>
+
+                <!-- 加上正数 -->
+                <button class="op-btn btn-add-pos" id="btn-add-pos" onclick="operate('+', 2)">
+                    <div><span class="math">+ (+2)</span></div>
+                    <span class="btn-label" id="label-add-pos">增加气球</span>
+                </button>
+                
+                <!-- 减去正数 -->
+                <button class="op-btn btn-sub-pos" id="btn-sub-pos" onclick="operate('-', 2)">
+                    <div><span class="math">- (+2)</span></div>
+                    <span class="btn-label" id="label-sub-pos">气球破了</span>
+                </button>
+
+                <!-- 加上负数 -->
+                <button class="op-btn btn-add-neg" id="btn-add-neg" onclick="operate('+', -2)">
+                    <div><span class="math">+ (-2)</span></div>
+                    <span class="btn-label" id="label-add-neg">增加沙袋</span>
+                </button>
+            </div>
+        </div>
+        
+        <div style="font-size:12px; color:#666; text-align:center; line-height:1.5;">
+            观察颜色对应关系：<br>
+            <span style="color:var(--c-pos)">绿色 = 正数/气球/金币</span><br>
+            <span style="color:var(--c-neg)">红色 = 负数/沙袋/欠条</span>
+        </div>
+
+        <button class="reset-btn" onclick="resetSim()">🔄 重置 (Reset)</button>
+    </div>
+
+    <div id="canvas-wrapper">
+        <div id="hud-equation">
+            <span id="eq-content">Start: 0</span>
+        </div>
+        <div id="canvas-container"></div>
+    </div>
+
+    <script>
+        // --- 核心状态 ---
+        let mode = 'balloon'; 
+        let currentVal = 0;
+        let targetVal = 0;
+        let items = []; // {type: 'pos'|'neg', x, y, state: 'idle'|'removed'}
+        
+        // p5.js 变量
+        let cloudPos = [];
+        let camY = 0; // 简单的摄像机垂直偏移
+
+        function setup() {
+            let canvas = createCanvas(windowWidth - 320, windowHeight);
+            canvas.parent('canvas-container');
+            
+            // 初始化云朵
+            for(let i=0; i<8; i++) cloudPos.push({x: random(width), y: random(-height, height), s: random(0.5, 1.5)});
+            
+            initGame();
+            updateEquationHUD(0); // 初始显示
+        }
+
+        function windowResized() {
+            resizeCanvas(windowWidth - 320, windowHeight);
+        }
+
+        function initGame() {
+            currentVal = 0;
+            targetVal = 0;
+            items = [];
+            
+            // 初始平衡状态：2正2负
+            // 这样演示“减去”时有东西可减
+            addItem('pos'); addItem('pos');
+            addItem('neg'); addItem('neg');
+        }
+
+        function switchMode(m) {
+            mode = m;
+            document.body.className = mode === 'balloon' ? 'mode-balloon' : 'mode-debt';
+            
+            // 更新按钮激活态
+            document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // 更新文案
+            if (mode === 'balloon') {
+                document.getElementById('label-sub-neg').innerText = "剪断沙袋 (减去负重)";
+                document.getElementById('label-add-pos').innerText = "增加气球 (增加拉力)";
+                document.getElementById('label-sub-pos').innerText = "气球破了 (减少拉力)";
+                document.getElementById('label-add-neg').innerText = "增加沙袋 (增加负重)";
+            } else {
+                document.getElementById('label-sub-neg').innerText = "免除债务 (撕掉欠条)";
+                document.getElementById('label-add-pos').innerText = "赚取金币 (增加资产)";
+                document.getElementById('label-sub-pos').innerText = "消费金币 (减少资产)";
+                document.getElementById('label-add-neg').innerText = "签下欠条 (增加负债)";
+            }
+            
+            resetSim();
+        }
+
+        function resetSim() {
+            initGame();
+            updateEquationHUD(0);
+        }
+
+        // --- 核心逻辑 ---
+
+        function operate(op, num) {
+            let oldVal = targetVal;
+            let change = (op === '+') ? num : -num;
+            targetVal += change;
+
+            // 1. 更新 HUD 算式 (Process Display)
+            updateEquationHUD(oldVal, op, num);
+
+            // 2. 触发视觉变化
+            // 逻辑：如果是减法，尝试移除现有物体；如果是加法，添加新物体
+            // 为了简化演示，如果减法但没有对应物体，我们先添加一个“幽灵”然后移除，或者只做数值变化
+            // 这里为了视觉效果，确保尽量操作现有物体
+            
+            let typeNeeded = (num > 0) ? 'pos' : 'neg'; // 数字本身的性质
+            
+            if (op === '+') {
+                // 加法：增加物体
+                addItem(typeNeeded, true); // true = animate entry
+            } else {
+                // 减法：移除物体
+                let targets = items.filter(i => i.type === typeNeeded && i.state === 'idle');
+                if (targets.length > 0) {
+                    targets[0].state = 'removed';
+                    targets[0].removeTimer = 0;
+                } else {
+                    // 场景中没有该物体？生成一个然后立刻移除（为了逻辑自洽）
+                    // 比如 0 - (+2)，没正数。先假设有一个正数被抵消了。
+                    // 简单起见，我们直接添加一个处于 'removed' 状态的物体演示离场
+                    let it = addItem(typeNeeded);
+                    it.state = 'removed';
+                    it.removeTimer = 0;
+                }
+            }
+        }
+
+        function addItem(type, animateEntry = false) {
+            let it = {
+                type: type,
+                id: random(1000),
+                // 随机分布在物体周围
+                ox: random(-40, 40), 
+                oy: type === 'pos' ? random(-60, -100) : random(60, 100),
+                state: 'idle',
+                scale: animateEntry ? 0 : 1
+            };
+            items.push(it);
+            return it;
+        }
+
+        function updateEquationHUD(start, op, num) {
+            let el = document.getElementById('hud-equation');
+            
+            if (op === undefined) {
+                // 初始状态
+                el.innerHTML = `<span class="math-result">${start}</span>`;
+                return;
+            }
+
+            // 构造带颜色的算式 HTML
+            // 1. Start Value
+            let html = `<span>${start}</span>`;
+            
+            // 2. Operator
+            // 减号用红色，加号用绿色，增强暗示
+            let opColor = (op === '-') ? 'var(--c-neg)' : 'var(--c-pos)';
+            html += `<span class="math-op" style="color:${opColor}; font-weight:bold;">${op}</span>`;
+            
+            // 3. Number (Operand)
+            let numColor = (num > 0) ? 'var(--c-pos)' : 'var(--c-neg)';
+            let numText = num > 0 ? `(+${Math.abs(num)})` : `(-${Math.abs(num)})`;
+            html += `<span style="color:${numColor}; font-weight:bold;">${numText}</span>`;
+            
+            // 4. Result (delayed show?) -> No, immediate feedback is better for equation logic
+            // But visually updating the 'Start' value later.
+            // Let's show:  0 - (-2) = 2
+            
+            let result = start + ((op === '+') ? num : -num);
+            html += `<span> = </span><span class="math-result">${result}</span>`;
+            
+            el.innerHTML = html;
+        }
+
+        // --- 绘制循环 ---
+
+        function draw() {
+            // 平滑数值
+            currentVal = lerp(currentVal, targetVal, 0.1);
+            
+            // 背景
+            if (mode === 'balloon') {
+                background(135, 206, 235);
+                drawClouds();
+                drawRuler('m');
+            } else {
+                background(220);
+                drawRuler('$');
+            }
+
+            // 计算物体中心位置
+            // 气球模式：值越大，Y越小（往上飞）
+            // 负债模式：值越大，Y越小（水位线升高/存钱罐变高代表财富积累？）
+            // 统一：屏幕中心为 0。每单位 30px。
+            let centerY = height / 2;
+            let objY = centerY - (currentVal * 30);
+            
+            // 摄像机跟随（如果飞太高）
+            let targetCamY = (height/2) - objY;
+            camY = lerp(camY, targetCamY, 0.05);
+            
+            push();
+            translate(width/2, objY + camY * 0.5); // 0.5 dampening for camera
+            
+            if (mode === 'balloon') drawBalloonObj();
+            else drawDebtObj();
+
+            pop();
+        }
+
+        function drawBalloonObj() {
+            // 绘制气球主体
+            fill(255, 100, 50);
+            stroke(0); strokeWeight(2);
+            // 简单的气球形状
+            ellipse(0, -40, 90, 100);
+            line(0, 10, -20, 50); // 绳子
+            line(0, 10, 20, 50);
+            
+            // 吊篮
+            fill(139, 69, 19);
+            rect(-25, 50, 50, 40);
+            
+            // 随动数值显示 (HUD on object)
+            fill(255); noStroke();
+            textAlign(CENTER, CENTER);
+            textSize(16); textStyle(BOLD);
+            text(Math.round(currentVal), 0, 70);
+            textSize(10); text("高度", 0, 85);
+
+            drawItems('balloon');
+        }
+
+        function drawDebtObj() {
+            // 绘制存钱罐
+            fill(255, 192, 203); // Pink
+            stroke(0); strokeWeight(2);
+            ellipse(0, 0, 120, 90); // Body
+            ellipse(-50, -20, 30, 30); // Ear
+            
+            // 眼睛
+            fill(0); ellipse(-30, -10, 5, 5);
+            
+            // 随动数值显示
+            fill(0); noStroke();
+            textAlign(CENTER, CENTER);
+            textSize(20); textStyle(BOLD);
+            text("$" + Math.round(currentVal), 0, 5);
+            textSize(10); text("资产", 0, 25);
+
+            drawItems('debt');
+        }
+
+        function drawItems(theme) {
+            for (let i = items.length - 1; i >= 0; i--) {
+                let it = items[i];
+                
+                // 动画逻辑
+                if (it.state === 'removed') {
+                    it.removeTimer = (it.removeTimer || 0) + 1;
+                    it.oy += 5; // 下落
+                    it.scale = max(0, 1 - it.removeTimer * 0.05); // 缩小消失
+                    if (it.removeTimer > 60) {
+                        items.splice(i, 1);
+                        continue;
+                    }
+                } else if (it.scale < 1) {
+                    it.scale += 0.1; // Entry animation
+                }
+
+                push();
+                translate(it.ox, it.oy);
+                scale(it.scale);
+                
+                // 画线连接
+                if (it.state === 'idle') {
+                    stroke(100); strokeWeight(1);
+                    // 连接点
+                    let anchorY = (theme === 'balloon') ? 50 : 0; 
+                    line(0, 0, -it.ox, anchorY - it.oy);
+                }
+
+                if (theme === 'balloon') {
+                    if (it.type === 'pos') {
+                        // 绿色小气球
+                        fill(39, 174, 96); stroke(30); strokeWeight(1);
+                        ellipse(0, -15, 25, 30);
+                        fill(255); noStroke(); textSize(12); text("+1", -6, -12);
+                    } else {
+                        // 红色沙袋
+                        fill(192, 57, 43); stroke(30); strokeWeight(1);
+                        rect(-10, 0, 20, 25);
+                        fill(255); noStroke(); textSize(12); text("-1", -5, 17);
+                    }
+                } else {
+                    if (it.type === 'pos') {
+                        // 金币
+                        fill(241, 196, 15); stroke(211, 84, 0); strokeWeight(2);
+                        ellipse(0, 0, 30, 30);
+                        fill(150, 100, 0); noStroke(); textSize(14); text("$", -4, 5);
+                    } else {
+                        // 红色欠条
+                        fill(255, 230, 230); stroke(192, 57, 43); strokeWeight(1);
+                        rect(-15, -10, 30, 20);
+                        fill(192, 57, 43); noStroke(); textSize(10); text("欠", -5, 4);
+                        // 撕裂效果
+                        if (it.state === 'removed') {
+                            stroke(0); line(-15, -10, 15, 10);
+                        }
+                    }
+                }
+                pop();
+            }
+        }
+
+        function drawClouds() {
+            noStroke(); fill(255, 255, 255, 180);
+            for(let c of cloudPos) {
+                // Parallax scroll
+                let y = c.y + camY * 0.2; 
+                // wrap around
+                if (y > height) y -= height * 2;
+                if (y < -height) y += height * 2;
+                ellipse(c.x, y, 60*c.s, 40*c.s);
+            }
+        }
+
+        function drawRuler(unit) {
+            // Draw a static ruler on the right
+            let rx = width - 40;
+            stroke(0, 50); strokeWeight(2);
+            line(rx, 0, rx, height);
+            
+            // We need to draw ticks based on camera position
+            // World Y = 0 is center of screen when camY = 0
+            // World Y at screen Y:  screenY = worldY + height/2 + camY*0.5
+            // So worldY = screenY - height/2 - camY*0.5
+            
+            // Iterate visible range
+            let centerWorldY = -camY * 0.5;
+            let startVal = Math.floor((centerWorldY - height/2) / -30) - 2;
+            let endVal = Math.floor((centerWorldY + height/2) / -30) + 2;
+            
+            textAlign(RIGHT, CENTER); textSize(12); fill(100); noStroke();
+            
+            for(let v = startVal; v >= endVal; v--) {
+                let y = (height/2) - (v * 30) + camY * 0.5;
+                
+                stroke(0, 50);
+                line(rx-5, y, rx+5, y);
+                if (v === 0) {
+                    stroke(0, 100); strokeWeight(2);
+                    line(rx-10, y, rx+10, y);
+                }
+                noStroke();
+                text(v + unit, rx-10, y);
+            }
+        }
+    </script>
+</body>
+</html>
