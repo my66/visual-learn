@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>坐标的本质：看不见的关系网</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { margin: 0; padding: 0; overflow: hidden; background-color: #f8fafc; font-family: "Noto Sans SC", system-ui, sans-serif; }
+    /* 侧边栏与布局 */
+    #sidebar {
+      position: absolute; left: 0; top: 0; bottom: 0; width: 380px;
+      background: white; border-right: 1px solid #e2e8f0; overflow-y: auto; z-index: 20;
+      display: flex; flex-direction: column; shadow: 4px 0 24px rgba(0,0,0,0.05);
+    }
+    #canvas-container {
+      position: absolute; left: 380px; top: 0; right: 0; bottom: 0;
+      background: #f1f5f9; overflow: hidden; touch-action: none;
+    }
+    /* 引导层 Overlay - 已调整位置到右侧 */
+    #guided-overlay {
+      position: absolute; 
+      top: 20px; 
+      right: 40px; /* 改为靠右，避开左侧Y轴 */
+      left: auto; 
+      transform: none;
+      width: 420px; /* 稍微调窄 */
+      max-height: 80vh;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(8px);
+      border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+      border: 1px solid rgba(255,255,255,0.5);
+      z-index: 30; display: flex; flex-direction: column;
+      transition: opacity 0.3s ease;
+    }
+    .overlay-header {
+      padding: 16px; border-bottom: 1px solid #f1f5f9;
+      display: flex; justify-content: space-between; align-items: center;
+      background: #fff; border-radius: 12px 12px 0 0;
+    }
+    .overlay-body {
+      padding: 20px; overflow-y: auto; font-size: 15px; line-height: 1.6; color: #334155;
+    }
+    /* 组件样式 */
+    .btn {
+      padding: 8px 16px; border-radius: 6px; font-weight: 500; cursor: pointer;
+      transition: all 0.2s; border: 1px solid #cbd5e1; background: white; color: #475569;
+    }
+    .btn:hover { background: #f8fafc; border-color: #94a3b8; }
+    .btn-primary { background: #3b82f6; color: white; border: none; }
+    .btn-primary:hover { background: #2563eb; }
+    .card { background: #fff; border-radius: 8px; border: 1px solid #e2e8f0; padding: 12px; margin-bottom: 12px; }
+    .status-bar {
+      position: absolute; bottom: 0; left: 0; right: 0; height: 32px;
+      background: #1e293b; color: #94a3b8; font-size: 12px;
+      display: flex; align-items: center; padding: 0 16px; z-index: 40;
+    }
+    /* MathJax 隐藏 */
+    .tex-container { visibility: hidden; min-height: 1.2em; }
+    
+    /* 场景切换 Tab */
+    .scene-tab {
+      flex: 1; text-align: center; padding: 8px; font-size: 13px; cursor: pointer;
+      border-bottom: 2px solid transparent; color: #64748b;
+    }
+    .scene-tab.active {
+      border-bottom-color: #3b82f6; color: #3b82f6; font-weight: bold; background: #eff6ff;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 侧边栏 -->
+  <div id="sidebar">
+    <!-- 题目/概念卡片 -->
+    <div class="p-4 border-b border-gray-100 bg-white sticky top-0 z-10">
+      <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+        <span class="text-xl">📈</span> 坐标的本质
+      </h2>
+      <div class="mt-2 text-sm text-slate-600 bg-slate-50 p-3 rounded border border-slate-200">
+        <div class="font-semibold mb-1">核心概念：</div>
+        <div id="problem-text">
+          坐标系不仅仅是地图上的“位置”，它更是记录<strong>两个变量之间关系</strong>的工具。
+          <br>
+          通过横轴（X）和纵轴（Y），我们可以把看不见的“变化规律”画成看得见的“线”。
+        </div>
+        <button onclick="copyProblem()" class="mt-2 text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1">
+          <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+          复制概念定义
+        </button>
+      </div>
+    </div>
+
+    <!-- 模式切换 -->
+    <div class="flex border-b border-gray-200">
+      <div id="tab-guided" class="w-1/2 p-3 text-center cursor-pointer font-bold border-b-2 border-blue-500 text-blue-600 bg-blue-50" onclick="setMode('guided')">
+        📚 引导学习模式
+      </div>
+      <div id="tab-sandbox" class="w-1/2 p-3 text-center cursor-pointer font-bold text-gray-500 hover:bg-gray-50" onclick="setMode('sandbox')">
+        🛠️ 自由探索模式
+      </div>
+    </div>
+
+    <!-- 场景选择 (仅沙盒模式) -->
+    <div id="sandbox-controls" class="hidden p-4">
+      <div class="text-xs font-bold text-slate-400 uppercase mb-2 tracking-wider">选择生活场景</div>
+      <div class="flex border rounded-lg overflow-hidden mb-4">
+        <div class="scene-tab active" onclick="switchScene(0)">🌡️ 温度变化</div>
+        <div class="scene-tab" onclick="switchScene(1)">💃 跳舞轨迹</div>
+        <div class="scene-tab" onclick="switchScene(2)">🍎 苹果价格</div>
+        <div class="scene-tab" onclick="switchScene(3)">🧠 记忆遗忘</div>
+      </div>
+    </div>
+
+    <!-- 动态控制区 -->
+    <div class="flex-1 p-4 space-y-4 overflow-y-auto">
+      
+      <!-- 播放控制 -->
+      <div class="card space-y-3">
+        <div class="flex justify-between items-center mb-1">
+          <span class="font-bold text-sm text-slate-700">时间/变量控制器</span>
+          <span id="var-val-display" class="text-xs font-mono bg-slate-100 px-2 py-1 rounded">X = 0</span>
+        </div>
+        <input type="range" id="main-slider" min="0" max="100" value="0" step="0.5" class="w-full accent-blue-600 cursor-pointer">
+        <div class="flex gap-2">
+          <button onclick="togglePlay()" id="play-btn" class="btn btn-primary flex-1 flex justify-center items-center gap-2">
+            <span>▶</span> 自动演示
+          </button>
+          <button onclick="resetSim()" class="btn flex-1">↺ 重置</button>
+        </div>
+      </div>
+
+      <!-- 验证/观察面板 -->
+      <div class="card bg-slate-50 border-slate-200">
+        <div class="flex justify-between items-center border-b border-slate-200 pb-2 mb-2">
+          <span class="font-bold text-sm text-slate-700">🔍 观察记录</span>
+          <div id="verify-badge" class="px-2 py-0.5 rounded-full text-xs font-bold bg-gray-200 text-gray-500">待观察</div>
+        </div>
+        <div id="observation-text" class="text-sm text-slate-600 space-y-2">
+          移动滑块或点击播放，观察左侧“现实”与右侧“图像”的对应关系。
+        </div>
+      </div>
+
+      <!-- 常见错误 -->
+      <div id="misconception-box" class="hidden card border-l-4 border-orange-400 bg-orange-50">
+        <div class="flex items-center justify-between">
+          <h4 class="font-bold text-sm text-orange-800">⚠️ 常见思维误区</h4>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="error-toggle" class="sr-only peer" onchange="updateState()">
+            <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-orange-500"></div>
+          </label>
+        </div>
+        <p class="text-xs text-orange-700 mt-1" id="misconception-text">
+          有些同学会以为图像越高代表“跑得越远”，其实这里是代表...
+        </p>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 主画布 -->
+  <div id="canvas-container"></div>
+
+  <!-- 引导模式叠加层 -->
+  <div id="guided-overlay" class="hidden">
+    <div class="overlay-header">
+      <div class="flex items-center gap-3">
+        <span class="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-bold">步骤 <span id="step-count">1/8</span></span>
+        <h3 id="step-title" class="font-bold text-slate-800 text-base">准备开始</h3>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="prevStep()" id="btn-prev" class="btn text-xs px-3 py-1" disabled>上一步</button>
+        <button onclick="nextStep()" id="btn-next" class="btn btn-primary text-xs px-3 py-1">下一步</button>
+      </div>
+    </div>
+    <div class="overlay-body">
+      <div id="step-reasoning" class="mb-4"></div>
+      <div id="step-math" class="tex-container bg-blue-50 p-3 rounded border border-blue-100 text-slate-700 text-center"></div>
+    </div>
+  </div>
+
+  <!-- 状态栏 -->
+  <div class="status-bar">
+    <div id="status-msg">准备就绪</div>
+    <div class="flex-1"></div>
+    <div class="flex gap-4">
+      <span title="滚轮缩放，右键平移">🖱️ 视图操作：平移/缩放</span>
+    </div>
+  </div>
+
+<script>
+/**
+ * MathPhysics Engine v3.1.5
+ * Core: p5.js (Logic-First) + MathJax
+ */
+
+// ==========================================
+// 1. STATE & CONSTANTS
+// ==========================================
+const STATE = {
+  mode: 'guided', // 'guided' | 'sandbox'
+  sceneIndex: 0,  // 0:Temp, 1:Dance, 2:Shop, 3:Memory
+  sliderVal: 0,   // 0.0 to 100.0 (abstract progress)
+  isPlaying: false,
+  stepIndex: 0,
+  view: { scale: 1.0, offsetX: 0, offsetY: 0, isDragging: false, lastX: 0, lastY: 0 },
+  misconceptionActive: false,
+  problem: {
+    statementCN: "坐标的本质：将两个相关的量（如时间与温度、数量与价格）映射为平面上的点，从而揭示变量间的函数关系。",
+    statementTeX: String.raw`P(x, y) \leftrightarrow (Independent, Dependent)`
+  }
+};
+
+// 场景配置定义
+const SCENES = [
+  {
+    id: 'temp',
+    name: '时间与温度',
+    xLabel: '时间 (小时)',
+    yLabel: '温度 (°C)',
+    xRange: [0, 24],
+    yRange: [0, 40],
+    color: '#ef4444', // Red
+    icon: '🌡️',
+    // 模拟一天气温：凌晨低，午后高，深夜降
+    func: (x) => {
+      // x in 0..24
+      // Base 20, amplitude 10, peak at 14:00
+      let t = (x - 14) / 24 * Math.PI * 2;
+      return 20 + 10 * Math.cos(t) - 5 * Math.cos(2*t); // 稍微复杂一点的曲线
+    },
+    xToSlider: (x) => (x / 24) * 100,
+    sliderToX: (s) => (s / 100) * 24,
+    desc: "X轴代表时间流逝，Y轴代表温度高低。这是一条连续的曲线。"
+  },
+  {
+    id: 'dance',
+    name: '跳舞高度',
+    xLabel: '时间 (秒)',
+    yLabel: '高度 (cm)',
+    xRange: [0, 10],
+    yRange: [0, 150],
+    color: '#8b5cf6', // Purple
+    icon: '💃',
+    // 模拟跳跃：一系列抛物线
+    func: (x) => {
+      // x in 0..10
+      let cycle = x % 2; // 2秒一跳
+      if (cycle < 1) { // 跳跃阶段
+        // 0..1 -> parabola 0..100..0
+        let t = cycle - 0.5;
+        return 120 * (0.25 - t*t) * 4; 
+      }
+      return 0; // 站立阶段
+    },
+    xToSlider: (x) => (x / 10) * 100,
+    sliderToX: (s) => (s / 100) * 10,
+    desc: "记录这一刻离地多高。曲线的起伏就是你跳跃的轨迹。"
+  },
+  {
+    id: 'shop',
+    name: '苹果价格',
+    xLabel: '数量 (个)',
+    yLabel: '总价 (元)',
+    xRange: [0, 20],
+    yRange: [0, 100],
+    color: '#f97316', // Orange
+    icon: '🍎',
+    discrete: true, // 离散点
+    // 线性关系：单价 4元
+    func: (x) => 4 * Math.round(x), 
+    xToSlider: (x) => (x / 20) * 100,
+    sliderToX: (s) => (s / 100) * 20,
+    desc: "这里没有时间流逝。X轴是买了几个，Y轴是要付多少钱。这是一组离散的点。"
+  },
+  {
+    id: 'memory',
+    name: '遗忘曲线',
+    xLabel: '学习后天数 (天)',
+    yLabel: '记忆留存率 (%)',
+    xRange: [0, 7],
+    yRange: [0, 100],
+    color: '#3b82f6', // Blue
+    icon: '🧠',
+    // 艾宾浩斯遗忘曲线近似
+    func: (x) => {
+      // y = 100 * (1 / (1+x)^0.6) 类似衰减
+      // 0天=100%, 1天=50%, 7天=20%
+      return 100 / (1 + x * 0.8);
+    },
+    xToSlider: (x) => (x / 7) * 100,
+    sliderToX: (s) => (s / 100) * 7,
+    desc: "抽象关系：记忆会随时间“溜走”。曲线下降得很快，所以要及时复习！"
+  }
+];
+
+// 引导步骤 (Logic-First Teaching)
+const PLAN_STEPS = [
+  {
+    titleCN: "只有一个数的时候",
+    reasoningCN: "在没有坐标系之前，我们只有一根“尺子”（数轴）。比如，只看<b>温度计</b>，我们只能知道“现在的温度”是多少，但不知道过去发生了什么。",
+    formulasTeX: [String.raw`T = 20^{\circ}\text{C}`],
+    sceneIdx: 0,
+    focus: 'y-axis-only',
+    checkItem: "观察左边温度计的变化"
+  },
+  {
+    titleCN: "引入记录员：时间轴",
+    reasoningCN: "为了记录“温度随时间的变化”，我们需要第二把尺子——<b>时间轴（X轴）</b>。想象一下，每过一小时，我们就在纸上点一个点。",
+    formulasTeX: [String.raw`\text{Point} = (t, T)`],
+    sceneIdx: 0,
+    focus: 'axes-intro',
+    checkItem: "理解横轴代表时间的流逝"
+  },
+  {
+    titleCN: "点动成线",
+    reasoningCN: "当我们把每一刻的点都画出来，无数个点就连成了一条<b>曲线</b>。这条线就是这一整天的“温度故事”。",
+    formulasTeX: [String.raw`T = f(t)`],
+    sceneIdx: 0,
+    focus: 'trace-curve',
+    checkItem: "拖动滑块，看曲线如何生成"
+  },
+  {
+    titleCN: "另一场故事：跳舞",
+    reasoningCN: "坐标不只可以记温度，还可以记动作。这里X轴还是时间，但Y轴变成了<b>高度</b>。试着跳一跳！",
+    formulasTeX: [String.raw`h = f(t)`],
+    sceneIdx: 1,
+    focus: 'motion-trace',
+    checkItem: "观察波浪线代表跳起和落下"
+  },
+  {
+    titleCN: "如果没有时间呢？",
+    reasoningCN: "坐标系必须要有时间吗？<b>不一定！</b>看看这个苹果摊。X轴是苹果数量，Y轴是总价。这里没有时间流逝，只有“数量”和“价格”的对应关系。",
+    formulasTeX: [String.raw`y = k \cdot x`],
+    sceneIdx: 2,
+    focus: 'discrete-points',
+    checkItem: "注意这里是分开的点，不是连线"
+  },
+  {
+    titleCN: "看不见的“遗忘”",
+    reasoningCN: "有些东西看不见，也能用坐标画出来。比如<b>记忆</b>。X轴是“学完后过了几天”，Y轴是“还记得多少”。你会发现曲线一开始掉得特别快（从100%掉到40%），所以刚学完时复习最重要！",
+    formulasTeX: [String.raw`R = \frac{100}{1+kt}`],
+    sceneIdx: 3,
+    focus: 'abstract-curve',
+    checkItem: "观察记忆是如何随时间流失的"
+  },
+  {
+    titleCN: "常见误区：是路程吗？",
+    reasoningCN: "很多同学看到波浪线，以为是小人<b>走过的路（地形图）</b>。这是不对的！在跳舞的例子里，小人只在原地上下跳，波浪线是因为时间（X轴）在不断向右走。",
+    formulasTeX: [String.raw`\text{Graph} \neq \text{Map}`],
+    sceneIdx: 1,
+    focus: 'misconception',
+    checkItem: "开启“错误对比”看看区别"
+  },
+  {
+    titleCN: "总结：坐标的本质",
+    reasoningCN: "无论X和Y是什么，坐标系的核心就是：<b>用平面上的一个点，同时锁定了两个信息</b>。它让我们一眼就能看清两个变量之间是怎么互相影响的。",
+    formulasTeX: [String.raw`(x, y) \rightarrow \text{Relation}`],
+    sceneIdx: 0,
+    focus: 'summary',
+    checkItem: "自由探索不同场景"
+  }
+];
+
+// ==========================================
+// 2. VIEW TRANSFORM HELPER
+// ==========================================
+class ViewTransform {
+  static toWorld(screenX, screenY, width, height) {
+    return { x: screenX, y: screenY }; 
+  }
+}
+
+// ==========================================
+// 3. P5.JS ENGINE
+// ==========================================
+let canvas;
+
+function setup() {
+  const container = document.getElementById('canvas-container');
+  canvas = createCanvas(container.offsetWidth, container.offsetHeight);
+  canvas.parent('canvas-container');
+  
+  // 绑定事件到 Canvas 元素
+  canvas.elt.addEventListener('wheel', handleWheel, { passive: false });
+  canvas.elt.addEventListener('pointerdown', handlePointerDown);
+  canvas.elt.addEventListener('pointermove', handlePointerMove);
+  canvas.elt.addEventListener('pointerup', handlePointerUp);
+  
+  textFont("Noto Sans SC");
+  updateOverlay();
+}
+
+function windowResized() {
+  const container = document.getElementById('canvas-container');
+  resizeCanvas(container.offsetWidth, container.offsetHeight);
+}
+
+function draw() {
+  background(241, 245, 249); // slate-100
+  
+  const scene = SCENES[STATE.sceneIndex];
+  
+  // Layout parameters
+  // UPDATED: Increased margin for better spacing
+  const margin = 80;
+  const w = width;
+  const h = height;
+  
+  // Split Screen Layout
+  // Left: Reality (30%), Right: Graph (70%)
+  const splitX = w * 0.35;
+  
+  // 1. Draw Reality (Left Side)
+  drawRealityPane(0, 0, splitX, h, scene);
+  
+  // 2. Draw Graph (Right Side)
+  // Map xRange -> [splitX + margin, w - margin]
+  // Map yRange -> [h - margin, margin]
+  const graphRect = {
+    x: splitX + margin,
+    y: margin,
+    w: w - splitX - margin * 2,
+    h: h - margin * 2
+  };
+  
+  drawGraphPane(graphRect, scene);
+  
+  // Animation loop logic
+  if (STATE.isPlaying) {
+    STATE.sliderVal += 0.5; // Speed
+    if (STATE.sliderVal > 100) {
+      STATE.sliderVal = 0;
+    }
+    // Update slider UI
+    document.getElementById('main-slider').value = STATE.sliderVal;
+    updateStatus();
+  }
+}
+
+// --- Drawing Helpers ---
+
+function drawRealityPane(x, y, w, h, scene) {
+  push();
+  translate(x, y);
+  
+  // Background
+  fill(255);
+  noStroke();
+  rect(10, 10, w - 20, h - 20, 12);
+  
+  // Title
+  fill(50);
+  textSize(16);
+  textAlign(CENTER, TOP);
+  text("现实世界 / 实验台", w/2, 25);
+  
+  // Dynamic Value
+  let currentX = scene.sliderToX(STATE.sliderVal);
+  let currentY = scene.func(currentX);
+  
+  // Scene Specific Visuals
+  translate(w/2, h/2); // Center of reality pane
+  
+  if (scene.id === 'temp') {
+    // Thermometer & Sun/Moon
+    drawThermometer(currentY, scene.yRange);
+    drawTimeIcon(currentX); // Sun/Moon based on hour
+  } else if (scene.id === 'dance') {
+    // Dancer
+    drawDancer(currentY);
+  } else if (scene.id === 'shop') {
+    // Apple Basket
+    drawBasket(currentX, currentY);
+  } else if (scene.id === 'memory') {
+    // Brain
+    drawBrain(currentX, currentY);
+  }
+  
+  pop();
+}
+
+function drawGraphPane(rect, scene) {
+  const {x, y, w, h} = rect;
+  
+  push();
+  translate(x, y);
+  
+  // 1. Grid & Axes
+  drawAxes(w, h, scene);
+  
+  // 2. Curve / Points
+  noFill();
+  stroke(scene.color);
+  strokeWeight(3);
+  
+  let currentXVal = scene.sliderToX(STATE.sliderVal);
+  
+  if (scene.discrete) {
+    // Discrete dots
+    for (let i = scene.xRange[0]; i <= scene.xRange[1]; i++) {
+      let px = map(i, scene.xRange[0], scene.xRange[1], 0, w);
+      let py = map(scene.func(i), scene.yRange[0], scene.yRange[1], h, 0);
+      
+      if (i <= currentXVal) {
+        fill(scene.color);
+        noStroke();
+        circle(px, py, 8);
+        
+        // Connect to axis if it's the current one
+        if (Math.abs(i - Math.round(currentXVal)) < 0.1) {
+          drawGuideLines(px, py, w, h, scene.color);
+        }
+      } else {
+        // Ghost future points
+        fill(200);
+        noStroke();
+        circle(px, py, 4);
+      }
+    }
+  } else {
+    // Continuous Curve
+    beginShape();
+    let step = (scene.xRange[1] - scene.xRange[0]) / 100;
+    for (let val = scene.xRange[0]; val <= currentXVal; val += step) {
+      let px = map(val, scene.xRange[0], scene.xRange[1], 0, w);
+      let py = map(scene.func(val), scene.yRange[0], scene.yRange[1], h, 0);
+      vertex(px, py);
+    }
+    // Ensure the very tip is accurate
+    let tipX = map(currentXVal, scene.xRange[0], scene.xRange[1], 0, w);
+    let tipY = map(scene.func(currentXVal), scene.yRange[0], scene.yRange[1], h, 0);
+    vertex(tipX, tipY);
+    endShape();
+    
+    // Draw Current Point
+    fill(scene.color);
+    noStroke();
+    circle(tipX, tipY, 10);
+    drawGuideLines(tipX, tipY, w, h, scene.color);
+    
+    // Misconception: "Path" (Ghost of the dancer moving right)
+    if (STATE.misconceptionActive && scene.id === 'dance') {
+      stroke(150);
+      strokeWeight(1);
+      drawingContext.setLineDash([5, 5]);
+      line(0, tipY, w, tipY); // Pure horizontal level
+      noStroke();
+      fill(100);
+      textSize(12);
+      text("误区：小人没有往右跑！往右跑的是时间。", tipX + 10, tipY - 10);
+      drawingContext.setLineDash([]);
+    }
+  }
+
+  // Label Current Coordinate
+  let valY = scene.func(currentXVal);
+  fill(50);
+  noStroke();
+  textSize(14);
+  textAlign(LEFT, BOTTOM);
+  text(`(${currentXVal.toFixed(1)}, ${valY.toFixed(1)})`, 10, -10);
+  
+  pop();
+}
+
+function drawAxes(w, h, scene) {
+  stroke(203, 213, 225); // slate-300
+  strokeWeight(1);
+  fill(100, 116, 139); // slate-500
+  textSize(10);
+  
+  // Grid & Labels
+  // X Grid
+  let xSteps = 6;
+  for(let i=0; i<=xSteps; i++) {
+    let x = map(i, 0, xSteps, 0, w);
+    line(x, 0, x, h);
+    
+    // X Axis Numeric Labels
+    noStroke();
+    textAlign(CENTER, TOP);
+    let val = map(i, 0, xSteps, scene.xRange[0], scene.xRange[1]);
+    text(Math.round(val), x, h + 5);
+    stroke(203, 213, 225);
+  }
+  
+  // Y Grid
+  let ySteps = 5;
+  for(let i=0; i<=ySteps; i++) {
+    let y = map(i, 0, ySteps, h, 0);
+    line(0, y, w, y);
+    
+    // Y Axis Numeric Labels
+    noStroke();
+    textAlign(RIGHT, CENTER);
+    let val = map(i, 0, ySteps, scene.yRange[0], scene.yRange[1]);
+    text(Math.round(val), -5, y);
+    stroke(203, 213, 225);
+  }
+  
+  // Main Axes
+  stroke(51, 65, 85); // slate-700
+  strokeWeight(2);
+  line(0, h, w, h); // X Axis
+  line(0, 0, 0, h); // Y Axis
+  
+  // Axis Names Labels
+  fill(71, 85, 105);
+  noStroke();
+  textSize(12);
+  
+  // X Label Name
+  textAlign(RIGHT, TOP);
+  text(scene.xLabel, w, h + 20);
+  
+  // Y Label Name
+  textAlign(LEFT, BOTTOM);
+  push();
+  translate(-30, 0); // Move left a bit more to avoid overlap with numbers
+  rotate(-HALF_PI);
+  text(scene.yLabel, 0, 0);
+  pop();
+}
+
+function drawGuideLines(x, y, w, h, col) {
+  stroke(col);
+  strokeWeight(1);
+  drawingContext.setLineDash([4, 4]);
+  line(x, h, x, y); // Vertical to X
+  line(0, y, x, y); // Horizontal to Y
+  drawingContext.setLineDash([]);
+  
+  // Axis ticks highlights
+  fill(col);
+  noStroke();
+  // On X axis
+  triangle(x, h, x-3, h+5, x+3, h+5);
+  // On Y axis
+  triangle(0, y, -5, y-3, -5, y+3);
+}
+
+// --- Specific Scene Drawers ---
+
+function drawThermometer(temp, range) {
+  // Simple Thermometer
+  let h = 150;
+  let w = 20;
+  let fillH = map(temp, range[0], range[1], 0, h);
+  
+  fill(220);
+  rect(-w/2, -h/2, w, h, 10);
+  fill(239, 68, 68);
+  rect(-w/2 + 2, h/2 - fillH, w - 4, fillH, 8);
+  
+  fill(50);
+  textAlign(CENTER);
+  text(`${temp.toFixed(1)}°C`, 0, h/2 + 20);
+}
+
+function drawTimeIcon(hour) {
+  let isNight = hour < 6 || hour > 18;
+  textSize(40);
+  textAlign(CENTER, CENTER);
+  text(isNight ? '🌙' : '☀️', 0, -100);
+  textSize(16);
+  text(`${Math.floor(hour)}:00`, 0, -130);
+}
+
+function drawDancer(heightVal) {
+  // Ground
+  stroke(100);
+  line(-50, 80, 50, 80);
+  
+  // Dancer
+  let yPos = 80 - heightVal; 
+  
+  textSize(60);
+  textAlign(CENTER, BOTTOM);
+  text('💃', 0, yPos);
+  
+  // Shadow
+  if (heightVal > 0) {
+    noStroke();
+    fill(0, 0, 0, 50 - heightVal/3);
+    ellipse(0, 80, 40 - heightVal/5, 10);
+  }
+}
+
+function drawBasket(count, price) {
+  textSize(60);
+  textAlign(CENTER, CENTER);
+  text('🧺', 0, 20);
+  
+  // Draw apples inside?
+  let num = Math.round(count);
+  textSize(20);
+  for(let i=0; i<num; i++) {
+    // pile them up
+    let row = Math.floor(i/4);
+    let col = i % 4;
+    text('🍎', (col-1.5)*15, 20 - row*15);
+  }
+  
+  fill(50);
+  textSize(16);
+  text(`${num} 个`, 0, 60);
+  fill(234, 88, 12);
+  text(`总价: ¥${price}`, 0, 80);
+}
+
+function drawBrain(days, retention) {
+  textSize(80);
+  textAlign(CENTER, CENTER);
+  
+  // Brain Emoji state based on retention
+  let emoji = '🧠'; 
+  // Fading effect visual
+  let alphaVal = map(retention, 0, 100, 50, 255);
+  
+  fill(0, 0, 0, alphaVal);
+  text(emoji, 0, 0);
+  
+  // Overlay "fading" if retention is low
+  if (retention < 50) {
+     textSize(30);
+     text('❓', 30, -30);
+  }
+  
+  textSize(14);
+  fill(50);
+  text(`过了: ${days.toFixed(1)} 天`, 0, 60);
+  
+  // Color code retention
+  if (retention > 80) fill(22, 163, 74); // Green
+  else if (retention > 40) fill(234, 179, 8); // Yellow
+  else fill(220, 38, 38); // Red
+  
+  text(`还记得: ${retention.toFixed(1)}%`, 0, 80);
+}
+
+// ==========================================
+// 4. INTERACTION & DOM
+// ==========================================
+
+function updateStatus() {
+  const scene = SCENES[STATE.sceneIndex];
+  const x = scene.sliderToX(STATE.sliderVal);
+  const y = scene.func(x);
+  
+  document.getElementById('var-val-display').innerText = `X = ${x.toFixed(1)}`;
+  
+  // Update verification badge
+  const badge = document.getElementById('verify-badge');
+  if (scene.discrete && Math.abs(x - Math.round(x)) > 0.1) {
+    badge.innerText = "非整数点";
+    badge.className = "px-2 py-0.5 rounded-full text-xs font-bold bg-yellow-100 text-yellow-700";
+  } else {
+    badge.innerText = "数据有效";
+    badge.className = "px-2 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-700";
+  }
+}
+
+// Slider Input
+document.getElementById('main-slider').addEventListener('input', (e) => {
+  STATE.sliderVal = parseFloat(e.target.value);
+  STATE.isPlaying = false; // Stop auto-play on manual interact
+  updateStatus();
+});
+
+// Scene Switching
+function switchScene(idx) {
+  STATE.sceneIndex = idx;
+  STATE.sliderVal = 0;
+  STATE.isPlaying = false;
+  STATE.misconceptionActive = false;
+  document.getElementById('main-slider').value = 0;
+  document.getElementById('error-toggle').checked = false;
+  
+  // Update Tab UI
+  document.querySelectorAll('.scene-tab').forEach((el, i) => {
+    if(i === idx) el.classList.add('active');
+    else el.classList.remove('active');
+  });
+  
+  // Update misconception toggle visibility
+  const box = document.getElementById('misconception-box');
+  if (SCENES[idx].id === 'dance') {
+    box.classList.remove('hidden');
+  } else {
+    box.classList.add('hidden');
+  }
+
+  // Update Description
+  document.getElementById('observation-text').innerText = SCENES[idx].desc;
+  
+  updateStatus();
+}
+
+// Mode Switching
+function setMode(mode) {
+  STATE.mode = mode;
+  document.getElementById('tab-guided').className = mode === 'guided' ? 
+    "w-1/2 p-3 text-center cursor-pointer font-bold border-b-2 border-blue-500 text-blue-600 bg-blue-50" :
+    "w-1/2 p-3 text-center cursor-pointer font-bold text-gray-500 hover:bg-gray-50";
+  document.getElementById('tab-sandbox').className = mode === 'sandbox' ? 
+    "w-1/2 p-3 text-center cursor-pointer font-bold border-b-2 border-blue-500 text-blue-600 bg-blue-50" :
+    "w-1/2 p-3 text-center cursor-pointer font-bold text-gray-500 hover:bg-gray-50";
+
+  if (mode === 'guided') {
+    document.getElementById('guided-overlay').classList.remove('hidden');
+    document.getElementById('sandbox-controls').classList.add('hidden');
+    STATE.stepIndex = 0;
+    loadStep(0);
+  } else {
+    document.getElementById('guided-overlay').classList.add('hidden');
+    document.getElementById('sandbox-controls').classList.remove('hidden');
+    switchScene(STATE.sceneIndex); // Refresh
+  }
+}
+
+// Guided Step Logic
+function loadStep(idx) {
+  if (idx < 0 || idx >= PLAN_STEPS.length) return;
+  STATE.stepIndex = idx;
+  const step = PLAN_STEPS[idx];
+  
+  // Set UI
+  document.getElementById('step-count').innerText = `${idx + 1}/${PLAN_STEPS.length}`;
+  document.getElementById('step-title').innerText = step.titleCN;
+  document.getElementById('step-reasoning').innerHTML = step.reasoningCN;
+  
+  // MathJax
+  const mathEl = document.getElementById('step-math');
+  mathEl.style.visibility = 'hidden';
+  mathEl.innerText = `\\[ ${step.formulasTeX.join(' \\] \\[ ')} \\]`;
+  MathJax.typesetPromise([mathEl]).then(() => {
+    mathEl.style.visibility = 'visible';
+  });
+
+  // Buttons
+  document.getElementById('btn-prev').disabled = idx === 0;
+  document.getElementById('btn-next').innerText = idx === PLAN_STEPS.length - 1 ? "完成" : "下一步";
+  
+  // Execute Step State
+  if (step.sceneIdx !== undefined) {
+    switchScene(step.sceneIdx); // Auto switch scene
+  }
+  
+  // Step specific interactions
+  if (step.focus === 'trace-curve') {
+    STATE.isPlaying = true;
+  } else {
+    STATE.isPlaying = false;
+  }
+  
+  if (step.focus === 'misconception') {
+    STATE.misconceptionActive = true;
+    document.getElementById('misconception-box').classList.remove('hidden');
+    document.getElementById('error-toggle').checked = true;
+  } else {
+    STATE.misconceptionActive = false;
+    document.getElementById('error-toggle').checked = false;
+  }
+}
+
+function nextStep() {
+  if (STATE.stepIndex < PLAN_STEPS.length - 1) loadStep(STATE.stepIndex + 1);
+}
+function prevStep() {
+  if (STATE.stepIndex > 0) loadStep(STATE.stepIndex - 1);
+}
+
+// Playback
+function togglePlay() {
+  STATE.isPlaying = !STATE.isPlaying;
+  document.getElementById('play-btn').innerHTML = STATE.isPlaying ? "<span>||</span> 暂停" : "<span>▶</span> 自动演示";
+}
+
+function resetSim() {
+  STATE.sliderVal = 0;
+  STATE.isPlaying = false;
+  document.getElementById('main-slider').value = 0;
+  document.getElementById('play-btn').innerHTML = "<span>▶</span> 自动演示";
+  updateStatus();
+}
+
+function updateOverlay() {
+  // Can be used to sync overlay position if needed, currently CSS handled
+}
+
+function updateState() {
+  STATE.misconceptionActive = document.getElementById('error-toggle').checked;
+}
+
+function copyProblem() {
+  const text = document.getElementById('problem-text').innerText;
+  navigator.clipboard.writeText(text).then(() => {
+    alert("概念定义已复制！");
+  });
+}
+
+function handleWheel(e) { e.preventDefault(); }
+function handlePointerDown(e) {}
+function handlePointerMove(e) {}
+function handlePointerUp(e) {}
+
+// Init
+setMode('guided');
+
+</script>
+</body>
+</html>
