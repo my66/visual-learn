@@ -1,0 +1,1068 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>初中数学：负号处理的17个常见坑 - 互动可视化 (校准版)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --secondary: #475569;
+            --accent: #ef4444;
+            --success: #22c55e;
+            --bg-sidebar: #f8fafc;
+            --bg-canvas: #ffffff;
+            --text-main: #1e293b;
+            --border: #e2e8f0;
+        }
+        body { margin: 0; padding: 0; display: flex; height: 100vh; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; overflow: hidden; color: var(--text-main); }
+        
+        /* Sidebar */
+        #sidebar { width: 380px; background: var(--bg-sidebar); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow-y: auto; z-index: 20; box-shadow: 2px 0 5px rgba(0,0,0,0.05); }
+        .sidebar-header { padding: 15px; background: #fff; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 30; }
+        .sidebar-content { padding: 15px; flex: 1; }
+        
+        /* Components */
+        .card { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .card-title { font-weight: 600; font-size: 14px; margin-bottom: 8px; color: var(--secondary); display: flex; justify-content: space-between; align-items: center; }
+        .btn { background: var(--primary); color: #fff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; transition: all 0.2s; }
+        .btn:hover { background: #1d4ed8; }
+        .btn-outline { background: transparent; border: 1px solid var(--primary); color: var(--primary); }
+        .btn-outline:hover { background: #eff6ff; }
+        .btn-group { display: flex; gap: 8px; margin-bottom: 10px; }
+        .btn-sm { padding: 4px 8px; font-size: 12px; }
+        
+        select { width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--border); margin-bottom: 10px; font-size: 14px; }
+        
+        /* Canvas Stage */
+        #stage-container { flex: 1; position: relative; background: var(--bg-canvas); overflow: hidden; display: flex; flex-direction: column; }
+        #canvas-overlay { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 800px; pointer-events: none; display: flex; flex-direction: column; gap: 10px; z-index: 10; max-height: 85vh; }
+        
+        /* Overlay Cards */
+        .info-panel { 
+            background: rgba(255,255,255,0.96); 
+            backdrop-filter: blur(5px); 
+            padding: 16px 24px;
+            border-radius: 12px; 
+            border: 1px solid rgba(0,0,0,0.08); 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08); 
+            pointer-events: auto; 
+            transition: opacity 0.3s; 
+            overflow-y: auto; 
+            flex-shrink: 0; 
+        }
+        .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 2px solid var(--primary); padding-bottom: 5px; }
+        .panel-title { font-size: 20px; font-weight: bold; color: var(--primary); }
+        
+        .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 12px; }
+        .compare-box { padding: 10px; border-radius: 6px; }
+        .box-wrong { background: #fef2f2; border: 1px solid #fecaca; }
+        .box-correct { background: #f0fdf4; border: 1px solid #bbf7d0; }
+        .box-label { font-weight: bold; font-size: 13px; margin-bottom: 4px; display: block; }
+        .wrong-text { color: var(--accent); text-decoration: line-through; opacity: 0.8; font-size: 18px; }
+        .correct-text { color: var(--success); font-weight: bold; font-size: 18px; }
+        
+        .rule-block { 
+            background: #eff6ff; 
+            border-left: 4px solid var(--primary); 
+            padding: 10px 14px; 
+            margin-bottom: 10px; 
+            font-size: 16px; 
+            line-height: 1.6; 
+        }
+        .check-tip { 
+            font-size: 15px;
+            color: var(--secondary); 
+            display: flex; 
+            align-items: flex-start; 
+            gap: 8px; 
+            margin-top: 8px; 
+            line-height: 1.5;
+        }
+        .check-icon { color: var(--primary); font-weight: bold; font-size: 18px; }
+
+        .practice-area { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border); }
+        .input-group { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
+        .practice-input { padding: 8px; border: 1px solid var(--border); border-radius: 4px; flex: 1; font-family: monospace; font-size: 18px; }
+        .feedback-msg { font-size: 15px; margin-top: 6px; min-height: 22px; font-weight: 500; }
+        .feedback-success { color: var(--success); }
+        .feedback-error { color: var(--accent); }
+
+        #p5-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        .math-tex { visibility: hidden; }
+        .hidden { display: none !important; }
+        
+        .verify-table { width: 100%; font-size: 12px; border-collapse: collapse; margin-top: 8px; }
+        .verify-table th, .verify-table td { border: 1px solid var(--border); padding: 4px; text-align: center; }
+        .verify-table th { background: #f1f5f9; }
+        .val-wrong { color: var(--accent); font-weight: bold; }
+        .val-correct { color: var(--success); font-weight: bold; }
+        .val-vars { font-family: monospace; color: var(--secondary); margin-bottom:4px; display:block; font-size: 11px; }
+
+        .ineq-group { display: flex; gap: 8px; background: #f1f5f9; padding: 4px; border-radius: 4px; margin-right: 5px; }
+        .ineq-label { font-family: monospace; font-weight: bold; cursor: pointer; padding: 2px 6px; border-radius: 4px; font-size: 16px; }
+        .ineq-label:hover { background: #e2e8f0; }
+        input[type="radio"]:checked + span { color: var(--primary); text-decoration: underline; }
+    </style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<div id="sidebar">
+    <div class="card sidebar-header">
+        <div class="card-title">题目原题 (可复制)</div>
+        <div id="problem-text" style="font-size:14px; line-height:1.5; color:#334155; user-select:text;">
+            初中数学：负号处理的17个常见易错点。<br>
+            目标：通过对比错误与正确写法，建立符号敏感度。
+        </div>
+        <button class="btn btn-sm btn-outline" style="margin-top:8px;" onclick="copyProblem()">复制题面</button>
+    </div>
+
+    <div class="sidebar-content">
+        <div class="card">
+            <div class="card-title">坑点选择</div>
+            <select id="topic-select" onchange="app.setTopic(parseInt(this.value))"></select>
+            <div class="btn-group">
+                <button class="btn btn-sm" onclick="app.prevTopic()">上一条</button>
+                <button class="btn btn-sm" onclick="app.nextTopic()">下一条</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">教学模式</div>
+            <div class="btn-group" style="width:100%">
+                <button id="mode-teach" class="btn btn-sm" style="flex:1" onclick="app.setMode('teach')">讲解模式</button>
+                <button id="mode-practice" class="btn btn-sm btn-outline" style="flex:1" onclick="app.setMode('practice')">练习模式</button>
+            </div>
+            <div style="margin-top:10px;">
+                <label style="display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer;">
+                    <input type="checkbox" id="check-wrong" checked onchange="app.toggleWrong(this.checked)"> 显示错误示例
+                </label>
+                <label style="display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer; margin-top:6px;">
+                    <input type="checkbox" id="check-answer" onchange="app.toggleAnswer(this.checked)"> 显示参考答案
+                </label>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">验证 / 自检</div>
+            <p style="font-size:12px; color:#64748b; margin:0 0 8px 0;">系统生成随机整数代入计算，自动寻找反例。</p>
+            <button class="btn btn-sm btn-outline" onclick="app.runVerification()">代入真随机数值验算</button>
+            <div id="verify-result" style="margin-top:8px;"></div>
+        </div>
+        
+        <div class="card">
+            <div class="card-title">状态栏</div>
+            <div id="status-bar" style="font-size:12px; color:var(--secondary);">就绪</div>
+        </div>
+    </div>
+</div>
+
+<!-- MAIN STAGE -->
+<div id="stage-container">
+    <div id="p5-canvas"></div> 
+    
+    <!-- DOM Overlay -->
+    <div id="canvas-overlay">
+        <!-- Teach Panel -->
+        <div id="teach-panel" class="info-panel">
+            <div class="panel-header">
+                <span id="topic-title" class="panel-title">1. 括号前负号</span>
+                <span id="topic-index" style="font-size:12px; background:#e2e8f0; padding:2px 6px; border-radius:4px;">1/17</span>
+            </div>
+
+            <div class="rule-block">
+                <strong>规则：</strong> <span id="topic-reason">负号像“炸弹”，炸开括号时，括号内每一项都要变号。</span>
+            </div>
+
+            <div class="compare-grid" id="compare-area">
+                <div class="compare-box box-wrong" id="wrong-box">
+                    <span class="box-label" style="color:var(--accent)">❌ 常见错误</span>
+                    <div id="wrong-tex" class="math-tex wrong-text"></div>
+                </div>
+                <div class="compare-box box-correct">
+                    <span class="box-label" style="color:var(--success)">✅ 正确写法</span>
+                    <div id="correct-tex" class="math-tex correct-text"></div>
+                </div>
+            </div>
+
+            <div class="check-tip">
+                <span class="check-icon">👁️</span>
+                <span><strong>一眼检查法：</strong> <span id="topic-check">数项数：括号里有几项，去括号后就有几项，且符号全部相反。</span></span>
+            </div>
+        </div>
+
+        <!-- Practice Panel -->
+        <div id="practice-panel" class="info-panel" style="margin-top: auto;">
+            <div class="panel-header" style="margin-bottom:10px; border-bottom:1px solid #e2e8f0;">
+                <span class="panel-title" id="practice-header" style="font-size:18px;">计算练习</span>
+                <button class="btn btn-sm" onclick="app.generatePractice()">随机一题</button>
+            </div>
+            <div id="practice-question" style="font-size:18px; margin-bottom:10px;">题目加载中...</div>
+            
+            <div class="input-group" id="input-container">
+                <!-- 动态注入不等式选择器 -->
+                <span style="font-weight:bold; margin-right:5px; font-size: 18px;" id="eq-sign">=</span>
+                <input type="text" id="practice-input" class="practice-input" placeholder="输入数值或分数(如 -1/8)" onkeydown="if(event.key==='Enter') app.checkPractice()">
+                <button class="btn" onclick="app.checkPractice()">提交</button>
+            </div>
+            <div id="practice-feedback" class="feedback-msg"></div>
+            
+            <div id="practice-answer-box" class="hidden" style="margin-top:10px; padding:10px; background:#f8fafc; border-radius:4px;">
+                <div style="font-size:14px; color:#64748b;">参考答案：</div>
+                <div id="practice-answer-num" style="font-weight:bold; font-family:monospace; font-size: 16px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+/**
+ * 随机数生成器 (非零整数)
+ */
+function getRandomNonZero(min, max) {
+    let val = 0;
+    while (val === 0) {
+        val = Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+    return val;
+}
+
+/**
+ * 分数解析器
+ */
+function parseUserNumber(str) {
+    if (!str) return NaN;
+    str = str.replace(/\s/g, '');
+    if (/^[-+]?\d+\/[-+]?\d+$/.test(str)) {
+        const parts = str.split('/');
+        const num = parseFloat(parts[0]);
+        const den = parseFloat(parts[1]);
+        if (den === 0) return NaN;
+        return num / den;
+    }
+    return parseFloat(str);
+}
+
+/**
+ * 核心数据：17个坑点定义
+ */
+const TOPICS = [
+    {
+        id: 1, title: "括号前有负号：分配符号",
+        exerciseVerb: "化简求值",
+        wrong: "-(a+b) = -a+b", correct: "-(a+b) = -a-b",
+        reason: "负号表示“取相反数”，它对括号内**每一项**都生效。",
+        check: "数项数：原括号里有几项，去括号后每项的符号都要变。",
+        sampleVars: () => ({ a: getRandomNonZero(-5, 5), b: getRandomNonZero(-5, 5) }),
+        verifyFn: (v) => ({ left: -(v.a+v.b), wrong: -v.a+v.b, correct: -v.a-v.b }),
+        genPractice: () => {
+            const isBasic = Math.random() < 0.7; 
+            const a = getRandomNonZero(-5, 5);
+            const b = getRandomNonZero(-5, 5);
+            if (isBasic) {
+                return { q: `\\text{当 } a=${a}, b=${b} \\text{ 时，计算 } -(a - b)`, ans: -(a-b) };
+            } else {
+                const k = getRandomNonZero(2, 5);
+                return { q: `\\text{当 } a=${a}, b=${b} \\text{ 时，计算 } -(${k}a - b)`, ans: -(k*a-b) };
+            }
+        },
+        visType: 'distributive' 
+    },
+    {
+        id: 2, title: "把减号当负号：a-(...)",
+        exerciseVerb: "化简求值",
+        wrong: "a-(b+c) = a-b+c", correct: "a-(b+c) = a-b-c",
+        reason: "减号后面跟着括号，等同于加上括号的相反数，括号内每一项都要变号。",
+        check: "减号后的括号，看作 -1 乘进去。",
+        sampleVars: () => ({ a: getRandomNonZero(-5, 5), b: getRandomNonZero(-5, 5), c: getRandomNonZero(1, 5) }),
+        verifyFn: (v) => ({ left: v.a-(v.b+v.c), wrong: v.a-v.b+v.c, correct: v.a-v.b-v.c }),
+        genPractice: () => {
+            const x = getRandomNonZero(-5, 5);
+            const y = getRandomNonZero(-5, 5);
+            const k = getRandomNonZero(2, 9);
+            return {
+                q: `\\text{当 } x=${x}, y=${y} \\text{ 时，计算 } x-(y-${k})`,
+                ans: x - (y - k)
+            };
+        },
+        visType: 'distributive_sub'
+    },
+    {
+        id: 3, title: "幂运算优先级：-a^2 vs (-a)^2",
+        exerciseVerb: "计算",
+        wrong: "-a^2 = (-a)^2", correct: "-a^2 = -(a^2)",
+        reason: "优先级：**乘方 > 负号**。\\(-a^2\\) 是先平方再取负；\\((-a)^2\\) 是连负号一起平方。",
+        check: "看负号在不在括号里。不在括号里，最后算。",
+        sampleVars: () => ({ a: getRandomNonZero(2, 5) }),
+        verifyFn: (v) => ({ left: -Math.pow(v.a,2), wrong: Math.pow(-v.a,2), correct: -Math.pow(v.a,2) }),
+        genPractice: () => {
+            const base = getRandomNonZero(2, 6);
+            const isBracket = Math.random() > 0.5;
+            if (isBracket) {
+                return { q: `(-${base})^2`, ans: base*base };
+            } else {
+                return { q: `-${base}^2`, ans: -(base*base) };
+            }
+        },
+        visType: 'priority_stairs'
+    },
+    {
+        id: 4, title: "平方里的负号 vs 括号外负号",
+        exerciseVerb: "化简求值",
+        wrong: "-(a+b)^2 = (-a-b)^2", correct: "-(a+b)^2 \\neq (-a-b)^2",
+        reason: "<strong>内部负号</strong>平方后消除；<br><strong>外部负号</strong>不参与平方。<br>对比：\\((-a-b)^2=(a+b)^2\\) (正)，而 \\(-(a+b)^2\\) (负)。",
+        check: "看负号位置：在平方挂钩里（变正），还是在挂钩外（保留负）。",
+        sampleVars: () => ({ a: getRandomNonZero(-3, 3), b: getRandomNonZero(-3, 3) }),
+        // P0-1 修复: 统一语义 left=原式(负), wrong=错误理解(正), correct=正确值(负)
+        verifyHeaders: ["原式 -(a+b)²", "错误 (-a-b)²", "正确 -(a+b)²"],
+        verifyFn: (v) => {
+            const s = v.a + v.b;
+            const correctVal = -(s*s);
+            const wrongVal = s*s; // (-a-b)^2 = (-(a+b))^2 = (a+b)^2
+            return { 
+                left: correctVal, 
+                wrong: wrongVal, 
+                correct: correctVal,
+                note: "原式是负的，错误式是正的"
+            };
+        },
+        genPractice: () => {
+            const x = getRandomNonZero(-3, 3);
+            const y = getRandomNonZero(-3, 3);
+            const type = Math.random() > 0.5 ? 'inner' : 'outer';
+            if (type === 'inner') {
+                return { q: `\\text{当 } x=${x}, y=${y} \\text{ 时，计算 } (-x-y)^2`, ans: Math.pow(-x-y, 2) };
+            } else {
+                return { q: `\\text{当 } x=${x}, y=${y} \\text{ 时，计算 } -(x+y)^2`, ans: -Math.pow(x+y, 2) };
+            }
+        },
+        visType: 'square_neg'
+    },
+    {
+        id: 5, title: "奇偶次幂的符号",
+        exerciseVerb: "计算",
+        wrong: "(-2)^3 = 8", correct: "(-2)^3 = -8",
+        reason: "负数的**偶次幂是正数**，**奇次幂是负数**。",
+        check: "看指数：奇负偶正。",
+        // P1 限制: 底数为正，指数区分奇偶
+        sampleVars: () => ({ base: getRandomNonZero(2,4), exp: getRandomNonZero(3,5) }),
+        verifyFn: (v) => ({ left: Math.pow(-v.base, v.exp), wrong: Math.pow(v.base, v.exp), correct: Math.pow(-v.base, v.exp) }),
+        genPractice: () => {
+            const base = getRandomNonZero(2, 4);
+            const exp = getRandomNonZero(2, 4);
+            const sign = exp % 2 === 0 ? 1 : -1;
+            return { q: `(-${base})^${exp}`, ans: Math.pow(base, exp) * sign };
+        },
+        visType: 'odd_even'
+    },
+    {
+        id: 6, title: "乘除里的负号：符号法则",
+        exerciseVerb: "计算",
+        wrong: "(-2) \\times (-3) = -6", correct: "(-2) \\times (-3) = 6",
+        reason: "负负得正，异号得负。",
+        check: "数负号的个数：偶数个负号结果为正，奇数个为负。",
+        sampleVars: () => ({ a: getRandomNonZero(-5, 5), b: getRandomNonZero(-5, 5) }),
+        verifyFn: (v) => ({ left: (-v.a)*(-v.b), wrong: -(v.a*v.b), correct: v.a*v.b }),
+        genPractice: () => {
+            const a = getRandomNonZero(-5, 5);
+            const b = getRandomNonZero(-5, 5);
+            return { q: `(${a}) \\times (${b})`, ans: a*b };
+        },
+        visType: 'signs_count'
+    },
+    {
+        id: 7, title: "分数负号位置",
+        exerciseVerb: "判断求值",
+        wrong: "-\\frac{a}{b} = \\frac{-a}{-b}", correct: "-\\frac{a}{b} = \\frac{-a}{b}",
+        reason: "负号可以提在前面，也可以给分子或分母（任选其一），但不能同时给分子分母（那就变正了）。",
+        check: "奇数个负号总体为负。",
+        sampleVars: () => ({ a: getRandomNonZero(1, 10), b: getRandomNonZero(1, 10) }),
+        verifyFn: (v) => ({ left: -(v.a/v.b), wrong: (-v.a)/(-v.b), correct: (-v.a)/v.b }),
+        genPractice: () => {
+            const a = getRandomNonZero(1, 10);
+            const b = getRandomNonZero(1, 10);
+            return { q: `-\\frac{-${a}}{-${b}}`, ans: -a/b };
+        },
+        visType: 'fraction_move'
+    },
+    {
+        id: 8, title: "负指数幂",
+        exerciseVerb: "计算",
+        wrong: "2^{-3} = -8", correct: "2^{-3} = 1/8",
+        reason: "负指数代表**倒数**，不代表负数！",
+        check: "看到负指数，先画分数线，底数变倒数。",
+        // P1 限制: 底数为正
+        sampleVars: () => ({ base: getRandomNonZero(2, 5), exp: getRandomNonZero(1, 3) }),
+        verifyFn: (v) => ({ 
+            left: Math.pow(v.base, -v.exp), 
+            wrong: -Math.pow(v.base, v.exp), 
+            correct: Math.pow(v.base, -v.exp) 
+        }),
+        genPractice: () => {
+            const base = getRandomNonZero(2, 4);
+            const exp = getRandomNonZero(1, 2);
+            return { q: `${base}^{-${exp}}`, ans: Math.pow(base, -exp) };
+        },
+        visType: 'inverse_flip'
+    },
+    {
+        id: 9, title: "根号下的平方",
+        exerciseVerb: "计算",
+        wrong: "\\sqrt{(-3)^2} = -3", correct: "\\sqrt{(-3)^2} = |-3| = 3",
+        reason: "算术平方根结果非负。\\(\\sqrt{a^2} = |a|\\)。",
+        check: "开方结果不能是负数。",
+        sampleVars: () => ({ a: getRandomNonZero(2, 9) }),
+        verifyFn: (v) => ({ left: Math.sqrt(Math.pow(-v.a,2)), wrong: -Math.abs(v.a), correct: Math.abs(v.a) }),
+        genPractice: () => {
+            const n = getRandomNonZero(2, 9);
+            return { q: `\\sqrt{(-${n})^2}`, ans: n };
+        },
+        visType: 'abs_root'
+    },
+    {
+        id: 10, title: "绝对值拆分错误",
+        exerciseVerb: "计算",
+        wrong: "|a-b| = |a|-|b|", correct: "|a-b| \\neq |a|-|b|",
+        reason: "绝对值没有分配律（加减法时）。",
+        check: "代入正负数，如 |1-3|≠|1|-|3|。",
+        sampleVars: () => ({ a: getRandomNonZero(-5, 5), b: getRandomNonZero(-5, 5) }),
+        verifyFn: (v) => ({ left: Math.abs(v.a-v.b), wrong: Math.abs(v.a)-Math.abs(v.b), correct: Math.abs(v.a-v.b) }),
+        genPractice: () => {
+            const a = getRandomNonZero(-5, 5);
+            const b = getRandomNonZero(-5, 5);
+            return { q: `|${a} - (${b})|`, ans: Math.abs(a-b) };
+        },
+        visType: 'abs_dist'
+    },
+    {
+        id: 11, title: "移项变号漏项",
+        exerciseVerb: "求 x",
+        wrong: "x-(a-b)=0 \\Rightarrow x=a+b", correct: "x=a-b",
+        reason: "移项是整体移动，或者先去括号。不要混淆“变号”规则。",
+        check: "验算：把求出的 x 代回原方程。",
+        sampleVars: () => ({ a: getRandomNonZero(2, 9), b: getRandomNonZero(1, 5) }),
+        verifyFn: (v) => {
+            const correctX = v.a - v.b;
+            const wrongX = v.a + v.b;
+            return { left: 0, wrong: wrongX - (v.a-v.b), correct: correctX - (v.a-v.b) }; 
+        },
+        genPractice: () => {
+            const a = getRandomNonZero(2, 9);
+            const b = getRandomNonZero(1, 5);
+            return { q: `x - (${a} - ${b}) = 0, \\text{求 } x`, ans: a - b };
+        },
+        visType: 'move_box'
+    },
+    {
+        id: 12, title: "不等式同乘除负数",
+        exerciseType: "inequality",
+        exerciseVerb: "判断范围",
+        wrong: "-2x < 6 \\Rightarrow x < -3", correct: "-2x < 6 \\Rightarrow x > -3",
+        reason: "不等式两边同乘除负数，**不等号方向必须改变**。",
+        check: "除以负数，马上调转箭头。",
+        sampleVars: () => ({ k: -getRandomNonZero(2, 5), rhs: getRandomNonZero(2, 8) }),
+        // P0-2 修复: 确保练习和讲解都是 <
+        verifyFn: (v) => {
+            // 原题: kx < rhs (k为负). 正确解: x > rhs/k. 错误解: x < rhs/k
+            const limit = v.rhs / v.k; 
+            const testX = Math.floor(limit) + 2; // 取一个大于 limit 的值
+            
+            // 计算原不等式 kx < rhs
+            const lhs = v.k * testX;
+            const isSolution = lhs < v.rhs;
+            
+            return { 
+                left: `x=${testX}代入: ${lhs} < ${v.rhs}? ${isSolution}`, 
+                wrong: `不翻号(x < ${limit.toFixed(1)})? 错`, 
+                correct: `翻号(x > ${limit.toFixed(1)})? 对` 
+            };
+        },
+        genPractice: () => {
+            const k = -getRandomNonZero(2, 5);
+            const rhs = k * getRandomNonZero(2, 5);
+            // P0-2: 生成 kx < rhs (k负), 答案需翻为 >
+            return { 
+                q: `${k}x < ${rhs} \\Rightarrow x \\text{ ?}`, 
+                ans: rhs/k,
+                solutionDir: '>' // 正确方向
+            };
+        },
+        visType: 'inequality_flip'
+    },
+    {
+        id: 13, title: "代入负数漏括号",
+        exerciseVerb: "求值",
+        wrong: "x=-2 \\Rightarrow x^2 = -2^2 = -4", correct: "x^2 = (-2)^2 = 4",
+        reason: "代入负数时，必须自带“防护罩”（括号）。",
+        check: "看到x换成负数，先加括号再代入。",
+        sampleVars: () => ({ x: -getRandomNonZero(2, 9) }),
+        verifyFn: (v) => ({ left: Math.pow(v.x, 2), wrong: -Math.pow(Math.abs(v.x), 2), correct: Math.pow(v.x, 2) }),
+        genPractice: () => {
+            const x = -getRandomNonZero(2, 9);
+            return { q: `\\text{当 } x=${x} \\text{ 时，计算 } x^2`, ans: x*x };
+        },
+        visType: 'substitute_bracket'
+    },
+    {
+        id: 14, title: "合并同类项漏符号",
+        exerciseVerb: "化简求值",
+        wrong: "3a - 5a = 2a", correct: "3a - 5a = -2a",
+        reason: "系数相加减：3-5=-2。符号跟随绝对值大的数。",
+        check: "小减大，结果必为负。",
+        sampleVars: () => ({ a: getRandomNonZero(2, 9) }),
+        verifyFn: (v) => ({ left: 3*v.a - 5*v.a, wrong: 2*v.a, correct: -2*v.a }),
+        genPractice: () => {
+            const c1 = getRandomNonZero(2, 5);
+            const c2 = getRandomNonZero(6, 9);
+            const x = getRandomNonZero(2, 5);
+            return { q: `\\text{当 } x=${x} \\text{ 时，计算 } ${c1}x - ${c2}x`, ans: (c1-c2)*x };
+        },
+        visType: 'combine_terms'
+    },
+    {
+        id: 15, title: "减去一个负数",
+        exerciseVerb: "计算",
+        wrong: "a - (-b) = a - b", correct: "a - (-b) = a + b",
+        reason: "减去一个负数，等于加上这个数的相反数（负负得正）。",
+        check: "看到减负号，直接变成加号。",
+        sampleVars: () => ({ a: getRandomNonZero(-9, 9), b: getRandomNonZero(2, 9) }),
+        verifyFn: (v) => ({ left: v.a - (-v.b), wrong: v.a - v.b, correct: v.a + v.b }),
+        genPractice: () => {
+            const a = getRandomNonZero(-9, 9);
+            const b = getRandomNonZero(2, 9);
+            return { q: `${a} - (-${b})`, ans: a - (-b) };
+        },
+        visType: 'subtract_negative'
+    },
+    {
+        id: 16, title: "双重负号化简",
+        exerciseVerb: "计算",
+        wrong: "-(-a) = -a", correct: "-(-a) = a",
+        reason: "负号表示相反数，相反数的相反数是本身。",
+        check: "两个负号抵消变正。",
+        sampleVars: () => ({ a: getRandomNonZero(-9, 9) }),
+        verifyFn: (v) => ({ left: -(-v.a), wrong: -v.a, correct: v.a }),
+        genPractice: () => {
+            const a = getRandomNonZero(-9, 9);
+            return { q: `-(-${a})`, ans: a };
+        },
+        visType: 'double_negative'
+    },
+    {
+        id: 17, title: "乘法分配负号",
+        exerciseVerb: "化简求值",
+        wrong: "-2(a-b) = -2a - 2b", correct: "-2(a-b) = -2a + 2b",
+        reason: "括号外是负数乘法时，分配进去要同时改变每一项的符号。",
+        check: "负数乘两项，符号都要变。",
+        sampleVars: () => ({ a: getRandomNonZero(-5, 5), b: getRandomNonZero(-5, 5) }),
+        verifyFn: (v) => ({ left: -2*(v.a-v.b), wrong: -2*v.a - 2*v.b, correct: -2*v.a + 2*v.b }),
+        genPractice: () => {
+            const k = -getRandomNonZero(2, 5);
+            const a = getRandomNonZero(-5, 5);
+            const b = getRandomNonZero(-5, 5);
+            return { q: `\\text{当 } a=${a}, b=${b} \\text{ 时，计算 } ${k}(a - b)`, ans: k*(a-b) };
+        },
+        visType: 'distribute_coeff'
+    }
+];
+
+class ViewTransform {
+    constructor() {
+        this.scale = 1;
+        this.offsetX = 0;
+        this.offsetY = 0;
+        this.baseYShift = 140; 
+        this.isDragging = false;
+        this.lastX = 0;
+        this.lastY = 0;
+    }
+
+    apply(p) {
+        p.translate(p.width/2 + this.offsetX, p.height/2 + this.offsetY + this.baseYShift);
+        p.scale(this.scale);
+    }
+}
+
+const app = {
+    currentTopicIndex: 0,
+    mode: 'teach',
+    showWrong: true,
+    showAnswer: false,
+    currentPractice: null, 
+    view: new ViewTransform(),
+
+    init: function() {
+        const select = document.getElementById('topic-select');
+        TOPICS.forEach((t, i) => {
+            const opt = document.createElement('option');
+            opt.value = i;
+            opt.text = `${i+1}. ${t.title.split('：')[0]}`;
+            select.appendChild(opt);
+        });
+
+        this.setTopic(0);
+        this.setupEventListeners();
+    },
+
+    setTopic: function(index) {
+        if (index < 0 || index >= TOPICS.length) return;
+        this.currentTopicIndex = index;
+        document.getElementById('topic-select').value = index;
+        
+        const topic = TOPICS[index];
+        document.getElementById('topic-title').innerText = `${index+1}. ${topic.title}`;
+        document.getElementById('topic-index').innerText = `${index+1}/${TOPICS.length}`;
+        document.getElementById('practice-header').innerText = (topic.exerciseVerb || "计算") + "练习";
+
+        const reasonHtml = topic.reason.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+        document.getElementById('topic-reason').innerHTML = reasonHtml;
+        document.getElementById('topic-check').innerText = topic.check;
+        
+        this.typesetElement('topic-reason');
+        this.typesetElement('topic-check');
+
+        this.renderMath('wrong-tex', `\\(${topic.wrong}\\)`);
+        this.renderMath('correct-tex', `\\(${topic.correct}\\)`);
+        
+        if (topic.id === 4) {
+             document.querySelector('#correct-tex').previousElementSibling.innerText = "✅ 正确结论";
+        } else {
+             document.querySelector('#correct-tex').previousElementSibling.innerText = "✅ 正确写法";
+        }
+
+        this.currentPractice = null;
+        this.generatePractice();
+
+        document.getElementById('verify-result').innerHTML = '';
+        this.view.offsetX = 0;
+        this.view.offsetY = 0;
+        this.view.scale = 1;
+    },
+
+    prevTopic: function() { this.setTopic(this.currentTopicIndex - 1); },
+    nextTopic: function() { this.setTopic(this.currentTopicIndex + 1); },
+
+    setMode: function(m) {
+        this.mode = m;
+        document.getElementById('mode-teach').className = m === 'teach' ? 'btn btn-sm' : 'btn btn-sm btn-outline';
+        document.getElementById('mode-practice').className = m === 'practice' ? 'btn btn-sm' : 'btn btn-sm btn-outline';
+        
+        const tPanel = document.getElementById('teach-panel');
+        if (m === 'teach') tPanel.classList.remove('hidden');
+        else tPanel.classList.add('hidden');
+    },
+
+    toggleWrong: function(chk) {
+        this.showWrong = chk;
+        document.getElementById('wrong-box').style.visibility = chk ? 'visible' : 'hidden';
+    },
+
+    toggleAnswer: function(chk) {
+        this.showAnswer = chk;
+        const ansBox = document.getElementById('practice-answer-box');
+        if (chk) ansBox.classList.remove('hidden');
+        else ansBox.classList.add('hidden');
+    },
+
+    renderMath: async function(id, tex) {
+        const el = document.getElementById(id);
+        el.style.visibility = 'hidden';
+        el.innerHTML = tex;
+        this.typesetElement(id);
+    },
+
+    typesetElement: async function(id) {
+        const el = document.getElementById(id);
+        if (window.MathJax) {
+            try {
+                await MathJax.typesetPromise([el]);
+                el.style.visibility = 'visible';
+            } catch(e) { console.error(e); el.style.visibility = 'visible'; }
+        }
+    },
+
+    generatePractice: function() {
+        const topic = TOPICS[this.currentTopicIndex];
+        const qEl = document.getElementById('practice-question');
+        qEl.innerHTML = '<span style="color:#94a3b8; font-size:14px;">题目加载中...</span>';
+        
+        const inputContainer = document.getElementById('input-container');
+        const eqSign = document.getElementById('eq-sign');
+        const existingRadio = document.getElementById('ineq-radio');
+        if (existingRadio) existingRadio.remove();
+        
+        if (topic.exerciseType === 'inequality') {
+            eqSign.style.display = 'none';
+            const div = document.createElement('div');
+            div.id = 'ineq-radio';
+            div.className = 'ineq-group';
+            div.innerHTML = `
+                <label class="ineq-label"><input type="radio" name="ineq" value="<"> <span>x <</span></label>
+                <label class="ineq-label"><input type="radio" name="ineq" value=">"> <span>x ></span></label>
+            `;
+            inputContainer.insertBefore(div, document.getElementById('practice-input'));
+        } else {
+            eqSign.style.display = 'inline';
+        }
+
+        setTimeout(() => {
+             this.currentPractice = topic.genPractice();
+             this.renderMath('practice-question', `\\[ ${this.currentPractice.q} \\]`);
+             
+             const ansBox = document.getElementById('practice-answer-num');
+             if (topic.exerciseType === 'inequality') {
+                ansBox.innerText = `x ${this.currentPractice.solutionDir} ${parseFloat(this.currentPractice.ans.toFixed(4))}`;
+             } else {
+                ansBox.innerText = parseFloat(this.currentPractice.ans.toFixed(4));
+             }
+        }, 50);
+
+        document.getElementById('practice-input').value = '';
+        document.getElementById('practice-feedback').innerText = '';
+        document.getElementById('practice-answer-box').classList.add('hidden');
+        document.getElementById('check-answer').checked = false;
+    },
+
+    checkPractice: function() {
+        const topic = TOPICS[this.currentTopicIndex];
+        const inputStr = document.getElementById('practice-input').value.trim();
+        const fb = document.getElementById('practice-feedback');
+        
+        if (!inputStr) {
+            fb.innerText = "请输入数值";
+            fb.className = "feedback-msg";
+            return;
+        }
+
+        const inputVal = parseUserNumber(inputStr);
+        if (isNaN(inputVal)) {
+            fb.innerText = "请输入有效的数字或分数";
+            fb.className = "feedback-msg feedback-error";
+            return;
+        }
+
+        const expected = this.currentPractice.ans;
+        const numMatch = Math.abs(inputVal - expected) < 0.0001;
+
+        if (topic.exerciseType === 'inequality') {
+            const radios = document.getElementsByName('ineq');
+            let selectedDir = null;
+            for(let r of radios) if(r.checked) selectedDir = r.value;
+            
+            if (!selectedDir) {
+                fb.innerText = "请选择不等号方向";
+                fb.className = "feedback-msg feedback-error";
+                return;
+            }
+            
+            if (numMatch && selectedDir === this.currentPractice.solutionDir) {
+                fb.innerText = "正确！翻号和数值都对了。";
+                fb.className = "feedback-msg feedback-success";
+            } else if (numMatch) {
+                fb.innerText = "数值对了，但方向错了！记得翻号哦。";
+                fb.className = "feedback-msg feedback-error";
+            } else {
+                fb.innerText = "数值不对，请再检查计算。";
+                fb.className = "feedback-msg feedback-error";
+            }
+        } else {
+            if (numMatch) {
+                fb.innerText = "正确！答案一致。";
+                fb.className = "feedback-msg feedback-success";
+            } else {
+                fb.innerText = "不对哦，请检查符号或计算。";
+                fb.className = "feedback-msg feedback-error";
+            }
+        }
+    },
+
+    runVerification: function() {
+        const topic = TOPICS[this.currentTopicIndex];
+        const maxTries = 10;
+        let attempt = 0;
+        let finalRes = null;
+        let finalV = null;
+        let foundCounterExample = false;
+
+        while (attempt < maxTries) {
+            finalV = topic.sampleVars ? topic.sampleVars() : {
+                a: getRandomNonZero(-5, 5), b: getRandomNonZero(-5, 5), c: getRandomNonZero(2, 5)
+            };
+            
+            try {
+                finalRes = topic.verifyFn(finalV);
+                if (typeof finalRes.left === 'string') {
+                     foundCounterExample = true; 
+                     break;
+                }
+                
+                const vLeft = finalRes.left;
+                const vWrong = finalRes.wrong;
+                if (typeof vLeft === 'number' && typeof vWrong === 'number') {
+                     if (Math.abs(vLeft - vWrong) > 0.0001) {
+                         foundCounterExample = true;
+                         break;
+                     }
+                }
+            } catch(e) { console.error(e); }
+            attempt++;
+        }
+
+        if (!finalRes) return;
+        
+        const varKeys = Object.keys(finalV);
+        const varStr = varKeys.map(k => `${k}=${finalV[k]}`).join(', ');
+        let html = `<span class="val-vars">本次代入: ${varStr}</span>`;
+        
+        const headers = topic.verifyHeaders || ["左边 (原式)", "右边 (错误)", "右边 (正确)"];
+        
+        html += `<table class="verify-table"><tr>
+            <th>${headers[0]}</th>
+            <th>${headers[1]}</th>
+            <th>${headers[2]}</th>
+        </tr>`;
+        
+        if (typeof finalRes.left === 'string') {
+            html += `<tr>
+                <td style="font-size:11px">${finalRes.left}</td>
+                <td class="val-wrong" style="font-size:11px">${finalRes.wrong}</td>
+                <td class="val-correct" style="font-size:11px">${finalRes.correct}</td>
+            </tr></table>`;
+        } else {
+            const fmt = (n) => typeof n === 'number' ? parseFloat(n.toFixed(3)) : (n===null ? '-' : n);
+            const correctCell = finalRes.correct !== null ? fmt(finalRes.correct) : (finalRes.note || '-');
+            
+            html += `<tr>
+                <td>${fmt(finalRes.left)}</td>
+                <td class="val-wrong">${fmt(finalRes.wrong)}</td>
+                <td class="val-correct" style="font-size:12px">${correctCell}</td>
+            </tr></table>`;
+            
+            if (!foundCounterExample && attempt >= maxTries) {
+                 html += `<div style="color:#eab308; font-size:11px; margin-top:4px;">⚠️ 尝试${maxTries}次均为巧合相等，请再试。</div>`;
+            } else if (foundCounterExample) {
+                 html += `<div style="color:var(--accent); font-size:11px; margin-top:4px;">❌ 找到反例：错误写法结果不同！</div>`;
+            }
+        }
+        document.getElementById('verify-result').innerHTML = html;
+    },
+
+    setupEventListeners: function() {
+        const stage = document.getElementById('p5-canvas');
+        stage.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const zoomSpeed = 0.001;
+            const newScale = Math.max(0.4, Math.min(5.0, this.view.scale - e.deltaY * zoomSpeed));
+            this.view.scale = newScale;
+        }, { passive: false });
+    }
+};
+
+const s = (p) => {
+    p.setup = () => {
+        const container = document.getElementById('p5-canvas');
+        p.pixelDensity(window.devicePixelRatio || 1);
+        const c = p.createCanvas(container.clientWidth, container.clientHeight);
+        c.parent(container);
+        p.textFont('Segoe UI');
+    };
+
+    p.windowResized = () => {
+        const container = document.getElementById('p5-canvas');
+        p.resizeCanvas(container.clientWidth, container.clientHeight);
+    };
+
+    p.draw = () => {
+        p.background(255);
+        p.push();
+        app.view.apply(p);
+        
+        drawGrid(p);
+        
+        const topic = TOPICS[app.currentTopicIndex];
+        drawTopicVis(p, topic.visType);
+        
+        p.pop();
+
+        p.fill(150); p.noStroke(); p.textSize(12); p.textAlign(p.CENTER, p.BOTTOM);
+        p.text("画布用于展示重点概念的几何/动态图示；规则辨析请见上方卡片。", p.width/2, p.height - 10);
+    };
+
+    p.mousePressed = () => {
+        if (p.mouseX > 0 && p.mouseX < p.width && p.mouseY > 0 && p.mouseY < p.height) {
+            app.view.isDragging = true;
+            app.view.lastX = p.mouseX;
+            app.view.lastY = p.mouseY;
+        }
+    };
+    
+    p.mouseDragged = () => {
+        if (app.view.isDragging) {
+            app.view.offsetX += p.mouseX - app.view.lastX;
+            app.view.offsetY += p.mouseY - app.view.lastY;
+            app.view.lastX = p.mouseX;
+            app.view.lastY = p.mouseY;
+        }
+    };
+
+    p.mouseReleased = () => { app.view.isDragging = false; };
+};
+
+function drawGrid(p) {
+    p.stroke(240); p.strokeWeight(1);
+    // Minimal grid
+}
+
+function drawTopicVis(p, type) {
+    p.textAlign(p.CENTER, p.CENTER);
+    p.noStroke();
+    
+    if (type === 'subtract_negative') {
+        p.textSize(32); p.fill(0);
+        p.text("a  -  ( - b )", 0, -50);
+        
+        p.stroke(239, 68, 68); p.strokeWeight(3); p.noFill();
+        p.arc(0, -55, 60, 40, 0, p.PI); 
+        
+        p.noStroke(); p.fill(239, 68, 68); p.textSize(16);
+        p.text("负负得正", 0, -85);
+        
+        p.fill(34, 197, 94); p.textSize(40);
+        p.text("=  a  +  b", 0, 50);
+
+    } else if (type === 'double_negative') {
+        p.textSize(40); p.fill(0);
+        p.text("- ( - a )", 0, -50);
+        
+        p.stroke(239, 68, 68); p.strokeWeight(2); p.noFill();
+        p.circle(-55, -50, 20); 
+        p.circle(-5, -50, 20);  
+        
+        p.noStroke(); p.fill(239, 68, 68);
+        p.text("抵消", -30, -90);
+        
+        p.fill(34, 197, 94);
+        p.text("=  a", 0, 50);
+
+    } else if (type === 'distribute_coeff') {
+        p.textSize(32); p.fill(0);
+        p.text("-2 ( a - b )", 0, -50);
+        
+        p.stroke(239, 68, 68); p.strokeWeight(2); p.noFill();
+        p.bezier(-60, -60, -30, -100, 0, -80, 20, -60); 
+        drawArrowHead(p, 20, -60, 1);
+        p.bezier(-60, -60, -10, -120, 60, -100, 80, -60);
+        drawArrowHead(p, 80, -60, 1);
+        
+        p.noStroke(); p.fill(239, 68, 68); p.textSize(16);
+        p.text("都乘-2", 0, -110);
+        
+        p.fill(34, 197, 94); p.textSize(32);
+        p.text("= -2a + 2b", 0, 50);
+
+    } else if (type === 'distributive' || type === 'distributive_sub') {
+        p.textSize(40); p.fill(0);
+        p.text("- ( a + b )", 0, -50);
+        
+        p.stroke(239, 68, 68); p.strokeWeight(3); p.noFill();
+        p.beginShape(); p.vertex(-80, -50); p.quadraticVertex(-40, -100, -10, -70); p.endShape();
+        drawArrowHead(p, -10, -70, 0);
+        p.beginShape(); p.vertex(-80, -50); p.quadraticVertex(0, -120, 60, -70); p.endShape();
+        drawArrowHead(p, 60, -70, 0);
+
+        p.noStroke(); p.fill(239, 68, 68); p.textSize(20);
+        p.text("变号!", -30, -90); p.text("变号!", 30, -110);
+        p.fill(34, 197, 94); p.textSize(40);
+        p.text("=  -a  - b", 0, 50);
+
+    } else if (type === 'priority_stairs') {
+        const stepH = 60, stepW = 120;
+        p.translate(-stepW/2, -stepH);
+        p.fill(220, 230, 250); p.stroke(0); p.rect(0, 0, stepW, stepH);
+        p.fill(0); p.textSize(24); p.text("1. 乘方 (^2)", stepW/2, stepH/2);
+        
+        p.translate(0, stepH);
+        p.fill(254, 226, 226); p.rect(0, 0, stepW*2, stepH);
+        p.fill(0); p.text("2. 负号 (-)", stepW, stepH/2);
+
+        p.translate(0, stepH);
+        p.fill(240); p.rect(0, 0, stepW*3, stepH);
+        p.fill(0); p.text("3. 加减 (+ -)", stepW*1.5, stepH/2);
+
+    } else if (type === 'square_neg') {
+        p.stroke(0); p.strokeWeight(2); p.line(-150, 0, 150, 0);
+        
+        p.noStroke();
+        p.fill(34, 197, 94, 200); p.rect(-50, -100, 100, 100);
+        p.fill(255); p.textSize(16); p.text("(-a-b)²", 0, -50); p.text("(正数)", 0, -30);
+
+        p.fill(239, 68, 68, 200); p.rect(-50, 0, 100, 100);
+        p.fill(255); p.text("-(a+b)²", 0, 50); p.text("(负数)", 0, 70);
+
+        p.fill(100); p.textSize(14);
+        p.text("正方向", 0, -110); p.text("负方向", 0, 120);
+        p.fill(0); p.textSize(20); p.text("≠", 0, 0);
+
+    } else if (type === 'inequality_flip') {
+        const totalTime = 5000;
+        const t = (p.millis() % totalTime) / totalTime;
+        
+        p.stroke(0); p.strokeWeight(2); p.line(-200, 50, 200, 50);
+        for(let i=-3; i<=3; i++) {
+            let x = i*50; p.line(x, 45, x, 55);
+            p.fill(100); p.noStroke(); p.textSize(14); p.text(i, x, 75);
+        }
+
+        p.textSize(40); p.fill(0); p.noStroke();
+        if (t < 0.25) {
+            p.text("-2x   <   6", 0, -80);
+            p.textSize(16); p.fill(100); p.text("准备: 两边同除以 -2", 0, -30);
+        } else if (t < 0.5) {
+            p.text("x   <   6 / (-2)", 0, -80);
+            p.textSize(16); p.fill(239, 68, 68); p.text("除以负数...", 0, -30);
+        } else if (t < 0.75) {
+            const subT = (t - 0.5) * 4;
+            const angle = subT * Math.PI;
+            p.text("x", -80, -80); p.text("-3", 80, -80);
+            p.push(); p.translate(0, -85); p.rotate(angle);
+            p.fill(239, 68, 68); p.text("<", 0, 0); p.pop();
+            p.textSize(20); p.fill(239, 68, 68); p.text("翻转符号！", 0, -30);
+        } else {
+            p.fill(34, 197, 94); p.text("x   >   -3", 0, -80);
+            p.stroke(34, 197, 94); p.strokeWeight(4);
+            let xStart = -3*50; p.line(xStart, 30, 200, 30);
+            p.noFill(); p.circle(xStart, 30, 10);
+            p.noStroke(); p.fill(34, 197, 94); p.textSize(16); p.text("解集: x > -3", 0, 10);
+        }
+    } else {
+        p.textSize(20); p.fill(150); p.noStroke();
+        p.text("⚠️ 重点靠规则记忆", 0, -20);
+        p.textSize(14); p.text("请看上方卡片与练习", 0, 10);
+    }
+}
+
+function drawArrowHead(p, x, y, angle) {
+    p.push(); p.translate(x, y); p.rotate(angle);
+    p.line(0, 0, -5, -5); p.line(0, 0, -5, 5);
+    p.pop();
+}
+
+function copyProblem() {
+    const text = document.getElementById('problem-text').innerText;
+    navigator.clipboard.writeText(text).then(() => {
+        const btn = document.querySelector('.sidebar-header .btn');
+        const orig = btn.innerText;
+        btn.innerText = "已复制";
+        setTimeout(() => btn.innerText = orig, 1500);
+    });
+}
+
+new p5(s);
+window.onload = () => app.init();
+
+</script>
+</body>
+</html>

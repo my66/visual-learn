@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>初中几何全等模型交互演示系统 v3.3.4 (Animations)</title>
+    <!-- 核心库 CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        /* Token Economy CSS */
+        :root { --primary: #2563eb; --bg: #f8fafc; --panel: #ffffff; --text: #1e293b; --border: #cbd5e1; }
+        body { margin: 0; padding: 0; font-family: "Noto Sans SC", system-ui, sans-serif; background: var(--bg); color: var(--text); overflow: hidden; display: flex; height: 100vh; }
+        
+        /* Layout */
+        #sidebar { width: 380px; background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; z-index: 10; box-shadow: 2px 0 8px rgba(0,0,0,0.05); overflow-y: auto; flex-shrink: 0; }
+        #canvas-stage { flex: 1; position: relative; overflow: hidden; cursor: crosshair; touch-action: none; background: #fff; }
+        
+        /* Components */
+        .card { padding: 16px; border-bottom: 1px solid var(--border); }
+        .card-title { font-weight: 700; font-size: 1.05rem; margin-bottom: 12px; color: var(--primary); display: flex; align-items: center; justify-content: space-between; }
+        .btn { background: var(--primary); color: #fff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 0.9rem; transition: opacity 0.2s; user-select: none; }
+        .btn:hover { opacity: 0.9; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-outline { background: transparent; border: 1px solid var(--primary); color: var(--primary); }
+        .btn-sm { padding: 4px 10px; font-size: 0.8rem; }
+        
+        /* Grid Buttons for States */
+        .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+        .btn-grid .btn { font-size: 0.85rem; padding: 6px; border-radius: 4px; }
+
+        .control-group { margin-bottom: 12px; }
+        .control-label { display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 4px; color: #475569; font-weight: 500; }
+        input[type="range"] { width: 100%; cursor: pointer; }
+        select { width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 1rem; background: #fff; }
+        input[type="checkbox"] { transform: scale(1.2); cursor: pointer; }
+
+        /* Overlay */
+        #guided-overlay { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: 440px; max-width: 92%; background: rgba(255,255,255,0.98); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.12); display: flex; flex-direction: column; pointer-events: auto; backdrop-filter: blur(8px); transition: opacity 0.2s; z-index: 20; min-height: 180px; }
+        .overlay-header { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: #f1f5f9; border-radius: 12px 12px 0 0; flex-shrink: 0; }
+        .overlay-body { padding: 16px; overflow-y: auto; max-height: 50vh; font-size: 1rem; line-height: 1.6; }
+        .step-count { font-size: 0.9rem; color: #475569; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .step-title { font-weight: 700; color: var(--primary); margin-bottom: 8px; font-size: 1.05rem; }
+        .step-check { font-size: 0.85rem; color: #059669; background: #d1fae5; padding: 4px 8px; border-radius: 4px; display: inline-block; margin-bottom: 8px; font-weight: 600; }
+        .math-container { margin-top: 10px; font-size: 1rem; background: #f8fafc; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0; min-height: 40px; }
+        
+        /* Verification Panel */
+        .verify-item { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 4px; padding: 4px 0; border-bottom: 1px dashed #e2e8f0; }
+        .verify-pass { color: #16a34a; font-weight: bold; }
+        .verify-fail { color: #dc2626; font-weight: bold; }
+        .verify-tag { display: inline-block; width: 60px; font-weight: bold; color: #64748b; font-size: 0.8em; }
+
+        /* Interaction Hint */
+        .hint-box { background: #fffbeb; border: 1px solid #fcd34d; color: #92400e; padding: 8px; border-radius: 6px; font-size: 0.85rem; margin-top: 8px; display: flex; align-items: center; gap: 6px; }
+
+        /* Utils */
+        .hidden { display: none !important; }
+        .status-bar { padding: 8px 16px; font-size: 0.85rem; color: #64748b; background: #f1f5f9; border-top: 1px solid var(--border); margin-top: auto; }
+        mjx-container { outline: none !important; }
+    </style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside id="sidebar">
+    <!-- 1. 题目/模型选择 -->
+    <div class="card" style="background: #eff6ff;">
+        <div class="card-title">
+            <span>几何模型全等演示</span>
+        </div>
+        <div class="control-group">
+            <label class="control-label">选择模型 (Select Model)</label>
+            <select id="model-select">
+                <option value="0">1. 手拉手模型 (旋转/SAS)</option>
+                <option value="1">2. 角平分线模型 (翻折/轴对称)</option>
+                <option value="2">3. 倍长中线模型 (旋转/中心对称)</option>
+                <option value="3">4. 半角模型 (剪切旋转)</option>
+                <option value="4">5. K字型 (坐标系旋转)</option>
+            </select>
+        </div>
+        <div id="problem-text" style="font-size: 0.9rem; color: #334155; white-space: pre-wrap; line-height: 1.5;"></div>
+    </div>
+
+    <!-- 2. 模式与控制 -->
+    <div class="card">
+        <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+            <button class="btn" id="btn-mode-explore" style="flex:1;">探索模式</button>
+            <button class="btn btn-outline" id="btn-mode-guided" style="flex:1;">引导模式</button>
+        </div>
+        
+        <!-- Explore Controls -->
+        <div id="panel-explore">
+            <div class="control-group">
+                <label class="control-label" title="对应边用红/绿/蓝区分">
+                    <span>CPCTC (全等对应着色)</span>
+                    <input type="checkbox" id="chk-cpctc">
+                </label>
+            </div>
+            <div class="control-group">
+                <label class="control-label">
+                    <span>显示辅助线 (Auxiliary)</span>
+                    <input type="checkbox" id="chk-aux">
+                </label>
+            </div>
+            <div id="dynamic-controls"></div>
+            <!-- E1. 交互提示 -->
+            <div id="interaction-hint" class="hint-box">
+                <span style="font-size:1.2em">👆</span> <span id="hint-text">拖动点 A 改变形状</span>
+            </div>
+            <div class="control-group" style="margin-top:16px;">
+                <button class="btn btn-sm btn-outline" id="btn-reset" style="width:100%">重置模型位置</button>
+            </div>
+        </div>
+
+        <div id="panel-guided" class="hidden">
+            <p style="font-size:0.9rem; color:#64748b; text-align:center;">请关注画布上方的引导卡片</p>
+        </div>
+    </div>
+
+    <!-- 3. 验证与自检 -->
+    <div class="card" style="flex:1; display:flex; flex-direction:column;">
+        <div class="card-title">几何约束验证 (Constraints)</div>
+        <div id="verify-output" style="font-size: 0.9rem; overflow-y:auto; flex:1;">
+            <div style="color: #64748b;">初始化中...</div>
+        </div>
+    </div>
+
+    <div class="status-bar">
+        v3.3.4 | Logic-First Geometry | Full Animations
+    </div>
+</aside>
+
+<!-- Canvas Stage -->
+<main id="canvas-stage"></main>
+
+<!-- Guided Overlay -->
+<div id="guided-overlay" class="hidden">
+    <div class="overlay-header">
+        <button class="btn btn-sm" id="btn-prev">上一步</button>
+        <span class="step-count" id="step-indicator">Step 1/5</span>
+        <button class="btn btn-sm" id="btn-next">下一步</button>
+    </div>
+    <div class="overlay-body">
+        <div id="guided-title" class="step-title"></div>
+        <div id="guided-check-container" class="hidden">
+            <span class="step-check">🔍 检查: <span id="guided-check"></span></span>
+        </div>
+        <div id="guided-reasoning" style="margin-bottom: 8px; color: #334155;"></div>
+        <div id="guided-math" class="math-container"></div>
+    </div>
+</div>
+
+<script>
+/**
+ * MathPhysics Engine v3.3.4
+ * Changelog:
+ * - Added Animations for ALL models to show essence:
+ * - Model 1 (Angle Bisector): "Book Flip" animation (3D projection logic).
+ * - Model 2 (Double Median): "180 Rotation" animation.
+ * - Model 4 (K-Shape): "90 Rotation" animation.
+ * - Added Essence Aux Lines:
+ * - Model 2: CE (Parallelogram).
+ */
+
+// --- Configuration ---
+const CONFIG = {
+    colors: {
+        primary: '#2563eb', secondary: '#ec4899', success: '#16a34a', text: '#1e293b',
+        aux: '#94a3b8', 
+        tri1_fill: 'rgba(37, 99, 235, 0.1)', tri2_fill: 'rgba(236, 72, 153, 0.1)',
+        tri1_stroke: '#2563eb', tri2_stroke: '#ec4899',
+        focus: '#f59e0b', focus_fill: 'rgba(245, 158, 11, 0.2)',
+        cpctc: ['#ef4444', '#10b981', '#3b82f6'],
+        anim_fill: 'rgba(245, 158, 11, 0.4)',
+        anim_stroke: '#d97706'
+    },
+    TOL: { LEN: 0.5, ANG: 1.2 }
+};
+
+// --- State Management ---
+const STATE = {
+    modelIndex: 0,
+    mode: 'explore',
+    stepIndex: 0,
+    dirty: true, 
+    view: { scale: 1, offsetX: 0, offsetY: 0, dragging: false, lastX: 0, lastY: 0 },
+    params: {
+        angle: 0, t: 0.5, 
+        cpctc: false, showAux: false,
+        anim: 0, 
+        pts: {} 
+    },
+    dragId: null,
+    geometry: {},
+    planSteps: []
+};
+
+// --- Geometry Kernel ---
+const Vec = {
+    add: (v1, v2) => ({x: v1.x + v2.x, y: v1.y + v2.y}),
+    sub: (v1, v2) => ({x: v1.x - v2.x, y: v1.y - v2.y}),
+    mult: (v, s) => ({x: v.x * s, y: v.y * s}),
+    dist: (v1, v2) => Math.hypot(v1.x - v2.x, v1.y - v2.y),
+    rot: (v, ang, c={x:0,y:0}) => {
+        const cos = Math.cos(ang), sin = Math.sin(ang);
+        const dx = v.x - c.x, dy = v.y - c.y;
+        return { x: c.x + dx*cos - dy*sin, y: c.y + dx*sin + dy*cos };
+    },
+    mid: (v1, v2) => ({x: (v1.x+v2.x)/2, y: (v1.y+v2.y)/2}),
+    project: (p, a, b) => {
+        const ab = Vec.sub(b, a);
+        const ap = Vec.sub(p, a);
+        const len2 = ab.x**2 + ab.y**2;
+        if (len2 < 1e-6) return a;
+        const t = (ap.x*ab.x + ap.y*ab.y) / len2;
+        return Vec.add(a, Vec.mult(ab, t));
+    },
+    intersectRayLine: (p, dir, p1, p2) => {
+        const x1=p1.x, y1=p1.y, x2=p2.x, y2=p2.y;
+        const x3=p.x, y3=p.y, x4=p.x+dir.x, y4=p.y+dir.y;
+        const den = (x1-x2)*(y3-y4) - (y1-y2)*(x3-x4);
+        if (Math.abs(den) < 1e-6) return null;
+        const t = ((x1-x3)*(y3-y4) - (y1-y3)*(x3-x4)) / den;
+        return { x: x1 + t*(x2-x1), y: y1 + t*(y2-y1) };
+    }
+};
+
+// --- Models Logic ---
+
+function calculateGeometry() {
+    const P = STATE.params;
+    const G = {};
+    P.t = Math.max(0.1, Math.min(0.9, P.t));
+
+    switch(STATE.modelIndex) {
+        case 0: buildHandInHand(G, P); break;
+        case 1: buildAngleBisector(G, P); break;
+        case 2: buildDoubleMedian(G, P); break;
+        case 3: buildHalfAngle(G, P); break;
+        case 4: buildKShape(G, P); break;
+    }
+    STATE.geometry = G;
+    verifyModel(G);
+}
+
+// Model 0: Hand-in-Hand
+function buildHandInHand(G, P) {
+    G.O = {x: 0, y: 0, label: 'O', type: 'fixed'};
+    G.A = P.pts.A || {x: -60, y: 80}; 
+    G.B = Vec.rot(G.A, -Math.PI/3, G.O); 
+    const R2 = 100;
+    const ang = -0.5 + P.angle;
+    G.C = {x: R2*Math.cos(ang), y: R2*Math.sin(ang)};
+    G.D = Vec.rot(G.C, -Math.PI/3, G.O); 
+    
+    G.interactive = ['A'];
+    G.tris = [{pts: [G.O, G.A, G.C], id: 'tri1'}, {pts: [G.O, G.B, G.D], id: 'tri2'}];
+    
+    G.lines = [
+        {p1:G.O, p2:G.A, id:'seg_OA'}, {p1:G.O, p2:G.B, id:'seg_OB'}, {p1:G.A, p2:G.B, style: 'aux'},
+        {p1:G.O, p2:G.C, id:'seg_OC'}, {p1:G.O, p2:G.D, id:'seg_OD'}, {p1:G.C, p2:G.D, style: 'aux'},
+        {p1:G.A, p2:G.C, id: 'seg_AC'}, 
+        {p1:G.B, p2:G.D, id: 'seg_BD'},
+        {p1:G.A, p2:G.B, style:'aux', id:'seg_baseAB'},
+        {p1:G.C, p2:G.D, style:'aux', id:'seg_baseCD'}
+    ];
+    
+    G.angles = [
+        {p1:G.A, cen:G.O, p2:G.C, id:'ang_AOC'},
+        {p1:G.B, cen:G.O, p2:G.D, id:'ang_BOD'}
+    ];
+
+    G.labels = [{txt:'O',p:G.O,off:{x:0,y:15}}, {txt:'A',p:G.A,off:{x:-10,y:-10}}, {txt:'B',p:G.B,off:{x:10,y:-10}}, {txt:'C',p:G.C,off:{x:10,y:10}}, {txt:'D',p:G.D,off:{x:-10,y:10}}];
+}
+
+// Model 1: Angle Bisector (Animation: Flip)
+function buildAngleBisector(G, P) {
+    G.O = {x: -150, y: 0, label: 'O'};
+    const ang = -Math.PI/3;
+    const len = 300;
+    G.RayA = {x: G.O.x+len, y: G.O.y};
+    G.RayB = Vec.rot(G.RayA, ang, G.O);
+    G.Bisect = Vec.rot(G.RayA, ang/2, G.O);
+    const dist = 100 + P.t * 150; 
+    G.P = {x: G.O.x + dist*Math.cos(ang/2), y: G.O.y + dist*Math.sin(ang/2)};
+    G.D = Vec.project(G.P, G.O, G.RayA);
+    G.E = Vec.project(G.P, G.O, G.RayB);
+    
+    // Animation: Flip Triangle PDO -> PEO
+    // Simulate 3D flip by rotating scaling factor
+    if (P.anim > 0.01) {
+        // Just for visual effect: Lerp D to E via a "Flip" path is hard in 2D
+        // Better: Ghost triangle rotating around OP
+        // Simplified: Linearly interpolate D to E? No, that crosses the axis.
+        // Let's do a "mirror fade" or just calculate reflected point.
+        // For visual clarity: Rotate D around P? No.
+        // Let's interpolate D to E directly but draw it semi-transparent
+        const t = P.anim;
+        const midDE = Vec.mid(G.D, G.E); // Point on axis
+        // Circular path: Rotate D around midDE by t * 180
+        // D is start (0), E is end (180)
+        // Project Logic: D -> [Rotate around Axis] -> E
+        // Since it's 2D, we simulate the "height" (y-depth) by just lerping X/Y 
+        // effectively, but visually a rotation is nicer.
+        // Let's just do a 2D rotation around 'midDE' if we treat D-midDE as radius.
+        // But in 3D flip, the point moves on a circle perpendicular to OP.
+        // In 2D top-down, D moves linearly to E! The "height" is z-axis.
+        // So visually, D moves straight to E.
+        const D_anim = {
+            x: G.D.x + (G.E.x - G.D.x) * t,
+            y: G.D.y + (G.E.y - G.D.y) * t
+        };
+        // To make it look like a flip, we can squeeze the width relative to OP
+        // but linear move is mathematically the shadow of the flip.
+        G.animTri = [G.O, G.P, D_anim];
+    }
+
+    G.interactive = []; 
+    G.tris = [{pts: [G.P, G.D, G.O], id: 'tri1'}, {pts: [G.P, G.E, G.O], id: 'tri2'}];
+    G.lines = [
+        {p1:G.O, p2:G.RayA}, {p1:G.O, p2:G.RayB}, 
+        {p1:G.O, p2:G.P, style:'dash', id:'seg_OP'}, 
+        {p1:G.P, p2:G.D, id:'seg_PD'}, 
+        {p1:G.P, p2:G.E, id:'seg_PE'},
+        {p1:G.D, p2:G.E, style:'aux', id:'seg_DE'}
+    ];
+    G.angles = [
+        {p1:G.D, cen:G.O, p2:G.P, id:'ang_DOP'},
+        {p1:G.E, cen:G.O, p2:G.P, id:'ang_EOP'}
+    ];
+    G.labels = [{txt:'O',p:G.O,off:{x:-10,y:0}}, {txt:'P',p:G.P,off:{x:10,y:0}}, {txt:'D',p:G.D,off:{x:0,y:15}}, {txt:'E',p:G.E,off:{x:0,y:-15}}];
+}
+
+// Model 2: Double Median (Animation: Rotate 180)
+function buildDoubleMedian(G, P) {
+    G.A = P.pts.A || {x: -60, y: -80};
+    G.B = {x: -100, y: 80};
+    G.C = {x: 100, y: 80};
+    G.D = Vec.mid(G.B, G.C);
+    const AD = Vec.sub(G.D, G.A);
+    G.E = Vec.add(G.D, AD);
+    
+    // Animation: Rotate ADC around D
+    if (P.anim > 0.01) {
+        const theta = P.anim * Math.PI; // 0 to 180 deg
+        const rot = p => Vec.rot(p, theta, G.D);
+        const A_anim = rot(G.A);
+        const C_anim = rot(G.C); // C goes to B
+        // D stays D
+        G.animTri = [A_anim, G.D, C_anim];
+    }
+
+    G.interactive = ['A'];
+    G.tris = [{pts: [G.A, G.D, G.C], id: 'tri1'}, {pts: [G.E, G.D, G.B], id: 'tri2'}];
+    G.lines = [
+        {p1:G.A, p2:G.B}, {p1:G.B, p2:G.C}, {p1:G.C, p2:G.A, id:'seg_AC'}, 
+        {p1:G.A, p2:G.E, style:'dash', id:'seg_AE'}, 
+        {p1:G.B, p2:G.E, id:'seg_BE'},
+        {p1:G.C, p2:G.E, style:'aux', id:'seg_CE'} // Aux CE to show Parallelogram
+    ];
+    G.labels = [{txt:'A',p:G.A,off:{x:0,y:-15}}, {txt:'B',p:G.B,off:{x:-10,y:10}}, {txt:'C',p:G.C,off:{x:10,y:10}}, {txt:'D',p:G.D,off:{x:0,y:-10}}, {txt:'E',p:G.E,off:{x:0,y:15}}];
+}
+
+// Model 3: Half-Angle
+function buildHalfAngle(G, P) {
+    const s = 120;
+    G.A = {x:-s, y:-s}; G.B = {x:s, y:-s}; G.C = {x:s, y:s}; G.D = {x:-s, y:s};
+    const t = 0.2 + P.t * 0.6; 
+    G.E = { x: G.D.x + t*(G.C.x - G.D.x), y: G.D.y };
+    G.G = Vec.rot(G.E, -Math.PI/2, G.A); 
+    
+    const dirAF = Vec.rot(Vec.sub(G.E, G.A), -Math.PI/4); 
+    G.F = Vec.intersectRayLine(G.A, dirAF, G.B, G.C);
+    if (!G.F) G.F = G.B;
+
+    if (P.anim > 0.01) {
+        const animAngle = P.anim * -Math.PI/2; 
+        const D_rot = Vec.rot(G.D, animAngle, G.A);
+        const E_rot = Vec.rot(G.E, animAngle, G.A);
+        G.animTri = [G.A, D_rot, E_rot]; 
+    }
+
+    G.interactive = []; 
+    G.tris = [{pts: [G.A, G.D, G.E], id: 'tri1'}, {pts: [G.A, G.B, G.G], id: 'tri2'}];
+    
+    G.virtualTris = [
+        {pts: [G.A, G.E, G.F], id: 'tri_AEF'},
+        {pts: [G.A, G.G, G.F], id: 'tri_AGF'}
+    ];
+    
+    G.lines = [
+        {p1:G.A, p2:G.B, id:'seg_AB'}, {p1:G.B, p2:G.C}, {p1:G.C, p2:G.D}, {p1:G.D, p2:G.A, id:'seg_DA'},
+        {p1:G.A, p2:G.E, id:'seg_AE'}, {p1:G.A, p2:G.F, id:'seg_AF'}, {p1:G.E, p2:G.F, id:'seg_EF'},
+        {p1:G.A, p2:G.G, style:'dash', id:'seg_AG'}, {p1:G.G, p2:G.F, style:'dash', id:'seg_GF'}, 
+        {p1:G.B, p2:G.G, style:'dash', id:'seg_BG'}, 
+        {p1:G.D, p2:G.E, id:'seg_DE'}, 
+        {p1:G.B, p2:G.F, id:'seg_BF'},
+        {p1:G.B, p2:G.D, style:'aux'} 
+    ];
+    
+    G.angles = [
+        {p1:G.D, cen:G.A, p2:G.E, id:'ang_DAE'},
+        {p1:G.G, cen:G.A, p2:G.B, id:'ang_GAB'},
+        {p1:G.E, cen:G.A, p2:G.F, id:'ang_EAF'},
+        {p1:G.G, cen:G.A, p2:G.F, id:'ang_GAF'}
+    ];
+
+    G.labels = [{txt:'A',p:G.A,off:{x:-10,y:-10}}, {txt:'B',p:G.B,off:{x:10,y:-10}}, {txt:'C',p:G.C,off:{x:10,y:10}}, {txt:'D',p:G.D,off:{x:-10,y:-10}}, {txt:'E',p:G.E,off:{x:0,y:15}}, {txt:'F',p:G.F,off:{x:15,y:0}}, {txt:'G',p:G.G,off:{x:15,y:-15}}];
+}
+
+// Model 4: K-Shape
+function buildKShape(G, P) {
+    const ly = 100;
+    G.C = {x: 0, y: ly, label:'C'}; 
+    G.A = P.pts.A || {x: -80, y: 20};
+    G.B = Vec.rot(G.A, -Math.PI/2, G.C); 
+    G.D = {x: G.A.x, y: ly};
+    G.E = {x: G.B.x, y: ly};
+    
+    // Animation: Rotate ADC to CEB
+    if (P.anim > 0.01) {
+        const theta = P.anim * -Math.PI/2; // 0 to -90
+        const rot = p => Vec.rot(p, theta, G.C);
+        G.animTri = [rot(G.A), rot(G.D), rot(G.C)];
+    }
+
+    G.interactive = ['A'];
+    G.tris = [{pts: [G.A, G.D, G.C], id: 'tri1'}, {pts: [G.C, G.E, G.B], id: 'tri2'}];
+    
+    G.lines = [
+        {p1:{x:-300,y:ly}, p2:{x:300,y:ly}, style:'ground', id:'axisX'}, 
+        {p1:{x:0, y:-300}, p2:{x:0, y:300}, style:'axisY', id:'axisY'},
+        {p1:G.A, p2:G.C}, {p1:G.C, p2:G.B}, {p1:G.A, p2:G.D}, {p1:G.B, p2:G.E},
+        {p1:G.A, p2:{x:0, y:G.A.y}, style:'dash', id:'projAy'},
+        {p1:G.B, p2:{x:0, y:G.B.y}, style:'dash', id:'projBy'},
+        {p1:G.A, p2:G.B, style:'aux'}
+    ];
+    
+    const fmt = p => `(${Math.round(p.x)}, ${Math.round(-(p.y-ly))})`;
+    G.labels = [
+        {txt:'C (原点)',p:G.C,off:{x:-30,y:20}},
+        {txt:`A ${fmt(G.A)}`, p:G.A, off:{x:-10,y:-20}},
+        {txt:`B ${fmt(G.B)}`, p:G.B, off:{x:10,y:-20}},
+        {txt:'D',p:G.D,off:{x:0,y:15}},
+        {txt:'E',p:G.E,off:{x:0,y:15}}
+    ];
+}
+
+// --- Verification ---
+function verifyModel(G) {
+    const checks = [];
+    const addCheck = (name, val1, val2, type='conclusion', kind='len') => {
+        const diff = Math.abs(val1 - val2);
+        const tol = kind === 'ang' ? CONFIG.TOL.ANG : CONFIG.TOL.LEN;
+        const pass = diff < tol;
+        checks.push({name, diff, pass, type});
+    };
+    const getAng = (p1, cen, p2) => {
+        const v1 = Vec.sub(p1, cen), v2 = Vec.sub(p2, cen);
+        const mag = Math.sqrt((v1.x**2+v1.y**2)*(v2.x**2+v2.y**2));
+        if (mag < 1e-9) return 0;
+        return Math.acos(Math.max(-1, Math.min(1, (v1.x*v2.x + v1.y*v2.y)/mag))) * 180/Math.PI;
+    };
+
+    if (STATE.modelIndex === 0) {
+        addCheck('OA=OB (等边构造)', Vec.dist(G.O, G.A), Vec.dist(G.O, G.B), 'premise');
+        addCheck('∠AOB=60° (等边构造)', getAng(G.A, G.O, G.B), 60, 'premise', 'ang');
+        addCheck('AC=BD (全等结论)', Vec.dist(G.A, G.C), Vec.dist(G.B, G.D));
+    } else if (STATE.modelIndex === 1) {
+        addCheck('PD⊥OA (构造)', getAng(G.P, G.D, G.O), 90, 'premise', 'ang');
+        addCheck('∠DOP=∠EOP (角平分线)', getAng(G.D, G.O, G.P), getAng(G.E, G.O, G.P), 'premise', 'ang');
+        addCheck('PD=PE (性质结论)', Vec.dist(G.P, G.D), Vec.dist(G.P, G.E));
+    } else if (STATE.modelIndex === 2) {
+        addCheck('AD=DE (构造)', Vec.dist(G.A, G.D), Vec.dist(G.D, G.E), 'premise');
+        addCheck('AC=BE (结论)', Vec.dist(G.A, G.C), Vec.dist(G.B, G.E));
+    } else if (STATE.modelIndex === 3) {
+        addCheck('AE=AG (构造:旋转)', Vec.dist(G.A, G.E), Vec.dist(G.A, G.G), 'premise');
+        addCheck('∠EAF=45° (构造:作图)', getAng(G.E, G.A, G.F), 45, 'premise', 'ang');
+        addCheck('EF=DE+BF (结论)', Vec.dist(G.E, G.F), Vec.dist(G.D, G.E)+Vec.dist(G.B, G.F));
+    } else if (STATE.modelIndex === 4) {
+        addCheck('∠ADC=90° (构造)', getAng(G.A, G.D, G.C), 90, 'premise', 'ang');
+        addCheck('AC=BC (等腰)', Vec.dist(G.A, G.C), Vec.dist(G.B, G.C), 'premise');
+        addCheck('∠ACB=90° (垂直)', getAng(G.A, G.C, G.B), 90, 'premise', 'ang');
+        addCheck('AD=CE (结论:横=纵)', Vec.dist(G.A, G.D), Vec.dist(G.C, G.E));
+        addCheck('CD=BE (结论:纵=横)', Vec.dist(G.C, G.D), Vec.dist(G.B, G.E));
+    }
+    renderVerifyPanel(checks);
+}
+
+function renderVerifyPanel(checks) {
+    const el = document.getElementById('verify-output');
+    if (!STATE.dirty && el.childElementCount === checks.length) return; 
+    let html = '';
+    checks.forEach(c => {
+        const cls = c.pass ? 'verify-pass' : 'verify-fail';
+        const icon = c.pass ? '✔' : '✘';
+        const tag = c.type === 'premise' ? '<span class="verify-tag">[条件]</span>' : '<span class="verify-tag" style="color:#2563eb">[结论]</span>';
+        const style = c.type === 'premise' ? 'color:#64748b' : '';
+        html += `<div class="verify-item" style="${style}">${tag} ${c.name} <span class="${cls}">${icon}</span></div>`;
+    });
+    el.innerHTML = html;
+}
+
+// --- Steps ---
+function buildPlanSteps() {
+    const steps = [];
+    const mk = (t, r, f, focus, chk) => ({ title: t, reasoning: r, math: f, focus, check: chk });
+    
+    if (STATE.modelIndex === 0) {
+        steps.push(mk("1. 识别", "共顶点 O 的两个等边三角形。", ["OA=OB, \\; OC=OD"], ['tri1','tri2'], "OA=OB"));
+        steps.push(mk("2. 旋转", "将 \\(\\triangle OAC\\) 绕点 O 顺时针旋转 60°。", ["\\text{Rot}(O)"], ['tri1','tri2'], "旋转"));
+        steps.push(mk("3. 结论", "对应边相等。AC 与 BD 重合。", ["AC=BD"], ['tri1','tri2', 'seg_AC', 'seg_BD'], "AC=BD"));
+    } else if (STATE.modelIndex === 1) { 
+        steps.push(mk("1. 构造", "P 为角平分线上一点，作垂线 PD, PE。", ["OP \\text{ 平分 } \\angle AOB"], ['tri1','tri2','seg_PD','seg_PE'], "垂线"));
+        steps.push(mk("2. 判定", "利用 AAS 判定三角形全等。", ["\\triangle PDO \\cong \\triangle PEO"], ['tri1','tri2'], "AAS"));
+        steps.push(mk("3. 结论", "角平分线上的点到角两边的距离相等。", ["PD=PE"], ['seg_PD','seg_PE'], "距离相等"));
+    } else if (STATE.modelIndex === 2) {
+        steps.push(mk("1. 构造", "倍长中线：延长 AD 至 E 使 DE=AD。", ["AD=DE"], ['tri1','tri2','seg_AE'], "倍长"));
+        steps.push(mk("2. 判定", "利用 SAS 判定中心对称全等。", ["\\triangle ADC \\cong \\triangle EDB"], ['tri1','tri2'], "SAS"));
+        steps.push(mk("3. 结论", "对应边相等，AC 转移至 BE。", ["AC=BE"], ['seg_AC','seg_BE'], "AC=BE"));
+    } else if (STATE.modelIndex === 3) {
+        steps.push(mk("1. 旋转构造", "将 \\(\\triangle ADE\\) 绕点 A 逆时针旋转 90°。", ["AD \\to AB"], ['tri1','seg_AD','seg_AB'], "旋转90°"));
+        steps.push(mk("2. 边角转移", "由旋转性质可知，\\(DE\\) 变为 \\(BG\\)。", ["DE=BG"], ['seg_DE','seg_BG'], "性质"));
+        steps.push(mk("3. 角度计算", "因为 \\(\\angle EAF=45^\\circ\\)，所以 \\(\\angle GAF = 45^\\circ\\)。", ["\\angle GAF = 45^\\circ"], ['ang_EAF','ang_GAF'], "角度和"));
+        steps.push(mk("4. 全等判定", "在 \\(\\triangle AEF\\) 和 \\(\\triangle AGF\\) 中利用 SAS 证明全等。", ["\\triangle AEF \\cong \\triangle AGF"], ['tri_AEF','tri_AGF','seg_AE','seg_AG','seg_AF'], "SAS"));
+        steps.push(mk("5. 结论证明", "对应边 \\(EF=GF\\)。即 \\(EF = DE + BF\\)。", ["EF = DE + BF"], ['seg_EF','seg_GF'], "EF=DE+BF"));
+    } else if (STATE.modelIndex === 4) {
+        steps.push(mk("1. 构造", "观察坐标系中的双直角三角形。", ["C(0,0) \\text{ 为旋转中心}"], ['tri1','tri2'], "坐标系"));
+        steps.push(mk("2. 互余", "由 \\(\\angle ACB=90^\\circ\\) 推导互余关系。", ["\\angle CAD = \\angle BCE"], ['tri1','tri2'], "互余"));
+        steps.push(mk("3. 本质", "相当于将 \\(\\triangle ADC\\) 绕点 C 顺时针旋转 90°。", ["\\text{Rot}(C, -90^\\circ)"], ['tri1','tri2'], "旋转"));
+        steps.push(mk("4. 坐标结论", "横纵坐标互换：水平直角边等于竖直直角边。", ["|x_A| = |y_B|, \\; |y_A| = |x_B|"], ['tri1','tri2'], "横纵互换"));
+    }
+    STATE.planSteps = steps;
+    UpdateQueue.queue();
+}
+
+// --- App Logic ---
+function setup() {
+    const stage = document.getElementById('canvas-stage');
+    const canvas = createCanvas(stage.clientWidth, stage.clientHeight);
+    canvas.parent(stage);
+    canvas.elt.addEventListener('wheel', e => {
+        e.preventDefault();
+        STATE.view.scale = constrain(STATE.view.scale - e.deltaY*0.001*STATE.view.scale, 0.2, 5.0);
+        STATE.dirty = true;
+    }, { passive: false });
+    initModel(0);
+}
+
+function windowResized() { resizeCanvas(document.getElementById('canvas-stage').clientWidth, document.getElementById('canvas-stage').clientHeight); STATE.dirty = true; }
+
+function draw() {
+    if (!STATE.dirty && !STATE.view.dragging && STATE.params.anim === 0) return;
+    background(255);
+    View.apply(this);
+    calculateGeometry();
+    drawGeometry(STATE.geometry);
+    
+    if (mouseIsPressed) {
+        if (STATE.dragId) {
+            const m = View.toWorld(mouseX, mouseY, width, height);
+            if (!STATE.params.pts) STATE.params.pts = {};
+            STATE.params.pts[STATE.dragId] = {x: m.x, y: m.y};
+            STATE.dirty = true;
+        } else if (STATE.view.dragging) {
+            STATE.view.offsetX = mouseX - STATE.view.lastX;
+            STATE.view.offsetY = mouseY - STATE.view.lastY;
+            STATE.dirty = true;
+        }
+    } else {
+        STATE.dirty = false;
+    }
+}
+
+function mousePressed(e) {
+    if (e && e.target && e.target.tagName !== 'CANVAS') return;
+    const m = View.toWorld(mouseX, mouseY, width, height);
+    let hit = null;
+    if (STATE.geometry.interactive) {
+        for(let id of STATE.geometry.interactive) {
+            if (Vec.dist(m, STATE.geometry[id]) < 20/STATE.view.scale) { hit = id; break; }
+        }
+    }
+    if (hit) {
+        STATE.dragId = hit;
+    } else {
+        STATE.view.dragging = true;
+        STATE.view.lastX = mouseX - STATE.view.offsetX;
+        STATE.view.lastY = mouseY - STATE.view.offsetY;
+        if(e.target.setPointerCapture && typeof e.pointerId === 'number') e.target.setPointerCapture(e.pointerId);
+    }
+    STATE.dirty = true;
+}
+
+function mouseReleased(e) {
+    STATE.dragId = null;
+    STATE.view.dragging = false;
+    if(e.target.releasePointerCapture && typeof e.pointerId === 'number') e.target.releasePointerCapture(e.pointerId);
+    STATE.dirty = true;
+}
+
+// --- Visuals ---
+function drawGeometry(G) {
+    const currentStep = STATE.mode === 'guided' ? STATE.planSteps[STATE.stepIndex] : null;
+    const focused = currentStep ? currentStep.focus : [];
+    
+    // 1. Static Triangles
+    noStroke();
+    if (G.tris) {
+        G.tris.forEach((t, i) => {
+            let c = (i===0) ? CONFIG.colors.tri1_fill : CONFIG.colors.tri2_fill;
+            if (focused.includes(t.id)) c = CONFIG.colors.focus_fill;
+            fill(c);
+            beginShape(); t.pts.forEach(p => vertex(p.x, p.y)); endShape(CLOSE);
+        });
+    }
+
+    if (G.virtualTris) {
+        G.virtualTris.forEach((t) => {
+            if (focused.includes(t.id)) {
+                fill(CONFIG.colors.focus_fill);
+                beginShape(); t.pts.forEach(p => vertex(p.x, p.y)); endShape(CLOSE);
+            }
+        });
+    }
+
+    // 2. Animated Polygon
+    if (G.animTri) {
+        fill(CONFIG.colors.anim_fill);
+        stroke(CONFIG.colors.anim_stroke);
+        strokeWeight(2);
+        drawingContext.setLineDash([5, 3]);
+        beginShape(); G.animTri.forEach(p => vertex(p.x, p.y)); endShape(CLOSE);
+        drawingContext.setLineDash([]);
+    }
+    
+    // 3. Angles
+    if (G.angles) {
+        noFill();
+        G.angles.forEach(a => {
+            if (focused.includes(a.id)) {
+                stroke(CONFIG.colors.focus);
+                strokeWeight(3);
+                const r = 25;
+                const v1 = Vec.sub(a.p1, a.cen);
+                const v2 = Vec.sub(a.p2, a.cen);
+                let a1 = Math.atan2(v1.y, v1.x);
+                let a2 = Math.atan2(v2.y, v2.x);
+                if (a2 < a1) a2 += Math.PI*2;
+                if (a2 - a1 > Math.PI) a2 -= Math.PI*2;
+                arc(a.cen.x, a.cen.y, r*2, r*2, a1, a2);
+            }
+        });
+    }
+    
+    // 4. Lines
+    if (G.lines) {
+        G.lines.forEach(l => {
+            let w = 2;
+            let col = CONFIG.colors.text;
+            let dash = [];
+            
+            if (l.style === 'aux') {
+                if (!STATE.params.showAux && !focused.includes(l.id)) return; 
+                dash = [6, 6]; col = CONFIG.colors.aux;
+            } else if (l.style === 'dash') {
+                dash = [6, 6]; col = CONFIG.colors.aux;
+            } else if (l.style === 'ground' || l.style === 'axisX') {
+                w = 1; col = 'black';
+            } else if (l.style === 'axisY') {
+                w = 1; col = 'black';
+            }
+            
+            if (focused.includes(l.id)) {
+                col = CONFIG.colors.focus; w = 4; dash = [];
+            }
+
+            strokeWeight(w); stroke(col); drawingContext.setLineDash(dash);
+            line(l.p1.x, l.p1.y, l.p2.x, l.p2.y);
+            
+            if(l.style === 'axisX') {
+                line(l.p2.x, l.p2.y, l.p2.x-10, l.p2.y-5);
+                line(l.p2.x, l.p2.y, l.p2.x-10, l.p2.y+5);
+                noStroke(); fill(0); text('x', l.p2.x-10, l.p2.y-20);
+                
+                for(let x = -250; x <= 250; x+=50) {
+                    if(x===0) continue;
+                    stroke(0); strokeWeight(1);
+                    line(x, l.p1.y-3, x, l.p1.y+3);
+                    noStroke(); fill(100); textSize(10);
+                    text(x, x, l.p1.y+12);
+                }
+            }
+            if(l.style === 'axisY') {
+                line(l.p1.x, l.p1.y, l.p1.x-5, l.p1.y+10);
+                line(l.p1.x, l.p1.y, l.p1.x+5, l.p1.y+10);
+                noStroke(); fill(0); text('y', l.p1.x+15, l.p1.y+10);
+                
+                for(let y = -250; y <= 250; y+=50) {
+                    if(y===0) continue;
+                    stroke(0); strokeWeight(1);
+                    line(l.p1.x-3, y, l.p1.x+3, y);
+                    noStroke(); fill(100); textSize(10);
+                    text(-y, l.p1.x+15, y); 
+                }
+            }
+        });
+        drawingContext.setLineDash([]);
+    }
+    
+    // 5. CPCTC
+    if (STATE.params.cpctc && G.tris && G.tris.length >= 2) {
+        const t1 = G.tris[0].pts, t2 = G.tris[1].pts;
+        strokeWeight(4); noFill();
+        for(let i=0; i<3; i++) {
+            stroke(CONFIG.colors.cpctc[i]);
+            line(t1[i].x, t1[i].y, t1[(i+1)%3].x, t1[(i+1)%3].y);
+            line(t2[i].x, t2[i].y, t2[(i+1)%3].x, t2[(i+1)%3].y);
+        }
+    }
+    
+    // 6. Labels
+    textAlign(CENTER, CENTER); textSize(14);
+    if (G.labels) {
+        for(let l of G.labels) {
+            noStroke(); fill(G.interactive?.includes(l.txt.split(' ')[0]) ? CONFIG.colors.primary : '#000');
+            circle(l.p.x, l.p.y, G.interactive?.includes(l.txt.split(' ')[0]) ? 8 : 5);
+            fill(0); text(l.txt, l.p.x + (l.off?.x||0), l.p.y + (l.off?.y||0));
+        }
+    }
+}
+
+// --- View Helper & UI ---
+const View = {
+    apply: (p) => { p.translate(p.width/2 + STATE.view.offsetX, p.height/2 + STATE.view.offsetY); p.scale(STATE.view.scale); },
+    toWorld: (mx, my, w, h) => ({ x: (mx-(w/2+STATE.view.offsetX))/STATE.view.scale, y: (my-(h/2+STATE.view.offsetY))/STATE.view.scale })
+};
+
+const UpdateQueue = {
+    timer: null,
+    queue: () => { clearTimeout(UpdateQueue.timer); UpdateQueue.timer = setTimeout(updateOverlay, 50); }
+};
+
+function initModel(idx) {
+    idx = parseInt(idx); 
+    STATE.modelIndex = idx;
+    STATE.params = { angle: 0, t: 0.5, cpctc: false, showAux: false, anim: 0, pts: {} };
+    STATE.stepIndex = 0;
+    STATE.dirty = true;
+    
+    const hintEl = document.getElementById('hint-text');
+    const hints = ["拖动点 A 改变大小，或使用滑块旋转", "使用滑块 P + 翻折动画", "拖动点 A + 旋转动画", "滑块 E + 剪切动画", "拖动点 A + 旋转动画"];
+    hintEl.innerText = hints[idx] || "交互";
+    
+    const probTexts = [
+        "1. 手拉手模型 (旋转)\n求证 AC = BD。",
+        "2. 角平分线模型 (翻折)\n求证 PD = PE。",
+        "3. 倍长中线模型 (中心对称)\n求证 AC = BE。",
+        "4. 半角模型 (剪切旋转)\n正方形 ABCD，∠EAF=45°。\n演示将 △ADE 剪切并绕 A 旋转到 △ABG。",
+        "5. K字型 (坐标系旋转)\n【约束】AC⊥BC 且 AC=BC\n【本质】绕点C 旋转 90°\n【坐标规律】|x_A| = |y_B|, |y_A| = |x_B|"
+    ];
+    document.getElementById('problem-text').innerText = probTexts[idx];
+
+    const ctrls = document.getElementById('dynamic-controls');
+    ctrls.innerHTML = '';
+    
+    if (idx === 0) {
+        // Buttons
+        const grid = document.createElement('div');
+        grid.className = 'btn-grid';
+        
+        const states = [
+            { label: '普通分离', val: 0 },
+            { label: '内部重叠', val: -40 },
+            { label: '顶点共线', val: 60 },
+            { label: '背离状态', val: 120 }
+        ];
+        
+        states.forEach(s => {
+            const btn = document.createElement('button');
+            btn.className = 'btn btn-outline btn-sm';
+            btn.innerText = s.label;
+            btn.onclick = () => {
+                STATE.params.angle = s.val * Math.PI / 180;
+                STATE.dirty = true;
+                const slider = ctrls.querySelector('input[type="range"]');
+                if(slider) slider.value = s.val;
+            };
+            grid.appendChild(btn);
+        });
+        ctrls.appendChild(grid);
+
+        addSlider(ctrls, '旋转角 (微调)', -180, 180, 0, v => STATE.params.angle = v*Math.PI/180);
+    }
+    if (idx === 1) {
+        addSlider(ctrls, 'P 点位置', 0.2, 0.8, 0.5, v => STATE.params.t = v);
+        addSlider(ctrls, '📖 翻折动画', 0, 1, 0, v => { STATE.params.anim = v; STATE.dirty=true; });
+    }
+    if (idx === 2) {
+        addSlider(ctrls, '🔄 旋转动画 (180°)', 0, 1, 0, v => { STATE.params.anim = v; STATE.dirty=true; });
+    }
+    if (idx === 3) {
+        addSlider(ctrls, 'E 点位置', 0.1, 0.9, 0.5, v => STATE.params.t = v);
+        addSlider(ctrls, '🎬 剪切旋转动画', 0, 1, 0, v => { STATE.params.anim = v; STATE.dirty=true; });
+    }
+    if (idx === 4) {
+        addSlider(ctrls, '🔄 旋转动画 (90°)', 0, 1, 0, v => { STATE.params.anim = v; STATE.dirty=true; });
+    }
+    
+    buildPlanSteps();
+}
+
+function addSlider(p, label, min, max, val, cb) {
+    const div = document.createElement('div');
+    div.className = 'control-group';
+    div.innerHTML = `<label class="control-label">${label}</label><input type="range" min="${min}" max="${max}" step="0.01" value="${val}">`;
+    div.querySelector('input').oninput = e => { cb(parseFloat(e.target.value)); STATE.dirty = true; };
+    p.appendChild(div);
+}
+
+function renderMath(el, latex) {
+    el.innerHTML = latex; 
+    if (window.MathJax && window.MathJax.typesetPromise) {
+        window.MathJax.typesetPromise([el]).catch(e => console.warn(e));
+    }
+}
+
+function updateOverlay() {
+    const step = STATE.planSteps[STATE.stepIndex];
+    if (!step) return;
+    document.getElementById('step-indicator').innerText = `Step ${STATE.stepIndex+1}/${STATE.planSteps.length}`;
+    document.getElementById('guided-title').innerText = step.title;
+    const chk = document.getElementById('guided-check-container');
+    if(step.check) { chk.classList.remove('hidden'); document.getElementById('guided-check').innerText = step.check; }
+    else chk.classList.add('hidden');
+    renderMath(document.getElementById('guided-reasoning'), step.reasoning);
+    renderMath(document.getElementById('guided-math'), `\\[ ${step.math.join(' \\\\[0.5em] ')} \\]`);
+}
+
+document.getElementById('model-select').onchange = e => initModel(e.target.value);
+document.getElementById('btn-reset').onclick = () => initModel(STATE.modelIndex);
+document.getElementById('chk-cpctc').onchange = e => { STATE.params.cpctc = e.target.checked; STATE.dirty=true; };
+document.getElementById('chk-aux').onchange = e => { STATE.params.showAux = e.target.checked; STATE.dirty=true; };
+document.getElementById('btn-mode-explore').onclick = () => setMode('explore');
+document.getElementById('btn-mode-guided').onclick = () => setMode('guided');
+document.getElementById('btn-prev').onclick = () => { if(STATE.stepIndex>0) {STATE.stepIndex--; UpdateQueue.queue(); STATE.dirty=true;} };
+document.getElementById('btn-next').onclick = () => { if(STATE.stepIndex<STATE.planSteps.length-1) {STATE.stepIndex++; UpdateQueue.queue(); STATE.dirty=true;} };
+
+function setMode(m) {
+    STATE.mode = m;
+    const isG = m==='guided';
+    document.getElementById('panel-explore').classList.toggle('hidden', isG);
+    document.getElementById('panel-guided').classList.toggle('hidden', !isG);
+    document.getElementById('guided-overlay').classList.toggle('hidden', !isG);
+    document.getElementById('btn-mode-explore').className = isG ? 'btn btn-outline' : 'btn';
+    document.getElementById('btn-mode-guided').className = isG ? 'btn' : 'btn btn-outline';
+    if(isG) UpdateQueue.queue();
+    STATE.dirty = true;
+}
+</script>
+</body>
+</html>

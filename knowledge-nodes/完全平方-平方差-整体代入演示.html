@@ -1,686 +1,555 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8" />
-  <title>完全平方 & 平方差 · 整体代入演示</title>
-  <style>
-    * {
-      box-sizing: border-box;
-    }
-    body {
-      margin: 0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #f5f5f7;
-      color: #222;
-    }
-    .page {
-      max-width: 1100px;
-      margin: 0 auto;
-      padding: 24px 16px 40px;
-    }
-    h1 {
-      text-align: center;
-      margin-bottom: 4px;
-      font-size: 26px;
-    }
-    .subtitle {
-      text-align: center;
-      color: #666;
-      margin-bottom: 24px;
-      font-size: 14px;
-    }
-    .card {
-      background: #fff;
-      border-radius: 12px;
-      box-shadow: 0 8px 18px rgba(0,0,0,0.05);
-      padding: 16px 18px 18px;
-      margin-bottom: 16px;
-    }
-    .row {
-      display: flex;
-      gap: 16px;
-      flex-wrap: wrap;
-    }
-    .col {
-      flex: 1 1 280px;
-      min-width: 0;
-    }
-    .section-title {
-      font-size: 16px;
-      font-weight: 600;
-      margin-bottom: 8px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .section-title small {
-      font-weight: 400;
-      color: #888;
-    }
-    .formula-box {
-      font-size: 20px;
-      padding: 10px 12px;
-      background: #fafafa;
-      border-radius: 8px;
-      border: 1px solid #e5e5e5;
-      text-align: center;
-      margin-bottom: 8px;
-    }
-    .formula-box .a-part {
-      color: #d32f2f;
-      font-weight: 600;
-    }
-    .formula-box .b-part {
-      color: #1976d2;
-      font-weight: 600;
-    }
-    .tabs {
-      display: inline-flex;
-      padding: 3px;
-      background: #e8e8f0;
-      border-radius: 999px;
-      margin-bottom: 10px;
-      gap: 3px;
-    }
-    .tab-btn {
-      border: none;
-      padding: 6px 14px;
-      border-radius: 999px;
-      font-size: 14px;
-      background: transparent;
-      cursor: pointer;
-      color: #555;
-      transition: all 0.15s ease;
-    }
-    .tab-btn.active {
-      background: #fff;
-      color: #111;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.12);
-    }
-    .example-list {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-    .example-btn {
-      border-radius: 999px;
-      border: 1px solid #ddd;
-      padding: 6px 10px;
-      font-size: 13px;
-      cursor: pointer;
-      background: #fafafa;
-      text-align: left;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 6px;
-    }
-    .example-btn span.label {
-      white-space: nowrap;
-    }
-    .example-btn span.note {
-      color: #888;
-      font-size: 12px;
-      flex: 1;
-      text-align: right;
-    }
-    .example-btn.active {
-      background: #e3f2fd;
-      border-color: #64b5f6;
-    }
-    .tag {
-      display: inline-flex;
-      align-items: center;
-      padding: 2px 8px;
-      border-radius: 999px;
-      font-size: 11px;
-      background: #e3f2fd;
-      color: #1565c0;
-      margin-left: 4px;
-    }
-    .tag.harder {
-      background: #ffebee;
-      color: #c62828;
-    }
-    .pill {
-      display: inline-flex;
-      align-items: center;
-      padding: 2px 8px;
-      border-radius: 999px;
-      font-size: 11px;
-      background: #f1f8e9;
-      color: #558b2f;
-    }
-    .expr-box {
-      padding: 8px 10px;
-      border-radius: 8px;
-      border: 1px dashed #ccc;
-      background: #fcfcfc;
-      margin-bottom: 6px;
-      font-size: 16px;
-    }
-    .mapping {
-      font-size: 14px;
-      margin-bottom: 6px;
-      line-height: 1.6;
-    }
-    .mapping strong {
-      font-weight: 600;
-    }
-    .highlight {
-      border-radius: 6px;
-      padding: 2px 4px;
-    }
-    .highlight.a {
-      background: rgba(244, 67, 54, 0.10);
-      border: 1px solid rgba(244, 67, 54, 0.35);
-    }
-    .highlight.b {
-      background: rgba(25, 118, 210, 0.10);
-      border: 1px solid rgba(25, 118, 210, 0.35);
-    }
-    .steps-list {
-      list-style: none;
-      padding-left: 16px;
-      margin: 6px 0 6px;
-      font-size: 14px;
-    }
-    .steps-list li {
-      position: relative;
-      padding-left: 14px;
-      margin-bottom: 4px;
-    }
-    .steps-list li::before {
-      content: "";
-      position: absolute;
-      left: 0;
-      top: 7px;
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: #9e9e9e;
-    }
-    .steps-list li.visible {
-      opacity: 1;
-      max-height: 100px;
-      transform: translateY(0);
-    }
-    .steps-list li.hidden {
-      opacity: 0;
-      max-height: 0;
-      transform: translateY(-4px);
-      overflow: hidden;
-    }
-    .step-btns {
-      display: flex;
-      gap: 8px;
-      margin-top: 4px;
-    }
-    button.primary {
-      border-radius: 999px;
-      border: none;
-      background: #1976d2;
-      color: #fff;
-      font-size: 13px;
-      padding: 6px 12px;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-    }
-    button.secondary {
-      border-radius: 999px;
-      border: 1px solid #ccc;
-      background: #fafafa;
-      color: #555;
-      font-size: 12px;
-      padding: 4px 10px;
-      cursor: pointer;
-    }
-    button:disabled {
-      opacity: 0.5;
-      cursor: default;
-    }
-    .tiny-hint {
-      font-size: 11px;
-      color: #888;
-      margin-top: 4px;
-    }
-    .example-title {
-      font-size: 15px;
-      font-weight: 600;
-      margin-bottom: 4px;
-    }
-    .group-line {
-      margin-top: 4px;
-      font-size: 13px;
-      color: #555;
-    }
-    .group-line code {
-      background: #f3e5f5;
-      padding: 0 4px;
-      border-radius: 4px;
-    }
-    .number-inputs {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin-top: 6px;
-      align-items: center;
-      font-size: 13px;
-    }
-    .number-inputs label {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-    }
-    .number-inputs input[type="number"] {
-      width: 70px;
-      padding: 3px 4px;
-      border-radius: 4px;
-      border: 1px solid #ccc;
-      font-size: 13px;
-    }
-    .check-result {
-      margin-top: 6px;
-      font-size: 13px;
-      padding: 6px 8px;
-      border-radius: 6px;
-      background: #f5f5f5;
-    }
-    .check-result.good {
-      background: #e8f5e9;
-      color: #2e7d32;
-      border: 1px solid #a5d6a7;
-    }
-    .check-result.bad {
-      background: #ffebee;
-      color: #c62828;
-      border: 1px solid #ef9a9a;
-    }
-    .footer-note {
-      margin-top: 10px;
-      font-size: 11px;
-      color: #999;
-      text-align: right;
-    }
-    @media (max-width: 720px) {
-      .card {
-        padding: 12px 12px 14px;
-      }
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>代数公式：从几何到整体代换</title>
+    <!-- 引入 Tailwind CSS 用于样式 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Vue 3 用于交互逻辑 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- 引入 MathJax 用于漂亮的数学公式渲染 (配置为支持动态刷新) -->
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
+            svg: { fontCache: 'global' }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        /* 自定义一些过渡动画 */
+        .fade-enter-active, .fade-leave-active {
+            transition: opacity 0.5s ease;
+        }
+        .fade-enter-from, .fade-leave-to {
+            opacity: 0;
+        }
+        
+        .math-box {
+            transition: all 0.3s ease;
+        }
+        
+        /* 用于占位符的样式 */
+        .placeholder-a {
+            background-color: #dbeafe; /* blue-100 */
+            border: 2px dashed #3b82f6; /* blue-500 */
+            color: #1e40af; /* blue-800 */
+            padding: 2px 6px;
+            border-radius: 4px;
+            display: inline-block;
+        }
+        .placeholder-b {
+            background-color: #ffedd5; /* orange-100 */
+            border: 2px dashed #f97316; /* orange-500 */
+            color: #9a3412; /* orange-800 */
+            padding: 2px 6px;
+            border-radius: 4px;
+            display: inline-block;
+        }
+
+        .highlight-group {
+            position: relative;
+            z-index: 10;
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.5);
+            transform: scale(1.05);
+            background-color: white;
+        }
+
+        /* 解决 MathJax 闪烁问题 */
+        mjx-container {
+            display: inline-block !important;
+            margin: 0 !important;
+        }
+    </style>
 </head>
-<body>
-  <div class="page">
-    <h1>完全平方 · 平方差 —— 占位符整体代入演示</h1>
-    <div class="subtitle">从“直接看出来”到“先整理再认出 a、b”，一步步体会整体代入的思路</div>
+<body class="bg-gray-50 text-gray-800 font-sans">
 
-    <div class="card">
-      <div class="row">
-        <div class="col">
-          <div class="section-title">
-            ① 选择公式
-          </div>
-          <div class="tabs" id="formulaTabs">
-            <button class="tab-btn active" data-type="square">完全平方 (a±b)<sup>2</sup></button>
-            <button class="tab-btn" data-type="diff">平方差 a<sup>2</sup> − b<sup>2</sup></button>
-          </div>
-          <div class="formula-box" id="mainFormula">
-            ( <span class="a-part">a</span> ± <span class="b-part">b</span> )<sup>2</sup>
-            = <span class="a-part">a</span><sup>2</sup> ± 2<span class="a-part">a</span><span class="b-part">b</span> + <span class="b-part">b</span><sup>2</sup>
-          </div>
-          <div class="tiny-hint">提示：在所有例子中，红色部分始终整体看作 <strong>a</strong>，蓝色部分整体看作 <strong>b</strong>。</div>
+<div id="app" class="min-h-screen flex flex-col">
+
+    <!-- 顶部标题区 -->
+    <header class="bg-indigo-600 text-white p-4 shadow-md">
+        <div class="max-w-5xl mx-auto flex justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-bold">代数公式可视化：整体代换的思想</h1>
+                <p class="text-indigo-200 text-sm mt-1">从简单的几何面积到复杂的“火眼金睛”识别</p>
+            </div>
+            <div class="hidden md:block text-xs bg-indigo-700 p-2 rounded">
+                核心概念：占位符 <span class="bg-blue-200 text-blue-800 px-1 rounded">□</span> 与 <span class="bg-orange-200 text-orange-800 px-1 rounded">△</span>
+            </div>
         </div>
+    </header>
 
-        <div class="col">
-          <div class="section-title">
-            ② 选择例题 <small>（难度逐渐增加）</small>
-          </div>
-          <div class="example-list" id="exampleList"></div>
-        </div>
-      </div>
-    </div>
+    <main class="flex-grow max-w-5xl mx-auto w-full p-4 flex flex-col md:flex-row gap-6">
 
-    <div class="card">
-      <div class="section-title">
-        ③ 在当前例题中，找出 a 和 b，并展开或化简
-      </div>
+        <!-- 左侧控制/导航栏 -->
+        <aside class="w-full md:w-64 flex-shrink-0 flex flex-col gap-4">
+            <div class="bg-white p-4 rounded-lg shadow border border-gray-200">
+                <h3 class="font-bold text-gray-600 mb-3 border-b pb-2">学习阶段</h3>
+                <nav class="flex flex-col gap-2">
+                    <button @click="currentTab = 'geometric'" 
+                        :class="{'bg-indigo-100 text-indigo-700 border-indigo-500': currentTab === 'geometric', 'hover:bg-gray-100': currentTab !== 'geometric'}"
+                        class="text-left px-4 py-3 rounded border-l-4 border-transparent transition-all">
+                        1. 几何直观 (基础)
+                        <div class="text-xs text-gray-400 font-normal mt-1">面积法验证公式</div>
+                    </button>
+                    <button @click="currentTab = 'substitution'" 
+                        :class="{'bg-indigo-100 text-indigo-700 border-indigo-500': currentTab === 'substitution', 'hover:bg-gray-100': currentTab !== 'substitution'}"
+                        class="text-left px-4 py-3 rounded border-l-4 border-transparent transition-all">
+                        2. 万能占位符 (进阶)
+                        <div class="text-xs text-gray-400 font-normal mt-1">把复杂的项看作整体</div>
+                    </button>
+                    <button @click="currentTab = 'complex'" 
+                        :class="{'bg-indigo-100 text-indigo-700 border-indigo-500': currentTab === 'complex', 'hover:bg-gray-100': currentTab !== 'complex'}"
+                        class="text-left px-4 py-3 rounded border-l-4 border-transparent transition-all">
+                        3. 火眼金睛 (挑战)
+                        <div class="text-xs text-gray-400 font-normal mt-1">变形、分组与识别</div>
+                    </button>
+                </nav>
+            </div>
 
-      <div class="example-title" id="exampleTitle"></div>
-      <div class="expr-box" id="exampleExpr"></div>
-      <div class="group-line" id="groupHint" style="display:none"></div>
-      <div class="mapping" id="mappingText"></div>
+            <!-- 当前公式提示 -->
+            <div class="bg-yellow-50 p-4 rounded-lg shadow border border-yellow-200 text-sm">
+                <h4 class="font-bold text-yellow-800 mb-2">当前重点公式：</h4>
+                <div v-if="currentTab === 'geometric' || currentTab === 'substitution'" class="mb-2">
+                    <div class="font-mono text-center">$(a+b)^2 = a^2 + 2ab + b^2$</div>
+                    <div class="text-xs text-center text-gray-500 mt-1">完全平方公式</div>
+                </div>
+                <div v-else-if="currentTab === 'complex'">
+                    <!-- 根据选中的例子显示不同公式 -->
+                     <div v-if="complexExampleType === 'diff_sq'">
+                        <div class="font-mono text-center">$a^2 - b^2 = (a+b)(a-b)$</div>
+                        <div class="text-xs text-center text-gray-500 mt-1">平方差公式</div>
+                     </div>
+                     <div v-else>
+                        <div class="font-mono text-center">$(a-b)^2 = a^2 - 2ab + b^2$</div>
+                        <div class="text-xs text-center text-gray-500 mt-1">完全平方公式 (差)</div>
+                     </div>
+                </div>
+            </div>
+        </aside>
 
-      <ul class="steps-list" id="stepsList"></ul>
-      <div class="step-btns">
-        <button class="primary" id="nextStepBtn">显示下一步</button>
-        <button class="secondary" id="resetStepsBtn">重新开始</button>
-      </div>
+        <!-- 右侧主内容区 -->
+        <section class="flex-grow bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden relative min-h-[500px]">
+            
+            <!-- Tab 1: 几何直观 -->
+            <div v-if="currentTab === 'geometric'" class="p-6 h-full flex flex-col">
+                <h2 class="text-xl font-bold text-gray-800 mb-4 border-b pb-2">几何意义：为什么会有 $2ab$？</h2>
+                
+                <div class="flex flex-col md:flex-row h-full gap-8">
+                    <!-- 控制区 -->
+                    <div class="w-full md:w-1/3 space-y-6">
+                        <div>
+                            <label class="block text-sm font-medium text-blue-700 mb-1">边长 a 的长度: {{ geoA }}</label>
+                            <input type="range" v-model.number="geoA" min="50" max="200" class="w-full accent-blue-600">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-orange-700 mb-1">边长 b 的长度: {{ geoB }}</label>
+                            <input type="range" v-model.number="geoB" min="20" max="150" class="w-full accent-orange-500">
+                        </div>
+                        <div class="text-sm text-gray-600 bg-gray-50 p-3 rounded">
+                            <p>总面积 = $(a+b)^2$</p>
+                            <p>也就是四个部分之和：</p>
+                            <ul class="list-disc pl-5 mt-1 space-y-1">
+                                <li>蓝色大正方形 $a^2$</li>
+                                <li>两个紫色长方形 $ab$</li>
+                                <li>橙色小正方形 $b^2$</li>
+                            </ul>
+                        </div>
+                    </div>
 
-      <div class="section-title" style="margin-top:12px;">
-        ④ 代入数字，验证等式是否相等
-        <span class="pill">只在含有 x, y 的例子中有效</span>
-      </div>
-      <div class="number-inputs" id="numberInputs"></div>
-      <button class="secondary" id="checkBtn">检查两边是否相等</button>
-      <div class="check-result" id="checkResult" style="display:none"></div>
+                    <!-- 绘图区 -->
+                    <div class="flex-grow flex items-center justify-center bg-gray-50 rounded border relative">
+                        <!-- 容器 -->
+                        <div class="relative bg-white shadow-lg flex flex-wrap" 
+                             :style="{ width: (geoA + geoB) + 'px', height: (geoA + geoB) + 'px' }">
+                            
+                            <!-- a^2 -->
+                            <div class="bg-blue-200 border border-blue-400 flex items-center justify-center text-blue-800 font-bold text-lg absolute top-0 left-0 transition-all duration-300"
+                                 :style="{ width: geoA + 'px', height: geoA + 'px' }">
+                                $a^2$
+                            </div>
 
-      <div class="footer-note">小技巧：真正的“整体代入”，就是<strong>把一大坨东西，当成一个整体字母</strong>来用。</div>
-    </div>
-  </div>
+                            <!-- ab (右) -->
+                            <div class="bg-purple-200 border border-purple-400 flex items-center justify-center text-purple-800 font-bold absolute top-0 transition-all duration-300"
+                                 :style="{ left: geoA + 'px', width: geoB + 'px', height: geoA + 'px' }">
+                                $ab$
+                            </div>
 
-  <script>
-    const DATA = {
-      square: {
-        name: '完全平方',
-        formulaHtml: '( <span class="a-part">a</span> \u00b1 <span class="b-part">b</span> )<sup>2</sup> = <span class="a-part">a</span><sup>2</sup> \u00b1 2<span class="a-part">a</span><span class="b-part">b</span> + <span class="b-part">b</span><sup>2</sup>',
-        examples: [
-          {
-            id: 'sq1',
-            title: '例 1：最基础的代入',
-            short: '(x + 3)<sup>2</sup>',
-            note: '直接一眼看出 a,b',
-            exprHtml: '原式： ( <span class="highlight a">x</span> + <span class="highlight b">3</span> )<sup>2</sup>',
-            mappingHtml: '在这里：<span class="highlight a">a = x</span>，<span class="highlight b">b = 3</span>。只要把公式中的 a 换成 x，b 换成 3 即可。',
-            steps: [
-              '根据 (a+b)<sup>2</sup> = a<sup>2</sup> + 2ab + b<sup>2</sup>，得到：<br>(x+3)<sup>2</sup> = x<sup>2</sup> + 2\u00d7x\u00d73 + 3<sup>2</sup>',
-              '化简：x<sup>2</sup> + 6x + 9',
-            ],
-            vars: ['x'],
-            leftEval: ({x}) => (x + 3) ** 2,
-            rightEval: ({x}) => x * x + 6 * x + 9,
-          },
-          {
-            id: 'sq2',
-            title: '例 2：a 本身就是一个“整体”',
-            short: '(2x + 5)<sup>2</sup>',
-            note: 'a 变成 2x',
-            exprHtml: '原式： ( <span class="highlight a">2x</span> + <span class="highlight b">5</span> )<sup>2</sup>',
-            mappingHtml: '在这里：<span class="highlight a">a = 2x</span>，<span class="highlight b">b = 5</span>。<br>要记住：<strong>2x 这个整体</strong>是 a，不要把平方只加在 x 上。',
-            steps: [
-              '代入公式：<br>(2x+5)<sup>2</sup> = (2x)<sup>2</sup> + 2\u00d7(2x)\u00d75 + 5<sup>2</sup>',
-              '化简：(2x)<sup>2</sup> = 4x<sup>2</sup>，中间项 2\u00d7(2x)\u00d75 = 20x，5<sup>2</sup> = 25',
-              '所以：(2x+5)<sup>2</sup> = 4x<sup>2</sup> + 20x + 25',
-            ],
-            vars: ['x'],
-            leftEval: ({x}) => (2 * x + 5) ** 2,
-            rightEval: ({x}) => 4 * x * x + 20 * x + 25,
-          },
-          {
-            id: 'sq3',
-            title: '例 3：a 和 b 都是“括号整体”',
-            short: '((x+1) + (2y-3))<sup>2</sup>',
-            note: '先整体看，再展开',
-            exprHtml: '原式： ( <span class="highlight a">(x+1)</span> + <span class="highlight b">(2y-3)</span> )<sup>2</sup>',
-            mappingHtml: '在这里要有“整体眼光”：<br><span class="highlight a">a = (x+1)</span>，<span class="highlight b">b = (2y-3)</span>。<br>虽然里面还有加减，但对公式来说，它们是两个“大块”。',
-            steps: [
-              '整体代入公式：(A+B)<sup>2</sup> = A<sup>2</sup> + 2AB + B<sup>2</sup>，其中 A=(x+1)，B=(2y-3)',
-              '得到：<br>((x+1)+(2y-3))<sup>2</sup> = (x+1)<sup>2</sup> + 2(x+1)(2y-3) + (2y-3)<sup>2</sup>',
-              '再分别展开：(x+1)<sup>2</sup> = x<sup>2</sup> + 2x + 1；(2y-3)<sup>2</sup> = 4y<sup>2</sup> - 12y + 9',
-              '中间项 2(x+1)(2y-3) 可根据需要再继续展开或保持乘积形式，这里保持：<br>(x+1)<sup>2</sup> + 2(x+1)(2y-3) + (2y-3)<sup>2</sup>',
-            ],
-            vars: ['x','y'],
-            leftEval: ({x,y}) => ( (x+1) + (2*y-3) ) ** 2,
-            rightEval: ({x,y}) => {
-              const A = x+1;
-              const B = 2*y-3;
-              return A*A + 2*A*B + B*B;
-            },
-          },
-          {
-            id: 'sq4',
-            title: '例 4：先整理，再认出“完全平方”',
-            short: 'x<sup>2</sup> + 6x + 9',
-            note: '从三项式反推 a,b',
-            exprHtml: '原式： x<sup>2</sup> + 6x + 9',
-            mappingHtml: '观察：第一项是 x<sup>2</sup>，最后一项是 9 = 3<sup>2</sup>，<br>中间项是 6x = 2\u00d7x\u00d73。于是可以反推出：<span class="highlight a">a = x</span>，<span class="highlight b">b = 3</span>。',
-            steps: [
-              '把 6x 写成 2\u00d7x\u00d73，9 写成 3<sup>2</sup>：<br>x<sup>2</sup> + 6x + 9 = x<sup>2</sup> + 2\u00d7x\u00d73 + 3<sup>2</sup>',
-              '与 a<sup>2</sup> + 2ab + b<sup>2</sup> 对比，得到 a = x，b = 3',
-              '所以：x<sup>2</sup> + 6x + 9 = (x+3)<sup>2</sup>',
-            ],
-            vars: ['x'],
-            leftEval: ({x}) => x * x + 6 * x + 9,
-            rightEval: ({x}) => (x + 3) ** 2,
-          },
-        ],
-      },
-      diff: {
-        name: '平方差',
-        formulaHtml: '<span class="a-part">a</span><sup>2</sup> - <span class="b-part">b</span><sup>2</sup> = ( <span class="a-part">a</span> - <span class="b-part">b</span> )( <span class="a-part">a</span> + <span class="b-part">b</span> )',
-        examples: [
-          {
-            id: 'df1',
-            title: '例 1：直接识别 a<sup>2</sup> − b<sup>2</sup>',
-            short: 'm<sup>2</sup> − 4<sup>2</sup>',
-            note: '最标准的平方差',
-            exprHtml: '原式： <span class="highlight a">m<sup>2</sup></span> − <span class="highlight b">4<sup>2</sup></span>',
-            mappingHtml: '在这里：<span class="highlight a">a = m</span>，<span class="highlight b">b = 4</span>。',
-            steps: [
-              '根据平方差公式：a<sup>2</sup> − b<sup>2</sup> = (a-b)(a+b)',
-              '得到：m<sup>2</sup> − 4<sup>2</sup> = (m-4)(m+4)',
-            ],
-            vars: ['m'],
-            leftEval: ({m}) => m * m - 16,
-            rightEval: ({m}) => (m - 4) * (m + 4),
-          },
-          {
-            id: 'df2',
-            title: '例 2：先配成平方，再用平方差',
-            short: 'x<sup>2</sup> + 2x + 1 − (y−2)<sup>2</sup>',
-            note: '左边先认出是 (x+1)<sup>2</sup>',
-            exprHtml: '原式： [x<sup>2</sup> + 2x + 1] − <span class="highlight b">(y−2)<sup>2</sup></span>',
-            mappingHtml: '先把 x<sup>2</sup> + 2x + 1 看成一个整体：它其实是 <span class="highlight a">(x+1)<sup>2</sup></span>。<br>于是有 a = (x+1)，b = (y−2)。',
-            groupHint: '整理步骤：<br>1）先认出 x<sup>2</sup> + 2x + 1 = (x+1)<sup>2</sup><br>2）整式变成 (x+1)<sup>2</sup> − (y−2)<sup>2</sup>，就能用平方差公式了。',
-            steps: [
-              '第一步：配成完全平方：x<sup>2</sup> + 2x + 1 = (x+1)<sup>2</sup>',
-              '原式变为：(x+1)<sup>2</sup> − (y−2)<sup>2</sup>',
-              '套用平方差：a<sup>2</sup> − b<sup>2</sup> = (a-b)(a+b)，其中 a=(x+1)，b=(y−2)',
-              '得到：(x+1 − (y−2))(x+1 + (y−2))',
-              '可视需要继续整理括号：<br>第一括号：x+1−y+2 = x−y+3；第二括号：x+1+y−2 = x+y−1',
-            ],
-            vars: ['x','y'],
-            leftEval: ({x,y}) => (x * x + 2 * x + 1) - (y - 2) ** 2,
-            rightEval: ({x,y}) => {
-              const a = x + 1;
-              const b = y - 2;
-              return (a - b) * (a + b);
-            },
-          },
-          {
-            id: 'df3',
-            title: '例 3：先提公因式，再变成 a<sup>2</sup> − b<sup>2</sup>',
-            short: '4x<sup>2</sup> − 9y<sup>2</sup>',
-            note: '看出是 (2x)<sup>2</sup> − (3y)<sup>2</sup>',
-            exprHtml: '原式： 4x<sup>2</sup> − 9y<sup>2</sup> = <span class="highlight a">(2x)<sup>2</sup></span> − <span class="highlight b">(3y)<sup>2</sup></span>',
-            mappingHtml: '观察：4x<sup>2</sup> = (2x)<sup>2</sup>，9y<sup>2</sup> = (3y)<sup>2</sup>。<br>于是 a = 2x，b = 3y。',
-            steps: [
-              '把 4x<sup>2</sup> 写成 (2x)<sup>2</sup>，9y<sup>2</sup> 写成 (3y)<sup>2</sup>：<br>4x<sup>2</sup> − 9y<sup>2</sup> = (2x)<sup>2</sup> − (3y)<sup>2</sup>',
-              '套用平方差公式：<br>(2x)<sup>2</sup> − (3y)<sup>2</sup> = (2x−3y)(2x+3y)',
-            ],
-            vars: ['x','y'],
-            leftEval: ({x,y}) => 4 * x * x - 9 * y * y,
-            rightEval: ({x,y}) => (2 * x - 3 * y) * (2 * x + 3 * y),
-          },
-        ],
-      },
-    };
+                            <!-- ab (下) -->
+                            <div class="bg-purple-200 border border-purple-400 flex items-center justify-center text-purple-800 font-bold absolute left-0 transition-all duration-300"
+                                 :style="{ top: geoA + 'px', width: geoA + 'px', height: geoB + 'px' }">
+                                $ab$
+                            </div>
 
-    const formulaTabs = document.getElementById('formulaTabs');
-    const mainFormula = document.getElementById('mainFormula');
-    const exampleList = document.getElementById('exampleList');
-    const exampleTitle = document.getElementById('exampleTitle');
-    const exampleExpr = document.getElementById('exampleExpr');
-    const groupHint = document.getElementById('groupHint');
-    const mappingText = document.getElementById('mappingText');
-    const stepsList = document.getElementById('stepsList');
-    const nextStepBtn = document.getElementById('nextStepBtn');
-    const resetStepsBtn = document.getElementById('resetStepsBtn');
-    const numberInputs = document.getElementById('numberInputs');
-    const checkBtn = document.getElementById('checkBtn');
-    const checkResult = document.getElementById('checkResult');
+                            <!-- b^2 -->
+                            <div class="bg-orange-200 border border-orange-400 flex items-center justify-center text-orange-800 font-bold absolute transition-all duration-300"
+                                 :style="{ top: geoA + 'px', left: geoA + 'px', width: geoB + 'px', height: geoB + 'px' }">
+                                $b^2$
+                            </div>
 
-    let currentType = 'square';
-    let currentExample = null;
-    let visibleSteps = 0;
+                            <!-- 外部标注 -->
+                            <div class="absolute -top-6 left-0 text-center text-blue-600 text-sm font-mono" :style="{ width: geoA + 'px' }">a</div>
+                            <div class="absolute -top-6 text-center text-orange-600 text-sm font-mono" :style="{ left: geoA + 'px', width: geoB + 'px' }">b</div>
+                            <div class="absolute top-0 -left-6 h-full flex flex-col">
+                                <div class="flex items-center justify-center text-blue-600 text-sm font-mono" :style="{ height: geoA + 'px' }">a</div>
+                                <div class="flex items-center justify-center text-orange-600 text-sm font-mono" :style="{ height: geoB + 'px' }">b</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-    function renderFormula() {
-      mainFormula.innerHTML = DATA[currentType].formulaHtml;
-    }
+            <!-- Tab 2: 万能占位符 -->
+            <div v-if="currentTab === 'substitution'" class="p-6 h-full flex flex-col">
+                <h2 class="text-xl font-bold text-gray-800 mb-2 border-b pb-2">进阶：万能占位符思想</h2>
+                <p class="text-gray-600 mb-6">公式中的 $a$ 和 $b$ 不仅仅是字母，它们是<span class="font-bold text-indigo-600">空盒子</span>。你往盒子里放什么，展开时就带着什么。</p>
 
-    function renderExamples() {
-      exampleList.innerHTML = '';
-      const exs = DATA[currentType].examples;
-      exs.forEach((ex, idx) => {
-        const btn = document.createElement('button');
-        btn.className = 'example-btn' + (idx === 0 ? ' active' : '');
-        btn.dataset.id = ex.id;
-        btn.innerHTML = `<span class="label">${ex.short}</span><span class="note">${ex.note}</span>`;
-        btn.addEventListener('click', () => {
-          document.querySelectorAll('.example-btn').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-          setCurrentExample(ex.id);
-        });
-        exampleList.appendChild(btn);
-      });
-      setCurrentExample(exs[0].id);
-    }
+                <!-- 交互输入区 -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                    <div class="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                        <label class="block text-blue-800 font-bold mb-2">第 1 个盒子 (a) 放什么？</label>
+                        <input type="text" v-model="subA" class="w-full p-2 border border-blue-300 rounded focus:ring-2 focus:ring-blue-400 outline-none text-lg font-mono text-blue-700" placeholder="例如: 2x">
+                        <div class="mt-2 text-xs text-blue-500">试着输入：x, 2x, 3y, 或 (m+n)</div>
+                    </div>
+                    <div class="bg-orange-50 p-4 rounded-lg border border-orange-200">
+                        <label class="block text-orange-800 font-bold mb-2">第 2 个盒子 (b) 放什么？</label>
+                        <input type="text" v-model="subB" class="w-full p-2 border border-orange-300 rounded focus:ring-2 focus:ring-orange-400 outline-none text-lg font-mono text-orange-700" placeholder="例如: 1">
+                        <div class="mt-2 text-xs text-orange-500">试着输入：1, 5, 4y, 或 1/2</div>
+                    </div>
+                </div>
 
-    function setCurrentExample(id) {
-      const ex = DATA[currentType].examples.find(e => e.id === id);
-      if (!ex) return;
-      currentExample = ex;
-      exampleTitle.textContent = ex.title;
-      exampleExpr.innerHTML = ex.exprHtml;
-      mappingText.innerHTML = ex.mappingHtml;
-      if (ex.groupHint) {
-        groupHint.style.display = 'block';
-        groupHint.innerHTML = ex.groupHint;
-      } else {
-        groupHint.style.display = 'none';
-      }
-      renderSteps();
-      renderNumberInputs();
-      checkResult.style.display = 'none';
-    }
+                <!-- 动态演示区 -->
+                <div class="flex-grow flex flex-col items-center justify-center space-y-6">
+                    <!-- 抽象公式 -->
+                    <div class="text-2xl md:text-3xl text-gray-400 font-mono">
+                        (<span class="border-2 border-dashed border-blue-300 text-blue-300 px-2 rounded mx-1">□</span> + 
+                         <span class="border-2 border-dashed border-orange-300 text-orange-300 px-2 rounded mx-1">△</span>)²
+                    </div>
+                    
+                    <div class="text-2xl text-gray-300">⬇️ 填入内容 ⬇️</div>
 
-    function renderSteps() {
-      stepsList.innerHTML = '';
-      visibleSteps = 0;
-      currentExample.steps.forEach((step, idx) => {
-        const li = document.createElement('li');
-        li.innerHTML = step;
-        li.className = idx === 0 ? 'visible' : 'hidden';
-        stepsList.appendChild(li);
-      });
-      visibleSteps = currentExample.steps.length > 0 ? 1 : 0;
-      updateStepButtons();
-    }
+                    <!-- 填入后的左边 -->
+                    <div class="text-3xl md:text-4xl font-bold font-mono">
+                        ( <span class="placeholder-a">{{ subA || '?' }}</span> + <span class="placeholder-b">{{ subB || '?' }}</span> )²
+                    </div>
 
-    function showNextStep() {
-      const lis = Array.from(stepsList.children);
-      if (visibleSteps >= lis.length) return;
-      const li = lis[visibleSteps];
-      li.classList.remove('hidden');
-      li.classList.add('visible');
-      visibleSteps++;
-      updateStepButtons();
-    }
+                    <div class="text-2xl text-gray-300">=</div>
 
-    function resetSteps() {
-      const lis = Array.from(stepsList.children);
-      lis.forEach((li, idx) => {
-        if (idx === 0) {
-          li.classList.remove('hidden');
-          li.classList.add('visible');
-        } else {
-          li.classList.remove('visible');
-          li.classList.add('hidden');
+                    <!-- 展开结果 -->
+                    <div class="text-xl md:text-2xl flex flex-wrap items-center justify-center gap-2 font-mono bg-gray-50 p-6 rounded-xl border border-gray-200 w-full">
+                        <!-- a^2 -->
+                        <div class="flex flex-col items-center">
+                            <span class="placeholder-a mb-1">{{ subA || '?' }}</span>²
+                            <span class="text-xs text-gray-400">第一项平方</span>
+                        </div>
+                        
+                        <span class="text-gray-400 font-bold">+</span>
+                        
+                        <!-- 2ab -->
+                        <div class="flex flex-col items-center">
+                            <div class="flex items-center bg-purple-50 px-2 py-1 rounded border border-purple-100">
+                                2 <span class="text-gray-400 mx-1">·</span> 
+                                <span class="text-blue-600 mx-1">({{ subA || '?' }})</span> 
+                                <span class="text-gray-400 mx-1">·</span> 
+                                <span class="text-orange-600 mx-1">({{ subB || '?' }})</span>
+                            </div>
+                            <span class="text-xs text-gray-400 mt-1">2 × 第一项 × 第二项</span>
+                        </div>
+
+                        <span class="text-gray-400 font-bold">+</span>
+
+                        <!-- b^2 -->
+                        <div class="flex flex-col items-center">
+                            <span class="placeholder-b mb-1">{{ subB || '?' }}</span>²
+                            <span class="text-xs text-gray-400">第二项平方</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab 3: 火眼金睛 (复杂案例) -->
+            <div v-if="currentTab === 'complex'" class="p-6 h-full flex flex-col">
+                <div class="flex justify-between items-center border-b pb-2 mb-4">
+                    <h2 class="text-xl font-bold text-gray-800">挑战：谁是 $A$？谁是 $B$？</h2>
+                    <!-- 案例切换开关 -->
+                    <div class="flex bg-gray-100 rounded-lg p-1 text-sm font-medium">
+                        <button @click="setComplexType('diff_sq')" 
+                                :class="complexExampleType === 'diff_sq' ? 'bg-white text-indigo-700 shadow' : 'text-gray-500 hover:text-gray-700'"
+                                class="px-3 py-1.5 rounded-md transition-all">
+                            案例1：平方差
+                        </button>
+                        <button @click="setComplexType('perf_sq')" 
+                                :class="complexExampleType === 'perf_sq' ? 'bg-white text-indigo-700 shadow' : 'text-gray-500 hover:text-gray-700'"
+                                class="px-3 py-1.5 rounded-md transition-all">
+                            案例2：完全平方
+                        </button>
+                    </div>
+                </div>
+
+                <p class="text-gray-600 mb-4">
+                    {{ complexExampleType === 'diff_sq' ? '通过分组找到两个平方数之差。' : '通过提取公因式和分组，构造出完全平方公式的形式。' }}
+                </p>
+
+                <!-- 步骤导航 -->
+                <div class="flex justify-between items-center mb-8 relative px-4">
+                    <div class="absolute top-1/2 left-0 w-full h-1 bg-gray-200 -z-0"></div>
+                    <button v-for="(step, index) in currentComplexSteps" :key="index" 
+                            @click="setComplexStep(index)"
+                            :disabled="index > maxComplexStepReached"
+                            class="relative z-10 w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all border-2"
+                            :class="complexStepIndex === index ? 'bg-indigo-600 text-white border-indigo-600 scale-110' : (index <= maxComplexStepReached ? 'bg-indigo-100 text-indigo-600 border-indigo-300 hover:bg-indigo-200' : 'bg-gray-100 text-gray-400 border-gray-300')">
+                        {{ index + 1 }}
+                    </button>
+                </div>
+
+                <!-- 步骤内容容器 -->
+                <div class="flex-grow flex flex-col items-center justify-center text-center space-y-6">
+                    
+                    <!-- 步骤说明 -->
+                    <div class="bg-indigo-50 text-indigo-800 px-4 py-2 rounded-full text-sm font-bold mb-4">
+                        {{ currentComplexSteps[complexStepIndex].title }}
+                    </div>
+
+                    <!-- 动态显示的数学式子：案例 1 (平方差) -->
+                    <div v-if="complexExampleType === 'diff_sq'" class="text-3xl md:text-5xl font-mono transition-all duration-500 ease-in-out relative p-8">
+                        
+                        <div v-if="complexStepIndex === 0">
+                            $x^2 - 9 + y^2 + 2xy$
+                        </div>
+
+                        <div v-if="complexStepIndex === 1" class="flex items-center gap-4 flex-wrap justify-center">
+                            <div class="relative p-2 border-2 border-dashed border-blue-400 rounded bg-blue-50">
+                                <span class="text-blue-900 font-bold">$x^2 + 2xy + y^2$</span>
+                                <div class="absolute -bottom-6 left-0 w-full text-xs text-blue-500">完全平方式</div>
+                            </div>
+                            <span class="text-gray-400 text-3xl">-</span>
+                            <div class="relative p-2 border-2 border-dashed border-orange-400 rounded bg-orange-50">
+                                <span class="text-orange-900 font-bold">$9$</span>
+                                <div class="absolute -bottom-6 left-0 w-full text-xs text-orange-500">常数项</div>
+                            </div>
+                        </div>
+
+                        <div v-if="complexStepIndex === 2" class="flex items-center gap-4 flex-wrap justify-center">
+                            <div class="relative p-2 border-2 border-blue-500 rounded bg-blue-100 shadow-lg">
+                                <span class="text-blue-900 font-bold">$(x+y)^2$</span>
+                                <div class="absolute -top-8 left-0 w-full text-sm font-bold text-blue-600">这是整体 A</div>
+                            </div>
+                            <span class="text-gray-600 font-bold text-3xl">-</span>
+                            <div class="relative p-2 border-2 border-orange-500 rounded bg-orange-100 shadow-lg">
+                                <span class="text-orange-900 font-bold">$3^2$</span>
+                                <div class="absolute -top-8 left-0 w-full text-sm font-bold text-orange-600">这是整体 B</div>
+                            </div>
+                        </div>
+
+                        <div v-if="complexStepIndex === 3" class="text-left">
+                            <div class="text-xl text-gray-500 mb-4 text-center">使用平方差公式：$A^2 - B^2 = (A+B)(A-B)$</div>
+                            <div class="text-3xl font-bold flex items-center justify-center gap-2 flex-wrap">
+                                <span class="text-gray-600">(</span>
+                                <span class="placeholder-a">x+y</span>
+                                <span class="text-gray-800 font-bold">+</span>
+                                <span class="placeholder-b">3</span>
+                                <span class="text-gray-600">)</span>
+                                <span class="text-gray-600">(</span>
+                                <span class="placeholder-a">x+y</span>
+                                <span class="text-gray-800 font-bold">-</span>
+                                <span class="placeholder-b">3</span>
+                                <span class="text-gray-600">)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 动态显示的数学式子：案例 2 (完全平方) -->
+                    <div v-if="complexExampleType === 'perf_sq'" class="text-2xl md:text-4xl font-mono transition-all duration-500 ease-in-out relative p-8">
+                        
+                        <!-- 步骤 1: 原始乱序 -->
+                        <div v-if="complexStepIndex === 0">
+                            $x^2 + 2xy + y^2 - 10x - 10y + 25$
+                        </div>
+
+                        <!-- 步骤 2: 分组与提公因式 -->
+                        <div v-if="complexStepIndex === 1" class="flex items-center gap-2 flex-wrap justify-center">
+                            <div class="relative p-2 border-2 border-dashed border-blue-400 rounded bg-blue-50">
+                                <span class="text-blue-900 font-bold">$x^2 + 2xy + y^2$</span>
+                                <div class="absolute -bottom-6 left-0 w-full text-xs text-blue-500">组1: 完全平方式</div>
+                            </div>
+                            
+                            <div class="relative p-2 border-2 border-dashed border-purple-400 rounded bg-purple-50 mx-2">
+                                <span class="text-purple-900 font-bold">$-10(x + y)$</span>
+                                <div class="absolute -bottom-6 left-0 w-full text-xs text-purple-500">组2: 提公因式</div>
+                            </div>
+
+                            <div class="relative p-2 border-2 border-dashed border-orange-400 rounded bg-orange-50">
+                                <span class="text-orange-900 font-bold">$+ 25$</span>
+                                <div class="absolute -bottom-6 left-0 w-full text-xs text-orange-500">组3: 常数</div>
+                            </div>
+                        </div>
+
+                        <!-- 步骤 3: 识别整体结构 -->
+                        <div v-if="complexStepIndex === 2" class="flex flex-col gap-4 items-center">
+                             <div class="flex items-center gap-2 flex-wrap justify-center">
+                                <div class="relative p-2 border-2 border-blue-500 rounded bg-blue-100 shadow-lg">
+                                    <span class="text-blue-900 font-bold">$(x+y)^2$</span>
+                                    <div class="absolute -top-8 left-0 w-full text-sm font-bold text-blue-600">A²</div>
+                                </div>
+                                <span class="text-gray-600 font-bold">-</span>
+                                <div class="relative p-2 border-2 border-purple-500 rounded bg-purple-100 shadow-lg mx-1">
+                                    <span class="text-purple-900 font-bold">$2 \cdot 5 \cdot (x+y)$</span>
+                                    <div class="absolute -top-8 left-0 w-full text-sm font-bold text-purple-600">2AB</div>
+                                </div>
+                                <span class="text-gray-600 font-bold">+</span>
+                                <div class="relative p-2 border-2 border-orange-500 rounded bg-orange-100 shadow-lg">
+                                    <span class="text-orange-900 font-bold">$5^2$</span>
+                                    <div class="absolute -top-8 left-0 w-full text-sm font-bold text-orange-600">B²</div>
+                                </div>
+                            </div>
+                            <div class="text-sm text-gray-500 mt-2">
+                                此时 $A = (x+y)$，$B = 5$
+                            </div>
+                        </div>
+
+                        <!-- 步骤 4: 套用公式 -->
+                        <div v-if="complexStepIndex === 3" class="text-left">
+                            <div class="text-xl text-gray-500 mb-4 text-center">使用完全平方公式 (差)：$(A-B)^2$</div>
+                            <div class="text-3xl font-bold flex items-center justify-center gap-1">
+                                <span class="text-gray-600">(</span>
+                                <div class="flex flex-col items-center">
+                                    <span class="placeholder-a px-2">x+y</span>
+                                    <span class="text-xs text-blue-500 mt-1">A</span>
+                                </div>
+                                <span class="text-gray-800 font-bold mx-2">-</span>
+                                <div class="flex flex-col items-center">
+                                    <span class="placeholder-b px-2">5</span>
+                                    <span class="text-xs text-orange-500 mt-1">B</span>
+                                </div>
+                                <span class="text-gray-600">)²</span>
+                            </div>
+                             <div class="text-center mt-6 text-2xl text-gray-800">
+                                $= (x + y - 5)^2$
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 步骤控制按钮 -->
+                    <div class="mt-8">
+                        <button v-if="complexStepIndex < 3" @click="nextComplexStep" class="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-lg shadow font-bold flex items-center gap-2 transition-colors">
+                            下一步
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                        <button v-else @click="complexStepIndex = 0" class="bg-gray-600 hover:bg-gray-700 text-white px-8 py-3 rounded-lg shadow font-bold transition-colors">
+                            再看一遍
+                        </button>
+                    </div>
+
+                    <div class="text-gray-500 text-sm max-w-lg mt-4 bg-white p-3 border rounded">
+                        解说：{{ currentComplexSteps[complexStepIndex].desc }}
+                    </div>
+
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <footer class="bg-gray-100 border-t p-4 text-center text-gray-500 text-sm mt-4">
+        互动数学演示 | 核心思想：结构识别与整体代换
+    </footer>
+
+</div>
+
+<script>
+    const { createApp, ref, computed, watch, nextTick } = Vue;
+
+    createApp({
+        setup() {
+            const currentTab = ref('geometric'); // geometric, substitution, complex
+            
+            // 几何部分的变量
+            const geoA = ref(120);
+            const geoB = ref(60);
+
+            // 代换部分的变量
+            const subA = ref('2x');
+            const subB = ref('3y');
+
+            // 复杂案例部分
+            const complexExampleType = ref('diff_sq'); // 'diff_sq' (平方差) or 'perf_sq' (完全平方)
+            const complexStepIndex = ref(0);
+            const maxComplexStepReached = ref(0);
+
+            const stepsDiffSq = [
+                { title: '1. 观察原式', desc: '这是一个看起来很乱的四项式，既有 x 又有 y，还有常数。单纯看很难直接套公式。' },
+                { title: '2. 分组归类', desc: '我们发现前三项 x, xy, y 正好能凑成一组（完全平方式），剩下的 9 是个常数。我们给它们分别“画个圈”。' },
+                { title: '3. 识别整体 (占位符)', desc: '把第一组折叠成 (x+y)²，把 9 写成 3²。现在形式变成了 A² - B²。这里的 A 就是 (x+y)，B 就是 3。' },
+                { title: '4. 套用公式', desc: '既然认出了 A 和 B，直接把它们填进平方差公式 (A+B)(A-B) 的坑位里，任务完成！' }
+            ];
+
+            const stepsPerfSq = [
+                { title: '1. 观察原式', desc: '这个式子更长了，有6项（其实可以看作5部分）。$x^2 + 2xy + y^2 - 10x - 10y + 25$。' },
+                { title: '2. 提公因式与分组', desc: '前三项 $x^2+2xy+y^2$ 很像完全平方。中间的 $-10x-10y$ 都有 -10，可以提取出来。' },
+                { title: '3. 识别整体结构', desc: '变形后得到 $(x+y)^2 - 10(x+y) + 25$。这其实就是 $A^2 - 2 \cdot 5 \cdot A + 5^2$ 的结构。' },
+                { title: '4. 套用公式', desc: '这是完全平方公式 $(A-B)^2$。其中 A 是 $(x+y)$，B 是 $5$。' }
+            ];
+
+            const currentComplexSteps = computed(() => {
+                return complexExampleType.value === 'diff_sq' ? stepsDiffSq : stepsPerfSq;
+            });
+
+            const setComplexType = (type) => {
+                complexExampleType.value = type;
+                complexStepIndex.value = 0;
+                maxComplexStepReached.value = 0;
+                refreshMathJax();
+            };
+
+            const nextComplexStep = () => {
+                if (complexStepIndex.value < currentComplexSteps.value.length - 1) {
+                    complexStepIndex.value++;
+                    if (complexStepIndex.value > maxComplexStepReached.value) {
+                        maxComplexStepReached.value = complexStepIndex.value;
+                    }
+                }
+                refreshMathJax();
+            };
+
+            const setComplexStep = (index) => {
+                complexStepIndex.value = index;
+                refreshMathJax();
+            };
+
+            // 监听 Tab 切换和步骤变化，手动触发 MathJax 渲染
+            const refreshMathJax = () => {
+                nextTick(() => {
+                    if (window.MathJax && window.MathJax.typesetPromise) {
+                        window.MathJax.typesetPromise();
+                    }
+                });
+            };
+
+            watch(currentTab, refreshMathJax);
+            watch(complexStepIndex, refreshMathJax);
+
+            // 初始化渲染
+            refreshMathJax();
+
+            return {
+                currentTab,
+                geoA, geoB,
+                subA, subB,
+                complexExampleType,
+                complexStepIndex,
+                currentComplexSteps,
+                nextComplexStep,
+                setComplexStep,
+                setComplexType,
+                maxComplexStepReached
+            };
         }
-      });
-      visibleSteps = lis.length > 0 ? 1 : 0;
-      updateStepButtons();
-    }
+    }).mount('#app');
+</script>
 
-    function updateStepButtons() {
-      const total = currentExample ? currentExample.steps.length : 0;
-      nextStepBtn.disabled = visibleSteps >= total;
-      resetStepsBtn.disabled = total <= 1;
-    }
-
-    function renderNumberInputs() {
-      numberInputs.innerHTML = '';
-      if (!currentExample || !currentExample.vars || currentExample.vars.length === 0) {
-        numberInputs.innerHTML = '<span style="font-size:13px;color:#888;">这个例子没有需要代入的字母。</span>';
-        checkBtn.disabled = true;
-        return;
-      }
-      checkBtn.disabled = false;
-      currentExample.vars.forEach(v => {
-        const label = document.createElement('label');
-        label.innerHTML = `${v} = <input type="number" step="1" value="1" data-var="${v}">`;
-        numberInputs.appendChild(label);
-      });
-      const hint = document.createElement('span');
-      hint.className = 'tiny-hint';
-      hint.textContent = '（可以随便改几个整数，看看等式两边是否总是相等）';
-      numberInputs.appendChild(hint);
-    }
-
-    function checkEquality() {
-      if (!currentExample || !currentExample.vars || currentExample.vars.length === 0) return;
-      const values = {};
-      const inputs = numberInputs.querySelectorAll('input[type="number"]');
-      inputs.forEach(inp => {
-        const vname = inp.dataset.var;
-        const val = parseFloat(inp.value);
-        if (!Number.isFinite(val)) {
-          values[vname] = 0;
-        } else {
-          values[vname] = val;
-        }
-      });
-      try {
-        const left = currentExample.leftEval(values);
-        const right = currentExample.rightEval(values);
-        const eps = 1e-6;
-        const good = Math.abs(left - right) < eps;
-        checkResult.style.display = 'block';
-        if (good) {
-          checkResult.className = 'check-result good';
-          checkResult.textContent = `代入后：左边 = ${left.toFixed(4)}，右边 = ${right.toFixed(4)}，两边相等 ✅`;
-        } else {
-          checkResult.className = 'check-result bad';
-          checkResult.textContent = `代入后：左边 = ${left.toFixed(4)}，右边 = ${right.toFixed(4)}，两边不相等 ❌。请检查 a、b 是否代错了。`;
-        }
-      } catch (e) {
-        checkResult.style.display = 'block';
-        checkResult.className = 'check-result bad';
-        checkResult.textContent = '计算时出错，请检查输入的数字是否合理。';
-      }
-    }
-
-    formulaTabs.addEventListener('click', (e) => {
-      const btn = e.target.closest('.tab-btn');
-      if (!btn) return;
-      const type = btn.dataset.type;
-      if (type === currentType) return;
-      currentType = type;
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      renderFormula();
-      renderExamples();
-      checkResult.style.display = 'none';
-    });
-
-    nextStepBtn.addEventListener('click', showNextStep);
-    resetStepsBtn.addEventListener('click', resetSteps);
-    checkBtn.addEventListener('click', checkEquality);
-
-    // 初始化
-    renderFormula();
-    renderExamples();
-  </script>
 </body>
 </html>

@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>三棱镜光路几何作图Visualizer (v3.2.1 Stable)</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <style>
+    /* Token-Economy CSS */
+    :root { --primary: #3b82f6; --bg: #f8fafc; --text: #1e293b; --panel: #ffffff; --warn: #f59e0b; }
+    body { margin: 0; padding: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); overflow: hidden; height: 100vh; display: flex; }
+    
+    #sidebar { width: 360px; background: var(--panel); border-right: 1px solid #e2e8f0; display: flex; flex-direction: column; z-index: 20; box-shadow: 2px 0 5px rgba(0,0,0,0.05); }
+    #stage-container { flex: 1; position: relative; overflow: hidden; touch-action: none; background-image: radial-gradient(#cbd5e1 1px, transparent 1px); background-size: 20px 20px; cursor: default; }
+    
+    .panel-header { padding: 15px; background: #f1f5f9; border-bottom: 1px solid #e2e8f0; flex-shrink: 0; }
+    .panel-content { flex: 1; overflow-y: auto; padding: 15px; }
+    
+    .control-group { margin-bottom: 20px; border-bottom: 1px dashed #e2e8f0; padding-bottom: 15px; }
+    .control-group h3 { font-size: 14px; margin: 0 0 10px 0; color: #475569; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; display: flex; justify-content: space-between; align-items: center; }
+    
+    .btn { display: inline-flex; align-items: center; justify-content: center; padding: 8px 16px; border-radius: 6px; border: 1px solid #cbd5e1; background: white; cursor: pointer; font-size: 14px; transition: all 0.2s; font-weight: 500; }
+    .btn:hover { background: #f1f5f9; border-color: #94a3b8; }
+    .btn-primary { background: var(--primary); color: white; border-color: var(--primary); }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-sm { padding: 4px 8px; font-size: 12px; height: 24px; }
+    .btn-group { display: flex; gap: 8px; margin-bottom: 10px; }
+    
+    .problem-card { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px; margin-bottom: 15px; font-size: 14px; position: relative; }
+    .copy-btn { position: absolute; top: 8px; right: 8px; font-size: 12px; padding: 2px 8px; border: 1px solid #93c5fd; background: #fff; cursor: pointer; border-radius: 4px; color: var(--primary); }
+    
+    /* Overlay */
+    #guided-overlay {
+      position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+      width: 440px; max-width: 90%; background: rgba(255, 255, 255, 0.98);
+      border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+      border: 1px solid rgba(255,255,255,0.5); backdrop-filter: blur(8px);
+      display: flex; flex-direction: column; overflow: hidden; transition: opacity 0.2s;
+      z-index: 50; max-height: 80vh;
+    }
+    .overlay-header { padding: 12px 16px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+    .overlay-body { padding: 16px; overflow-y: auto; font-size: 15px; line-height: 1.6; }
+    .step-count { font-size: 12px; font-weight: bold; color: #64748b; background: #e2e8f0; padding: 2px 8px; border-radius: 10px; }
+    .math-container { margin: 10px 0; padding: 10px; background: #f8fafc; border-radius: 6px; border-left: 3px solid var(--primary); min-height: 24px; }
+    
+    /* Inputs */
+    label { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 13px; color: #334155; user-select: none; }
+    input[type=range] { width: 100%; accent-color: var(--primary); height: 4px; border-radius: 2px; }
+    
+    .radio-card { display: flex; align-items: center; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s; }
+    .radio-card:hover { background: #f8fafc; border-color: #cbd5e1; }
+    .radio-card.active { border-color: var(--primary); background: #eff6ff; }
+    .radio-card input { margin-right: 10px; accent-color: var(--primary); pointer-events: none; } /* Disable pointer events on input so click passes to div */
+    
+    .disabled-block { opacity: 0.5; pointer-events: none; filter: grayscale(1); position: relative; }
+    .value-tag { font-family: monospace; font-weight: bold; color: var(--primary); background: #eff6ff; padding: 1px 5px; border-radius: 4px; }
+    
+    .verify-panel { margin-top: 10px; padding: 12px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; color: #166534; font-size: 13px; line-height: 1.5; }
+    .verify-warn { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+    
+    .hidden { display: none !important; }
+    h2 { margin: 0; font-size: 16px; color: #0f172a; font-weight: 700; }
+  </style>
+</head>
+<body>
+
+<!-- Domain Gate -->
+<div id="domain-gate" style="display:none;">Physics-Optics-GeometricConstruction</div>
+
+<div id="sidebar">
+  <div class="panel-header">
+    <h2>三棱镜光路作图Visualizer</h2>
+    <div style="font-size:12px; color:#64748b;">v3.2.1 Stable | 自动补全光线</div>
+  </div>
+  
+  <div class="panel-content">
+    <div class="problem-card">
+      <strong>题目原题</strong>
+      <button class="copy-btn" onclick="copyProblem()">复制</button>
+      <div id="problem-text" style="margin-top:8px; line-height:1.5;">
+        已知三棱镜 \(ABC\) 及 \(AB\) 面上的入射点 \(S\)。
+        <br>求作：反射点 \(K\) 的位置及完整光路（含进出射光线）。
+      </div>
+    </div>
+
+    <!-- Mode Toggle -->
+    <div class="control-group">
+      <h3>模式选择</h3>
+      <div class="btn-group">
+        <button class="btn btn-primary" id="btn-guided" onclick="setMode('guided')">引导模式 (教学)</button>
+        <button class="btn" id="btn-explore" onclick="setMode('explore')">探索模式 (自由)</button>
+      </div>
+    </div>
+
+    <!-- Explore Controls -->
+    <div id="sandbox-controls" class="hidden">
+      
+      <div class="control-group">
+        <h3>交互方式</h3>
+        <div class="radio-card" id="rc-twoPoints" onclick="selectInputMode('twoPoints')">
+          <input type="radio" name="inputMode" value="twoPoints" checked>
+          <div>
+            <strong>两点定位法</strong><br>
+            <span style="font-size:12px; color:#64748b;">自由拖动 S 和 P，验证几何关系</span>
+          </div>
+        </div>
+        <div class="radio-card" id="rc-incidentAngle" onclick="selectInputMode('incidentAngle')">
+          <input type="radio" name="inputMode" value="incidentAngle">
+          <div>
+            <strong>正向投射法</strong><br>
+            <span style="font-size:12px; color:#64748b;">设定入射光方向，自动计算 P 点</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <h3>
+          参数控制
+          <button class="btn btn-sm" onclick="resetParams()">⟳ 重置</button>
+        </h3>
+        
+        <label>
+          入射点 S (AB边)
+          <span class="value-tag" id="val-tS">30%</span>
+        </label>
+        <input type="range" id="sl-S" min="0.1" max="0.9" step="0.01" value="0.3" oninput="updateParam('tS', this.value)">
+        
+        <!-- P Control -->
+        <div id="ctrl-P">
+          <label>
+            出射点 P (AC边)
+            <span class="value-tag" id="val-tP">70%</span>
+          </label>
+          <input type="range" id="sl-P" min="0.1" max="0.9" step="0.01" value="0.7" oninput="updateParam('tP', this.value)">
+        </div>
+
+        <!-- Angle Control -->
+        <div id="ctrl-Angle" class="disabled-block">
+          <label>
+            入射光方向 (水平为0°)
+            <span class="value-tag" id="val-angle">0°</span>
+          </label>
+          <input type="range" id="sl-Angle" min="-45" max="45" step="1" value="0" oninput="updateParam('incAngle', this.value)">
+        </div>
+
+      </div>
+      
+      <div class="control-group">
+        <h3>辅助显示</h3>
+        <label><input type="checkbox" id="chk-mirror" onchange="updateParam('showMirror', this.checked)"> 显示镜像点 P' (作图法)</label>
+        <label><input type="checkbox" id="chk-lines" onchange="updateParam('showLines', this.checked)"> 显示连线 SP'</label>
+        <label><input type="checkbox" id="chk-normals" onchange="updateParam('showNormals', this.checked)"> 显示法线</label>
+      </div>
+    </div>
+
+    <!-- Verify Panel -->
+    <div id="verify-panel" class="verify-panel">
+      <strong>状态监控：</strong>
+      <div id="verify-content">等待计算...</div>
+    </div>
+  </div>
+</div>
+
+<div id="stage-container">
+  <div id="guided-overlay" class="hidden">
+    <div class="overlay-header">
+      <span class="step-count" id="step-indicator">Step 1/6</span>
+      <div style="display:flex; gap:8px;">
+        <button class="btn" onclick="prevStep()">上一步</button>
+        <button class="btn btn-primary" onclick="nextStep()">下一步</button>
+      </div>
+    </div>
+    <div class="overlay-body">
+      <h3 id="step-title">步骤标题</h3>
+      <div id="step-reasoning">解释文本...</div>
+      <div id="step-math" class="math-container"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/**
+ * MathPhysics Visualizer v3.2 Stable
+ * Core Logic: Robust unification of Geometry (Reflection) and Physics (Snell's Law)
+ */
+
+// --- Constants ---
+const PRISM = { w: 600, h: 300, n: 1.5 };
+const COLORS = { 
+  glass: [224, 242, 254, 180], 
+  stroke: [51, 65, 85], 
+  ray: [239, 68, 68], 
+  construct: [147, 51, 234],
+  green: [22, 163, 74] 
+};
+
+// --- State ---
+const INITIAL_PARAMS = {
+  tS: 0.3, tP: 0.7, incAngle: 0,
+  showMirror: false, showLines: false, showNormals: false
+};
+
+const STATE = {
+  mode: 'guided',
+  inputMode: 'twoPoints', // 'twoPoints' | 'incidentAngle'
+  stepIndex: 0,
+  params: { ...INITIAL_PARAMS },
+  view: { scale: 1.0, x: 0, y: 0 },
+  result: { valid: false, S:null, P:null, K:null, P_prime:null, rays:[] }
+};
+
+// --- Geometry Engine ---
+function calculateAll() {
+  const { tS, tP, incAngle } = STATE.params;
+  const A = createVector(0, -PRISM.h/2);
+  const B = createVector(-PRISM.w/2, PRISM.h/2);
+  const C = createVector(PRISM.w/2, PRISM.h/2);
+
+  // 1. Always determine S based on tS
+  const S = p5.Vector.lerp(A, B, tS);
+  
+  // Normals for surfaces (pointing OUT)
+  // AB: (-w/2, h) - (0, -h/2) = (-w/2, 1.5h). Normal is perp to this.
+  const vecAB = p5.Vector.sub(B, A);
+  const nAB = createVector(vecAB.y, -vecAB.x).normalize(); // Rot 90
+  if (nAB.y > 0) nAB.mult(-1); // Ensure pointing generally Up/Left
+  
+  const vecAC = p5.Vector.sub(C, A);
+  const nAC = createVector(vecAC.y, -vecAC.x).normalize();
+  if (nAC.y > 0) nAC.mult(-1); // Ensure pointing generally Up/Right
+
+  const nBC = createVector(0, 1); // Bottom face pointing OUT (Down)
+
+  let P = null, K = null;
+  let rays = []; // Array of segments {p1, p2, type: 'air'|'glass'}
+  let valid = false;
+  let errorMsg = "";
+
+  // --- LOGIC BRANCHING ---
+
+  if (STATE.inputMode === 'incidentAngle' && STATE.mode === 'explore') {
+    // === Forward Ray Casting Mode ===
+    // 1. Incoming Ray (Air -> S)
+    const rayDirAir = p5.Vector.fromAngle(radians(incAngle));
+    const rayStart = p5.Vector.sub(S, p5.Vector.mult(rayDirAir, 200));
+    rays.push({ p1: rayStart, p2: S, type: 'air' });
+
+    // 2. Refract at S (Air -> Glass)
+    // Snell: n1*sin(i) = n2*sin(r) => 1*sin(i) = 1.5*sin(r)
+    // Vector form: r = (n1/n2) * (i - (i.n)n) - n * sqrt(...)
+    // Simplified: Use angles relative to normal IN (pointing into glass)
+    const nAB_in = p5.Vector.mult(nAB, -1);
+    const i_angle = angleBetweenSigned(rayDirAir, nAB_in); // Angle from Normal to Ray
+    
+    const sin_r = (1.0 / PRISM.n) * Math.sin(i_angle);
+    if (Math.abs(sin_r) > 1) { errorMsg = "全反射无法进入"; }
+    else {
+      const r_angle = Math.asin(sin_r);
+      const rayDirGlass = nAB_in.copy().rotate(r_angle);
+      
+      // 3. Intersect Glass Ray with BC (find K)
+      // Line: S + t * rayDirGlass. Plane: y = B.y (since BC is horizontal)
+      if (rayDirGlass.y === 0) { errorMsg = "光线平行于底边，无法反射"; }
+      else {
+        const tK = (B.y - S.y) / rayDirGlass.y;
+        if (tK <= 0) { errorMsg = "光线未射向底边"; }
+        else {
+          K = p5.Vector.add(S, p5.Vector.mult(rayDirGlass, tK));
+          if (K.x < B.x || K.x > C.x) { errorMsg = "光线射出底边范围 (K点越界)"; }
+          else {
+            rays.push({ p1: S, p2: K, type: 'glass' });
+            
+            // 4. Reflect at K
+            const nBC_in = createVector(0, -1); // Normal pointing IN
+            // Reflection: R = I - 2(I.n)n
+            // Standard reflection formula works with surface normal.
+            const nBC_surf = createVector(0, 1); // Pointing out. 
+            // Ray hits surface from inside.
+            const reflectDir = p5.Vector.sub(rayDirGlass, p5.Vector.mult(nBC_surf, 2 * rayDirGlass.dot(nBC_surf)));
+            
+            // 5. Intersect Reflected Ray with AC (find P)
+            // Line: K + t * reflectDir. Segment AC.
+            // Intersect Line-Segment Logic
+            const den = reflectDir.x * (A.y - C.y) - reflectDir.y * (A.x - C.x);
+            if (den === 0) { errorMsg = "光线平行于 AC"; }
+            else {
+              const tP = ((A.x - K.x) * (A.y - C.y) - (A.y - K.y) * (A.x - C.x)) / den;
+              if (tP <= 0) { errorMsg = "光线未射向 AC 面"; }
+              else {
+                P = p5.Vector.add(K, p5.Vector.mult(reflectDir, tP));
+                // Check if P is on AC segment
+                const dAC = p5.Vector.dist(A, C);
+                const dAP = p5.Vector.dist(A, P);
+                const dPC = p5.Vector.dist(P, C);
+                if (Math.abs(dAC - (dAP + dPC)) > 1) { errorMsg = "光线未击中 AC 面"; P = null; }
+                else {
+                  valid = true;
+                  rays.push({ p1: K, p2: P, type: 'glass' });
+                  
+                  // Update P Param visually
+                  const u = dAP / dAC;
+                  STATE.params.tP = u; // Sync slider
+
+                  // 6. Refract at P (Glass -> Air)
+                  const nAC_in = p5.Vector.mult(nAC, -1); // Pointing IN
+                  // Angle of incidence at P (inside)
+                  // Snell: n1 sin(i) = n2 sin(r). n1=1.5, n2=1.
+                  // Angle w.r.t Normal OUT
+                  const angle_i_P = angleBetweenSigned(reflectDir, nAC); 
+                  const sin_r_P = (PRISM.n / 1.0) * Math.sin(angle_i_P);
+                  
+                  if (Math.abs(sin_r_P) > 1) { errorMsg = "P点发生全反射 (TIR)"; valid=false; /* Draw partial? */ }
+                  else {
+                    const r_angle_P = Math.asin(sin_r_P);
+                    const rayDirOut = nAC.copy().rotate(r_angle_P);
+                    const rayEnd = p5.Vector.add(P, p5.Vector.mult(rayDirOut, 200));
+                    rays.push({ p1: P, p2: rayEnd, type: 'air' });
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  } 
+  else {
+    // === Two Points Mode (Inverse) ===
+    // 1. Determine P from tP
+    P = p5.Vector.lerp(A, C, tP);
+    
+    // 2. Mirror P -> P'
+    const P_prime = createVector(P.x, 2 * B.y - P.y);
+    
+    // 3. Intersect SP' with BC -> K
+    const dy = P_prime.y - S.y;
+    const dx = P_prime.x - S.x;
+    if (Math.abs(dy) < 1e-6) { errorMsg = "SP' 平行底边"; }
+    else {
+      const t = (B.y - S.y) / dy;
+      const Kx = S.x + t * dx;
+      K = createVector(Kx, B.y);
+      
+      if (K.x < B.x || K.x > C.x) { errorMsg = "反射点 K 落在底边外"; }
+      else {
+        valid = true;
+        rays.push({ p1: S, p2: K, type: 'glass' });
+        rays.push({ p1: K, p2: P, type: 'glass' });
+        
+        // 4. Retro-calculate External Rays (Physics Consistency)
+        const dirSK = p5.Vector.sub(K, S).normalize();
+        const nAB_in = p5.Vector.mult(nAB, -1);
+        const r_angle_S = angleBetweenSigned(dirSK, nAB_in);
+        const sin_i_S = (PRISM.n / 1.0) * Math.sin(r_angle_S);
+        if (Math.abs(sin_i_S) <= 1) {
+           const i_angle_S = Math.asin(sin_i_S);
+           const rayInVec = nAB_in.copy().rotate(i_angle_S); 
+           const rayStart = p5.Vector.sub(S, p5.Vector.mult(rayInVec, 200));
+           rays.unshift({ p1: rayStart, p2: S, type: 'air' }); // Add to front
+           
+           // Update Angle UI
+           let deg = degrees(rayInVec.heading());
+           STATE.params.incAngle = Math.round(deg); 
+        }
+
+        // Ray OUT (P -> Air)
+        const dirKP = p5.Vector.sub(P, K).normalize();
+        const angle_i_P = angleBetweenSigned(dirKP, nAC);
+        const sin_r_P = (PRISM.n / 1.0) * Math.sin(angle_i_P);
+        if (Math.abs(sin_r_P) <= 1) {
+          const r_angle_P = Math.asin(sin_r_P);
+          const dirOut = nAC.copy().rotate(r_angle_P);
+          const rayEnd = p5.Vector.add(P, p5.Vector.mult(dirOut, 200));
+          rays.push({ p1: P, p2: rayEnd, type: 'air' });
+        } else {
+          errorMsg = "P点发生全反射";
+        }
+      }
+    }
+  }
+  
+  // Common Construction
+  const P_prime = P ? createVector(P.x, 2 * B.y - P.y) : null;
+  
+  STATE.result = { A, B, C, S, P, K, P_prime, rays, valid, errorMsg };
+  updateUIFromState();
+}
+
+function angleBetweenSigned(v1, v2) {
+  return Math.atan2(v1.y*v2.x - v1.x*v2.y, v1.x*v2.x + v1.y*v2.y);
+  // Actually p5 vector angleBetween is unsigned usually. 
+  // Custom: angle from v2 to v1.
+  // We want angle OF v1 RELATIVE TO v2.
+  // return v1.heading() - v2.heading(); // Normalize carefully
+  let a = v1.heading() - v2.heading();
+  if (a > PI) a -= TWO_PI;
+  if (a < -PI) a += TWO_PI;
+  return a;
+}
+
+// --- Interaction Logic ---
+
+function updateParam(key, val) {
+  if (key === 'showMirror' || key === 'showLines' || key === 'showNormals') {
+    STATE.params[key] = val;
+  } else {
+    STATE.params[key] = parseFloat(val);
+  }
+  calculateAll();
+}
+
+function resetParams() {
+  STATE.params = { ...INITIAL_PARAMS };
+  STATE.view = { scale: 1.0, x: 0, y: 0 };
+  selectInputMode('twoPoints');
+  // Visually reset checkboxes
+  document.getElementById('chk-mirror').checked = false;
+  document.getElementById('chk-lines').checked = false;
+  document.getElementById('chk-normals').checked = false;
+  calculateAll();
+}
+
+function updateUIFromState() {
+  // Update Labels
+  document.getElementById('val-tS').innerText = Math.round(STATE.params.tS * 100) + "%";
+  document.getElementById('val-tP').innerText = Math.round(STATE.params.tP * 100) + "%";
+  document.getElementById('val-angle').innerText = STATE.params.incAngle + "°";
+  
+  // Update Sliders (Sync)
+  document.getElementById('sl-S').value = STATE.params.tS;
+  document.getElementById('sl-P').value = STATE.params.tP;
+  document.getElementById('sl-Angle').value = STATE.params.incAngle;
+
+  // Verify Panel
+  const vEl = document.getElementById('verify-content');
+  const res = STATE.result;
+  
+  if (!res.valid) {
+    document.getElementById('verify-panel').className = 'verify-panel verify-warn';
+    vEl.innerHTML = `⚠️ <strong>无光路：</strong>${res.errorMsg || '几何无解'}`;
+  } else {
+    document.getElementById('verify-panel').className = 'verify-panel';
+    let msg = `<div>✓ 光路闭合 (n=${PRISM.n})</div>`;
+    // Symmetry Check
+    if (res.S && res.K && res.P_prime) {
+      const v1 = p5.Vector.sub(res.K, res.S).normalize();
+      const v2 = p5.Vector.sub(res.P_prime, res.K).normalize();
+      const dot = v1.dot(v2);
+      if (Math.abs(dot - 1) < 0.001) msg += `<div style="color:${COLORS.green[2]}; font-weight:bold; margin-top:4px;">✓ 对称法验证通过 (S,K,P' 共线)</div>`;
+    }
+    vEl.innerHTML = msg;
+  }
+  
+  redraw();
+}
+
+function selectInputMode(mode) {
+  STATE.inputMode = mode;
+  // Visual Toggle
+  document.getElementById('rc-twoPoints').className = mode === 'twoPoints' ? 'radio-card active' : 'radio-card';
+  document.getElementById('rc-incidentAngle').className = mode === 'incidentAngle' ? 'radio-card active' : 'radio-card';
+  
+  // Ensure the radio input itself is checked (fix for user feedback)
+  document.querySelector(`input[name="inputMode"][value="${mode}"]`).checked = true;
+  
+  // Enable/Disable Sliders
+  if (mode === 'twoPoints') {
+    document.getElementById('ctrl-P').classList.remove('disabled-block');
+    document.getElementById('ctrl-Angle').classList.add('disabled-block');
+  } else {
+    document.getElementById('ctrl-P').classList.add('disabled-block');
+    document.getElementById('ctrl-Angle').classList.remove('disabled-block');
+  }
+  
+  calculateAll();
+}
+
+function setMode(mode) {
+  STATE.mode = mode;
+  document.getElementById('btn-guided').className = mode === 'guided' ? 'btn btn-primary' : 'btn';
+  document.getElementById('btn-explore').className = mode === 'explore' ? 'btn btn-primary' : 'btn';
+  
+  const sb = document.getElementById('sandbox-controls');
+  const ov = document.getElementById('guided-overlay');
+  
+  if (mode === 'guided') {
+    sb.classList.add('hidden');
+    ov.classList.remove('hidden');
+    STATE.stepIndex = 0;
+    // Force Two Points mode for story consistency
+    selectInputMode('twoPoints'); 
+    updateStepUI();
+  } else {
+    sb.classList.remove('hidden');
+    ov.classList.add('hidden');
+  }
+  redraw();
+}
+
+// --- Guided Steps Data ---
+const STEPS = [
+  { t: "1. 题目分析", c: "已知 S、P 两点。我们需要找到 BC 面上的反射点 K，使光线 S→K→P 成立。利用【光路可逆】原理，这等价于费马原理的最短路径问题。", f: [], show:['S','P'] },
+  { t: "2. 镜像法原理", c: "将平面镜反射转化为直线传播。首先作点 P 关于反射面 BC 的对称点 P'（像点）。", f: ["P' = \\text{Mirror}(P, BC)"], show:['S','P','P_prime'] },
+  { t: "3. 连接辅助线", c: "连接 S 和 P'。在虚拟空间中，光线是沿直线 SP' 传播的。", f: [], show:['S','P','P_prime','LineSP'] },
+  { t: "4. 确定反射点", c: "直线 SP' 与底边 BC 的交点，即为真实的反射点 K。", f: ["K = SP' \\cap BC"], show:['S','P','P_prime','LineSP','K'] },
+  { t: "5. 连接真实光路", c: "连接 S→K 和 K→P。由于三角形全等特性，∠SKB (入射角) = ∠PKC (反射角)。", f: ["\\theta_i = \\theta_r"], show:['S','P','P_prime','LineSP','K','Rays'] },
+  { t: "6. 物理光路补全", c: "根据斯涅尔定律 (n=1.5)，自动补全外部的进、出射光线。无论 P 点位置如何，几何作图法得到的 K 点始终满足反射定律。", f: ["n_1 \\sin \\theta_1 = n_2 \\sin \\theta_2"], show:['S','P','P_prime','LineSP','K','Rays','Normals'] }
+];
+
+function updateStepUI() {
+  const s = STEPS[STATE.stepIndex];
+  document.getElementById('step-indicator').innerText = `Step ${STATE.stepIndex+1}/${STEPS.length}`;
+  document.getElementById('step-title').innerText = s.t;
+  document.getElementById('step-reasoning').innerText = s.c;
+  const m = document.getElementById('step-math');
+  if (s.f.length) {
+    m.classList.remove('hidden'); m.style.visibility='hidden';
+    m.innerHTML = `\\[ ${s.f.join(" ")} \\]`;
+    if(window.MathJax) MathJax.typesetPromise().then(()=>m.style.visibility='visible');
+  } else m.classList.add('hidden');
+  redraw();
+}
+function nextStep() { if (STATE.stepIndex < STEPS.length-1) { STATE.stepIndex++; updateStepUI(); } }
+function prevStep() { if (STATE.stepIndex > 0) { STATE.stepIndex--; updateStepUI(); } }
+
+// --- P5.js View & Render ---
+function setup() {
+  const wrap = document.getElementById('stage-container');
+  const cnv = createCanvas(wrap.clientWidth, wrap.clientHeight);
+  cnv.parent('stage-container');
+  
+  // Events
+  cnv.elt.addEventListener('wheel', e => {
+    e.preventDefault();
+    const z = e.deltaY > 0 ? 0.9 : 1.1;
+    STATE.view.scale = constrain(STATE.view.scale * z, 0.2, 5.0);
+    redraw();
+  }, {passive:false});
+
+  cnv.elt.addEventListener('pointerdown', handleDown);
+  cnv.elt.addEventListener('pointermove', handleMove);
+  window.addEventListener('pointerup', () => activeObj = null);
+
+  // Init
+  calculateAll();
+  setMode('guided');
+}
+
+function windowResized() {
+  const wrap = document.getElementById('stage-container');
+  resizeCanvas(wrap.clientWidth, wrap.clientHeight);
+  redraw();
+}
+
+// Coordinate Transform
+function toWorld(x, y) {
+  return createVector((x - width/2 - STATE.view.x)/STATE.view.scale, (y - height/2 - STATE.view.y)/STATE.view.scale);
+}
+
+// Interaction
+let activeObj = null;
+let dragStart = {x:0, y:0};
+let viewStart = {x:0, y:0};
+
+function handleDown(e) {
+  const m = toWorld(mouseX, mouseY);
+  const res = STATE.result;
+  const hit = 20 / STATE.view.scale;
+  
+  // Hit Test
+  if (res.S && p5.Vector.dist(m, res.S) < hit) activeObj = 'S';
+  else if (STATE.inputMode === 'twoPoints' && res.P && p5.Vector.dist(m, res.P) < hit) activeObj = 'P';
+  else {
+    activeObj = 'VIEW';
+    dragStart = {x:mouseX, y:mouseY};
+    viewStart = {...STATE.view};
+    document.body.style.cursor = 'grabbing';
+  }
+}
+
+function handleMove(e) {
+  const m = toWorld(mouseX, mouseY);
+  
+  if (activeObj === 'S') {
+    const res = STATE.result;
+    const AB = p5.Vector.sub(res.B, res.A);
+    const proj = p5.Vector.sub(m, res.A).dot(AB) / AB.magSq();
+    updateParam('tS', constrain(proj, 0.1, 0.9));
+  } 
+  else if (activeObj === 'P' && STATE.inputMode === 'twoPoints') {
+    const res = STATE.result;
+    const AC = p5.Vector.sub(res.C, res.A);
+    const proj = p5.Vector.sub(m, res.A).dot(AC) / AC.magSq();
+    updateParam('tP', constrain(proj, 0.1, 0.9));
+  }
+  else if (activeObj === 'VIEW') {
+    STATE.view.x = viewStart.x + (mouseX - dragStart.x);
+    STATE.view.y = viewStart.y + (mouseY - dragStart.y);
+    redraw();
+  }
+  else {
+    // Hover State
+    const res = STATE.result;
+    const hit = 20 / STATE.view.scale;
+    let cursor = 'default';
+    if (res.S && p5.Vector.dist(m, res.S) < hit) cursor = 'pointer';
+    else if (STATE.inputMode === 'twoPoints' && res.P && p5.Vector.dist(m, res.P) < hit) cursor = 'pointer';
+    document.body.style.cursor = cursor;
+  }
+}
+
+function draw() {
+  background(248, 250, 252);
+  push();
+  translate(width/2 + STATE.view.x, height/2 + STATE.view.y);
+  scale(STATE.view.scale);
+  
+  const res = STATE.result;
+  const isGuided = STATE.mode === 'guided';
+  const stepConfig = STEPS[STATE.stepIndex];
+  
+  // Decide visibility
+  let showMirror = STATE.params.showMirror;
+  let showLines = STATE.params.showLines;
+  let showNormals = STATE.params.showNormals;
+  let showRays = true;
+  
+  if (isGuided) {
+    showMirror = stepConfig.show.includes('P_prime');
+    showLines = stepConfig.show.includes('LineSP');
+    showNormals = stepConfig.show.includes('Normals');
+    showRays = stepConfig.show.includes('Rays');
+  }
+
+  // Draw Prism
+  stroke(COLORS.stroke); strokeWeight(3); fill(COLORS.glass);
+  if (res.A) triangle(res.A.x, res.A.y, res.B.x, res.B.y, res.C.x, res.C.y);
+
+  // Draw Mirror Axis (BC ext)
+  if (showMirror && res.B) {
+    stroke(150); strokeWeight(1); drawingContext.setLineDash([5,5]);
+    line(res.B.x - 100, res.B.y, res.C.x + 100, res.C.y);
+    drawingContext.setLineDash([]);
+  }
+
+  // Draw P' & SP'
+  if (showMirror && res.P_prime) {
+    fill(COLORS.construct); noStroke(); circle(res.P_prime.x, res.P_prime.y, 6);
+    text("P'", res.P_prime.x + 10, res.P_prime.y);
+    
+    // Line P-P'
+    if (res.P) {
+      stroke(COLORS.construct); strokeWeight(1); drawingContext.setLineDash([3,3]);
+      line(res.P.x, res.P.y, res.P_prime.x, res.P_prime.y);
+      drawingContext.setLineDash([]);
+    }
+  }
+  
+  if (showLines && res.S && res.P_prime) {
+    stroke(COLORS.construct); strokeWeight(1);
+    line(res.S.x, res.S.y, res.P_prime.x, res.P_prime.y);
+  }
+
+  // Draw Rays
+  if (showRays && res.rays.length > 0) {
+    stroke(COLORS.ray); strokeWeight(2);
+    res.rays.forEach(r => {
+      line(r.p1.x, r.p1.y, r.p2.x, r.p2.y);
+      // Arrow
+      const mid = p5.Vector.lerp(r.p1, r.p2, 0.55);
+      const dir = p5.Vector.sub(r.p2, r.p1);
+      drawArrow(mid, dir.heading());
+    });
+  }
+
+  // Draw Points
+  if (res.S) drawLabelPoint(res.S, "S", COLORS.stroke);
+  if (res.P) drawLabelPoint(res.P, "P", COLORS.stroke);
+  if (res.K && (showLines || showRays)) drawLabelPoint(res.K, "K", COLORS.green);
+
+  // Draw Normals
+  if (showNormals && res.K && res.S && res.P) {
+    stroke(100,100,100,100); strokeWeight(1);
+    line(res.K.x, res.K.y-30, res.K.x, res.K.y+30);
+    // Normals at surfaces approx
+    // ... (simplified visual)
+  }
+
+  pop();
+}
+
+function drawLabelPoint(p, txt, col) {
+  noStroke(); fill(col); circle(p.x, p.y, 8);
+  fill(50); textSize(14); textStyle(BOLD);
+  text(txt, p.x + 10, p.y - 10);
+}
+
+function drawArrow(p, angle) {
+  push(); translate(p.x, p.y); rotate(angle);
+  fill(COLORS.ray); noStroke();
+  triangle(-5, -3, -5, 3, 5, 0);
+  pop();
+}
+
+function copyProblem() {
+  navigator.clipboard.writeText(document.getElementById('problem-text').innerText);
+}
+</script>
+</body>
+</html>

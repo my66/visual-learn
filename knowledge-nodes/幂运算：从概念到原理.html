@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>幂运算：从概念到原理（PC大屏严谨版）</title>
+    <!-- 核心库：React, ReactDOM, Babel, Tailwind -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- MathJax for TeX rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        /* 基础样式与动画 */
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background-color: #f8fafc; }
+        
+        /* 动画关键帧 */
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes popIn {
+            0% { transform: scale(0.5); opacity: 0; }
+            70% { transform: scale(1.1); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .anim-slide-in { animation: slideIn 0.5s ease-out forwards; }
+        .anim-pop { animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        
+        /* 交互组件样式 */
+        .slider-thumb {
+            -webkit-appearance: none;
+            height: 8px; /* 加大滑块轨道 */
+            background: #e2e8f0;
+            border-radius: 5px;
+            outline: none;
+        }
+        .slider-thumb::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 24px; /* 加大滑块按钮 */
+            height: 24px;
+            border-radius: 50%;
+            background: #6366f1;
+            cursor: pointer;
+            transition: transform 0.1s;
+            border: 2px solid white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .slider-thumb::-webkit-slider-thumb:hover { transform: scale(1.2); }
+
+        /* 隐藏 MathJax 直到渲染完成 */
+        .math-container { visibility: hidden; min-height: 1.5em; }
+        .math-container.visible { visibility: visible; }
+        
+        /* 强制 MathJax 字体大小继承 */
+        mjx-container { font-size: inherit !important; }
+    </style>
+</head>
+<body>
+
+<div id="root"></div>
+
+<script type="text/babel">
+    const { useState, useEffect, useRef, useMemo } = React;
+
+    // --- 图标组件 (Inline SVG) ---
+    // 加大图标尺寸以匹配大屏
+    const Icons = {
+        BookOpen: () => <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>,
+        Beaker: () => <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>,
+        Alert: () => <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>,
+        ArrowRight: () => <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>,
+        ArrowLeft: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>,
+        Layers: () => <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>,
+        Reset: () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+    };
+
+    // --- MathJax 渲染 Hook ---
+    const useMathJax = (texExpression, id) => {
+        const containerRef = useRef(null);
+        
+        useEffect(() => {
+            if (!window.MathJax) return;
+            const el = containerRef.current;
+            if (!el) return;
+
+            el.innerHTML = ''; 
+            el.classList.remove('visible');
+
+            // 简单的防抖
+            const renderId = setTimeout(() => {
+                el.innerHTML = `\\(${texExpression}\\)`;
+                window.MathJax.typesetPromise([el]).then(() => {
+                    el.classList.add('visible');
+                }).catch(err => {
+                    console.error('MathJax error:', err);
+                    el.innerText = texExpression; // Fallback
+                    el.classList.add('visible');
+                });
+            }, 50);
+
+            return () => clearTimeout(renderId);
+        }, [texExpression, id]);
+
+        return containerRef;
+    };
+
+    const MathDisplay = ({ tex, className = "" }) => {
+        const ref = useMathJax(tex, tex);
+        return <span ref={ref} className={`math-container inline-block ${className}`}></span>;
+    };
+
+    // --- 核心逻辑 ---
+    // 定义引导模式的步骤数据
+    const PLAN_STEPS = [
+        {
+            titleCN: "一、幂的定义 (Definition)",
+            reasoningCN: "幂是乘法的简写。指数 m 代表“乘法的次数”，或者想象为“楼层数”。", // 修改：统一用 m
+            formulasTeX: ["a^m = \\underbrace{a \\times a \\times \\cdots \\times a}_{m\\text{个}}"], // 修改：统一用 m
+            focusType: "definition",
+            params: { a: 2, m: 3, n: 0, mode: 'def' } // n 在此模式下无用
+        },
+        {
+            titleCN: "二、同底数幂相乘 (Product Rule)",
+            reasoningCN: "左边 m 层楼，右边 n 层楼，叠在一起，总共有 m+n 层。",
+            formulasTeX: ["a^m \\times a^n = a^{m+n}"],
+            focusType: "product",
+            params: { a: 2, m: 2, n: 3, mode: 'mul' }
+        },
+        {
+            titleCN: "三、同底数幂相除 (Quotient Rule)",
+            reasoningCN: "上面 m 层，下面 n 层。相除就是“消除”（a≠0）。当 m>n 时，剩 m-n 层；当 m<n 时，剩在分母。", // 修改：补充严谨性
+            formulasTeX: ["\\frac{a^m}{a^n} = a^{m-n} \\quad (a \\neq 0)"],
+            focusType: "quotient",
+            params: { a: 2, m: 5, n: 2, mode: 'div' }
+        },
+        {
+            titleCN: "四、幂的乘方 (Power of Power)",
+            reasoningCN: "先盖好 m 层的一栋楼，然后把这整栋楼“复制” n 次。总层数就是 m 乘以 n。",
+            formulasTeX: ["(a^m)^n = a^{m \\times n}"],
+            focusType: "power",
+            params: { a: 2, m: 2, n: 3, mode: 'pow' }
+        }
+    ];
+
+    // --- 主应用 ---
+    const App = () => {
+        const [activeTab, setActiveTab] = useState('guided');
+        const [stepIndex, setStepIndex] = useState(0);
+        
+        // Lab State
+        const [labParams, setLabParams] = useState({ a: 2, m: 3, n: 2, mode: 'def' });
+        
+        // Misconception State
+        const [misconceptionType, setMisconceptionType] = useState('pow_vs_mul'); 
+
+        const currentState = useMemo(() => {
+            if (activeTab === 'guided') {
+                return PLAN_STEPS[stepIndex].params;
+            } else {
+                return labParams;
+            }
+        }, [activeTab, stepIndex, labParams]);
+
+        const updateLab = (key, val) => {
+            setLabParams(prev => ({ ...prev, [key]: val }));
+        };
+
+        // ----------------- 渲染逻辑 -----------------
+
+        return (
+            <div className="flex flex-col h-screen bg-slate-50 text-slate-800 overflow-hidden">
+                {/* 主布局 */}
+                <div className="flex flex-1 overflow-hidden">
+                    
+                    {/* 左侧控制面板 */}
+                    <div className="w-80 lg:w-96 xl:w-[420px] bg-white shadow-xl z-20 flex flex-col border-r border-slate-200 overflow-y-auto shrink-0">
+                        
+                        {/* 顶部题面/标题卡 */}
+                        <div className="p-6 bg-indigo-600 text-white shrink-0">
+                            <h1 className="text-2xl font-bold flex items-center gap-3">
+                                <Icons.Layers /> 幂运算全景演示
+                            </h1>
+                            <p className="text-indigo-100 text-sm mt-2">从直观模型到代数原理</p>
+                        </div>
+
+                        {/* 模式切换 Tabs */}
+                        <div className="flex border-b border-slate-200">
+                            {[
+                                { id: 'guided', label: '概念引导', icon: Icons.BookOpen },
+                                { id: 'lab', label: '实验室', icon: Icons.Beaker },
+                                { id: 'misconception', label: '易错辨析', icon: Icons.Alert }
+                            ].map(tab => (
+                                <button 
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`flex-1 py-4 text-base font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === tab.id ? 'text-indigo-600 border-b-4 border-indigo-600 bg-indigo-50' : 'text-slate-500 hover:bg-slate-50'}`}
+                                >
+                                    <tab.icon /> {tab.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* 控制区内容 */}
+                        <div className="p-8 flex-1 space-y-8">
+                            
+                            {activeTab === 'guided' && (
+                                <div className="space-y-8 animate-slide-in">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <button 
+                                            onClick={() => setStepIndex(Math.max(0, stepIndex - 1))}
+                                            disabled={stepIndex === 0}
+                                            className="p-3 rounded-full hover:bg-slate-100 disabled:opacity-30 transition-colors border border-slate-200"
+                                        >
+                                            <Icons.ArrowLeft />
+                                        </button>
+                                        <span className="font-mono font-bold text-slate-400 text-lg">Step {stepIndex + 1} / {PLAN_STEPS.length}</span>
+                                        <button 
+                                            onClick={() => setStepIndex(Math.min(PLAN_STEPS.length - 1, stepIndex + 1))}
+                                            disabled={stepIndex === PLAN_STEPS.length - 1}
+                                            className="p-3 rounded-full hover:bg-slate-100 disabled:opacity-30 transition-colors border border-slate-200"
+                                        >
+                                            <Icons.ArrowRight />
+                                        </button>
+                                    </div>
+                                    
+                                    <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-6 shadow-sm">
+                                        <h3 className="font-bold text-indigo-900 text-xl mb-3">{PLAN_STEPS[stepIndex].titleCN}</h3>
+                                        <p className="text-base text-slate-700 leading-relaxed mb-4">{PLAN_STEPS[stepIndex].reasoningCN}</p>
+                                        <div className="bg-white p-4 rounded-xl border border-indigo-100 text-center shadow-inner">
+                                            <MathDisplay tex={PLAN_STEPS[stepIndex].formulasTeX[0]} className="text-2xl text-indigo-700" />
+                                        </div>
+                                    </div>
+
+                                    {PLAN_STEPS[stepIndex].focusType === 'power' && (
+                                        <div className="text-sm text-slate-500 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                                            提示：观察右侧，每一层楼都变成了一组，这解释了为什么指数是相乘。
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {activeTab === 'lab' && (
+                                <div className="space-y-8 animate-slide-in">
+                                    <div className="space-y-3">
+                                        <label className="text-sm font-bold text-slate-500 uppercase tracking-wider">当前模式</label>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            {[
+                                                { id: 'def', label: '基础定义' },
+                                                { id: 'mul', label: '乘法 (相加)' },
+                                                { id: 'div', label: '除法 (相减)' },
+                                                { id: 'pow', label: '乘方 (相乘)' }
+                                            ].map(m => (
+                                                <button
+                                                    key={m.id}
+                                                    onClick={() => updateLab('mode', m.id)}
+                                                    className={`py-3 px-4 text-base font-bold rounded-xl border transition-all ${labParams.mode === m.id ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg scale-105' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                                                >
+                                                    {m.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-6 bg-slate-50 p-6 rounded-2xl border border-slate-200">
+                                        <div className="space-y-2">
+                                            <div className="flex justify-between">
+                                                <label className="text-base font-bold text-slate-700">底数 (a)</label>
+                                                <span className="text-sm font-mono bg-white px-3 py-1 rounded text-slate-600 border border-slate-200">{labParams.a}</span>
+                                            </div>
+                                            <input type="range" min="2" max="5" value={labParams.a} onChange={(e) => updateLab('a', parseInt(e.target.value))} className="w-full slider-thumb bg-slate-200 rounded-lg appearance-none cursor-pointer" />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <div className="flex justify-between">
+                                                <label className="text-base font-bold text-slate-700">指数 m</label>
+                                                <span className="text-sm font-mono bg-white px-3 py-1 rounded text-slate-600 border border-slate-200">{labParams.m}</span>
+                                            </div>
+                                            <input type="range" min="1" max="6" value={labParams.m} onChange={(e) => updateLab('m', parseInt(e.target.value))} className="w-full slider-thumb bg-slate-200 rounded-lg appearance-none cursor-pointer" />
+                                        </div>
+
+                                        {labParams.mode !== 'def' && (
+                                            <div className="space-y-2 animate-slide-in">
+                                                <div className="flex justify-between">
+                                                    <label className="text-base font-bold text-slate-700">指数 n</label>
+                                                    <span className="text-sm font-mono bg-white px-3 py-1 rounded text-slate-600 border border-slate-200">{labParams.n}</span>
+                                                </div>
+                                                <input type="range" min="1" max="5" value={labParams.n} onChange={(e) => updateLab('n', parseInt(e.target.value))} className="w-full slider-thumb bg-slate-200 rounded-lg appearance-none cursor-pointer" />
+                                            </div>
+                                        )}
+                                        
+                                        {/* C1. 增加适用范围说明 */}
+                                        <div className="text-xs text-slate-400 pt-2 border-t border-slate-200">
+                                            适用范围：本演示主要讨论正整数指数，底数 a ≠ 0。
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {activeTab === 'misconception' && (
+                                <MisconceptionPanel 
+                                    misconceptionType={misconceptionType} 
+                                    setMisconceptionType={setMisconceptionType} 
+                                />
+                            )}
+
+                        </div>
+                        
+                        {/* 底部版权/重置 */}
+                        <div className="p-6 border-t border-slate-200 bg-slate-50 text-center">
+                            <button 
+                                onClick={() => { setLabParams({ a: 2, m: 3, n: 2, mode: 'def' }); setStepIndex(0); setMisconceptionType('pow_vs_mul'); }}
+                                className="text-sm text-slate-500 hover:text-indigo-600 flex items-center justify-center gap-2 w-full font-bold transition-colors"
+                            >
+                                <Icons.Reset /> 重置所有参数
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* 右侧主舞台 */}
+                    <div className="flex-1 bg-slate-100 overflow-hidden relative flex flex-col items-center justify-center p-8 lg:p-12">
+                        {/* 背景网格装饰 */}
+                        <div className="absolute inset-0 opacity-10 pointer-events-none" 
+                             style={{ backgroundImage: 'radial-gradient(#6366f1 1px, transparent 1px)', backgroundSize: '24px 24px' }}>
+                        </div>
+
+                        {/* 核心可视化组件 */}
+                        {activeTab !== 'misconception' ? (
+                            <ExponentVisualizer state={currentState} />
+                        ) : (
+                            <MisconceptionVisualizer type={misconceptionType} />
+                        )}
+
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    // --- 核心可视化组件：ExponentVisualizer (大屏版) ---
+    const ExponentVisualizer = ({ state }) => {
+        const { a, m, n, mode } = state;
+
+        const valM = Math.pow(a, m);
+        
+        // A1. 定义模式下统一用 m，计算也基于 m
+        // 其他模式 n 参与计算
+        const valN = Math.pow(a, n);
+
+        // 渲染单个方块塔 (加大尺寸)
+        const renderTower = (height, colorClass, label, showBaseDecomp = false) => {
+            return (
+                <div className="flex flex-col items-center gap-4 transition-all duration-500">
+                    <div className="flex flex-col-reverse gap-1 items-center p-3 bg-white/60 rounded-xl border border-slate-200 shadow-lg backdrop-blur-md relative min-w-[100px] min-h-[160px] justify-end">
+                        {Array.from({ length: height }).map((_, i) => (
+                            <div 
+                                key={i} 
+                                className={`w-20 h-10 rounded-lg shadow-md border border-white/30 flex items-center justify-center text-lg text-white font-bold transition-all duration-300 anim-pop ${colorClass}`}
+                                style={{ animationDelay: `${i * 0.05}s` }}
+                            >
+                                {showBaseDecomp ? (
+                                    // 乘方模式下的特殊渲染
+                                    <div className="flex gap-1.5">
+                                        {Array.from({ length: m }).map((_, j) => (
+                                            <div key={j} className="w-3 h-3 rounded-full bg-white/50 shadow-inner"></div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <span>a</span>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                    <div className="text-xl font-bold text-slate-600 bg-white/90 px-6 py-2 rounded-full shadow-md border border-slate-100">
+                        <MathDisplay tex={label} />
+                    </div>
+                </div>
+            );
+        };
+
+        return (
+            <div className="w-full max-w-7xl h-full flex flex-col items-center justify-center gap-12">
+                
+                {/* 顶部的数学公式状态栏 (超大字号) */}
+                <div className="bg-white px-12 py-6 rounded-3xl shadow-xl border border-indigo-100 flex items-center gap-8 animate-slide-in z-10 min-h-[100px]">
+                    {/* A1. 定义模式修正：统一用 m */}
+                    {mode === 'def' && <MathDisplay tex={`a^m = ${a}^${m} = ${valM}`} className="text-4xl font-bold text-slate-800" />}
+                    
+                    {mode === 'mul' && (
+                        <div className="flex items-center gap-6 text-3xl">
+                            <span className="text-blue-500"><MathDisplay tex={`${a}^${m}`} /></span>
+                            <span className="text-slate-400">×</span>
+                            <span className="text-emerald-500"><MathDisplay tex={`${a}^${n}`} /></span>
+                            <span className="text-slate-400">=</span>
+                            <span className="text-indigo-600 font-bold"><MathDisplay tex={`${a}^{${m}+${n}} = ${a}^{${m+n}}`} /></span>
+                        </div>
+                    )}
+                    
+                    {mode === 'div' && (
+                        <div className="flex items-center gap-6 text-3xl">
+                            <span className="text-blue-500"><MathDisplay tex={`${a}^${m}`} /></span>
+                            <span className="text-slate-400">÷</span>
+                            <span className="text-rose-500"><MathDisplay tex={`${a}^${n}`} /></span>
+                            <span className="text-slate-400">=</span>
+                            <span className="text-indigo-600 font-bold">
+                                {/* B1. 除法修正：m=n时显示1，m<n时显示分数形式 */}
+                                {m > n ? <MathDisplay tex={`${a}^{${m}-${n}} = ${a}^{${m-n}}`} /> :
+                                 m === n ? <MathDisplay tex={`a^{${m}-${n}} = a^0 = 1`} /> :
+                                 <MathDisplay tex={`\\frac{1}{a^{${n}-${m}}} = \\frac{1}{a^{${n-m}}}`} />
+                                }
+                            </span>
+                        </div>
+                    )}
+
+                    {mode === 'pow' && (
+                        <div className="flex items-center gap-6 text-3xl">
+                            <span className="text-slate-600">(</span>
+                            <span className="text-blue-500"><MathDisplay tex={`${a}^${m}`} /></span>
+                            <span className="text-slate-600">)</span>
+                            <sup className="text-purple-500 font-bold -ml-3 text-2xl">{n}</sup>
+                            <span className="text-slate-400">=</span>
+                            <span className="text-indigo-600 font-bold"><MathDisplay tex={`${a}^{${m}\\times${n}} = ${a}^{${m*n}}`} /></span>
+                        </div>
+                    )}
+                </div>
+
+                {/* 核心视觉区域 (容器加大) */}
+                <div className="flex items-end justify-center gap-20 min-h-[500px] w-full p-8 overflow-x-auto">
+                    
+                    {/* 1. Definition Mode */}
+                    {mode === 'def' && renderTower(m, 'bg-blue-500', `${a}^${m}`)}
+
+                    {/* 2. Multiplication Mode: 两个塔合并 */}
+                    {mode === 'mul' && (
+                        <>
+                            <div className="flex gap-6 items-end relative group">
+                                {/* Left Tower */}
+                                {renderTower(m, 'bg-blue-500', `a^${m}`)}
+                                <div className="text-4xl font-bold text-slate-300 pb-20">×</div>
+                                {/* Right Tower */}
+                                {renderTower(n, 'bg-emerald-500', `a^${n}`)}
+                                
+                                {/* Arrow (Scaled) */}
+                                <div className="absolute -top-16 left-1/2 -translate-x-1/2 text-slate-400 flex flex-col items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <span className="text-lg mb-1 font-bold">合并楼层</span>
+                                    <Icons.ArrowRight />
+                                </div>
+                            </div>
+
+                            <div className="h-full border-l-4 border-slate-200 border-dashed mx-6"></div>
+
+                            {/* Result Tower */}
+                            <div className="flex flex-col items-center">
+                                <div className="flex flex-col-reverse gap-1 p-3 bg-indigo-50/50 rounded-xl border border-indigo-100">
+                                    {/* 下半部分是 Left */}
+                                    {Array.from({ length: m }).map((_, i) => (
+                                        <div key={`l-${i}`} className="w-20 h-10 bg-blue-500 rounded-lg border border-white/20"></div>
+                                    ))}
+                                    {/* 上半部分是 Right */}
+                                    {Array.from({ length: n }).map((_, i) => (
+                                        <div key={`r-${i}`} className="w-20 h-10 bg-emerald-500 rounded-lg border border-white/20"></div>
+                                    ))}
+                                </div>
+                                <div className="mt-4 text-xl font-bold text-indigo-700 bg-white px-5 py-2 rounded-full shadow-md">
+                                    <MathDisplay tex={`a^{${m+n}}`} />
+                                </div>
+                            </div>
+                        </>
+                    )}
+
+                    {/* 3. Division Mode: 消除 */}
+                    {mode === 'div' && (
+                        <div className="flex gap-24 items-center">
+                            {/* Visual Logic */}
+                            <div className="relative">
+                                {/* 分数线模式判断 */}
+                                {m >= n ? (
+                                    // 正常消除模式 (m >= n)
+                                    <div className="flex flex-col items-center">
+                                        <div className="flex flex-col-reverse gap-1 items-center">
+                                            {/* 结果保留部分 */}
+                                            {Array.from({ length: m - n }).map((_, i) => (
+                                                <div key={i} className="w-20 h-10 bg-blue-500 rounded-lg shadow-sm border border-white/20 z-10"></div>
+                                            ))}
+                                            
+                                            {/* 被消除部分 */}
+                                            {Array.from({ length: n }).map((_, i) => (
+                                                <div key={`del-${i}`} className="w-20 h-10 bg-slate-300/50 rounded-lg border-2 border-dashed border-slate-400 relative grayscale opacity-60">
+                                                    <div className="absolute inset-0 flex items-center justify-center text-rose-500 text-3xl font-bold opacity-0 hover:opacity-100 transition-opacity cursor-not-allowed">×</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        {/* Label Lines */}
+                                        <div className="absolute -left-20 top-0 bottom-0 flex flex-col justify-between py-3 text-lg text-slate-400 text-right pr-4 border-r-2 border-slate-300">
+                                            <span>共 {m} 层</span>
+                                            <span>0</span>
+                                        </div>
+                                        {m === n && (
+                                            <div className="mt-4 text-xl font-bold text-indigo-600 bg-white px-4 py-1 rounded shadow">
+                                                <MathDisplay tex="1" />
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    // B1. 倒数模式 (m < n)
+                                    <div className="flex flex-col items-center">
+                                        <div className="text-4xl font-bold text-slate-700 mb-2">1</div>
+                                        <div className="w-32 h-1 bg-slate-800 my-2"></div> {/* 分数线 */}
+                                        <div className="flex flex-col-reverse gap-1 items-center">
+                                            {/* 分母剩余部分 */}
+                                            {Array.from({ length: n - m }).map((_, i) => (
+                                                <div key={`denom-${i}`} className="w-20 h-10 bg-rose-500 rounded-lg shadow-sm border border-white/20 z-10 text-white flex items-center justify-center font-bold text-lg">
+                                                    a
+                                                </div>
+                                            ))}
+                                            {/* 分母被消除部分（隐式或虚化） */}
+                                             {Array.from({ length: m }).map((_, i) => (
+                                                <div key={`del-${i}`} className="w-20 h-10 bg-slate-200/50 rounded-lg border border-dashed border-slate-300 relative grayscale opacity-40">
+                                                    <div className="absolute inset-0 flex items-center justify-center text-slate-400 text-xl font-bold">×</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="absolute -right-32 top-1/2 -translate-y-1/2 text-slate-500 text-sm w-24">
+                                            分母剩 {n-m} 个
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 4. Power of Power Mode: 组与复制 (加大) */}
+                    {mode === 'pow' && (
+                        <div className="flex flex-col items-center gap-10">
+                            <div className="text-slate-500 text-lg mb-4 font-bold bg-white/80 px-6 py-2 rounded-full">
+                                这里的每个“大块”内部其实都有 {m} 层 (a^{m})
+                            </div>
+                            <div className="flex items-end gap-6">
+                                {Array.from({ length: n }).map((_, groupIdx) => (
+                                    <div key={groupIdx} className="flex flex-col items-center gap-2 group relative">
+                                        {/* 每一组 */}
+                                        <div className="bg-white p-3 rounded-2xl shadow-lg border-4 border-blue-100 hover:border-blue-400 hover:scale-105 transition-all cursor-pointer">
+                                            <div className="flex flex-col-reverse gap-1.5">
+                                                {Array.from({ length: m }).map((_, i) => (
+                                                    <div key={i} className="w-16 h-8 bg-blue-500 rounded text-white/50 flex items-center justify-center text-xs">a</div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div className="text-base text-slate-500 font-mono font-bold">Group {groupIdx + 1}</div>
+                                        
+                                        {/* B2. 连接符修正：改为 × */}
+                                        {groupIdx < n - 1 && (
+                                            <div className="absolute -right-5 top-1/2 -translate-y-1/2 text-slate-300 text-2xl font-bold">×</div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="bg-indigo-50 text-indigo-700 px-8 py-4 rounded-xl text-xl shadow-sm border border-indigo-100">
+                                总层数 = {n} (组) × {m} (层/组) = <span className="font-bold text-2xl ml-2">{m * n} 层</span>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
+    // --- 易错辨析面板 (侧边栏内容) ---
+    const MisconceptionPanel = ({ misconceptionType, setMisconceptionType }) => {
+        return (
+            <div className="animate-slide-in space-y-6">
+                <div className="bg-amber-50 border border-amber-100 p-6 rounded-2xl">
+                    <h3 className="font-bold text-amber-800 flex items-center gap-3 text-lg mb-4">
+                        <Icons.Alert /> 常见错误预警
+                    </h3>
+                    
+                    {/* 切换按钮 */}
+                    <div className="grid grid-cols-2 gap-3 mb-6 bg-white/60 p-2 rounded-xl">
+                        {[
+                            { id: 'pow_vs_mul', label: '乘方 vs 乘法' },
+                            { id: 'add_vs_mul', label: '加法 vs 乘法' },
+                            { id: 'sub_vs_div', label: '减法 vs 除法' },
+                            { id: 'linear_vs_exp', label: '错误分配律' } // A2. 标题修正
+                        ].map(type => (
+                            <button
+                                key={type.id}
+                                onClick={() => setMisconceptionType(type.id)}
+                                className={`py-3 text-sm font-bold rounded-lg transition-colors ${misconceptionType === type.id ? 'bg-amber-500 text-white shadow-md' : 'text-slate-600 hover:bg-amber-100'}`}
+                            >
+                                {type.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="text-base text-slate-700 space-y-3 leading-relaxed">
+                        {misconceptionType === 'pow_vs_mul' && (
+                            <>
+                                <p><strong>核心本质：</strong>是“两堆”还是“翻倍”？</p>
+                                <ul className="list-disc pl-5 text-sm space-y-2 marker:text-amber-500">
+                                    <li>同底数幂相乘 <MathDisplay tex="a^m \cdot a^n" className="text-sm" />：两堆东西碰头，数量是 <span className="font-bold text-rose-500 bg-rose-50 px-1 rounded">加法 (m+n)</span>。</li>
+                                    <li>幂的乘方 <MathDisplay tex="(a^m)^n" className="text-sm" />：整组东西复制 n 遍，数量是 <span className="font-bold text-indigo-600 bg-indigo-50 px-1 rounded">乘法 (m×n)</span>。</li>
+                                </ul>
+                            </>
+                        )}
+                        {misconceptionType === 'add_vs_mul' && (
+                            <>
+                                <p><strong>核心本质：</strong>看展开后的样子。</p>
+                                <ul className="list-disc pl-5 text-sm space-y-2 marker:text-amber-500">
+                                    <li>乘法展开全是 <span className="font-mono font-bold text-indigo-600">×</span>，中间打通，连成一片。</li>
+                                    <li>加法展开有个 <span className="font-mono font-bold text-rose-500 text-lg">+</span>，像堵墙一样把两边隔开了。</li>
+                                </ul>
+                            </>
+                        )}
+                        {misconceptionType === 'sub_vs_div' && (
+                            <>
+                                <p><strong>核心本质：</strong>能不能“消消乐”。</p>
+                                <ul className="list-disc pl-5 text-sm space-y-2 marker:text-amber-500">
+                                    <li>除法上下 <span className="font-mono font-bold text-indigo-600">约分</span>，个数相减。</li>
+                                    <li>减法只是数量减少，无法进行指数级别的消除。</li>
+                                </ul>
+                            </>
+                        )}
+                        {/* A2. 错误分配律修正 */}
+                        {misconceptionType === 'linear_vs_exp' && (
+                            <>
+                                <p><strong>错误分配律（拆分错误）：</strong></p>
+                                <p>很多同学误以为乘方可以简单分配给每一项，忽略了底数的整体性。</p>
+                                <p className="text-sm text-slate-500 bg-white p-2 rounded border border-slate-100 mt-2">
+                                    注意：当 <MathDisplay tex="x=1" /> 时，两边碰巧相等；但在其他情况下（如 x=2,3...），两边完全不等。
+                                </p>
+                            </>
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    // 辅助组件：渲染展开的行
+    const ExpansionRow = ({ count, base, separator }) => {
+        return (
+            <div className="flex items-center gap-1 text-lg font-mono text-slate-500 flex-wrap justify-center max-w-full">
+                {Array.from({ length: count }).map((_, i) => (
+                    <React.Fragment key={i}>
+                        <span className="font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">{base}</span>
+                        {i < count - 1 && <span className="text-slate-400">{separator}</span>}
+                    </React.Fragment>
+                ))}
+            </div>
+        );
+    }
+
+    const MisconceptionVisualizer = ({ type }) => {
+        const [baseA, setBaseA] = useState(3);
+        const [expM, setExpM] = useState(2);
+        const [expN, setExpN] = useState(3);
+        const [x, setX] = useState(3);
+
+        if (type === 'linear_vs_exp') {
+            const valCorrect = Math.pow(4, x);
+            const valWrong = 2 * Math.pow(2, x);
+            const maxVal = Math.pow(4, 4); 
+            // A2. 动态判断相等
+            const isEqual = valCorrect === valWrong;
+
+            return (
+                <div className="w-full max-w-5xl flex flex-col items-center">
+                    <div className="w-full bg-white p-10 rounded-3xl shadow-lg border border-slate-200 mb-10">
+                        <div className="flex items-center gap-6 mb-12 justify-center">
+                            <label className="font-bold text-slate-500 text-xl">改变指数 x :</label>
+                            <input 
+                                type="range" min="1" max="4" step="1"
+                                value={x}
+                                onChange={(e) => setX(parseInt(e.target.value))}
+                                className="w-64 slider-thumb bg-slate-200 rounded-lg appearance-none cursor-pointer"
+                            />
+                            <span className="font-mono text-3xl font-bold bg-slate-100 px-4 py-2 rounded-lg text-slate-700">x = {x}</span>
+                        </div>
+
+                        <div className="flex items-end justify-center gap-24 h-[400px] border-b-2 border-slate-300 pb-0 relative px-16">
+                            {/* Wrong Bar */}
+                            <div className="flex flex-col items-center gap-3 group w-32">
+                                <div className="text-red-500 font-bold text-2xl mb-1">{valWrong}</div>
+                                <div 
+                                    className="w-full bg-red-100 border-4 border-red-400 rounded-t-xl transition-all duration-500 relative overflow-hidden"
+                                    style={{ height: `${Math.max(20, (valWrong / maxVal) * 350)}px` }}
+                                ></div>
+                                <div className="text-center pt-4">
+                                    <div className="font-mono font-bold text-red-600 text-xl">2 · 2^x</div>
+                                    <div className="text-sm text-slate-400 mt-2 font-bold">(错误拆分)</div>
+                                </div>
+                            </div>
+
+                            {/* Inequality Sign - A2. 动态显示 */}
+                            <div className={`text-6xl font-bold pb-16 ${isEqual ? 'text-green-500' : 'text-slate-300'}`}>
+                                {isEqual ? '=' : '≠'}
+                            </div>
+
+                            {/* Correct Bar */}
+                            <div className="flex flex-col items-center gap-3 group w-32">
+                                <div className="text-indigo-600 font-bold text-2xl mb-1">{valCorrect}</div>
+                                <div 
+                                    className="w-full bg-indigo-500 rounded-t-xl transition-all duration-500 shadow-indigo-200 shadow-2xl"
+                                    style={{ height: `${Math.max(20, (valCorrect / maxVal) * 350)}px` }}
+                                ></div>
+                                <div className="text-center pt-4">
+                                    <div className="font-mono font-bold text-indigo-700 text-xl">4^x</div>
+                                    <div className="text-sm text-slate-400 mt-2 font-bold">{'((2^2)^x = 2^{2x})'}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        return (
+            <div className="w-full max-w-6xl flex flex-col items-center">
+                <div className="w-full bg-white p-10 rounded-3xl shadow-lg border border-slate-200 mb-8">
+                    {/* Controls */}
+                    <div className="flex flex-wrap items-center justify-center gap-10 mb-10 bg-slate-50 p-6 rounded-2xl border border-slate-100">
+                        <div className="flex flex-col gap-2">
+                            <label className="text-sm font-bold text-slate-400">底数 a</label>
+                            <input type="range" min="2" max="5" step="1" value={baseA} onChange={(e) => setBaseA(parseInt(e.target.value))} className="w-32 slider-thumb bg-slate-200 rounded-lg" />
+                            <div className="text-center font-mono font-bold text-xl text-slate-600">{baseA}</div>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                            <label className="text-sm font-bold text-slate-400">指数 m</label>
+                            <input type="range" min="2" max="5" step="1" value={expM} onChange={(e) => setExpM(parseInt(e.target.value))} className="w-32 slider-thumb bg-slate-200 rounded-lg" />
+                            <div className="text-center font-mono font-bold text-xl text-slate-600">{expM}</div>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                            <label className="text-sm font-bold text-slate-400">指数 n</label>
+                            <input type="range" min="1" max="5" step="1" value={expN} onChange={(e) => setExpN(parseInt(e.target.value))} className="w-32 slider-thumb bg-slate-200 rounded-lg" />
+                            <div className="text-center font-mono font-bold text-xl text-slate-600">{expN}</div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-10 min-h-[400px]">
+                        
+                        {/* 左侧：Bad Case */}
+                        <div className="flex flex-col items-center bg-rose-50 rounded-2xl p-6 border-2 border-rose-100">
+                            <div className="text-xl font-bold text-rose-800 mb-6 bg-white px-6 py-2 rounded-full shadow-sm">
+                                {type === 'add_vs_mul' ? '加法：路障阻隔' : 
+                                 type === 'pow_vs_mul' ? '同底数幂相乘：两堆凑数' :
+                                 '减法：各算各的'}
+                            </div>
+                            
+                            <div className="text-3xl mb-8 font-mono text-rose-700">
+                                {type === 'add_vs_mul' ? <MathDisplay tex={`${baseA}^${expM} + ${baseA}^${expN}`} /> :
+                                 type === 'pow_vs_mul' ? <MathDisplay tex={`${baseA}^${expM} \\times ${baseA}^${expN}`} /> :
+                                 <MathDisplay tex={`${baseA}^${expM} - ${baseA}^${expN}`} />
+                                }
+                            </div>
+
+                            <div className="flex items-center gap-4 bg-white p-6 rounded-xl shadow-inner w-full justify-center overflow-x-auto min-h-[140px]">
+                                {type === 'pow_vs_mul' ? (
+                                    <div className="flex flex-wrap items-center justify-center gap-2">
+                                        <div className="p-2 border-2 border-rose-200 rounded-lg bg-rose-50 flex gap-1">
+                                             <ExpansionRow count={expM} base={baseA} separator="×" />
+                                        </div>
+                                        <span className="font-bold text-2xl text-rose-400">×</span>
+                                        <div className="p-2 border-2 border-rose-200 rounded-lg bg-rose-50 flex gap-1">
+                                             <ExpansionRow count={expN} base={baseA} separator="×" />
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="p-3 border-2 border-slate-200 rounded-lg bg-slate-50 shrink-0">
+                                            <ExpansionRow count={expM} base={baseA} separator="×" />
+                                        </div>
+                                        <div className="font-bold text-4xl text-rose-500 shrink-0 pb-2">
+                                            {type === 'add_vs_mul' ? '+' : '-'}
+                                        </div>
+                                        <div className="p-3 border-2 border-slate-200 rounded-lg bg-slate-50 shrink-0">
+                                            <ExpansionRow count={expN} base={baseA} separator="×" />
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                            
+                            <div className="mt-6 text-lg text-rose-600 text-center font-bold">
+                                {type === 'add_vs_mul' ? "中间有加号，两边的乘法链无法合并！" :
+                                 type === 'pow_vs_mul' ? "这只是两组数相乘，数量做加法 (m+n)。" :
+                                 "中间有减号，无法进行约分消除！"}
+                            </div>
+                        </div>
+
+                        {/* 右侧：Good Case */}
+                        <div className="flex flex-col items-center bg-indigo-50 rounded-2xl p-6 border-2 border-indigo-100">
+                            <div className="text-xl font-bold text-indigo-800 mb-6 bg-white px-6 py-2 rounded-full shadow-sm">
+                                {type === 'add_vs_mul' ? '乘法：无缝融合' : 
+                                 type === 'pow_vs_mul' ? '幂的乘方：倍增复制' :
+                                 '除法：上下消除'}
+                            </div>
+
+                            <div className="text-3xl mb-8 font-mono text-indigo-700">
+                                {type === 'add_vs_mul' ? <MathDisplay tex={`${baseA}^${expM} \\times ${baseA}^${expN}`} /> :
+                                 type === 'pow_vs_mul' ? <MathDisplay tex={`(${baseA}^${expM})^${expN}`} /> :
+                                 <MathDisplay tex={`\\frac{${baseA}^${expM}}{${baseA}^${expN}}`} />
+                                }
+                            </div>
+
+                            <div className="flex flex-col items-center bg-white p-6 rounded-xl shadow-inner w-full justify-center overflow-x-auto min-h-[140px]">
+                                {type === 'add_vs_mul' ? (
+                                    <div className="flex flex-wrap items-center justify-center gap-1 animate-slide-in">
+                                        <div className="p-2 border border-indigo-100 rounded bg-indigo-50/50 flex gap-1">
+                                             <ExpansionRow count={expM} base={baseA} separator="×" />
+                                        </div>
+                                        <span className="font-bold text-xl text-indigo-400">×</span>
+                                        <div className="p-2 border border-indigo-100 rounded bg-indigo-50/50 flex gap-1">
+                                             <ExpansionRow count={expN} base={baseA} separator="×" />
+                                        </div>
+                                        <div className="w-full text-center mt-3 text-indigo-400 text-lg">
+                                            ↓ <span className="text-sm">全部打通</span>
+                                        </div>
+                                        <div className="p-3 border-4 border-indigo-200 rounded-xl bg-indigo-50 flex gap-1 shadow-sm mt-2">
+                                             <ExpansionRow count={expM + expN} base={baseA} separator="×" />
+                                        </div>
+                                    </div>
+                                ) : type === 'pow_vs_mul' ? (
+                                    <div className="flex flex-col items-center animate-slide-in w-full">
+                                        <div className="flex flex-wrap items-center justify-center gap-4 mb-4">
+                                            {Array.from({ length: expN }).map((_, idx) => (
+                                                <div key={idx} className="flex items-center">
+                                                    <div className="relative p-3 border-4 border-indigo-200 rounded-xl bg-indigo-50">
+                                                        <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-indigo-100 text-xs px-2 py-0.5 rounded text-indigo-700 font-bold whitespace-nowrap border border-indigo-200">
+                                                            第{idx+1}组 ({expM}个)
+                                                        </div>
+                                                        <ExpansionRow count={expM} base={baseA} separator="×" />
+                                                    </div>
+                                                    {/* B2. 连接符修正：改为 × */}
+                                                    {idx < expN - 1 && <span className="mx-2 font-bold text-2xl text-indigo-300">×</span>}
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="w-full text-center mt-2 text-indigo-600 font-bold text-lg bg-indigo-50 p-3 rounded-lg border border-indigo-100">
+                                            总数 = {expN} (组) × {expM} (个/组) = {expM * expN} 个
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col items-center animate-slide-in">
+                                        <div className="flex items-center gap-2 border-b-4 border-indigo-900 pb-2 mb-2 px-6">
+                                            {Array.from({ length: Math.max(expM, expN) }).map((_, i) => (
+                                                <div key={i} className={`w-8 h-8 flex items-center justify-center text-lg font-bold rounded ${i < expM ? 'bg-indigo-100 text-indigo-800' : 'opacity-0'}`}>
+                                                    {i < expM && baseA}
+                                                    {i < Math.min(expM, expN) && (
+                                                        <div className="absolute w-10 h-0.5 bg-rose-400 rotate-45"></div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="flex items-center gap-2 px-6">
+                                            {Array.from({ length: Math.max(expM, expN) }).map((_, i) => (
+                                                <div key={i} className={`w-8 h-8 flex items-center justify-center text-lg font-bold rounded ${i < expN ? 'bg-indigo-100 text-indigo-800' : 'opacity-0'}`}>
+                                                    {i < expN && baseA}
+                                                    {i < Math.min(expM, expN) && (
+                                                        <div className="absolute w-10 h-0.5 bg-rose-400 rotate-45"></div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="mt-6 text-lg font-bold text-indigo-600">
+                                            对对碰消除 {Math.min(expM, expN)} 个，剩 {Math.abs(expM - expN)} 个
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+</script>
+</body>
+</html>

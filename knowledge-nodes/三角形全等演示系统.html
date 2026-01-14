@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三角形全等判定演示 (交互增强版)</title>
+    
+    <!-- 核心库 CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        /* 布局与重置 */
+        body { 
+            margin: 0; padding: 0; 
+            overflow: hidden; 
+            font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+            background-color: #f8fafc;
+            color: #334155;
+            height: 100vh;
+            display: flex;
+        }
+
+        /* 侧边栏样式 */
+        #sidebar {
+            width: 380px;
+            min-width: 320px;
+            background: white;
+            border-right: 1px solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            z-index: 20;
+            box-shadow: 4px 0 16px rgba(0,0,0,0.05);
+            height: 100%;
+        }
+
+        #sidebar-scroll {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+        }
+
+        /* 顶部标题卡片 */
+        .header-card {
+            margin-bottom: 24px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        /* 题目原题卡片 */
+        .problem-card {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 24px;
+            border-left: 4px solid #3b82f6;
+        }
+
+        /* 按钮网格 */
+        .btn-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+        .mode-btn {
+            padding: 12px;
+            font-size: 14px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            background: white;
+            color: #475569;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: 500;
+        }
+        .mode-btn:hover { border-color: #3b82f6; color: #3b82f6; }
+        .mode-btn.active {
+            background: #eff6ff;
+            border-color: #3b82f6;
+            color: #1d4ed8;
+            font-weight: 700;
+        }
+        .mode-btn.danger { border-color: #fecaca; color: #b91c1c; }
+        .mode-btn.danger:hover { background: #fef2f2; border-color: #ef4444; }
+        .mode-btn.danger.active {
+            background: #fef2f2;
+            border-color: #ef4444;
+            color: #b91c1c;
+        }
+
+        /* 参数控制组 */
+        .control-group {
+            margin-bottom: 20px;
+            background: #fff;
+        }
+        .control-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #475569;
+        }
+        .control-val {
+            font-family: "Menlo", monospace;
+            color: #2563eb;
+            background: #eff6ff;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            background: #e2e8f0;
+            border-radius: 3px;
+            outline: none;
+            -webkit-appearance: none;
+            display: block;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            background: #2563eb;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: transform 0.1s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.1); }
+        input[type="range"]:disabled::-webkit-slider-thumb { background: #cbd5e1; }
+
+        /* 数学验证面板 */
+        .math-panel {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: auto;
+        }
+        .math-title {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #94a3b8;
+            font-weight: 700;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        /* 画布与叠加层 */
+        #canvas-stage {
+            flex: 1;
+            position: relative;
+            background: radial-gradient(#e2e8f0 1px, white 1px);
+            background-size: 20px 20px;
+            cursor: grab;
+            overflow: hidden;
+        }
+        #canvas-stage:active { cursor: grabbing; }
+
+        /* 引导叠加卡片 */
+        #guided-overlay {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: auto;
+            min-width: 320px;
+            max-width: 600px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(8px);
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            max-height: 80vh;
+        }
+        .overlay-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid #f1f5f9;
+            text-align: center;
+            background: rgba(255,255,255,0.8);
+        }
+        .overlay-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #1e293b;
+        }
+        .overlay-subtitle {
+            font-size: 13px;
+            color: #64748b;
+            margin-top: 4px;
+        }
+
+        /* 状态栏 */
+        #status-bar {
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            height: 32px;
+            background: white;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            font-size: 12px;
+            color: #64748b;
+            justify-content: space-between;
+            pointer-events: none;
+        }
+
+        .hidden { display: none !important; }
+        .mjx-container { min-height: 2em; overflow-x: auto; font-size: 14px !important; }
+    </style>
+</head>
+<body>
+
+    <!-- 左侧控制栏 -->
+    <aside id="sidebar">
+        <div id="sidebar-scroll">
+            <div class="header-card">
+                <h1 class="text-2xl font-extrabold text-slate-800 tracking-tight">全等判定演示</h1>
+                <p class="text-xs text-slate-500 mt-2 font-medium">Interactive Congruence Visualizer v3.9</p>
+            </div>
+
+            <div class="problem-card">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-xs font-bold text-blue-600 uppercase">当前演示</span>
+                </div>
+                <div class="text-sm text-slate-700 leading-relaxed" id="problem-text">
+                    探索三角形全等的判定条件。在 SSA 模式下，您可以直接拖动红色虚线圆圈来调整边 a 的长度，系统会自动吸附到直角位置。
+                </div>
+            </div>
+
+            <!-- 判定定理选择 -->
+            <div class="mb-4 text-xs font-bold text-slate-400 uppercase tracking-wider">选择判定条件</div>
+            <div class="btn-grid">
+                <button class="mode-btn active" onclick="APP.setMode('SAS')">SAS (边角边)</button>
+                <button class="mode-btn" onclick="APP.setMode('SSS')">SSS (边边边)</button>
+                <button class="mode-btn" onclick="APP.setMode('ASA')">ASA (角边角)</button>
+                <button class="mode-btn" onclick="APP.setMode('AAS')">AAS (角角边)</button>
+                <button class="mode-btn" onclick="APP.setMode('HL')">HL (直角斜边)</button>
+                <button class="mode-btn danger" onclick="APP.setMode('SSA')">SSA (陷阱演示)</button>
+            </div>
+            
+            <div id="controls-container"></div> <!-- 动态生成参数滑块 -->
+
+            <!-- 底部数学验证区 -->
+            <div class="math-panel">
+                <div class="math-title">
+                    <span>几何判定 / 状态</span>
+                    <span id="math-status"></span>
+                </div>
+                <div id="math-output" class="text-sm text-slate-700 leading-relaxed mjx-container"></div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- 右侧画布 -->
+    <main id="canvas-stage">
+        <div id="guided-overlay">
+            <div class="overlay-header">
+                <div class="overlay-title" id="overlay-title">全等判定探索</div>
+                <div class="overlay-subtitle" id="overlay-subtitle">拖动图中红/蓝点可直接改变形状</div>
+            </div>
+        </div>
+        <div id="status-bar">
+            <span id="status-left">准备就绪</span>
+            <span id="status-right">缩放: 100%</span>
+        </div>
+    </main>
+
+<script>
+/**
+ * Triangle Congruence Visualizer v3.9.0
+ * -------------------------------------
+ * Updates:
+ * - Confirmed User's Hypothesis: If a >= b in SSA, the triangle is unique!
+ * - Added visual text feedback for a >= b case in Math Panel.
+ */
+
+// --- 1. Geometry Math Core ---
+const Geo = {
+    toRad: d => d * Math.PI / 180,
+    toDeg: r => r * 180 / Math.PI,
+    dist: (p1, p2) => Math.hypot(p2.x - p1.x, p2.y - p1.y),
+    angle: (p1, p2) => Math.atan2(p2.y - p1.y, p2.x - p1.x),
+
+    // Solvers for Triangle Construction
+    solveSSS: (a, b, c) => {
+        if (a+b<=c || a+c<=b || b+c<=a) return null;
+        const A = Math.acos((b*b+c*c-a*a)/(2*b*c));
+        const B = Math.acos((a*a+c*c-b*b)/(2*a*c));
+        return { A: Geo.toDeg(A), B: Geo.toDeg(B), C: 180 - Geo.toDeg(A) - Geo.toDeg(B) };
+    },
+    
+    solveSAS: (b, A_deg, c) => {
+        const A = Geo.toRad(A_deg);
+        const a = Math.sqrt(b*b + c*c - 2*b*c*Math.cos(A));
+        const B = Math.acos((a*a+c*c-b*b)/(2*a*c));
+        return { a, B: Geo.toDeg(B), C: 180 - A_deg - Geo.toDeg(B) };
+    },
+
+    solveSSA: (b, A_deg, a) => {
+        const A = Geo.toRad(A_deg);
+        const h = b * Math.sin(A);
+        
+        // 1. HL / Right Angle case Check (approx 90)
+        if (Math.abs(A_deg - 90) < 0.1) {
+            if (a <= b) return []; 
+            const c = Math.sqrt(a*a - b*b);
+            const B = Math.asin(b/a);
+            return [{ c, B: Geo.toDeg(B), C: 90 - Geo.toDeg(B), isRight: true }];
+        }
+
+        // 2. Obtuse Angle Check (A > 90)
+        if (A_deg > 90) {
+            if (a <= b) return []; 
+        }
+
+        // 3. Acute Angle Logic
+        if (a < h - 0.001) return []; // No solution
+        
+        // Snap State check
+        if (Math.abs(a - h) < 0.001) { 
+            const c = b * Math.cos(A);
+            return [{ c, B: 90, C: 90 - A_deg, isRight: true }];
+        }
+        
+        if (a >= b) { // 1 solution (Unique because a >= b)
+            const B = Math.asin(b * Math.sin(A) / a);
+            const C = Math.PI - A - B;
+            const c = Math.sqrt(a*a + b*b - 2*a*b*Math.cos(C));
+            return [{ c, B: Geo.toDeg(B), C: Geo.toDeg(C), isRight: false }];
+        }
+        
+        // 2 solutions (Ambiguous - Only possible when A < 90 and h < a < b)
+        const B1 = Math.asin(b * Math.sin(A) / a);
+        const C1 = Math.PI - A - B1;
+        const c1 = a * Math.sin(C1) / Math.sin(A);
+        
+        const B2 = Math.PI - B1;
+        const C2 = Math.PI - A - B2;
+        const c2 = a * Math.sin(C2) / Math.sin(A);
+        
+        const sols = [];
+        if (C1 > 0) sols.push({ c: c1, B: Geo.toDeg(B1), C: Geo.toDeg(C1), isRight: false });
+        if (C2 > 0) sols.push({ c: c2, B: Geo.toDeg(B2), C: Geo.toDeg(C2), isRight: false });
+        
+        return sols;
+    }
+};
+
+// --- 2. State Management ---
+const STATE = {
+    mode: 'SAS',
+    params: { a: 150, b: 200, c: 240, A: 45, B: 60, C: 75 },
+    solutions: [],
+    view: { x: 0, y: 0, k: 1.0 },
+    drag: { active: false, x: 0, y: 0, target: null },
+    anim: { time: 0, speed: 1.0 },
+    isSnapped: false
+};
+
+// --- 3. View Transform Helper ---
+const View = {
+    apply: () => {
+        translate(width/2 + STATE.view.x, height/2 + STATE.view.y);
+        scale(STATE.view.k);
+    },
+    toWorld: (mx, my) => ({
+        x: (mx - width/2 - STATE.view.x) / STATE.view.k,
+        y: (my - height/2 - STATE.view.y) / STATE.view.k
+    }),
+    mouseToMath: (mx, my) => {
+        const wx = (mx - width/2 - STATE.view.x) / STATE.view.k;
+        const wy = (my - height/2 - STATE.view.y) / STATE.view.k;
+        return { x: wx + 100, y: -wy }; 
+    }
+};
+
+// --- 4. Logic Controller ---
+const APP = {
+    init: () => {
+        APP.updateControls();
+        APP.calc();
+    },
+
+    setMode: (mode) => {
+        STATE.mode = mode;
+        document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+        event.target.classList.add('active');
+        
+        const p = STATE.params;
+        if (mode === 'SSS') { p.a=180; p.b=200; p.c=240; }
+        if (mode === 'SAS') { p.b=200; p.c=240; p.A=50; }
+        if (mode === 'ASA') { p.c=250; p.A=45; p.B=60; }
+        if (mode === 'AAS') { p.a=200; p.A=60; p.B=45; }
+        if (mode === 'SSA') { p.b=200; p.A=30; p.a=130; } 
+        if (mode === 'HL')  { p.b=150; p.A=90; p.a=220; } 
+
+        const titles = {
+            'SSS': ['SSS (边边边)', '三边固定，唯一确定'],
+            'SAS': ['SAS (边角边)', '两边夹一角，唯一确定'],
+            'ASA': ['ASA (角边角)', '两角夹一边，唯一确定'],
+            'AAS': ['AAS (角角边)', '两角及其中一角对边，唯一确定'],
+            'HL':  ['HL (直角斜边)', '直角三角形斜边直角边，唯一确定'],
+            'SSA': ['SSA (边边角 - 陷阱)', '两边及其中一边对角，通常不唯一']
+        };
+        APP.setOverlay(titles[mode][0], titles[mode][1]);
+        APP.updateControls();
+        APP.calc();
+    },
+
+    updateControls: () => {
+        const div = document.getElementById('controls-container');
+        div.innerHTML = '';
+        const params = [];
+        
+        if (STATE.mode === 'SSS') params.push('a','b','c');
+        if (STATE.mode === 'SAS') params.push('b','A','c');
+        if (STATE.mode === 'ASA') params.push('A','c','B');
+        if (STATE.mode === 'AAS') params.push('A','B','a');
+        if (STATE.mode === 'SSA') params.push('b','A','a');
+        if (STATE.mode === 'HL')  params.push('b','A','a');
+
+        params.forEach(key => {
+            const isAngle = ['A','B','C'].includes(key);
+            const min = isAngle ? 10 : 50;
+            const max = isAngle ? 170 : 400;
+            const val = STATE.params[key];
+            
+            const group = document.createElement('div');
+            group.className = 'control-group';
+            
+            let labelText = isAngle ? `∠ ${key}` : `边 ${key}`;
+            if (STATE.mode === 'HL' && key === 'A') labelText += ` (固定 90°)`;
+            
+            group.innerHTML = `
+                <div class="control-label">
+                    <span>${labelText}</span>
+                    <span class="control-val">${Math.round(val)}${isAngle?'°':''}</span>
+                </div>
+                <input type="range" id="inp-${key}" min="${min}" max="${max}" value="${val}" step="1" ${STATE.mode==='HL' && key==='A' ? 'disabled' : ''}>
+            `;
+            
+            group.querySelector('input').addEventListener('input', (e) => {
+                STATE.params[key] = parseFloat(e.target.value);
+                group.querySelector('.control-val').innerText = Math.round(STATE.params[key]) + (isAngle?'°':'');
+                APP.calc();
+            });
+            div.appendChild(group);
+        });
+    },
+
+    syncSlider: (key) => {
+        const el = document.getElementById(`inp-${key}`);
+        if(el) {
+            el.value = STATE.params[key];
+            el.parentNode.querySelector('.control-val').innerText = Math.round(STATE.params[key]) + (['A','B'].includes(key)?'°':'');
+        }
+    },
+
+    setOverlay: (title, sub) => {
+        document.getElementById('overlay-title').innerText = title;
+        document.getElementById('overlay-subtitle').innerText = sub;
+    },
+
+    calc: () => {
+        STATE.solutions = [];
+        const {a,b,c,A,B} = STATE.params;
+        STATE.isSnapped = false;
+        
+        if (STATE.mode === 'SSA') {
+             const h = b * Math.sin(Geo.toRad(A));
+             if (Math.abs(a - h) < 0.001) STATE.isSnapped = true;
+        }
+            
+        if (STATE.mode === 'SSS') {
+            const res = Geo.solveSSS(a,b,c);
+            if(res) STATE.solutions.push({...STATE.params, ...res});
+        } else if (STATE.mode === 'SAS') {
+            const res = Geo.solveSAS(b,A,c);
+            if(res) STATE.solutions.push({...STATE.params, ...res});
+        } else if (STATE.mode === 'SSA' || STATE.mode === 'HL') {
+            const res = Geo.solveSSA(b,A,a);
+            res.forEach(s => STATE.solutions.push({...STATE.params, ...s}));
+        } else if (STATE.mode === 'ASA' && A+B < 180) {
+            const C = 180-A-B;
+            const a_calc = c * Math.sin(Geo.toRad(A)) / Math.sin(Geo.toRad(C));
+            const b_calc = c * Math.sin(Geo.toRad(B)) / Math.sin(Geo.toRad(C));
+            STATE.solutions.push({ A, B, C, c, a: a_calc, b: b_calc });
+        } else if (STATE.mode === 'AAS' && A+B < 180) {
+            const C = 180-A-B;
+            const c_calc = a * Math.sin(Geo.toRad(C)) / Math.sin(Geo.toRad(A));
+            const b_calc = a * Math.sin(Geo.toRad(B)) / Math.sin(Geo.toRad(A));
+            STATE.solutions.push({ A, B, C, a, b: b_calc, c: c_calc });
+        }
+        
+        if (APP._timer) clearTimeout(APP._timer);
+        APP._timer = setTimeout(APP.renderMath, 50);
+    },
+
+    renderMath: () => {
+        const div = document.getElementById('math-output');
+        const status = document.getElementById('math-status');
+        let tex = '';
+        const solCount = STATE.solutions.length;
+        
+        if (solCount === 0) {
+            status.innerText = "❌ 无法构成三角形";
+            status.className = "text-red-500 font-bold";
+            if (STATE.mode === 'SSA' && STATE.params.A > 90) {
+                 tex = `A > 90^\\circ \\implies a > b \\text{ (必须满足)} \\\\ \\text{当前 } a \\le b \\text{，故无法构成}`;
+            } else {
+                 tex = `\\text{条件矛盾，无法闭合。请调整参数。}`;
+            }
+        } else if (solCount === 1) {
+            // Check specific SSA conditions
+            if ((STATE.mode === 'SSA' || STATE.mode === 'HL') && STATE.solutions[0].isRight) {
+                status.innerText = "✅ 临界情况：已吸附直角";
+                status.className = "text-green-600 font-bold";
+                tex = `a = h \\implies \\angle B = 90^\\circ \\quad \\text{(直角三角形)}`;
+            } else if (STATE.mode === 'SSA' && STATE.params.A > 90) {
+                status.innerText = "✅ 唯一确定 (钝角三角形)";
+                status.className = "text-blue-600 font-bold";
+                tex = `A > 90^\\circ, \\ a > b \\implies \\text{大边对大角，形状唯一}`;
+            } else if (STATE.mode === 'SSA' && STATE.params.a >= STATE.params.b) {
+                // NEW: Explicit feedback for a >= b
+                status.innerText = "✅ 唯一确定 (a ≥ b)";
+                status.className = "text-blue-600 font-bold";
+                tex = `a \\ge b \\implies \\text{圆与底边射线只有一个交点，形状唯一}`;
+            } else {
+                status.innerText = "✅ 全等判定成功";
+                status.className = "text-green-600 font-bold";
+                if (STATE.mode === 'HL') tex = `\\text{Rt}\\triangle, HL \\implies \\text{Unique}`;
+                else tex = `\\triangle ABC \\text{ 形状唯一确定}`;
+            }
+        } else {
+            status.innerText = "⚠️ 存在两个解 (SSA陷阱)";
+            status.className = "text-amber-500 font-bold";
+            tex = `a < b \\implies \\text{存在钝角与锐角两种情况}`;
+        }
+        div.innerHTML = `\\[ ${tex} \\]`;
+        MathJax.typesetPromise([div]).catch(()=>{});
+    }
+};
+
+// --- 5. p5.js Rendering ---
+function setup() {
+    const container = document.getElementById('canvas-stage');
+    const c = createCanvas(container.clientWidth, container.clientHeight);
+    c.parent('canvas-stage');
+    
+    c.elt.addEventListener('wheel', e => {
+        e.preventDefault();
+        STATE.view.k = constrain(STATE.view.k * (1 - e.deltaY * 0.001), 0.1, 10);
+        updateStatus();
+    }, { passive: false });
+    
+    c.elt.addEventListener('mousedown', handleMouseDown);
+    window.addEventListener('mouseup', () => {
+        STATE.drag.active = false;
+        STATE.drag.target = null;
+        document.body.style.cursor = 'default';
+    });
+    window.addEventListener('mousemove', handleMouseMove);
+
+    APP.init();
+}
+
+function handleMouseDown(e) {
+    const m = View.mouseToMath(e.clientX, e.clientY);
+    let {b, c, A, a} = STATE.params;
+    let hasSol = STATE.solutions.length > 0;
+    
+    if (hasSol) {
+        if (STATE.mode === 'SSS') {
+             A = STATE.solutions[0].A;
+        } else if (STATE.mode === 'AAS' || STATE.mode === 'ASA') {
+             if (STATE.mode === 'AAS') c = STATE.solutions[0].c;
+             if (STATE.mode === 'ASA' || STATE.mode === 'AAS') b = STATE.solutions[0].b;
+        }
+    }
+
+    const radA = Geo.toRad(A);
+    const pC = {x: b*Math.cos(radA), y: b*Math.sin(radA)};
+    const pB = {x: c, y: 0}; 
+
+    const hitDist = 20 / STATE.view.k;
+    let target = null;
+
+    if (Geo.dist(m, pC) < hitDist) target = 'C';
+    else if (Geo.dist(m, pB) < hitDist) target = 'B';
+    
+    if (STATE.mode === 'SSA') {
+        const distToC = Geo.dist(m, pC);
+        if (Math.abs(distToC - a) < hitDist) {
+            target = 'radius_a';
+        }
+    }
+
+    if (target) {
+        const m = STATE.mode;
+        if (m === 'SAS' || m === 'SSS' || m === 'SSA') STATE.drag.target = target;
+        if (m === 'ASA' && target === 'B') STATE.drag.target = target;
+        
+        if (STATE.drag.target) {
+            STATE.drag.active = true;
+            document.body.style.cursor = 'pointer';
+            return;
+        }
+    }
+
+    STATE.drag.active = true;
+    STATE.drag.target = 'PAN';
+    STATE.drag.lx = e.clientX;
+    STATE.drag.ly = e.clientY;
+}
+
+function handleMouseMove(e) {
+    if (!STATE.drag.active) return;
+    if (STATE.drag.target === 'PAN') {
+        STATE.view.x += e.clientX - STATE.drag.lx;
+        STATE.view.y += e.clientY - STATE.drag.ly;
+        STATE.drag.lx = e.clientX;
+        STATE.drag.ly = e.clientY;
+        return;
+    }
+
+    const m = View.mouseToMath(e.clientX, e.clientY);
+    let changed = false;
+
+    if (STATE.mode === 'SAS') {
+        if (STATE.drag.target === 'B') {
+            STATE.params.c = Math.max(50, m.x); changed = true; APP.syncSlider('c');
+        }
+        if (STATE.drag.target === 'C') {
+            STATE.params.b = Math.max(50, Geo.dist({x:0,y:0}, m));
+            let ang = Math.atan2(m.y, m.x) * 180 / Math.PI;
+            if (ang < 0) ang += 360;
+            STATE.params.A = Math.max(10, Math.min(170, ang));
+            changed = true; APP.syncSlider('b'); APP.syncSlider('A');
+        }
+    } else if (STATE.mode === 'SSS') {
+        if (STATE.drag.target === 'B') {
+            STATE.params.c = Math.max(50, m.x); changed = true; APP.syncSlider('c');
+        }
+        if (STATE.drag.target === 'C') {
+            STATE.params.b = Math.max(50, Geo.dist({x:0,y:0}, m));
+            const pB = {x: STATE.params.c, y: 0};
+            STATE.params.a = Math.max(50, Geo.dist(pB, m));
+            changed = true; APP.syncSlider('b'); APP.syncSlider('a');
+        }
+    } else if (STATE.mode === 'SSA' || STATE.mode === 'HL') {
+         if (STATE.drag.target === 'C') {
+            STATE.params.b = Math.max(50, Geo.dist({x:0,y:0}, m));
+            if (STATE.mode !== 'HL') {
+                let ang = Math.atan2(m.y, m.x) * 180 / Math.PI;
+                STATE.params.A = Math.max(10, Math.min(170, ang));
+                APP.syncSlider('A');
+            }
+            APP.syncSlider('b');
+            changed = true;
+         }
+         if (STATE.drag.target === 'radius_a') {
+             const pC = {
+                 x: STATE.params.b*Math.cos(Geo.toRad(STATE.params.A)), 
+                 y: STATE.params.b*Math.sin(Geo.toRad(STATE.params.A))
+             };
+             let newA = Geo.dist(m, pC);
+             
+             const h = STATE.params.b * Math.sin(Geo.toRad(STATE.params.A));
+             if (Math.abs(newA - h) < 10) { 
+                 newA = h;
+             }
+             
+             STATE.params.a = Math.max(10, newA);
+             APP.syncSlider('a');
+             changed = true;
+         }
+    } else if (STATE.mode === 'ASA') {
+        if (STATE.drag.target === 'B') {
+            STATE.params.c = Math.max(50, m.x); changed = true; APP.syncSlider('c');
+        }
+    }
+
+    if (changed) APP.calc();
+}
+
+function windowResized() {
+    const container = document.getElementById('canvas-stage');
+    resizeCanvas(container.clientWidth, container.clientHeight);
+}
+
+function updateStatus() {
+    document.getElementById('status-right').innerText = `缩放: ${Math.round(STATE.view.k * 100)}%`;
+}
+
+function draw() {
+    background(255);
+    push();
+    View.apply();
+    drawGrid();
+    drawLogic();
+    pop();
+    
+    STATE.anim.time += deltaTime * 0.001 * STATE.anim.speed;
+}
+
+function drawGrid() {
+    stroke(240); strokeWeight(1/STATE.view.k);
+    const sz = 50; const limit = 2000;
+    for(let i=-limit; i<=limit; i+=sz) { line(i, -limit, i, limit); line(-limit, i, limit, i); }
+    stroke(200); strokeWeight(2/STATE.view.k);
+    line(-limit, 0, limit, 0); line(0, -limit, 0, limit);
+}
+
+function drawLogic() {
+    translate(-100, 0); 
+    scale(1, -1); 
+
+    let { a, b, c, A, B } = STATE.params;
+    let hasSol = STATE.solutions.length > 0;
+    
+    let drawA = A; 
+    let drawB_len = c; 
+    let drawAC_len = b; 
+    let drawBC_len = a; 
+    let sol = hasSol ? STATE.solutions[0] : null;
+
+    if (hasSol) {
+        if (STATE.mode === 'SSS') {
+            drawA = sol.A; 
+        } else if (STATE.mode === 'AAS') {
+            drawB_len = sol.c; 
+            drawAC_len = sol.b; 
+        } else if (STATE.mode === 'ASA') {
+            drawAC_len = sol.b;
+            drawBC_len = sol.a;
+        }
+    }
+
+    const radA = Geo.toRad(drawA);
+    const pA = {x:0, y:0};
+    const pC = {x: drawAC_len*Math.cos(radA), y: drawAC_len*Math.sin(radA)};
+    const pB = {x: drawB_len, y: 0};
+
+    // Inputs (Blue)
+    if (STATE.mode !== 'SSS') {
+        drawAngleArc(pA, 40, 0, radA, `A ${Math.round(A)}°`, '#2563eb');
+        stroke(150); strokeWeight(1/STATE.view.k); drawingContext.setLineDash([5,5]);
+        line(0, 0, 800, 0); 
+        drawingContext.setLineDash([]);
+    }
+    if (STATE.mode === 'ASA' || STATE.mode === 'AAS') {
+        const radB = Geo.toRad(B);
+        drawAngleArc(pB, 40, Math.PI - radB, Math.PI, `B ${Math.round(B)}°`, '#2563eb');
+    }
+    if (['SAS','SSS','SSA','HL'].includes(STATE.mode)) {
+        stroke('#2563eb'); strokeWeight(3);
+        line(pA.x, pA.y, pC.x, pC.y);
+        drawLabel(`b=${Math.round(b)}`, (pA.x+pC.x)/2, (pA.y+pC.y)/2, 10, '#2563eb');
+        drawHandle(pC, 'C');
+    }
+    if (['SAS','SSS','ASA'].includes(STATE.mode)) {
+        stroke('#2563eb'); strokeWeight(3);
+        line(pA.x, pA.y, pB.x, pB.y);
+        drawLabel(`c=${Math.round(c)}`, (pA.x+pB.x)/2, -15, 0, '#2563eb');
+        drawHandle(pB, 'B');
+    }
+    if (STATE.mode === 'SSS' || STATE.mode === 'AAS') {
+        if (hasSol) {
+             stroke('#2563eb'); strokeWeight(3);
+             line(pB.x, pB.y, pC.x, pC.y);
+             drawLabel(`a=${Math.round(a)}`, (pB.x+pC.x)/2, (pB.y+pC.y)/2, 10, '#2563eb');
+        }
+    }
+
+    // Solutions
+    if (STATE.mode === 'SSA' || STATE.mode === 'HL') {
+        stroke(200); strokeWeight(1); line(pC.x, pC.y, pC.x, 0);
+        STATE.solutions.forEach((sol, i) => {
+            const bx = sol.c;
+            stroke('#ef4444'); strokeWeight(2); drawingContext.setLineDash([6,4]);
+            line(pC.x, pC.y, bx, 0); drawingContext.setLineDash([]);
+            stroke(100); strokeWeight(1); drawingContext.setLineDash([2,2]);
+            line(pA.x, pA.y, bx, 0); drawingContext.setLineDash([]);
+            fill(0); noStroke(); drawText(`B${i+1}`, bx, -15);
+            if (sol.isRight) drawRightAngle(bx, 0, 15, '#16a34a');
+        });
+        
+        const solX = STATE.solutions.map(s => s.c);
+        let start= -2, end = -1;
+        if (solX.length) {
+            const angs = solX.map(bx => Math.atan2(-pC.y, bx-pC.x));
+            start = Math.min(...angs)-0.3; end = Math.max(...angs)+0.3;
+        }
+        
+        // Use different visual if Obtuse Unique or a >= b (Unique)
+        const isObtuseUnique = STATE.params.A > 90 && solX.length === 1;
+        const isASideUnique = STATE.params.a >= STATE.params.b && solX.length === 1;
+
+        if (STATE.isSnapped || isObtuseUnique || isASideUnique) {
+             const bx = STATE.solutions[0].c;
+             const col = (isObtuseUnique || isASideUnique) ? '#2563eb' : '#16a34a'; 
+             stroke(col); strokeWeight(3); 
+             line(pC.x, pC.y, bx, 0);
+             fill(col); noStroke(); circle(bx, 0, 8);
+             
+             noFill(); stroke(col); strokeWeight(2); drawingContext.setLineDash([5,5]);
+             circle(pC.x, pC.y, a*2); drawingContext.setLineDash([]);
+             
+             let label = `a=${Math.round(a)}`;
+             if (STATE.isSnapped) label += " (已吸附)";
+             if (isObtuseUnique) label += " (钝角唯一)";
+             if (isASideUnique && !isObtuseUnique) label += " (a≥b 唯一)";
+             drawLabel(label, (pC.x+bx)/2, pC.y/2, 10, col);
+        } else {
+            const t = STATE.anim.time * 1.5;
+            const ang = start + ((Math.sin(t)+1)/2)*(end-start);
+            const tip = {x: pC.x+a*Math.cos(ang), y: pC.y+a*Math.sin(ang)};
+            if (STATE.drag.target === 'radius_a') stroke('#ef4444'); 
+            else stroke('#f87171');
+            noFill(); strokeWeight(STATE.drag.target === 'radius_a' ? 3 : 2); 
+            drawingContext.setLineDash([5,5]);
+            circle(pC.x, pC.y, a*2); drawingContext.setLineDash([]);
+            stroke('#ef4444'); strokeWeight(3); line(pC.x, pC.y, tip.x, tip.y);
+            fill('#ef4444'); noStroke(); circle(tip.x, tip.y, 6);
+            drawLabel(`a=${Math.round(a)}`, (pC.x+tip.x)/2, (pC.y+tip.y)/2, 10, '#ef4444');
+            let match = false;
+            solX.forEach((bx, i) => {
+                 if(Math.abs(ang - Math.atan2(-pC.y, bx-pC.x)) < 0.05) {
+                     match = true;
+                     fill(i===0?'rgba(239,68,68,0.1)':'rgba(37,99,235,0.1)'); noStroke();
+                     triangle(pA.x, pA.y, pC.x, pC.y, bx, 0);
+                     STATE.anim.speed = 0.2;
+                 }
+            });
+            if(!match) STATE.anim.speed = 1.0;
+        }
+
+    } else {
+        STATE.solutions.forEach(sol => {
+            fill('rgba(37,99,235,0.05)'); noStroke();
+            triangle(pA.x, pA.y, pB.x, pB.y, pC.x, pC.y);
+            stroke('#94a3b8'); strokeWeight(2);
+            if (STATE.mode !== 'SSS' && STATE.mode !== 'AAS') { 
+                line(pB.x, pB.y, pC.x, pC.y);
+                drawLabel(`a=${Math.round(sol.a||a)}`, (pB.x+pC.x)/2, (pB.y+pC.y)/2, 10, '#94a3b8');
+            }
+            if (STATE.mode === 'ASA' || STATE.mode === 'AAS') {
+                line(pA.x, pA.y, pC.x, pC.y);
+                drawLabel(`b=${Math.round(sol.b)}`, (pA.x+pC.x)/2, (pA.y+pC.y)/2, 10, '#94a3b8');
+            }
+            if (STATE.mode === 'AAS') {
+                line(pA.x, pA.y, pB.x, pB.y);
+                drawLabel(`c=${Math.round(sol.c)}`, (pA.x+pB.x)/2, -15, 0, '#94a3b8');
+            }
+            fill(0); noStroke();
+            drawText('A', pA.x-15, pA.y-5);
+            drawText('C', pC.x, pC.y+15);
+            drawText('B', pB.x, pB.y-15);
+        });
+    }
+}
+
+function drawHandle(p, label) {
+    const canDrag = (STATE.mode === 'SAS' && ['B','C'].includes(label)) ||
+                    (STATE.mode === 'SSS' && ['B','C'].includes(label)) ||
+                    (STATE.mode === 'SSA' && ['C'].includes(label)) ||
+                    (STATE.mode === 'ASA' && ['B'].includes(label));
+    if (!canDrag) return;
+    fill(255); stroke(0); strokeWeight(1);
+    circle(p.x, p.y, 10/STATE.view.k);
+}
+
+function drawRightAngle(x, y, sz, col='black') {
+    stroke(col); strokeWeight(2); noFill();
+    line(x, sz, x-sz, sz);
+    line(x-sz, sz, x-sz, 0);
+}
+
+function drawLabel(str, x, y, offset, col) {
+    push(); scale(1, -1); fill(col); noStroke(); textSize(14);
+    text(str, x, -y - offset);
+    pop();
+}
+
+function drawAngleArc(p, r, start, end, label, col) {
+    noFill(); stroke(col); strokeWeight(2);
+    arc(p.x, p.y, r, r, start, end);
+    drawLabel(label, p.x + r/2, p.y + r/4, 0, col);
+}
+
+function drawText(str, x, y, col='black') {
+    push(); scale(1, -1); fill(col); noStroke(); textSize(14);
+    text(str, x, -y);
+    pop();
+}
+
+</script>
+</body>
+</html>

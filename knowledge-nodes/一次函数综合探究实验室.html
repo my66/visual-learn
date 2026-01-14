@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>一次函数综合探究实验室 (Linear Function Lab)</title>
+    
+    <!-- 1. CDN Libraries -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        /* --- 基础布局 --- */
+        body { margin: 0; padding: 0; overflow: hidden; background-color: #f8fafc; touch-action: none; font-family: "Noto Sans SC", sans-serif; }
+        #app-container { display: flex; height: 100vh; width: 100vw; }
+        
+        /* --- 侧边栏样式 --- */
+        #sidebar { 
+            width: 400px; min-width: 350px; background: #ffffff; border-right: 1px solid #cbd5e1; 
+            display: flex; flex-direction: column; z-index: 10; box-shadow: 2px 0 12px rgba(0,0,0,0.08);
+        }
+        
+        /* --- Tab 按钮样式 --- */
+        .tab-btn {
+            padding: 12px 16px;
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: #64748b;
+            border-bottom: 3px solid transparent;
+            background: transparent;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            flex: 1;
+        }
+        .tab-btn:hover { color: #1d4ed8; background-color: #f1f5f9; }
+        .tab-btn.active { color: #1d4ed8; border-bottom-color: #1d4ed8; background-color: #eff6ff; }
+
+        /* --- 控件组样式 --- */
+        .control-group {
+            margin-bottom: 1rem;
+            padding: 0.75rem;
+            background-color: #f8fafc;
+            border-radius: 0.5rem;
+            border: 1px solid #e2e8f0;
+        }
+        
+        /* --- 滑块样式 --- */
+        .slider-label { display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 700; color: #334155; margin-bottom: 0.25rem; }
+        .slider-input { width: 100%; height: 6px; background-color: #cbd5e1; border-radius: 3px; appearance: none; cursor: pointer; }
+        .slider-input::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; background: #1d4ed8; border-radius: 50%; cursor: pointer; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+
+        /* --- 计算面板样式 --- */
+        .calc-panel {
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            font-family: monospace; 
+            font-size: 0.8rem; 
+            color: #334155;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .calc-row { display: flex; justify-content: space-between; margin-bottom: 0.25rem; }
+        .calc-divider { border-top: 1px dashed #cbd5e1; margin: 0.4rem 0; }
+        .calc-highlight { font-weight: bold; color: #1d4ed8; }
+
+        /* --- 术语定义卡片样式 --- */
+        .term-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            font-size: 0.8rem;
+            color: #475569;
+            line-height: 1.6;
+        }
+        .term-title { font-weight: 700; color: #1e293b; margin-bottom: 0.25rem; display: block; }
+        .term-key { font-weight: 700; }
+
+        /* --- 其他 UI --- */
+        #canvas-stage { flex: 1; position: relative; overflow: hidden; cursor: default; background-color: #f8fafc; }
+        
+        /* --- 悬浮提示框 (左上角) --- */
+        #guided-overlay {
+            position: absolute; 
+            top: 20px; left: 20px; 
+            width: 420px; max-width: 90%; 
+            background: rgba(255, 255, 255, 0.95); 
+            backdrop-filter: blur(8px); 
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15); 
+            border: 1px solid #94a3b8; 
+            display: none; flex-direction: column;
+            z-index: 20; transition: all 0.3s ease;
+        }
+
+        .overlay-header {
+            padding: 8px 12px; 
+            border-bottom: 1px solid #e2e8f0;
+            background-color: #f1f5f9;
+            border-top-left-radius: 8px; border-top-right-radius: 8px;
+            display: flex; justify-content: space-between; align-items: center;
+            user-select: none;
+        }
+
+        .overlay-body {
+            padding: 10px 12px;
+            display: flex;
+            flex-direction: column; 
+            gap: 6px;
+        }
+
+        .step-text { font-size: 0.85rem; color: #1e293b; line-height: 1.4; font-weight: 500; }
+        .step-math-box { 
+            background: #fff; border: 1px solid #e2e8f0; border-radius: 4px; 
+            padding: 4px 8px; text-align: center; font-size: 1rem; color: #0f172a;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+
+        .math-container { visibility: hidden; min-height: 1.2em; }
+        .math-container.visible { visibility: visible; }
+        
+        /* 特殊状态提示 */
+        .notice-tag {
+            display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: bold;
+        }
+        .notice-warning { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+        .notice-info { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+    </style>
+</head>
+<body>
+
+    <div id="app-container">
+        <!-- Sidebar -->
+        <aside id="sidebar" onpointerdown="event.stopPropagation()" onwheel="event.stopPropagation()">
+            <div class="p-4 border-b border-slate-200 bg-white">
+                <h1 class="text-lg font-black text-slate-900 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                    一次函数实验室
+                </h1>
+                <div class="mt-2 p-2 bg-blue-50 rounded border border-blue-200 shadow-sm">
+                    <div class="text-xs font-bold text-blue-600 mb-1">当前课题</div>
+                    <div class="text-xs text-slate-800 font-medium leading-relaxed">
+                        探究形如 \( y = kx + b \ (k \neq 0) \) 的一次函数图象性质。
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Tab Buttons -->
+            <div class="flex border-b border-slate-200 bg-white sticky top-0 z-10">
+                <button id="tab-guided" class="tab-btn" onclick="app.setMode('guided')">引导学习</button>
+                <button id="tab-explore" class="tab-btn" onclick="app.setMode('explore')">自由探究</button>
+                <button id="tab-challenge" class="tab-btn" onclick="app.setMode('challenge')">建模挑战</button>
+            </div>
+
+            <div id="sidebar-content" class="flex-1 overflow-y-auto custom-scroll p-4"><div id="controls-container"></div></div>
+            
+            <div class="p-2 bg-slate-100 border-t border-slate-200 text-xs flex justify-between items-center text-slate-600 font-medium">
+                <span id="status-text">就绪</span>
+                <button onclick="app.resetView()" class="hover:text-blue-700 transition-colors flex items-center gap-1 bg-white px-2 py-1 rounded border border-slate-300 shadow-sm">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg> 重置视图
+                </button>
+            </div>
+        </aside>
+
+        <!-- Canvas -->
+        <main id="canvas-stage">
+            <div id="guided-overlay" onpointerdown="event.stopPropagation()" onpointermove="event.stopPropagation()" onpointerup="event.stopPropagation()" onwheel="event.stopPropagation()">
+                <div class="overlay-header">
+                    <div class="flex items-center gap-3"><span id="step-count" class="bg-blue-600 text-white text-xs font-bold px-2 py-0.5 rounded shadow-sm">Step 1/5</span><span id="step-title" class="font-bold text-slate-800 text-sm">开始</span></div>
+                    <div class="flex gap-2">
+                        <button onclick="app.prevStep()" class="p-1 bg-white border border-slate-300 hover:bg-slate-100 rounded text-slate-600 transition-all shadow-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg></button>
+                        <button onclick="app.nextStep()" class="p-1 bg-blue-600 border border-blue-700 hover:bg-blue-700 text-white rounded shadow-md transition-all"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></button>
+                    </div>
+                </div>
+                <div class="overlay-body">
+                    <div id="step-reasoning" class="step-text"></div>
+                    <div id="step-math" class="math-container step-math-box"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+<script>
+/**
+ * MathPhysics Interactive Visualizer v3.1.21 (Math Rigor Fixes)
+ * Engine: p5.js + Vanilla JS UI
+ */
+
+const CONSTANTS = {
+    GRID_SIZE: 50, 
+    AXIS_COLOR: '#334155', 
+    GRID_COLOR: '#cbd5e1', 
+    PRIMARY_COLOR: '#1d4ed8', 
+    SECONDARY_COLOR: '#ea580c', 
+    ERROR_COLOR: '#dc2626', 
+    SUCCESS_COLOR: '#16a34a',
+    POINT_RADIUS: 8,
+    SNAP_THRESHOLD: 0.3
+};
+
+const STATE = {
+    mode: 'guided',
+    k: 1, b: 0,
+    isVertical: false, verticalX: 0,      
+    p1: { x: 0, y: 1 }, p2: { x: 2, y: 3 }, 
+    view: { scale: 1, offsetX: 0, offsetY: 0 },
+    challenge: { targetK: 0, targetB: 0, userInput: '', userK: null, userB: null, feedback: 'neutral', msg: '', history: [], probePos: { x: 2, y: 2 } },
+    stepIndex: 0, isDragging: false, draggedObj: null, dragStart: { x: 0, y: 0 }, hoveredObj: null 
+};
+
+// --- Math Core ---
+function parseEquation(input) {
+    const clean = input.replace(/\s/g, '').toLowerCase();
+    
+    // Check for constant function y=b (k=0)
+    if (/^y=[-+]?\d*\.?\d*$/.test(clean) || /^y=[-+]?\d+$/.test(clean)) {
+        // Technically this parses as k=0, but we want to know it's constant
+        const bVal = parseFloat(clean.substring(2));
+        return { k: 0, b: isNaN(bVal) ? 0 : bVal, isConstant: true };
+    }
+
+    if (!clean.startsWith('y=')) return null;
+    const rhs = clean.substring(2); let k = 0, b = 0;
+    if (rhs.includes('x')) {
+        const parts = rhs.split('x'); let kStr = parts[0]; let bStr = parts[1];
+        if (kStr === '' || kStr === '+') k = 1; else if (kStr === '-') k = -1; else k = parseFloat(kStr);
+        if (!bStr || bStr === '') b = 0; else b = parseFloat(bStr);
+    } else { 
+        // Should be caught by regex above, but fallback
+        k = 0; b = parseFloat(rhs); 
+    }
+    if (isNaN(k) || isNaN(b)) return null; 
+    return { k, b, isConstant: (k === 0) };
+}
+
+function formatEquation(k, b) {
+    if (STATE.isVertical) return `x = ${STATE.verticalX.toFixed(1)}`;
+    let s = 'y = '; 
+    if (Math.abs(k) < 1e-6) return `y = ${b}`; // Constant function
+    if (k === 1) s += 'x'; else if (k === -1) s += '-x'; else s += `${k}x`;
+    if (b > 0) s += ` + ${b}`; else if (b < 0) s += ` - ${Math.abs(b)}`; return s;
+}
+
+function generateChallenge() {
+    let k = 0; 
+    // Ensure k != 0 for Linear Function challenge
+    while (Math.abs(k) < 0.1) k = Math.floor(Math.random() * 7) - 3;
+    const b = Math.floor(Math.random() * 7) - 3;
+    STATE.challenge.targetK = k; STATE.challenge.targetB = b;
+    STATE.challenge.userInput = 'y='; STATE.challenge.userK = null; STATE.challenge.userB = null;
+    STATE.challenge.feedback = 'neutral'; STATE.challenge.msg = '观察图象，拖动红色探针找点，输入解析式。';
+    STATE.challenge.probePos = { x: 0, y: 0 }; STATE.isVertical = false; 
+    app.updateValues();
+}
+
+function recalculateFromPoints() {
+    const dx = STATE.p2.x - STATE.p1.x; const dy = STATE.p2.y - STATE.p1.y;
+    if (Math.abs(dx) < 1e-6) { STATE.isVertical = true; STATE.verticalX = STATE.p1.x; STATE.k = Infinity; STATE.b = NaN; } 
+    else { STATE.isVertical = false; STATE.k = dy / dx; STATE.b = STATE.p1.y - STATE.k * STATE.p1.x; }
+}
+
+function recalculateFromParams() {
+    STATE.isVertical = false; STATE.p1.x = 0; STATE.p1.y = STATE.b;
+    STATE.p2.x = 1; STATE.p2.y = STATE.k * 1 + STATE.b;
+}
+
+// --- View Transform ---
+class ViewTransform {
+    static toWorld(p, sx, sy) {
+        const cx = p.width / 2 + STATE.view.offsetX; const cy = p.height / 2 + STATE.view.offsetY;
+        const wx = (sx - cx) / (CONSTANTS.GRID_SIZE * STATE.view.scale);
+        const wy = -(sy - cy) / (CONSTANTS.GRID_SIZE * STATE.view.scale); 
+        return { x: wx, y: wy };
+    }
+    static toScreen(p, wx, wy) {
+        const cx = p.width / 2 + STATE.view.offsetX; const cy = p.height / 2 + STATE.view.offsetY;
+        const sx = cx + wx * CONSTANTS.GRID_SIZE * STATE.view.scale;
+        const sy = cy - wy * CONSTANTS.GRID_SIZE * STATE.view.scale;
+        return { x: sx, y: sy };
+    }
+    static apply(p) {
+        p.translate(p.width / 2 + STATE.view.offsetX, p.height / 2 + STATE.view.offsetY);
+        p.scale(STATE.view.scale); p.scale(CONSTANTS.GRID_SIZE, -CONSTANTS.GRID_SIZE); 
+    }
+}
+
+// --- Plans (With Constraints) ---
+const PLAN_STEPS = [
+    { 
+        title: "初识一次函数", 
+        reasoning: "一次函数是描述两个变量之间均匀变化关系的模型。其标准形式为：", 
+        math: String.raw`y = kx + b \quad (k \neq 0)`, 
+        setup: () => { STATE.k = 1; STATE.b = 0; recalculateFromParams(); } 
+    },
+    { 
+        title: "截距 (b) 的意义", 
+        reasoning: "观察常数项 b。当 x = 0 时，y = b。这代表直线与 Y 轴的交点，称为纵截距。试着拖动图上的 P1 点（注意：此时 P1 被锁定在 Y 轴上）。", 
+        math: String.raw`\text{点 } (0, b) \text{ 是图象与 Y 轴交点}`, 
+        setup: () => { STATE.k = 1; STATE.b = 0; recalculateFromParams(); },
+        constraint: 'y-axis' // NEW: Lock P1 to x=0
+    },
+    { 
+        title: "斜率 (k) 的意义", 
+        reasoning: "系数 k 称为斜率 (Slope)。它表示 x 每增加 1，y 增加的数量。k 决定了直线的陡峭程度和方向。", 
+        math: String.raw`k = \frac{\Delta y}{\Delta x} = \frac{\text{垂直高度 (Rise)}}{\text{水平距离 (Run)}}`, 
+        setup: () => { STATE.k = 2; STATE.b = 1; recalculateFromParams(); } 
+    },
+    { 
+        title: "两点确定一条直线", 
+        reasoning: "如果我们不知道 k 和 b，但知道直线上任意两点，也能确定这条直线。试着拖动 P1 和 P2 两个点。", 
+        math: String.raw`k = \frac{y_2 - y_1}{x_2 - x_1}`, 
+        setup: () => { STATE.p1 = {x:0, y:1}; STATE.p2 = {x:2, y:2}; recalculateFromPoints(); } 
+    },
+    { 
+        title: "总结", 
+        reasoning: "形如 y = kx + b (k≠0) 的图象是一条直线。k > 0 上升，k < 0 下降。b 决定上下位置。现在，去“建模挑战”模式试试身手吧！", 
+        math: String.raw`y = kx + b \quad (k \neq 0)`, 
+        setup: () => { STATE.k = -0.5; STATE.b = 2; recalculateFromParams(); } 
+    }
+];
+
+// --- App Controller ---
+const app = {
+    init: () => { app.setMode('guided'); },
+    setMode: (mode) => {
+        STATE.mode = mode;
+        if (mode === 'challenge') generateChallenge();
+        if (mode === 'guided') { STATE.stepIndex = 0; app.loadStep(0); }
+        STATE.view = { scale: 1, offsetX: 0, offsetY: 0 }; 
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        const activeTab = document.getElementById(`tab-${mode}`);
+        if(activeTab) activeTab.classList.add('active');
+        app.renderSidebarStructure();
+        app.updateValues();
+    },
+    renderSidebarStructure: () => {
+        const container = document.getElementById('controls-container');
+        const overlay = document.getElementById('guided-overlay');
+        overlay.style.display = STATE.mode === 'guided' ? 'flex' : 'none';
+        let html = '';
+        if (STATE.mode === 'guided') {
+            html += `
+                <div class="control-group">
+                    <h3 class="font-bold text-slate-800 mb-2 text-sm">当前参数状态</h3>
+                    <div class="grid grid-cols-2 gap-4 text-center">
+                        <div class="bg-blue-50 p-2 rounded border border-blue-100">
+                            <div class="text-xs text-slate-500 font-bold">k (斜率)</div>
+                            <div id="val-k-display" class="text-lg font-mono font-black text-blue-700">--</div>
+                        </div>
+                        <div class="bg-orange-50 p-2 rounded border border-orange-100">
+                            <div class="text-xs text-slate-500 font-bold">b (截距)</div>
+                            <div id="val-b-display" class="text-lg font-mono font-black text-orange-700">--</div>
+                        </div>
+                    </div>
+                </div>
+                <!-- 动态计算面板 (Guided Mode) -->
+                <div class="mb-4">
+                    <div class="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">实时计算 (Calculation)</div>
+                    <div id="calc-panel" class="calc-panel">
+                        <!-- Content injected by JS -->
+                    </div>
+                </div>
+                
+                <!-- 定义说明 (Definitions) -->
+                <div class="term-card">
+                    <span class="term-title">术语定义 (Definitions)</span>
+                    <div class="mb-2">
+                        <span class="term-key text-blue-700">Rise (垂直变化):</span> 
+                        直线上两点在垂直方向的高度差 (\\(\\Delta y\\))，可正可负。
+                    </div>
+                    <div>
+                        <span class="term-key text-slate-700">Run (水平变化):</span> 
+                        直线上两点在水平方向的距离 (\\(\\Delta x\\))，我们约定从左向右计算，恒为正。
+                    </div>
+                </div>
+            `;
+        } else if (STATE.mode === 'explore') {
+            html += `
+                <div class="bg-blue-50 border border-blue-200 p-3 rounded text-xs text-blue-900 mb-4 shadow-sm">
+                    💡 <b>提示：</b> 拖动画布上的 <b>P1, P2</b> 点或使用滑块来改变直线。
+                </div>
+                <div class="control-group">
+                    <div class="slider-label"><span>斜率 k</span> <span id="val-k-label" class="font-mono bg-slate-100 px-2 rounded text-blue-700">--</span></div>
+                    <input id="slider-k" type="range" min="-5" max="5" step="0.1" class="slider-input" oninput="app.handleSliderChange('k', this.value)">
+                </div>
+                <div class="control-group">
+                    <div class="slider-label"><span>截距 b</span> <span id="val-b-label" class="font-mono bg-slate-100 px-2 rounded text-orange-700">--</span></div>
+                    <input id="slider-b" type="range" min="-5" max="5" step="0.1" class="slider-input" oninput="app.handleSliderChange('b', this.value)">
+                </div>
+                
+                <!-- 动态计算面板 (Explore Mode) -->
+                <div class="mb-4">
+                    <div class="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">斜率计算过程 (Slope Calculation)</div>
+                    <div id="calc-panel" class="calc-panel">
+                        <!-- Content injected by JS -->
+                    </div>
+                </div>
+
+                <div class="bg-slate-900 text-white p-3 rounded text-center shadow-lg mt-auto border border-slate-700">
+                    <div class="text-xs text-slate-400 mb-1 font-bold">当前方程</div>
+                    <div id="explore-eqn" class="text-xl font-mono tracking-wide font-bold"></div>
+                </div>
+            `;
+        } else if (STATE.mode === 'challenge') {
+            html += `
+                <div class="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-600 mb-6 shadow-sm">
+                    <h3 class="font-bold text-blue-900 text-sm mb-1">挑战任务 #${STATE.challenge.history.length + 1}</h3>
+                    <p class="text-xs text-blue-800">观察蓝色目标直线的斜率和截距，写出它的解析式。</p>
+                </div>
+                <div class="control-group">
+                    <label class="block text-sm font-bold text-slate-800 mb-2">输入公式</label>
+                    <input id="challenge-input" type="text" 
+                        oninput="app.setChallengeInput(this.value)"
+                        onkeydown="if(event.key === 'Enter') app.verifyChallenge()"
+                        class="w-full text-lg font-mono border-2 border-slate-300 rounded-lg px-3 py-2 focus:border-blue-600 outline-none text-slate-900 font-bold bg-white"
+                    >
+                </div>
+                <div id="challenge-feedback" class="p-3 rounded-lg text-sm mb-4 font-bold bg-white border border-slate-200 text-slate-500 shadow-sm">
+                    准备就绪...
+                </div>
+                <div class="space-y-3">
+                    <button id="btn-verify" onclick="app.verifyChallenge()" class="w-full py-3 bg-blue-700 hover:bg-blue-800 text-white font-bold rounded-lg shadow-md transition-all active:scale-95">
+                        提交验证
+                    </button>
+                    <div class="flex gap-2">
+                        <button onclick="app.showAnswer()" class="flex-1 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold rounded-lg transition-all text-sm border border-slate-300">显示答案</button>
+                        <button onclick="generateChallenge()" class="flex-1 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold rounded-lg transition-all text-sm border border-slate-300">下一题</button>
+                    </div>
+                </div>
+            `;
+        }
+        container.innerHTML = html;
+        app.renderMath();
+    },
+    updateValues: () => {
+        let kText = STATE.isVertical ? '不存在' : STATE.k.toFixed(2);
+        let bText = STATE.isVertical ? '无' : STATE.b.toFixed(2);
+        
+        // --- 提取公共的 Calc Panel 更新逻辑 (Left-to-Right Convention) ---
+        const updateCalcPanel = () => {
+            const calcPanel = document.getElementById('calc-panel');
+            if (calcPanel) {
+                if (STATE.isVertical) {
+                    calcPanel.innerHTML = '<div class="text-center text-red-600 font-bold p-2">竖直直线，斜率不存在<br><span class="text-xs font-normal text-slate-500">不是函数图象</span></div>';
+                } else if (Math.abs(STATE.k) < 1e-6) {
+                    // Constant Function Case
+                    calcPanel.innerHTML = '<div class="text-center text-orange-600 font-bold p-2">k = 0 (水平直线)<br><span class="text-xs font-normal text-slate-500">这是常函数，不是一次函数</span></div>';
+                } else {
+                    // Determine Left and Right points
+                    let pL, pR;
+                    if (STATE.p1.x <= STATE.p2.x) { pL = STATE.p1; pR = STATE.p2; }
+                    else { pL = STATE.p2; pR = STATE.p1; }
+
+                    const x1 = pL.x.toFixed(1), y1 = pL.y.toFixed(1);
+                    const x2 = pR.x.toFixed(1), y2 = pR.y.toFixed(1);
+                    const rise = (pR.y - pL.y).toFixed(1);
+                    const run = (pR.x - pL.x).toFixed(1);
+                    const riseClass = (pR.y - pL.y) >= 0 ? 'text-green-600' : 'text-red-600';
+                    
+                    calcPanel.innerHTML = `
+                        <div class="text-xs text-slate-400 mb-1">计算方向：左点(L) $\\to$ 右点(R)</div>
+                        <div class="calc-row"><span>L</span><span>(${x1}, ${y1})</span></div>
+                        <div class="calc-row"><span>R</span><span>(${x2}, ${y2})</span></div>
+                        <div class="calc-divider"></div>
+                        <div class="calc-row">
+                            <span>Rise (Δy)</span>
+                            <span>${y2} - ${y1} = <span class="${riseClass} font-bold">${rise}</span></span>
+                        </div>
+                        <div class="calc-row">
+                            <span>Run (Δx)</span>
+                            <span>${x2} - ${x1} = <b>${run}</b></span>
+                        </div>
+                        <div class="calc-divider"></div>
+                        <div class="calc-row calc-highlight">
+                            <span>k = Rise/Run</span>
+                            <span>${rise} / ${run} = ${STATE.k.toFixed(2)}</span>
+                        </div>
+                    `;
+                    // Note: We need to re-render MathJax inside this panel if we used latex, 
+                    // but here we used HTML entities/plain text for simplicity and speed.
+                    // The "$\to$" might need renderMath if not using unicode.
+                    // Let's use Unicode for arrow to avoid MathJax flash in dynamic panel.
+                    calcPanel.innerHTML = calcPanel.innerHTML.replace('$\\to$', '→');
+                }
+            }
+        };
+
+        if (STATE.mode === 'guided') {
+            const kEl = document.getElementById('val-k-display');
+            const bEl = document.getElementById('val-b-display');
+            if(kEl) kEl.innerText = STATE.isVertical ? '∞' : STATE.k.toFixed(1);
+            if(bEl) bEl.innerText = STATE.isVertical ? '-' : STATE.b.toFixed(1);
+            
+            updateCalcPanel();
+
+            const step = PLAN_STEPS[STATE.stepIndex];
+            document.getElementById('step-count').innerText = `Step ${STATE.stepIndex + 1}/${PLAN_STEPS.length}`;
+            document.getElementById('step-title').innerText = step.title;
+            document.getElementById('step-reasoning').innerText = step.reasoning;
+            const mathEl = document.getElementById('step-math');
+            const newMath = `\\[ ${step.math} \\]`;
+            if (mathEl.getAttribute('data-math') !== step.math) {
+                mathEl.innerHTML = newMath;
+                mathEl.setAttribute('data-math', step.math);
+                mathEl.classList.remove('visible');
+                app.renderMath();
+            }
+        } else if (STATE.mode === 'explore') {
+            const kSlider = document.getElementById('slider-k');
+            const bSlider = document.getElementById('slider-b');
+            const kLabel = document.getElementById('val-k-label');
+            const bLabel = document.getElementById('val-b-label');
+            const eqnEl = document.getElementById('explore-eqn');
+            
+            if(kSlider && document.activeElement !== kSlider && !STATE.isVertical) kSlider.value = STATE.k;
+            if(bSlider && document.activeElement !== bSlider && !STATE.isVertical) bSlider.value = STATE.b;
+            
+            if(kLabel) kLabel.innerText = kText;
+            if(bLabel) bLabel.innerText = bText;
+            
+            updateCalcPanel();
+
+            let mathStr;
+            if (STATE.isVertical) {
+                mathStr = `x = ${STATE.verticalX.toFixed(2)} \\quad (\\text{非函数})`;
+            } else if (Math.abs(STATE.k) < 1e-6) {
+                mathStr = `y = ${STATE.b.toFixed(2)} \\quad (\\text{常函数})`;
+            } else {
+                const op = STATE.b >= 0 ? '+' : '';
+                mathStr = `y = ${STATE.k.toFixed(2)}x ${op} ${STATE.b.toFixed(2)}`;
+            }
+            const texStr = `\\[ ${mathStr} \\]`;
+            if (eqnEl && eqnEl.getAttribute('data-val') !== mathStr) {
+                eqnEl.innerHTML = texStr;
+                eqnEl.setAttribute('data-val', mathStr);
+                app.renderMath();
+            }
+        } else if (STATE.mode === 'challenge') {
+            const input = document.getElementById('challenge-input');
+            const feedback = document.getElementById('challenge-feedback');
+            const btn = document.getElementById('btn-verify');
+            if (input && document.activeElement !== input) input.value = STATE.challenge.userInput;
+            if (feedback) {
+                feedback.className = `p-3 rounded-lg text-sm mb-4 font-bold border ${STATE.challenge.feedback === 'error' ? 'bg-red-50 text-red-700 border-red-200' : STATE.challenge.feedback === 'success' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-slate-50 text-slate-600 border-slate-200'}`;
+                feedback.innerText = STATE.challenge.msg;
+            }
+            if (btn) {
+                if (STATE.challenge.feedback === 'success') { btn.innerText = "正确! (自动跳转...)"; btn.classList.add('opacity-50', 'cursor-not-allowed'); }
+                else { btn.innerText = "提交验证"; btn.classList.remove('opacity-50', 'cursor-not-allowed'); }
+            }
+        }
+    },
+    handleSliderChange: (type, val) => {
+        if (STATE.isVertical) STATE.isVertical = false;
+        const v = parseFloat(val);
+        if (type === 'k') STATE.k = v;
+        if (type === 'b') STATE.b = v;
+        recalculateFromParams();
+        app.updateValues();      
+    },
+    prevStep: () => { if (STATE.stepIndex > 0) app.loadStep(STATE.stepIndex - 1); },
+    nextStep: () => { if (STATE.stepIndex < PLAN_STEPS.length - 1) app.loadStep(STATE.stepIndex + 1); },
+    loadStep: (idx) => { STATE.stepIndex = idx; const step = PLAN_STEPS[idx]; if (step.setup) step.setup(); app.updateValues(); },
+    setChallengeInput: (val) => { STATE.challenge.userInput = val; },
+    showAnswer: () => {
+        const k = STATE.challenge.targetK;
+        const b = STATE.challenge.targetB;
+        STATE.challenge.userInput = formatEquation(k, b);
+        STATE.challenge.feedback = 'neutral';
+        STATE.challenge.msg = '答案已填入，请点击验证。';
+        app.updateValues();
+    },
+    verifyChallenge: () => {
+        const parsed = parseEquation(STATE.challenge.userInput);
+        if (!parsed) { 
+            // Check specific error types
+            const clean = STATE.challenge.userInput.replace(/\s/g, '').toLowerCase();
+            if (clean.startsWith('x=')) {
+                STATE.challenge.feedback = 'error'; 
+                STATE.challenge.msg = '这不是函数（竖直线 x=c 一个x对应无数y）。'; 
+            } else if (/^y=[-+]?\d*\.?\d*$/.test(clean) || /^y=[-+]?\d+$/.test(clean)) {
+                 STATE.challenge.feedback = 'error'; 
+                 STATE.challenge.msg = '这是常函数 (k=0)，本题要求一次函数。';
+            } else {
+                STATE.challenge.feedback = 'error'; 
+                STATE.challenge.msg = '格式错误。请使用 y = kx + b 格式。';
+            }
+            app.updateValues(); 
+            return; 
+        }
+        
+        if (parsed.isConstant) {
+             STATE.challenge.feedback = 'error'; 
+             STATE.challenge.msg = '你输入的是常函数 (k=0)。请观察图象，这是一条斜线。';
+             app.updateValues();
+             return;
+        }
+
+        STATE.challenge.userK = parsed.k; STATE.challenge.userB = parsed.b;
+        const eps = 0.05;
+        const kMatch = Math.abs(parsed.k - STATE.challenge.targetK) < eps;
+        const bMatch = Math.abs(parsed.b - STATE.challenge.targetB) < eps;
+        if (kMatch && bMatch) {
+            STATE.challenge.feedback = 'success'; STATE.challenge.msg = '完全正确！';
+            STATE.challenge.history.push(true); app.updateValues();
+            setTimeout(() => { if (STATE.mode === 'challenge') generateChallenge(); }, 1500);
+        } else {
+            STATE.challenge.feedback = 'error';
+            let tips = [];
+            if (!bMatch) tips.push("截距(b)不对。");
+            else if (!kMatch) {
+                if (Math.sign(parsed.k) !== Math.sign(STATE.challenge.targetK)) tips.push("方向反了。");
+                else tips.push("斜率(k)数值不对。");
+            }
+            STATE.challenge.msg = tips.join(" ");
+            app.updateValues();
+        }
+    },
+    resetView: () => { STATE.view = { scale: 1, offsetX: 0, offsetY: 0 }; },
+    mathTimer: null,
+    renderMath: () => {
+        if (app.mathTimer) clearTimeout(app.mathTimer);
+        app.mathTimer = setTimeout(() => { if (window.MathJax) MathJax.typesetPromise().then(() => { document.querySelectorAll('.math-container').forEach(el => el.classList.add('visible')); }); }, 100);
+    }
+};
+
+// --- 6. p5.js Sketch ---
+new p5((p) => {
+    p.setup = () => {
+        const canvas = p.createCanvas(p.select('#canvas-stage').width, p.select('#canvas-stage').height);
+        canvas.parent('canvas-stage');
+        canvas.elt.addEventListener('wheel', (e) => { e.preventDefault(); }, { passive: false });
+        canvas.elt.addEventListener('contextmenu', (e) => e.preventDefault());
+        p.textFont('Noto Sans SC');
+        p.pixelDensity(window.devicePixelRatio || 2); 
+    };
+    p.windowResized = () => { p.resizeCanvas(p.select('#canvas-stage').width, p.select('#canvas-stage').height); };
+    p.draw = () => {
+        p.background(248, 250, 252);
+        p.push();
+        
+        // 1. Draw Geometry (Lines, Grids) in WORLD Coordinates
+        ViewTransform.apply(p); 
+        
+        if (STATE.hoveredObj) p.cursor('pointer');
+        else if (STATE.isDragging && STATE.draggedObj === 'pan') p.cursor('grabbing');
+        else p.cursor('default');
+
+        const tl = ViewTransform.toWorld(p, 0, 0);
+        const br = ViewTransform.toWorld(p, p.width, p.height);
+        const bounds = { xMin: tl.x, xMax: br.x, yMin: br.y, yMax: tl.y }; 
+        
+        drawGrid(bounds);
+        
+        // Draw Lines (World Space)
+        if (STATE.mode === 'challenge') {
+            drawLine(STATE.challenge.targetK, STATE.challenge.targetB, false, CONSTANTS.PRIMARY_COLOR, false);
+            if (STATE.challenge.userK !== null) drawLine(STATE.challenge.userK, STATE.challenge.userB, false, CONSTANTS.SECONDARY_COLOR, true);
+        } else {
+            drawLine(STATE.k, STATE.b, STATE.isVertical, CONSTANTS.PRIMARY_COLOR, false);
+        }
+        
+        // 2. Draw UI Elements in SCREEN Coordinates
+        p.pop(); // Pop ViewTransform
+        
+        drawAxesLabels(bounds);
+        
+        if (STATE.mode === 'challenge') {
+            drawProbe();
+        } else {
+            if (STATE.mode !== 'challenge') {
+                drawSlopeTriangle(); 
+                drawPoints(); 
+            }
+        }
+    };
+
+    function drawGrid(bounds) {
+        p.strokeWeight(0.8 / CONSTANTS.GRID_SIZE); p.stroke(CONSTANTS.GRID_COLOR); // Reduced thickness
+        const startX = Math.floor(bounds.xMin); const endX = Math.ceil(bounds.xMax);
+        const startY = Math.floor(bounds.yMin); const endY = Math.ceil(bounds.yMax);
+        for (let i = startX; i <= endX; i++) { if (i === 0) continue; p.line(i, bounds.yMin, i, bounds.yMax); }
+        for (let i = startY; i <= endY; i++) { if (i === 0) continue; p.line(bounds.xMin, i, bounds.xMax, i); }
+        
+        // Axes Lines (World Space)
+        p.stroke(CONSTANTS.AXIS_COLOR); p.strokeWeight(2.5 / CONSTANTS.GRID_SIZE);
+        p.line(bounds.xMin, 0, bounds.xMax, 0); p.line(0, bounds.yMin, 0, bounds.yMax);
+    }
+
+    function drawLine(k, b, isVertical, color, dashed) {
+        const tl = ViewTransform.toWorld(p, 0, 0); const br = ViewTransform.toWorld(p, p.width, p.height);
+        p.stroke(color); p.strokeWeight(4 / CONSTANTS.GRID_SIZE);
+        if (dashed) { const dashLen = 10 / CONSTANTS.GRID_SIZE; p.drawingContext.setLineDash([dashLen, dashLen]); } else { p.drawingContext.setLineDash([]); }
+        if (isVertical) p.line(STATE.verticalX, tl.y, STATE.verticalX, br.y);
+        else { let x1 = tl.x; let x2 = br.x; let y1 = k * x1 + b; let y2 = k * x2 + b; p.line(x1, y1, x2, y2); }
+        p.drawingContext.setLineDash([]);
+    }
+
+    // --- Screen Space Drawing Functions (SIMPLIFIED: Halo, No Box) ---
+
+    function drawAxesLabels(bounds) {
+        const rangeX = bounds.xMax - bounds.xMin;
+        let step = 1; if(rangeX<5) step=0.5; else if(rangeX>20) step=2; else if(rangeX>40) step=5; if(rangeX>100) step=10;
+
+        // X Axis Labels
+        const startX = Math.ceil(bounds.xMin / step) * step;
+        for (let x = startX; x <= bounds.xMax; x += step) {
+            if (Math.abs(x) < 0.0001) continue;
+            const s = ViewTransform.toScreen(p, x, 0);
+            p.stroke(CONSTANTS.AXIS_COLOR); p.strokeWeight(2); p.line(s.x, s.y, s.x, s.y + 6);
+            drawScreenLabel(Number(x.toFixed(1)), s.x, s.y + 20, 'center', 'center');
+        }
+        
+        // Y Axis Labels
+        const startY = Math.ceil(bounds.yMin / step) * step;
+        const endY = Math.floor(bounds.yMax / step) * step;
+        for (let y = startY; y <= endY; y += step) {
+            if (Math.abs(y) < 0.0001) continue;
+            const s = ViewTransform.toScreen(p, 0, y);
+            p.stroke(CONSTANTS.AXIS_COLOR); p.strokeWeight(2); p.line(s.x, s.y, s.x - 6, s.y);
+            drawScreenLabel(Number(y.toFixed(1)), s.x - 20, s.y, 'center', 'center');
+        }
+        
+        // Origin
+        const origin = ViewTransform.toScreen(p, 0, 0);
+        drawScreenLabel("O", origin.x - 15, origin.y + 15, 'center', 'center');
+    }
+
+    function drawPoints() {
+        const s1 = ViewTransform.toScreen(p, STATE.p1.x, STATE.p1.y);
+        const s2 = ViewTransform.toScreen(p, STATE.p2.x, STATE.p2.y);
+        drawInteractiveScreenPoint(s1, STATE.p1, 'P1');
+        drawInteractiveScreenPoint(s2, STATE.p2, 'P2');
+    }
+
+    function drawInteractiveScreenPoint(s, pt, label) {
+        const isHover = STATE.hoveredObj === (label === 'P1' ? 'p1' : 'p2');
+        const isDrag = STATE.draggedObj === (label === 'P1' ? 'p1' : 'p2');
+        
+        if (isHover || isDrag) { p.fill(CONSTANTS.PRIMARY_COLOR + '44'); p.noStroke(); p.circle(s.x, s.y, 20); }
+        p.fill(CONSTANTS.PRIMARY_COLOR); p.stroke(255); p.strokeWeight(2); p.circle(s.x, s.y, 10);
+
+        // Label (Simplified: No Box, Halo Effect)
+        drawScreenLabel(`(${pt.x.toFixed(1)}, ${pt.y.toFixed(1)})`, s.x, s.y - 25, 'center', 'center');
+        drawScreenLabel(label, s.x, s.y + 25, 'center', 'center', '#555');
+    }
+
+    function drawProbe() {
+        const pt = STATE.challenge.probePos;
+        const s = ViewTransform.toScreen(p, pt.x, pt.y);
+        const isHover = STATE.hoveredObj === 'probe';
+        const isDrag = STATE.draggedObj === 'probe';
+
+        if (isHover || isDrag) { p.fill(CONSTANTS.ERROR_COLOR + '44'); p.noStroke(); p.circle(s.x, s.y, 20); }
+        p.fill(CONSTANTS.ERROR_COLOR); p.stroke(255); p.strokeWeight(2); p.circle(s.x, s.y, 10);
+        
+        drawScreenLabel(`(${pt.x.toFixed(1)}, ${pt.y.toFixed(1)})`, s.x + 15, s.y - 15, 'left', 'bottom', CONSTANTS.ERROR_COLOR);
+    }
+
+    function drawSlopeTriangle() {
+        if (STATE.isVertical) return;
+        // Logic to draw Left -> Right for consistency with "Run > 0"
+        let pL, pR;
+        if (STATE.p1.x <= STATE.p2.x) { pL = STATE.p1; pR = STATE.p2; }
+        else { pL = STATE.p2; pR = STATE.p1; }
+
+        if (Math.abs(pR.x - pL.x) < 0.1) return;
+
+        const sStart = ViewTransform.toScreen(p, pL.x, pL.y); // Start at Left
+        // We want the right-angle at (x_right, y_left)
+        // Triangle is: (x_L, y_L) -> (x_R, y_L) -> (x_R, y_R)
+        // Wait, math convention: Run horizontal, then Rise vertical.
+        // Or Run horizontal from L to R, then Rise.
+        // Let's use: (xL, yL) -> (xR, yL) -> (xR, yR)
+        
+        const yL = pL.y; // Logic Y of Left point
+        // But the line equation holds: y = kx+b.
+        // So point (xR, yL) is NOT on the line unless k=0.
+        // The points on line are (xL, yL) and (xR, yR).
+        // Corner is (xR, yL).
+        
+        const sCorner = ViewTransform.toScreen(p, pR.x, pL.y);
+        const sEnd = ViewTransform.toScreen(p, pR.x, pR.y);
+
+        p.stroke(100); p.strokeWeight(2); p.drawingContext.setLineDash([5, 5]);
+        p.line(sStart.x, sStart.y, sCorner.x, sCorner.y); // Run: Left to Right
+        const riseColor = (pR.y - pL.y) >= 0 ? CONSTANTS.SUCCESS_COLOR : CONSTANTS.ERROR_COLOR;
+        p.stroke(riseColor);
+        p.line(sCorner.x, sCorner.y, sEnd.x, sEnd.y); // Rise
+        p.drawingContext.setLineDash([]);
+
+        // Labels
+        drawScreenLabel(`Run: ${(pR.x-pL.x).toFixed(1)}`, (sStart.x + sCorner.x)/2, sStart.y + 20, 'center', 'top', '#555');
+        drawScreenLabel(`Rise: ${(pR.y - pL.y).toFixed(1)}`, sCorner.x + 10, (sCorner.y + sEnd.y)/2, 'left', 'center', riseColor);
+    }
+
+    // SIMPLIFIED LABEL DRAWING (Halo Effect)
+    function drawScreenLabel(txt, x, y, alignX='center', alignY='center', color='#334155') { // Changed default color to lighter grey
+        p.textSize(14); p.textStyle(p.NORMAL); // Removed BOLD
+        
+        if (alignX === 'left') p.textAlign(p.LEFT, p.CENTER);
+        else if (alignX === 'right') p.textAlign(p.RIGHT, p.CENTER);
+        else p.textAlign(p.CENTER, p.CENTER);
+        
+        let by = y;
+        if (alignY === 'top') by += 10;
+        else if (alignY === 'bottom') by -= 10;
+
+        // Halo (Outline)
+        p.stroke(255); p.strokeWeight(2); p.fill(color); // Reduced stroke weight
+        p.text(txt, x, by);
+        
+        // Text
+        p.noStroke();
+        p.text(txt, x, by);
+    }
+
+    // --- Interaction ---
+    p.mousePressed = () => {
+        if (p.mouseX < 0 || p.mouseX > p.width || p.mouseY < 0 || p.mouseY > p.height) return;
+        const worldPt = ViewTransform.toWorld(p, p.mouseX, p.mouseY); const threshold = 0.5 / STATE.view.scale;
+        STATE.isDragging = true; STATE.dragStart = { x: p.mouseX, y: p.mouseY }; STATE.draggedObj = null;
+        if (STATE.mode !== 'challenge') { if (p.dist(worldPt.x, worldPt.y, STATE.p1.x, STATE.p1.y) < threshold) STATE.draggedObj = 'p1'; else if (p.dist(worldPt.x, worldPt.y, STATE.p2.x, STATE.p2.y) < threshold) STATE.draggedObj = 'p2'; }
+        if (!STATE.draggedObj && STATE.mode === 'challenge') { if (p.dist(worldPt.x, worldPt.y, STATE.challenge.probePos.x, STATE.challenge.probePos.y) < threshold) STATE.draggedObj = 'probe'; }
+        if (!STATE.draggedObj) { STATE.draggedObj = 'pan'; STATE.dragStartView = { ...STATE.view }; }
+        return false;
+    };
+    p.mouseMoved = () => {
+        const worldPt = ViewTransform.toWorld(p, p.mouseX, p.mouseY); const threshold = 0.5 / STATE.view.scale; STATE.hoveredObj = null;
+        if (STATE.mode !== 'challenge') { if (p.dist(worldPt.x, worldPt.y, STATE.p1.x, STATE.p1.y) < threshold) STATE.hoveredObj = 'p1'; else if (p.dist(worldPt.x, worldPt.y, STATE.p2.x, STATE.p2.y) < threshold) STATE.hoveredObj = 'p2'; } 
+        else { if (p.dist(worldPt.x, worldPt.y, STATE.challenge.probePos.x, STATE.challenge.probePos.y) < threshold) STATE.hoveredObj = 'probe'; }
+    };
+    p.mouseDragged = () => {
+        if (!STATE.isDragging) return;
+        if (STATE.draggedObj === 'pan') {
+            const dx = p.mouseX - STATE.dragStart.x; const dy = p.mouseY - STATE.dragStart.y;
+            STATE.view.offsetX = STATE.dragStartView.offsetX + dx; STATE.view.offsetY = STATE.dragStartView.offsetY + dy; return;
+        }
+        const worldPt = ViewTransform.toWorld(p, p.mouseX, p.mouseY);
+        const snap = (val) => Math.round(val * 2) / 2; const snappedX = snap(worldPt.x); const snappedY = snap(worldPt.y);
+
+        // --- NEW CONSTRAINT LOGIC ---
+        const currentConstraint = (STATE.mode === 'guided') ? PLAN_STEPS[STATE.stepIndex].constraint : null;
+
+        if (STATE.draggedObj === 'p1') {
+            let finalX = snappedX;
+            let finalY = snappedY;
+            
+            // Apply Constraint: Lock to Y-axis if required
+            if (currentConstraint === 'y-axis') {
+                finalX = 0; 
+            }
+
+            if (finalX !== STATE.p2.x || finalY !== STATE.p2.y) { // Avoid overlap
+                STATE.p1.x = finalX;
+                STATE.p1.y = finalY;
+                recalculateFromPoints(); 
+                app.updateValues(); 
+            }
+        } else if (STATE.draggedObj === 'p2') {
+             // P2 usually free, but good practice to check if we needed constraints
+             if (snappedX !== STATE.p1.x || snappedY !== STATE.p1.y) {
+                STATE.p2.x = snappedX;
+                STATE.p2.y = snappedY;
+                recalculateFromPoints();
+                app.updateValues();
+            }
+        } else if (STATE.draggedObj === 'probe') {
+            STATE.challenge.probePos.x = snappedX;
+            STATE.challenge.probePos.y = snappedY;
+        }
+    };
+    p.mouseReleased = () => { STATE.isDragging = false; STATE.draggedObj = null; };
+    p.mouseWheel = (e) => {
+        const zoomSpeed = 0.05; const scaleFactor = e.delta > 0 ? (1 - zoomSpeed) : (1 + zoomSpeed);
+        const mBefore = ViewTransform.toWorld(p, p.mouseX, p.mouseY);
+        let newScale = STATE.view.scale * scaleFactor; newScale = p.constrain(newScale, 0.2, 5.0); STATE.view.scale = newScale;
+        STATE.view.offsetX = p.mouseX - p.width/2 - mBefore.x * CONSTANTS.GRID_SIZE * newScale;
+        STATE.view.offsetY = p.mouseY - p.height/2 + mBefore.y * CONSTANTS.GRID_SIZE * newScale; 
+        return false;
+    };
+});
+app.init();
+</script>
+</body>
+</html>

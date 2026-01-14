@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>代数公式可视化：从几何到演练</title>
+    
+    <!-- 引入 p5.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    
+    <!-- MathJax 配置 -->
+    <script>
+        window.MathJax = {
+            tex: { 
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']],
+                packages: {'[+]': ['color', 'ams']}, 
+                processEscapes: true
+            },
+            options: {
+                ignoreHtmlClass: 'tex2jax_ignore',
+                processHtmlClass: 'tex2jax_process'
+            },
+            startup: {
+                typeset: false 
+            }
+        };
+    </script>
+    <!-- 使用 full 版本 -->
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; background-color: #f3f4f6; font-family: 'Noto Sans SC', sans-serif; }
+        
+        #app-container { display: flex; height: 100vh; width: 100vw; }
+        
+        #sidebar {
+            width: 400px;
+            background: white;
+            border-right: 1px solid #e5e7eb;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.05);
+            z-index: 20;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+
+        #problem-card { background: #eef2ff; border-bottom: 1px solid #c7d2fe; padding: 16px; }
+        #controls { padding: 16px; flex-grow: 1; display: flex; flex-direction: column; gap: 12px; }
+        #status-bar { padding: 8px 16px; background: #f9fafb; border-top: 1px solid #e5e7eb; font-size: 12px; color: #6b7280; }
+
+        #stage-area {
+            flex-grow: 1;
+            position: relative;
+            background: #ffffff;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #guided-overlay {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 95%;
+            max-width: none;
+            background: rgba(255, 255, 255, 0.96);
+            backdrop-filter: blur(4px);
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            max-height: 80vh;
+        }
+        
+        #overlay-header {
+            padding: 12px 20px;
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        #overlay-body { padding: 20px; overflow-y: auto; }
+
+        .btn { padding: 8px 16px; border-radius: 6px; font-weight: 500; cursor: pointer; transition: all 0.2s; border: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+        .btn-primary { background: #4f46e5; color: white; }
+        .btn-primary:hover { background: #4338ca; }
+        .btn-secondary { background: #ffffff; border: 1px solid #d1d5db; color: #374151; }
+        .btn-secondary:hover { background: #f3f4f6; }
+        
+        .tab-btn { width: 100%; text-align: left; padding: 12px; margin-bottom: 4px; border-radius: 8px; transition: all 0.2s; border: 1px solid transparent; }
+        .tab-btn.active { background: #e0e7ff; color: #4338ca; border-color: #c7d2fe; font-weight: bold; }
+        .tab-btn:hover:not(.active) { background: #f3f4f6; }
+
+        .radio-group { display: flex; gap: 4px; background: #f3f4f6; padding: 4px; border-radius: 8px; }
+        .radio-item { flex: 1; text-align: center; padding: 6px; font-size: 12px; border-radius: 6px; cursor: pointer; transition: all 0.2s; color: #6b7280; font-weight: 500; }
+        .radio-item.active { background: white; color: #4f46e5; shadow: 0 1px 2px rgba(0,0,0,0.1); font-weight: bold; }
+
+        mjx-container { outline: none !important; }
+        input[type=range] { width: 100%; accent-color: #4f46e5; }
+        canvas { display: block; outline: none; }
+    </style>
+</head>
+<body>
+
+<div id="app-container">
+    <aside id="sidebar">
+        <div id="problem-card">
+            <h2 class="text-lg font-bold text-gray-800 mb-2">核心公式 (可复制)</h2>
+            <div id="formula-display" class="bg-white p-3 rounded border border-indigo-100 text-sm overflow-x-auto min-h-[3rem] flex items-center justify-center"></div>
+            <button onclick="copyFormula()" class="mt-2 text-xs text-indigo-600 hover:text-indigo-800 flex items-center">
+                <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                复制公式
+            </button>
+        </div>
+
+        <div id="controls">
+            <div>
+                <button class="tab-btn active" onclick="setMode('geo')" id="btn-geo">
+                    1. 几何直观 (原理)
+                    <div class="text-xs font-normal text-gray-500 mt-1">面积法验证完全平方与平方差</div>
+                </button>
+                <button class="tab-btn" onclick="setMode('structure')" id="btn-structure">
+                    2. 结构透视 (方法)
+                    <div class="text-xs font-normal text-gray-500 mt-1">识别整体 A 与 B，万能代换</div>
+                </button>
+                <button class="tab-btn" onclick="setMode('drill')" id="btn-drill">
+                    3. 强化演练 (实战)
+                    <div class="text-xs font-normal text-gray-500 mt-1">多类型题库与分步解析</div>
+                </button>
+            </div>
+
+            <div id="panel-geo" class="space-y-4">
+                <div class="bg-gray-50 p-3 rounded border border-gray-200">
+                    <label class="block text-sm font-medium text-gray-700">边长 $a$</label>
+                    <input type="range" id="slider-a" min="50" max="250" value="150" oninput="updateParams()">
+                </div>
+                <div class="bg-gray-50 p-3 rounded border border-gray-200">
+                    <label class="block text-sm font-medium text-gray-700">边长 $b$</label>
+                    <input type="range" id="slider-b" min="20" max="120" value="60" oninput="updateParams()">
+                </div>
+                <div class="flex gap-2 text-sm">
+                    <button class="btn btn-secondary flex-1" onclick="toggleGeoType()">切换公式类型</button>
+                    <button class="btn btn-secondary flex-1" onclick="resetView()">重置视图</button>
+                </div>
+                <div class="text-xs text-gray-500 bg-blue-50 p-2 rounded">
+                    提示：观察右侧图形，总面积等于各部分面积之和。
+                </div>
+            </div>
+
+            <div id="panel-structure" class="hidden space-y-4">
+                <div class="bg-indigo-50 p-3 rounded border border-indigo-100">
+                    <h3 class="font-bold text-indigo-900 text-sm mb-2">构造一个式子</h3>
+                    <div class="grid grid-cols-2 gap-2 mb-2">
+                        <div>
+                            <label class="text-xs text-gray-600">整体 A (蓝框)</label>
+                            <input type="text" id="input-sub-a" value="2x" class="w-full text-sm border p-1 rounded" oninput="updateStructure()">
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-600">整体 B (橙框)</label>
+                            <input type="text" id="input-sub-b" value="3y" class="w-full text-sm border p-1 rounded" oninput="updateStructure()">
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button class="btn btn-sm text-xs bg-white border" onclick="presetStructure('(x+1)', '2')">例1</button>
+                        <button class="btn btn-sm text-xs bg-white border" onclick="presetStructure('3m', 'n')">例2</button>
+                        <button class="btn btn-sm text-xs bg-white border" onclick="presetStructure('(a+b)', 'c')">例3</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="panel-drill" class="hidden space-y-4">
+                <div class="flex justify-between items-center">
+                    <h3 class="font-bold text-gray-700">难度选择:</h3>
+                </div>
+                <!-- 难度选择器 -->
+                <div class="radio-group mb-2">
+                    <div class="radio-item" id="diff-normal" onclick="setDifficulty('normal')">基础专项</div>
+                    <div class="radio-item active" id="diff-all" onclick="setDifficulty('all')">综合随机</div>
+                    <div class="radio-item" id="diff-hard" onclick="setDifficulty('hard')">高阶挑战🔥</div>
+                </div>
+
+                <div class="flex justify-between items-center mt-2">
+                    <h3 class="font-bold text-gray-700">当前进度: <span id="drill-progress">1</span>/5</h3>
+                    <span id="drill-score" class="text-sm font-mono text-indigo-600">Score: 0</span>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-2">
+                     <button class="btn btn-primary w-full" onclick="nextProblem()">🎲 抽取新题</button>
+                     <button class="btn btn-secondary w-full" onclick="toggleAnswer()">👁️ 显示解析</button>
+                </div>
+                <div class="bg-yellow-50 p-3 rounded border border-yellow-100 text-sm">
+                    <p class="font-bold text-yellow-800">当前题库包含：</p>
+                    <ul class="list-disc list-inside text-gray-600 text-xs mt-1 space-y-1" id="drill-info-list">
+                        <!-- 动态填充 -->
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div id="status-bar">
+            v3.2.2 | Fix: Real-time Sync & Valid Geometry
+        </div>
+    </aside>
+
+    <main id="stage-area">
+        <div id="canvas-container" class="absolute inset-0"></div>
+        <div id="guided-overlay">
+            <div id="overlay-header">
+                <span class="font-bold text-gray-700" id="overlay-title">演示视图</span>
+                <div class="flex gap-2" id="overlay-nav"></div>
+            </div>
+            <div id="overlay-body">
+                <div id="overlay-content" class="text-gray-800 text-lg leading-relaxed"></div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+let mjxChain = Promise.resolve();
+
+function renderMathElement(elementId, tex) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    el.innerHTML = tex;
+}
+
+function queueTypeset(elements) {
+    mjxChain = mjxChain.then(() => {
+        if (window.MathJax && window.MathJax.typesetPromise) {
+            return window.MathJax.typesetPromise(elements).catch(err => console.error('MathJax Error:', err));
+        }
+        return Promise.resolve();
+    });
+}
+
+// --- 2. State Management ---
+const STATE = {
+    mode: 'geo', 
+    geo: { type: 'sum', a: 150, b: 60 },
+    structure: { aStr: '2x', bStr: '3y' },
+    drill: { 
+        problems: [], 
+        currentIndex: -1, 
+        currentProblem: null, 
+        showAnswer: false, 
+        score: 0,
+        difficulty: 'all' // 'normal', 'all', 'hard'
+    },
+    view: { scale: 1.0, offsetX: 0, offsetY: 0 }
+};
+
+// --- 3. Problem Templates (Expanded with Hard Problems) ---
+const PROBLEM_TEMPLATES = [
+    // === 基础类 (Normal) ===
+    { difficulty: 'normal', type: 'expand_basic', gen: () => {
+        const v = ['x','y','a','b'][Math.floor(Math.random()*4)];
+        const n = Math.floor(Math.random()*5)+1;
+        const op = Math.random()>0.5 ? '+' : '-';
+        return {
+            title: '公式展开 (基础)',
+            tex: `(${v} ${op} ${n})^2`,
+            hint: `识别 $A=${v}, B=${n}$，直接套用完全平方公式。`,
+            steps: [
+                `$A = ${v}, B = ${n}$`, 
+                `公式：$A^2 ${op=='+'?'+':'-'} 2AB + B^2$`, 
+                `$= ${v}^2 ${op} 2 \\cdot ${v} \\cdot ${n} + ${n}^2$`, 
+                `$= ${v}^2 ${op} ${2*n}${v} + ${n*n}$`
+            ],
+            tag: '基础展开'
+        };
+    }},
+    { difficulty: 'normal', type: 'expand_coef', gen: () => {
+        const c = Math.floor(Math.random()*3)+2;
+        const v = 'x';
+        const n = Math.floor(Math.random()*4)+1;
+        return {
+            title: '含系数展开',
+            tex: `(${c}${v} + ${n})^2`,
+            hint: `注意：$A$ 是 $(${c}${v})$ 整体，平方时系数也要平方。`,
+            steps: [
+                `$A = ${c}${v}, B = ${n}$`, 
+                `$= (${c}${v})^2 + 2 \\cdot (${c}${v}) \\cdot ${n} + ${n}^2$`, 
+                `$= ${c*c}${v}^2 + ${2*c*n}${v} + ${n*n}$`
+            ],
+            tag: '系数处理'
+        };
+    }},
+    { difficulty: 'normal', type: 'factor_sq', gen: () => {
+        const v = 'x';
+        const n = Math.floor(Math.random()*5)+2;
+        return {
+            title: '完全平方分解',
+            tex: `${v}^2 + ${2*n}${v} + ${n*n}`,
+            hint: `首项平方，尾项平方，查中间。`,
+            steps: [
+                `首项 $(${v})^2$, 尾项 $${n}^2$`,
+                `中间项 $2 \\cdot ${v} \\cdot ${n} = ${2*n}${v}$ (符合)`,
+                `$= (${v} + ${n})^2$`
+            ],
+            tag: '基础分解'
+        };
+    }},
+    
+    // === 进阶类 (Hard) ===
+    { difficulty: 'hard', type: 'factor_neg', gen: () => {
+        const c = Math.floor(Math.random()*3)+2;
+        const n = Math.floor(Math.random()*3)+1;
+        return {
+            title: '负号提取分解',
+            tex: `-${c*c}x^2 + ${2*c*n}x - ${n*n}`,
+            hint: `首项是负数？先提取负号 $-1$，再看括号内是否符合公式。`,
+            steps: [
+                `提取负号：$-(${c*c}x^2 - ${2*c*n}x + ${n*n})$`,
+                `观察括号内：首项 $(${c}x)^2$，尾项 $${n}^2$`,
+                `中间项检查：$2 \\cdot ${c}x \\cdot ${n} = ${2*c*n}x$ (符合)`,
+                `$= -(${c}x - ${n})^2$`
+            ],
+            tag: '提负号'
+        };
+    }},
+    { difficulty: 'hard', type: 'mix_expand', gen: () => {
+        const a = Math.floor(Math.random()*3)+1;
+        return {
+            title: '组合展开化简',
+            tex: `(x+${a})(x-${a}) - (x-${a})^2`,
+            hint: `分别计算：左边是平方差展开，右边是完全平方展开。注意中间减号的变号问题！`,
+            steps: [
+                `第一部分 (平方差)：$(x+${a})(x-${a}) = x^2 - ${a*a}$`,
+                `第二部分 (完全平方)：$(x-${a})^2 = x^2 - ${2*a}x + ${a*a}$`,
+                `整体相减 (注意去括号变号)：`,
+                `$= (x^2 - ${a*a}) - (x^2 - ${2*a}x + ${a*a})$`,
+                `$= x^2 - ${a*a} - x^2 + ${2*a}x - ${a*a}$`,
+                `合并同类项：$= ${2*a}x - ${2*a*a}$`
+            ],
+            tag: '组合计算'
+        };
+    }},
+    { difficulty: 'hard', type: 'factor_subst', gen: () => {
+        const n = Math.floor(Math.random()*4)+2;
+        return {
+            title: '整体换元分解',
+            tex: `(a+b)^2 - ${2*n}(a+b) + ${n*n}`,
+            hint: `看着眼花？把 $(a+b)$ 看作一个大写字母 $A$ 试试。`,
+            steps: [
+                `设 $A = (a+b)$`,
+                `原式变为：$A^2 - ${2*n}A + ${n}^2$`,
+                `这是完全平方式：$(A - ${n})^2$`,
+                `把 $A$ 换回去：$= (a + b - ${n})^2$`
+            ],
+            tag: '整体换元'
+        };
+    }},
+    { difficulty: 'hard', type: 'group_factor', gen: () => {
+        return {
+            title: '分组分解 (3+1型)',
+            tex: `x^2 + 2x + 1 - y^2`,
+            hint: `四项式无法直接分解。前三项 $x^2+2x+1$ 是不是一家人？`,
+            steps: [
+                `分组：$(x^2 + 2x + 1) - y^2$`,
+                `前一组分解：$(x+1)^2 - y^2$`,
+                `整体看是平方差结构：$A^2 - B^2$，其中 $A=x+1, B=y$`,
+                `套用平方差公式 $(A+B)(A-B)$：`,
+                `$= (x+1+y)(x+1-y)$`
+            ],
+            tag: '分组分解'
+        };
+    }}
+];
+
+// --- 4. Logic & UI ---
+function init() {
+    updateFormulaCard();
+    setDifficulty('normal'); 
+    const sidebar = document.getElementById('sidebar');
+    queueTypeset([sidebar]);
+}
+
+function setMode(m) {
+    STATE.mode = m;
+    document.querySelectorAll('[id^="panel-"]').forEach(el => el.classList.add('hidden'));
+    document.getElementById(`panel-${m}`).classList.remove('hidden');
+    document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+    document.getElementById(`btn-${m}`).classList.add('active');
+    resetView();
+    updateUI();
+}
+
+function setDifficulty(diff) {
+    STATE.drill.difficulty = diff;
+    
+    document.querySelectorAll('.radio-item').forEach(el => el.classList.remove('active'));
+    document.getElementById(`diff-${diff}`).classList.add('active');
+    
+    const list = document.getElementById('drill-info-list');
+    if (diff === 'normal') {
+        list.innerHTML = `<li>基础展开 (直接套用)</li><li>系数处理 ($2x$等)</li><li>基础分解 (正向)</li>`;
+    } else if (diff === 'hard') {
+        list.innerHTML = `<li class="text-red-600 font-bold">负号提取 ($-x^2...$)</li><li class="text-indigo-600 font-bold">组合计算 (展开化简)</li><li class="text-purple-600 font-bold">整体换元 & 分组分解</li>`;
+    } else {
+        list.innerHTML = `<li>包含所有基础与进阶题型</li><li>适合综合自测</li>`;
+    }
+
+    queueTypeset([list]);
+    nextProblem();
+}
+
+function toggleGeoType() {
+    STATE.geo.type = STATE.geo.type === 'sum' ? 'diff' : 'sum';
+    // 切换类型时也检查参数合法性
+    updateParams();
+}
+
+function updateParams() {
+    let valA = parseInt(document.getElementById('slider-a').value);
+    let valB = parseInt(document.getElementById('slider-b').value);
+
+    // 修复3：几何不合法检测，强制 b <= a
+    if (STATE.geo.type === 'diff') {
+        if (valB > valA) {
+            valB = valA;
+            document.getElementById('slider-b').value = valB;
+        }
+    }
+
+    STATE.geo.a = valA;
+    STATE.geo.b = valB;
+    
+    // 修复1：调用 updateUI 确保右侧文字实时同步
+    updateUI();
+}
+
+function resetView() {
+    STATE.view = { scale: 1.0, offsetX: 0, offsetY: 0 };
+    STATE.geo.a = 150;
+    STATE.geo.b = 60;
+    document.getElementById('slider-a').value = 150;
+    document.getElementById('slider-b').value = 60;
+    
+    // 修复1：重置时同步 UI
+    updateUI();
+}
+
+function updateStructure() {
+    STATE.structure.aStr = document.getElementById('input-sub-a').value || 'A';
+    STATE.structure.bStr = document.getElementById('input-sub-b').value || 'B';
+    updateUI();
+}
+
+function presetStructure(a, b) {
+    STATE.structure.aStr = a;
+    STATE.structure.bStr = b;
+    document.getElementById('input-sub-a').value = a;
+    document.getElementById('input-sub-b').value = b;
+    updateUI();
+}
+
+function nextProblem() {
+    const mode = STATE.drill.difficulty;
+    let pool = [];
+    if (mode === 'all') {
+        pool = PROBLEM_TEMPLATES;
+    } else {
+        pool = PROBLEM_TEMPLATES.filter(p => p.difficulty === mode);
+    }
+    
+    if (pool.length === 0) pool = PROBLEM_TEMPLATES;
+
+    const template = pool[Math.floor(Math.random() * pool.length)];
+    const prob = template.gen();
+    STATE.drill.currentIndex++;
+    STATE.drill.currentProblem = { ...prob, id: STATE.drill.currentIndex };
+    STATE.drill.showAnswer = false;
+    updateUI();
+}
+
+function toggleAnswer() {
+    STATE.drill.showAnswer = !STATE.drill.showAnswer;
+    updateUI();
+}
+
+function updateFormulaCard() {
+    let tex = '';
+    if (STATE.mode === 'geo') {
+        tex = STATE.geo.type === 'sum' 
+            ? '\\[ (a+b)^2 = a^2 + 2ab + b^2 \\]'
+            : '\\[ (a-b)^2 = a^2 - 2ab + b^2 \\]';
+    } else if (STATE.mode === 'structure') {
+        tex = '\\[ [A \\pm B]^2 = A^2 \\pm 2AB + B^2 \\]';
+    } else {
+        tex = '\\[ A^2 \\pm 2AB + B^2 \\leftrightarrow (A \\pm B)^2 \\]';
+    }
+    renderMathElement('formula-display', tex);
+}
+
+function copyFormula() {
+    const txt = STATE.mode === 'geo' ? (STATE.geo.type === 'sum' ? '(a+b)^2 = a^2+2ab+b^2' : '(a-b)^2 = a^2-2ab+b^2') : '(A+B)^2 = A^2+2AB+B^2';
+    navigator.clipboard.writeText(txt).then(() => alert('已复制公式'));
+}
+
+function generateStructureTex(A, B) {
+    const checkComplex = (s) => /[+\-]/.test(s);
+    const isComplexA = checkComplex(A);
+    const isComplexB = checkComplex(B);
+    const useSquareBrackets = isComplexA || isComplexB || A.includes('(') || B.includes('(');
+    
+    const leftBracket = useSquareBrackets ? '\\left[' : '\\left(';
+    const rightBracket = useSquareBrackets ? '\\right]' : '\\right)';
+    
+    const dispA = isComplexA ? `(${A})` : A;
+    const dispB = isComplexB ? `(${B})` : B;
+
+    const LHS = `${leftBracket} \\underbrace{\\color{blue}{${dispA}}}_{A} + \\underbrace{\\color{orange}{${dispB}}}_{B} ${rightBracket}^2`;
+    
+    const rhsA = isComplexA ? `{\\left(\\color{blue}{${A}}\\right)}^2` : `{\\color{blue}{${A}}}^2`;
+    const rhsB = isComplexB ? `{\\left(\\color{orange}{${B}}\\right)}^2` : `{\\color{orange}{${B}}}^2`;
+    
+    const midA = isComplexA ? `\\left(\\color{blue}{${A}}\\right)` : `\\color{blue}{${A}}`;
+    const midB = isComplexB ? `\\left(\\color{orange}{${B}}\\right)` : `\\color{orange}{${B}}`;
+    const rhsMid = `2 \\cdot ${midA} \\cdot ${midB}`;
+    
+    return `\\[ ${LHS} = \\underbrace{${rhsA}}_{A^2} + ${rhsMid} + \\underbrace{${rhsB}}_{B^2} \\]`;
+}
+
+function updateUI() {
+    const title = document.getElementById('overlay-title');
+    const content = document.getElementById('overlay-content');
+    const nav = document.getElementById('overlay-nav');
+
+    updateFormulaCard();
+
+    let needsTypeset = false;
+
+    if (STATE.mode === 'geo') {
+        title.innerText = STATE.geo.type === 'sum' ? '完全平方公式 (和)' : '完全平方公式 (差)';
+        const a = STATE.geo.a / 10;
+        const b = STATE.geo.b / 10;
+        
+        let html = '';
+        if (STATE.geo.type === 'sum') {
+            html = `
+            <div class="space-y-4">
+                <p>总面积 = <span class="font-mono text-indigo-600">(${a.toFixed(1)} + ${b.toFixed(1)})²</span></p>
+                <hr class="border-gray-200">
+                <ul class="list-none space-y-2 text-sm">
+                    <li class="flex items-center"><span class="w-4 h-4 bg-blue-200 border border-blue-400 mr-2"></span> $a^2$: ${(a*a).toFixed(2)}</li>
+                    <li class="flex items-center"><span class="w-4 h-4 bg-orange-200 border border-orange-400 mr-2"></span> $b^2$: ${(b*b).toFixed(2)}</li>
+                    <li class="flex items-center"><span class="w-4 h-4 bg-purple-200 border border-purple-400 mr-2"></span> $2ab$: ${(2*a*b).toFixed(2)}</li>
+                </ul>
+            </div>`;
+        } else {
+            // 修复2：更新差公式的说明，匹配新图示
+            html = `
+            <div class="space-y-4">
+                <p>目标面积 <span class="font-bold text-red-600">$(a-b)^2$</span> (左上角红色区域)</p>
+                <hr class="border-gray-200">
+                <div class="text-sm space-y-3">
+                    <p>1. 从大正方形 <span class="font-mono text-blue-700">$a^2$</span> 开始</p>
+                    <p>2. 减去右侧长条 <span class="font-mono text-purple-700">$ab$</span></p>
+                    <p>3. 减去下方长条 <span class="font-mono text-purple-700">$ab$</span></p>
+                    <p class="bg-orange-50 p-2 rounded border border-orange-200 text-orange-800">
+                        ⚠️ <b>注意：</b> 右下角的 <span class="font-mono">$b^2$</span> 被减了两次，所以必须<b>加回一次</b>！
+                    </p>
+                    <p class="font-mono text-center text-lg bg-gray-100 p-2 rounded">
+                        $a^2 - 2ab + b^2$
+                    </p>
+                </div>
+            </div>`;
+        }
+        content.innerHTML = html;
+        nav.innerHTML = '';
+        needsTypeset = true;
+    } 
+    else if (STATE.mode === 'structure') {
+        title.innerText = '整体代换 (Mapping)';
+        const A = STATE.structure.aStr;
+        const B = STATE.structure.bStr;
+        const tex = generateStructureTex(A, B);
+        
+        content.innerHTML = `
+            <div id="struct-math" class="p-4 bg-gray-50 rounded border border-gray-200 text-lg flex justify-center overflow-x-auto">
+                ${tex}
+            </div>
+            <p class="mt-4 text-sm text-gray-600">
+                <span class="font-bold">核心思想：</span>
+                当 $A$ 或 $B$ 是多项式时，它们是一个“整体”，代入时必须加括号。
+            </p>
+        `;
+        nav.innerHTML = '';
+        needsTypeset = true;
+    } 
+    else if (STATE.mode === 'drill') {
+        const p = STATE.drill.currentProblem;
+        const isHard = p.tag.includes('组合') || p.tag.includes('分组') || p.tag.includes('负号') || p.tag.includes('换元');
+        const badgeColor = isHard ? 'bg-red-100 text-red-700' : 'bg-indigo-100 text-indigo-700';
+        
+        title.innerHTML = `${p.title} <span class="ml-2 text-xs px-2 py-1 rounded ${badgeColor}">${p.tag}</span>`;
+        
+        let ansHtml = '';
+        if (STATE.drill.showAnswer) {
+            const stepsRaw = p.steps.map((s,i) => `<div><span class="text-xs font-bold text-gray-400 mr-2">STEP ${i+1}</span><span>${s}</span></div>`).join('');
+            ansHtml = `
+                <div class="mt-6 border-t pt-4">
+                    <h4 class="font-bold text-green-700 mb-2">解析：</h4>
+                    <div class="text-base space-y-2 bg-green-50 p-4 rounded text-gray-800">
+                        ${stepsRaw}
+                    </div>
+                </div>
+            `;
+        } else {
+            ansHtml = `
+                <div class="mt-8 p-4 bg-yellow-50 text-yellow-800 text-sm rounded border border-yellow-200">
+                    <strong>💡 提示：</strong> ${p.hint}
+                </div>
+            `;
+        }
+
+        content.innerHTML = `
+            <div class="text-center py-6">
+                <div class="text-3xl font-mono font-bold text-gray-800 mb-4 min-h-[3rem]">
+                    \\[ ${p.tex} = ? \\]
+                </div>
+            </div>
+            ${ansHtml}
+        `;
+        nav.innerHTML = '';
+        needsTypeset = true;
+    }
+
+    if (needsTypeset) {
+        queueTypeset([content, document.getElementById('formula-display')]);
+    } else {
+        queueTypeset([document.getElementById('formula-display')]);
+    }
+}
+
+// --- 5. p5.js Logic ---
+class ViewTransform {
+    static apply(p) {
+        p.translate(p.width/2 + STATE.view.offsetX, p.height/2 + STATE.view.offsetY);
+        p.scale(STATE.view.scale);
+    }
+}
+
+const sketch = (p) => {
+    let canvas;
+    let isDragging = false;
+    let dragStartX, dragStartY;
+
+    p.setup = () => {
+        const container = document.getElementById('canvas-container');
+        canvas = p.createCanvas(container.offsetWidth, container.offsetHeight);
+        p.textFont('Noto Sans SC');
+        canvas.elt.oncontextmenu = () => false;
+
+        canvas.elt.addEventListener('wheel', handleWheel, { passive: false });
+        canvas.elt.addEventListener('mousedown', handleMouseDown);
+        window.addEventListener('mousemove', handleMouseMove); 
+        window.addEventListener('mouseup', handleMouseUp);
+    };
+
+    p.windowResized = () => {
+        const container = document.getElementById('canvas-container');
+        p.resizeCanvas(container.offsetWidth, container.offsetHeight);
+    };
+
+    function handleWheel(e) {
+        e.preventDefault();
+        const s = STATE.view.scale;
+        const newScale = p.constrain(s - e.deltaY * 0.001, 0.4, 3.0);
+        STATE.view.scale = newScale;
+    }
+
+    function handleMouseDown(e) {
+        if (e.target !== canvas.elt) return;
+        isDragging = true;
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+        canvas.elt.style.cursor = 'grabbing';
+    }
+
+    function handleMouseMove(e) {
+        if (!isDragging) return;
+        const dx = e.clientX - dragStartX;
+        const dy = e.clientY - dragStartY;
+        STATE.view.offsetX += dx;
+        STATE.view.offsetY += dy;
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+    }
+
+    function handleMouseUp() {
+        if (isDragging) {
+            isDragging = false;
+            canvas.elt.style.cursor = 'default';
+        }
+    }
+
+    p.draw = () => {
+        p.background(255);
+        p.push();
+        ViewTransform.apply(p);
+
+        if (STATE.mode === 'geo') drawGeometry(p);
+        else if (STATE.mode === 'structure') drawStructureVisual(p);
+        else if (STATE.mode === 'drill') drawDrillBackground(p);
+
+        p.pop();
+    };
+};
+
+function drawGeometry(p) {
+    const { a, b, type } = STATE.geo;
+    const totalW = a + b;
+    p.translate(-totalW/2, -totalW/2);
+    p.strokeWeight(2);
+
+    if (type === 'sum') {
+        p.fill(219, 234, 254); p.stroke(59, 130, 246); p.rect(0, 0, a, a);
+        drawLabel(p, 'a²', a/2, a/2, '#1e40af');
+        
+        p.fill(233, 213, 255); p.stroke(147, 51, 234); p.rect(a, 0, b, a);
+        drawLabel(p, 'ab', a + b/2, a/2, '#6b21a8');
+
+        p.rect(0, a, a, b);
+        drawLabel(p, 'ab', a/2, a + b/2, '#6b21a8');
+
+        p.fill(255, 237, 213); p.stroke(249, 115, 22); p.rect(a, a, b, b);
+        drawLabel(p, 'b²', a + b/2, a + b/2, '#9a3412');
+
+        drawDim(p, 0, -20, a, 'a', 'blue');
+        drawDim(p, a, -20, b, 'b', 'orange');
+        drawDim(p, -20, 0, a, 'a', 'blue', true);
+        drawDim(p, -20, a, b, 'b', 'orange', true);
+    } else {
+        // 修复2：差模式的几何画法更新，对应公式 a^2 - 2ab + b^2
+        
+        // 1. 绘制大正方形 a^2
+        p.fill(219, 234, 254); p.stroke(59, 130, 246);
+        p.rect(0, 0, a, a);
+        
+        // 2. 绘制最终结果 (a-b)^2 (左上角，红色)
+        p.fill(254, 202, 202); p.stroke(220, 38, 38);
+        p.rect(0, 0, a-b, a-b);
+        drawLabel(p, '(a-b)²', (a-b)/2, (a-b)/2, '#991b1b');
+
+        // 3. 绘制减去的两个条 (半透明紫色)
+        // 右侧竖条 ab
+        p.fill(147, 51, 234, 100); p.noStroke(); // Purple with alpha
+        p.rect(a-b, 0, b, a);
+        drawLabel(p, '-ab', a - b/2, a/2, '#6b21a8');
+
+        // 下方横条 ab
+        p.fill(147, 51, 234, 100); p.noStroke();
+        p.rect(0, a-b, a, b);
+        drawLabel(p, '-ab', a/2, a - b/2, '#6b21a8');
+
+        // 4. 右下角重叠区域 b^2 (由于两次半透明叠加，颜色自然变深，我们加一个边框强调)
+        p.noFill(); p.stroke(249, 115, 22); p.strokeWeight(2);
+        p.rect(a-b, a-b, b, b);
+        // 标注 +b^2
+        drawLabel(p, '+b²', a - b/2, a - b/2, '#9a3412');
+
+        // 尺寸标注
+        drawDim(p, 0, -20, a, 'a', 'blue');
+        drawDim(p, -20, 0, a, 'a', 'blue', true);
+        
+        // 标注 b 的位置
+        drawDim(p, a-b, a+10, b, 'b', 'orange');
+        drawDim(p, a+10, a-b, b, 'b', 'orange', true);
+    }
+}
+
+function drawStructureVisual(p) {
+    p.textAlign(p.CENTER, p.CENTER); p.textSize(24); p.fill(50); p.noStroke(); p.rectMode(p.CENTER);
+    
+    p.fill(219, 234, 254); p.stroke(59, 130, 246); p.strokeWeight(3); p.rect(-100, -50, 80, 80, 10);
+    p.fill(30, 64, 175); p.noStroke(); p.text("A", -100, -50);
+
+    p.fill(100); p.text("+", 0, -50);
+
+    p.fill(255, 237, 213); p.stroke(249, 115, 22); p.strokeWeight(3); p.rect(100, -50, 80, 80, 10);
+    p.fill(154, 52, 18); p.noStroke(); p.text("B", 100, -50);
+
+    p.stroke(150); p.strokeWeight(2); p.line(0, 20, 0, 80);
+    p.fill(150); p.triangle(0, 85, -10, 70, 10, 70);
+
+    const strA = STATE.structure.aStr;
+    const strB = STATE.structure.bStr;
+    
+    p.fill(239, 246, 255); p.stroke(59, 130, 246); p.strokeWeight(2); p.rect(-100, 150, 120, 60, 5);
+    p.fill(30, 64, 175); p.noStroke(); p.textSize(20); p.text(strA, -100, 150);
+
+    p.fill(255, 247, 237); p.stroke(249, 115, 22); p.strokeWeight(2); p.rect(100, 150, 120, 60, 5);
+    p.fill(154, 52, 18); p.noStroke(); p.text(strB, 100, 150);
+
+    p.rectMode(p.CORNER);
+}
+
+function drawDrillBackground(p) {
+    p.stroke(240); p.strokeWeight(1);
+    const step = 40;
+    for(let x = -p.width; x < p.width; x+=step) p.line(x, -p.height, x, p.height);
+    for(let y = -p.height; y < p.height; y+=step) p.line(-p.width, y, p.width, y);
+}
+
+function drawLabel(p, txt, x, y, col) {
+    p.noStroke(); p.fill(col); p.textSize(16); p.textAlign(p.CENTER, p.CENTER); p.text(txt, x, y);
+}
+
+function drawDim(p, x, y, len, label, color, vertical=false) {
+    p.stroke(color === 'blue' ? '#3b82f6' : '#f97316'); p.strokeWeight(1);
+    p.fill(color === 'blue' ? '#3b82f6' : '#f97316');
+    if (vertical) {
+        p.line(x, y, x, y + len); p.line(x-3, y, x+3, y); p.line(x-3, y+len, x+3, y+len);
+        p.noStroke(); p.textAlign(p.RIGHT, p.CENTER); p.text(label, x-5, y + len/2);
+    } else {
+        p.line(x, y, x + len, y); p.line(x, y-3, x, y+3); p.line(x+len, y-3, x+len, y+3);
+        p.noStroke(); p.textAlign(p.CENTER, p.BOTTOM); p.text(label, x + len/2, y-2);
+    }
+}
+
+new p5(sketch);
+window.onload = init;
+</script>
+</body>
+</html>

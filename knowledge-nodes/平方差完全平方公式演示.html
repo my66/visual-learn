@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>代数公式几何可视化 - 演示版</title>
+    <!-- 引入 p5.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <!-- 引入 MathJax -->
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <!-- 引入 Tailwind CSS (UI 样式) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #f8fafc; font-family: "Noto Sans SC", sans-serif; }
+        canvas { display: block; touch-action: none; outline: none; }
+        
+        #sidebar {
+            position: absolute; left: 0; top: 0; bottom: 0; width: 380px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-right: 1px solid #e2e8f0;
+            padding: 20px; overflow-y: auto; z-index: 20;
+            box-shadow: 4px 0 15px rgba(0,0,0,0.05);
+            display: flex; flex-direction: column; gap: 16px;
+        }
+
+        #guided-overlay {
+            position: absolute; top: 20px; left: 400px; right: 20px;
+            pointer-events: none;
+            display: flex; flex-direction: column; align-items: center;
+            z-index: 30;
+        }
+        .overlay-card {
+            background: rgba(255, 255, 255, 0.96);
+            backdrop-filter: blur(8px);
+            padding: 0;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e2e8f0;
+            width: 100%; max-width: 600px;
+            pointer-events: auto;
+            overflow: hidden;
+            display: flex; flex-direction: column;
+        }
+        .overlay-header {
+            padding: 12px 20px;
+            background: #f1f5f9;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex; justify-content: space-between; align-items: center;
+            height: 50px; flex-shrink: 0;
+        }
+        .overlay-body {
+            padding: 20px;
+            overflow-y: auto;
+            max-height: 200px;
+            min-height: 100px;
+        }
+
+        .math-container {
+            font-size: 1.1rem; color: #334155; margin: 10px 0;
+            opacity: 0; transition: opacity 0.3s ease;
+        }
+        .math-container.visible { opacity: 1; }
+
+        .control-group { background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; }
+        .control-label { font-size: 0.85rem; font-weight: 600; color: #64748b; margin-bottom: 8px; display: block; }
+        .slider-container { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+        input[type="range"] { flex: 1; accent-color: #4f46e5; height: 6px; border-radius: 3px; cursor: pointer; }
+        .value-badge { font-family: monospace; background: #e0e7ff; color: #4338ca; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; min-width: 32px; text-align: center; }
+        
+        button.btn-primary {
+            background: #4f46e5; color: white; border: none; padding: 8px 16px; border-radius: 6px;
+            cursor: pointer; font-weight: 500; transition: all 0.2s;
+        }
+        button.btn-primary:hover { background: #4338ca; }
+        button.btn-primary:disabled { background: #94a3b8; cursor: not-allowed; }
+        
+        button.btn-nav {
+            background: white; border: 1px solid #cbd5e1; color: #475569; width: 32px; height: 32px;
+            border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+            transition: all 0.1s;
+        }
+        button.btn-nav:hover:not(:disabled) { background: #f1f5f9; border-color: #94a3b8; }
+        
+        .tab-group { display: flex; gap: 4px; background: #f1f5f9; padding: 4px; border-radius: 8px; margin-bottom: 12px; flex-wrap: wrap;}
+        .tab-btn {
+            flex: 1; padding: 6px 10px; border: none; background: transparent; color: #64748b;
+            font-size: 0.85rem; font-weight: 600; border-radius: 6px; cursor: pointer; white-space: nowrap;
+        }
+        .tab-btn.active { background: white; color: #4f46e5; shadow: 0 1px 2px rgba(0,0,0,0.05); }
+
+        .status-pass { color: #10b981; font-weight: bold; }
+        .status-fail { color: #ef4444; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <!-- 侧边栏 -->
+    <div id="sidebar">
+        <!-- 题目原题 -->
+        <div class="bg-white p-4 rounded-xl border border-indigo-100 shadow-sm">
+            <h3 class="text-sm font-bold text-indigo-900 mb-2 flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                当前演示 (可复制)
+            </h3>
+            <div id="problem-text" class="text-slate-700 text-sm leading-relaxed font-serif"></div>
+            <button onclick="copyProblem()" class="mt-3 text-xs text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1 transition-colors">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                复制公式
+            </button>
+        </div>
+
+        <!-- 模式选择 -->
+        <div>
+            <label class="control-label">选择公式</label>
+            <div class="tab-group">
+                <button class="tab-btn active" onclick="setMode('plus')">(a+b)²</button>
+                <button class="tab-btn" onclick="setMode('minus')">(a-b)²</button>
+                <button class="tab-btn" onclick="setMode('diff_sq')">a²-b²</button>
+                <button class="tab-btn" onclick="setMode('cross')">(x+a)(x+b)</button>
+            </div>
+        </div>
+
+        <!-- 参数控制 -->
+        <div id="controls-panel" class="control-group">
+            <label class="control-label">几何尺寸调整</label>
+            
+            <div id="ctrl-x" class="slider-container" style="display:none;">
+                <span class="text-xs font-bold text-slate-500 w-4">x</span>
+                <input type="range" min="50" max="200" step="1" value="100" oninput="updateParam('x', this.value)">
+                <span id="val-x" class="value-badge">100</span>
+            </div>
+
+            <div id="ctrl-a" class="slider-container">
+                <span class="text-xs font-bold text-slate-500 w-4">a</span>
+                <input type="range" min="50" max="250" step="1" value="150" oninput="updateParam('a', this.value)">
+                <span id="val-a" class="value-badge">150</span>
+            </div>
+
+            <div id="ctrl-b" class="slider-container">
+                <span class="text-xs font-bold text-slate-500 w-4">b</span>
+                <input type="range" min="20" max="140" step="1" value="60" oninput="updateParam('b', this.value)">
+                <span id="val-b" class="value-badge">60</span>
+            </div>
+
+            <div id="action-diff-sq" class="mt-3 pt-3 border-t border-slate-200" style="display:none;">
+                <button onclick="toggleRotation()" class="w-full btn-primary flex justify-center items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    <span id="btn-rot-text">执行旋转割补</span>
+                </button>
+                <p class="text-xs text-slate-500 mt-2 text-center">观察橙色方块如何“拿起来”并拼到底部</p>
+            </div>
+        </div>
+
+        <!-- 验证面板 -->
+        <div class="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden">
+            <div class="px-4 py-2 bg-slate-100 border-b border-slate-200 flex justify-between items-center">
+                <span class="text-xs font-bold text-slate-700">验证/自检</span>
+                <div id="status-indicator" class="w-2 h-2 rounded-full bg-emerald-500"></div>
+            </div>
+            <div class="p-4 space-y-2">
+                <div class="flex justify-between text-sm">
+                    <span class="text-slate-500">几何总面积:</span>
+                    <span id="verify-geom" class="font-mono font-bold text-slate-700">0</span>
+                </div>
+                <div class="flex justify-between text-sm">
+                    <span class="text-slate-500">公式计算值:</span>
+                    <span id="verify-calc" class="font-mono font-bold text-slate-700">0</span>
+                </div>
+                <div class="flex justify-between text-xs pt-2 border-t border-slate-200 mt-1">
+                    <span class="text-slate-400">误差:</span>
+                    <span id="verify-diff" class="font-mono text-slate-400">0</span>
+                </div>
+                <div id="verify-msg" class="text-xs text-center pt-1 font-bold status-pass">验证通过</div>
+            </div>
+        </div>
+        
+        <div class="mt-auto pt-4 text-[10px] text-slate-400 text-center">
+            MathPhysics Visualizer v3.1.5 | Logic-First Geometry
+        </div>
+    </div>
+
+    <!-- 演示步骤覆盖层 (常驻) -->
+    <div id="guided-overlay">
+        <div class="overlay-card">
+            <div class="overlay-header">
+                <div class="flex items-center gap-2">
+                    <span class="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-1 rounded">步骤 <span id="step-count">1/5</span></span>
+                    <span id="step-title" class="font-bold text-slate-800 text-sm">准备开始</span>
+                </div>
+                <div class="flex gap-2">
+                    <button id="btn-prev" class="btn-nav" onclick="changeStep(-1)" disabled>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                    </button>
+                    <button id="btn-next" class="btn-nav" onclick="changeStep(1)">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                    </button>
+                </div>
+            </div>
+            <div class="overlay-body">
+                <div id="step-reasoning" class="text-sm text-slate-600 mb-2 leading-relaxed"></div>
+                <div id="step-formula" class="math-container text-center"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主画布挂载点 -->
+    <main id="canvas-container" class="absolute top-0 right-0 bottom-0 left-[380px] bg-slate-50 cursor-grab active:cursor-grabbing">
+        <!-- p5.js canvas will be here -->
+    </main>
+
+    <script>
+        // --- 核心状态 ---
+        const STATE = {
+            mode: 'plus', // plus, minus, diff_sq, cross
+            stepIndex: 0,
+            params: { a: 200, b: 60, x: 100 }, 
+            anim: { rotation: 0, targetRotation: 0 },
+            view: { scale: 1.0, offsetX: 0, offsetY: 0 },
+            problem: { statementCN: "", statementTeX: "" },
+            planSteps: []
+        };
+
+        // --- 视口变换 ---
+        const ViewTransform = {
+            apply: (p) => {
+                p.translate(p.width/2 + STATE.view.offsetX, p.height/2 + STATE.view.offsetY);
+                p.scale(STATE.view.scale);
+            },
+            reset: () => { STATE.view = { scale: 1.0, offsetX: 0, offsetY: 0 }; }
+        };
+
+        // --- p5.js 实例 ---
+        new p5((p) => {
+            p.setup = () => {
+                let cnv = p.createCanvas(p.windowWidth - 380, p.windowHeight);
+                cnv.parent('canvas-container');
+                p.textFont('sans-serif');
+                cnv.elt.addEventListener('wheel', (e) => {
+                    e.preventDefault();
+                    const s = p.constrain(STATE.view.scale - e.deltaY * 0.001 * STATE.view.scale, 0.4, 5.0);
+                    STATE.view.scale = s;
+                }, { passive: false });
+                initProblemData();
+                updatePlanSteps();
+                updateUI();
+            };
+            p.windowResized = () => p.resizeCanvas(p.windowWidth - 380, p.windowHeight);
+            p.draw = () => {
+                p.background(248, 250, 252);
+                STATE.anim.rotation = p.lerp(STATE.anim.rotation, STATE.anim.targetRotation, 0.08);
+                p.push();
+                ViewTransform.apply(p);
+                const geom = calculateGeometry();
+                drawGeometry(p, geom);
+                drawDimensions(p, geom);
+                p.pop();
+                runVerification(geom);
+            };
+            p.mouseDragged = () => {
+                if (p.mouseX > 0 && p.mouseX < p.width && p.mouseY > 0 && p.mouseY < p.height) {
+                    STATE.view.offsetX += p.movedX;
+                    STATE.view.offsetY += p.movedY;
+                }
+            };
+        });
+
+        // --- 几何计算 (完全重构 minus 逻辑) ---
+        function calculateGeometry() {
+            const { a, b, x } = STATE.params;
+            const shapes = [];
+            const c = {
+                blue: [59, 130, 246, 200],
+                blueLight: [219, 234, 254, 200],
+                red: [244, 63, 94, 200],
+                redWash: [244, 63, 94, 50], // 淡红
+                purple: [168, 85, 247, 200],
+                yellow: [251, 191, 36, 200],
+                green: [16, 185, 129, 200],
+                orange: [249, 115, 22, 200]
+            };
+            
+            // 辅助函数：stepIndex
+            const step = STATE.stepIndex;
+
+            if (STATE.mode === 'plus') {
+                const ox = -(a+b)/2; const oy = -(a+b)/2;
+                shapes.push({type: 'rect', x: ox, y: oy, w: a, h: a, col: c.blue, label: "a²"});
+                if(step>=1) shapes.push({type: 'rect', x: ox+a, y: oy, w: b, h: a, col: c.purple, label: "ab"});
+                if(step>=2) shapes.push({type: 'rect', x: ox, y: oy+a, w: a, h: b, col: c.purple, label: "ab"});
+                if(step>=3) shapes.push({type: 'rect', x: ox+a, y: oy+a, w: b, h: b, col: c.red, label: "b²"});
+                shapes.push({ type: 'outline', x: ox, y: oy, w: a+b, h: a+b });
+
+            } else if (STATE.mode === 'minus') {
+                // 重构：基于 Overlap Method
+                // 1. 大底板 a^2
+                const ox = -a/2; const oy = -a/2;
+                shapes.push({type: 'rect', x: ox, y: oy, w: a, h: a, col: c.blueLight, label: "a²"});
+                
+                // 2. 减去右侧 ab
+                if (step >= 1) {
+                    // 右侧长条 x: ox+a-b, y: oy, w: b, h: a
+                    shapes.push({type: 'rect', x: ox+a-b, y: oy, w: b, h: a, col: c.redWash, stroke: [244, 63, 94], label: "-ab"});
+                }
+
+                // 3. 减去底部 ab
+                if (step >= 2) {
+                    // 底部长条 x: ox, y: oy+a-b, w: a, h: b
+                    shapes.push({type: 'rect', x: ox, y: oy+a-b, w: a, h: b, col: c.redWash, stroke: [244, 63, 94], label: "-ab"});
+                }
+
+                // 4. 重叠部分深色显示
+                if (step >= 3) {
+                    // 右下角重叠区域 x: ox+a-b, y: oy+a-b, w: b, h: b
+                    shapes.push({type: 'rect', x: ox+a-b, y: oy+a-b, w: b, h: b, col: [244, 63, 94, 150], stroke: [244, 63, 94], label: "重叠 -b²"});
+                }
+
+                // 5. 补回 b^2
+                if (step >= 4) {
+                    // 在重叠区域上覆盖一个绿色正方形
+                    shapes.push({type: 'rect', x: ox+a-b, y: oy+a-b, w: b, h: b, col: c.green, label: "+b²"});
+                }
+
+                // 6. 最终结果区
+                if (step >= 5) {
+                    // 左上角 (a-b)^2
+                    shapes.push({type: 'rect', x: ox, y: oy, w: a-b, h: a-b, col: c.yellow, label: "(a-b)²", stroke: [255,200,0]});
+                }
+
+            } else if (STATE.mode === 'diff_sq') {
+                const ox = -a/2; const oy = -a/2;
+                shapes.push({type: 'rect', x: ox, y: oy, w: a-b, h: a, col: c.blue, label: "a(a-b)"});
+                shapes.push({
+                    type: 'moving_rect', w: b, h: a-b, col: c.orange, label: "b(a-b)",
+                    startX: ox + a - b, startY: oy, endX: ox, endY: oy + a + b, animT: STATE.anim.rotation
+                });
+                shapes.push({ type: 'outline', x: ox+(a-b), y: oy+(a-b), w: b, h: b, dashed: true, label: "挖去 b²" });
+
+            } else if (STATE.mode === 'cross') {
+                const ox = -((x+a)/2); const oy = -((x+b)/2);
+                shapes.push({type: 'rect', x: ox, y: oy, w: x, h: x, col: c.orange, label: "x²"});
+                if(step>=1) shapes.push({type: 'rect', x: ox+x, y: oy, w: a, h: x, col: c.blue, label: "ax"});
+                if(step>=1) shapes.push({type: 'rect', x: ox, y: oy+x, w: x, h: b, col: c.red, label: "bx"});
+                if(step>=2) shapes.push({type: 'rect', x: ox+x, y: oy+x, w: a, h: b, col: c.green, label: "ab"});
+            }
+
+            return { shapes, meta: { a, b, x, mode: STATE.mode, animT: STATE.anim.rotation } };
+        }
+
+        // --- 几何绘制 ---
+        function drawGeometry(p, geom) {
+            const sortedShapes = [...geom.shapes].sort((a, b) => (a.type === 'moving_rect' ? 1 : -1));
+            sortedShapes.forEach(s => {
+                p.push();
+                if (s.type === 'rect') {
+                    const c = p.color(...s.col);
+                    if(s.stroke) { p.stroke(p.color(...s.stroke)); p.strokeWeight(2); } else { p.stroke(255); p.strokeWeight(2); }
+                    p.fill(c);
+                    p.rect(s.x, s.y, s.w, s.h);
+                    if (s.label && s.w > 30) {
+                        p.noStroke(); p.fill(s.stroke ? p.color(...s.stroke) : (p.brightness(c) > 150 ? 50 : 255));
+                        if(s.label === "a²" && p.brightness(c) > 200) p.fill(50); // 特殊处理浅色背景
+                        p.textAlign(p.CENTER, p.CENTER);
+                        p.textSize(Math.min(s.w, s.h) * 0.3);
+                        p.text(s.label, s.x + s.w/2, s.y + s.h/2);
+                    }
+                } 
+                else if (s.type === 'moving_rect') {
+                    const arcOffset = Math.sin(s.animT * Math.PI) * 40;
+                    const currX = p.lerp(s.startX, s.endX, s.animT) + arcOffset; 
+                    const currY = p.lerp(s.startY, s.endY, s.animT) + (s.animT > 0.5 ? arcOffset*0.5 : 0);
+                    const currRot = p.lerp(0, -p.HALF_PI, s.animT);
+                    p.translate(currX, currY); p.rotate(currRot);
+                    p.fill(p.color(...s.col)); p.stroke(255); p.strokeWeight(2);
+                    p.rect(0, 0, s.w, s.h);
+                    p.noStroke(); p.fill(255); p.textAlign(p.CENTER, p.CENTER); p.textSize(Math.min(s.w, s.h) * 0.3);
+                    p.push(); p.translate(s.w/2, s.h/2); p.rotate(-currRot); p.text(s.label, 0, 0); p.pop();
+                }
+                else if (s.type === 'outline') {
+                    p.noFill(); p.stroke(100); p.strokeWeight(2);
+                    if (s.dashed) p.drawingContext.setLineDash([5, 5]);
+                    p.rect(s.x, s.y, s.w, s.h);
+                    p.drawingContext.setLineDash([]);
+                    if(s.label) { p.noStroke(); p.fill(150); p.textAlign(p.CENTER); p.text(s.label, s.x+s.w/2, s.y+s.h/2); }
+                }
+                p.pop();
+            });
+        }
+
+        // --- 尺寸标注 ---
+        function drawDimLine(p, x1, y1, x2, y2, label, offset, color, alpha=255) {
+            p.push();
+            const c = p.color(color); c.setAlpha(alpha);
+            p.stroke(c); p.fill(c); p.strokeWeight(1); p.textSize(14); p.textAlign(p.CENTER, p.CENTER);
+            const angle = Math.atan2(y2-y1, x2-x1);
+            const ox = Math.cos(angle + Math.PI/2) * offset;
+            const oy = Math.sin(angle + Math.PI/2) * offset;
+            p.line(x1+ox, y1+oy, x2+ox, y2+oy);
+            p.line(x1+ox*0.8, y1+oy*0.8, x1+ox*1.2, y1+oy*1.2); 
+            p.line(x2+ox*0.8, y2+oy*0.8, x2+ox*1.2, y2+oy*1.2);
+            p.translate((x1+x2)/2 + ox*1.5, (y1+y2)/2 + oy*1.5);
+            p.text(label, 0, 0);
+            p.pop();
+        }
+
+        function drawDimensions(p, geom) {
+            const { a, b, x, mode, animT } = geom.meta;
+            const col = '#64748b';
+            const colRed = '#f43f5e';
+            const colGrn = '#10b981';
+
+            if (mode === 'minus') {
+                const ox = -a/2, oy = -a/2;
+                // 上方 a
+                drawDimLine(p, ox, oy, ox+a, oy, "a", -30, col);
+                // 上方内侧 b (从右向左画)
+                drawDimLine(p, ox+a-b, oy, ox+a, oy, "b", 15, colRed); 
+                // 左侧 a (从上往下画)
+                drawDimLine(p, ox, oy, ox, oy+a, "a", 30, col);
+                // 底部 a-b
+                drawDimLine(p, ox, oy+a, ox+a-b, oy+a, "a-b", 25, '#d97706'); 
+                // 右侧内侧 b (从上往下)
+                drawDimLine(p, ox+a, oy+a-b, ox+a, oy+a, "b", -25, colRed);
+            } 
+            else if (mode === 'diff_sq') {
+                const ox = -a/2, oy = -a/2;
+                const showInit = 255 * (1 - animT);
+                const showFinal = 255 * animT;
+                if (showInit > 10) {
+                    drawDimLine(p, ox, oy, ox, oy+a, "a", 25, col, showInit);
+                    drawDimLine(p, ox, oy, ox+a-b, oy, "a-b", -25, col, showInit);
+                    drawDimLine(p, ox+a-b, oy, ox+a, oy, "b", -25, colRed, showInit);
+                    drawDimLine(p, ox+a, oy+a-b, ox+a, oy+a, "b", -25, colRed, showInit);
+                }
+                if (showFinal > 10) {
+                    drawDimLine(p, ox, oy, ox, oy+a+b, "a+b", 45, colGrn, showFinal);
+                    drawDimLine(p, ox, oy+a+b, ox+a-b, oy+a+b, "a-b", 25, colGrn, showFinal);
+                }
+            } else if (mode === 'plus') {
+                const ox = -(a+b)/2, oy = -(a+b)/2;
+                drawDimLine(p, ox, oy, ox+a, oy, "a", -25, col);
+                drawDimLine(p, ox+a, oy, ox+a+b, oy, "b", -25, col);
+                drawDimLine(p, ox, oy, ox, oy+a, "a", 25, col);
+                drawDimLine(p, ox, oy+a, ox, oy+a+b, "b", 25, col);
+            } else if (mode === 'cross') {
+                const ox = -((x+a)/2), oy = -((x+b)/2);
+                drawDimLine(p, ox, oy, ox+x, oy, "x", -25, col);
+                drawDimLine(p, ox+x, oy, ox+x+a, oy, "a", -25, col);
+                drawDimLine(p, ox, oy, ox, oy+x, "x", 25, col);
+                drawDimLine(p, ox, oy+x, ox, oy+x+b, "b", 25, col);
+            }
+        }
+
+        // --- 业务逻辑 ---
+        function initProblemData() { STATE.problem.statementCN = "通过几何图形的面积关系，验证代数乘法公式。"; }
+        function setMode(m) {
+            STATE.mode = m; STATE.stepIndex = 0; STATE.anim.rotation = 0; STATE.anim.targetRotation = 0;
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelector(`button[onclick="setMode('${m}')"]`).classList.add('active');
+            document.getElementById('ctrl-x').style.display = m === 'cross' ? 'flex' : 'none';
+            document.getElementById('action-diff-sq').style.display = m === 'diff_sq' ? 'block' : 'none';
+            if (STATE.params.b >= STATE.params.a) STATE.params.b = STATE.params.a - 20;
+            updatePlanSteps(); renderStep(); ViewTransform.reset(); updateUI();
+        }
+
+        function updateParam(k, v) {
+            v = parseInt(v);
+            if (k === 'a' && v <= STATE.params.b) v = STATE.params.b + 10;
+            if (k === 'b' && v >= STATE.params.a) v = STATE.params.a - 10;
+            STATE.params[k] = v; updateUI();
+        }
+        function updateUI() {
+            document.getElementById('val-a').innerText = STATE.params.a;
+            document.getElementById('val-b').innerText = STATE.params.b;
+            document.getElementById('val-x').innerText = STATE.params.x;
+        }
+        function toggleRotation() {
+            STATE.anim.targetRotation = STATE.anim.targetRotation === 0 ? 1 : 0;
+            document.getElementById('btn-rot-text').innerText = STATE.anim.targetRotation === 1 ? "复位" : "执行旋转割补";
+        }
+
+        // --- 步骤与验证 ---
+        function updatePlanSteps() {
+            const steps = [];
+            const {a, b} = STATE.params;
+            
+            if (STATE.mode === 'plus') {
+                STATE.problem.statementTeX = "(a+b)^2 = a^2 + 2ab + b^2";
+                steps.push({ title: "整体", reasoning: "构建边长 (a+b) 的大正方形，面积 (a+b)²。", formula: "\\[ (a+b)^2 \\]" });
+                steps.push({ title: "分割 1", reasoning: "切出一个边长为 a 的正方形 (蓝色) 和 边长为 b 的正方形 (红色)。", formula: "\\[ a^2 + b^2 \\]" });
+                steps.push({ title: "分割 2", reasoning: "剩余两个长宽为 a, b 的矩形 (紫色)。", formula: "\\[ a^2 + b^2 + 2ab \\]" });
+                steps.push({ title: "结论", reasoning: "四部分相加即为公式结果。", formula: "\\[ (a+b)^2 = a^2 + 2ab + b^2 \\]" });
+
+            } else if (STATE.mode === 'minus') {
+                STATE.problem.statementTeX = "(a-b)^2 = a^2 - 2ab + b^2";
+                steps.push({ 
+                    title: "从整体出发", 
+                    reasoning: "构建一个边长为 a 的大正方形，总面积为 a²。", 
+                    formula: "\\[ S_{初始} = a^2 \\]" 
+                });
+                steps.push({ 
+                    title: "减去右侧", 
+                    reasoning: "减去右侧宽为 b 的长条 (面积 ab)。", 
+                    formula: "\\[ S = a^2 - ab \\]" 
+                });
+                steps.push({ 
+                    title: "减去底部", 
+                    reasoning: "再减去底部高为 b 的长条 (面积也是 ab)。", 
+                    formula: "\\[ S = a^2 - ab - ab \\]" 
+                });
+                steps.push({ 
+                    title: "发现重叠", 
+                    reasoning: "右下角的 b² 被减去了两次！(深红区域)", 
+                    formula: "\\[ a^2 - 2ab \\; (多减了 b^2) \\]" 
+                });
+                steps.push({ 
+                    title: "修正补回", 
+                    reasoning: "必须加回一个 b² (绿色) 以修正重叠扣除。", 
+                    formula: "\\[ a^2 - 2ab + b^2 \\]" 
+                });
+                steps.push({ 
+                    title: "最终结果", 
+                    reasoning: "剩下的黄色区域即为 (a-b)²。", 
+                    formula: "\\[ (a-b)^2 = a^2 - 2ab + b^2 \\]" 
+                });
+
+            } else if (STATE.mode === 'diff_sq') {
+                STATE.problem.statementTeX = "a^2 - b^2 = (a+b)(a-b)";
+                steps.push({ title: "初始", reasoning: "大正方形 a² 挖去小正方形 b²。", formula: "\\[ a^2 - b^2 \\]" });
+                steps.push({ title: "变形", reasoning: "将剩下部分分割，把橙色小块旋转拼接到下方。", formula: "\\[ a(a-b) + b(a-b) \\]" });
+                steps.push({ title: "结果", reasoning: "拼成新长方形，长 (a+b)，宽 (a-b)。", formula: "\\[ (a+b)(a-b) \\]" });
+
+            } else if (STATE.mode === 'cross') {
+                STATE.problem.statementTeX = "(x+a)(x+b) = x^2 + (a+b)x + ab";
+                steps.push({ title: "整体", reasoning: "大矩形面积 (x+a)(x+b)。", formula: "\\[ (x+a)(x+b) \\]" });
+                steps.push({ title: "拆分 1", reasoning: "橙色 x² 和 蓝色 ax。", formula: "\\[ x^2 + ax \\]" });
+                steps.push({ title: "拆分 2", reasoning: "加上红色 bx 和 绿色 ab。", formula: "\\[ x^2 + ax + bx + ab \\]" });
+            }
+            STATE.planSteps = steps;
+            document.getElementById('problem-text').innerHTML = `验证公式：\\[${STATE.problem.statementTeX}\\]`;
+            if(window.MathJax) MathJax.typesetPromise([document.getElementById('problem-text')]);
+        }
+
+        function changeStep(d) {
+            STATE.stepIndex = Math.max(0, Math.min(STATE.planSteps.length - 1, STATE.stepIndex + d));
+            renderStep();
+            if (STATE.mode === 'diff_sq') STATE.anim.targetRotation = STATE.stepIndex >= 1 ? 1 : 0;
+        }
+        function renderStep() {
+            const step = STATE.planSteps[STATE.stepIndex];
+            document.getElementById('step-count').innerText = `${STATE.stepIndex + 1}/${STATE.planSteps.length}`;
+            document.getElementById('step-title').innerText = step.title;
+            document.getElementById('step-reasoning').innerText = step.reasoning;
+            const el = document.getElementById('step-formula');
+            el.innerHTML = step.formula;
+            if(window.MathJax) MathJax.typesetPromise([el]).then(() => el.classList.add('visible'));
+            document.getElementById('btn-prev').disabled = STATE.stepIndex === 0;
+            document.getElementById('btn-next').disabled = STATE.stepIndex === STATE.planSteps.length - 1;
+        }
+        function runVerification(geom) {
+            const {a, b, x} = STATE.params;
+            let areaGeo = 0, areaCalc = 0;
+            if (STATE.mode === 'plus') { areaGeo = Math.pow(a+b,2); areaCalc = a*a + b*b + 2*a*b; }
+            else if (STATE.mode === 'minus') { areaGeo = Math.pow(a-b,2); areaCalc = a*a - 2*a*b + b*b; }
+            else if (STATE.mode === 'diff_sq') { areaGeo = a*a - b*b; areaCalc = (a+b)*(a-b); }
+            else if (STATE.mode === 'cross') { areaGeo = (x+a)*(x+b); areaCalc = x*x + a*x + b*x + a*b; }
+            document.getElementById('verify-geom').innerText = areaGeo.toFixed(0);
+            document.getElementById('verify-calc').innerText = areaCalc.toFixed(0);
+            document.getElementById('verify-diff').innerText = Math.abs(areaGeo-areaCalc).toFixed(2);
+        }
+        function copyProblem() { navigator.clipboard.writeText(STATE.problem.statementTeX); alert("已复制"); }
+    </script>
+</body>
+</html>

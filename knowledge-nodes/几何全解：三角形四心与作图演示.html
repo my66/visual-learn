@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>几何全解：三角形四心与作图演示</title>
+  
+  <!-- 核心库 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- MathJax -->
+  <script>
+  window.MathJax = {
+    tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
+    startup: { typeset: false } 
+  };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  <style>
+    /* 基础设置 */
+    body { margin: 0; overflow: hidden; font-family: "Noto Sans SC", system-ui, sans-serif; background: #f8fafc; }
+    #app-container { display: flex; height: 100vh; width: 100vw; }
+    
+    /* 侧边栏 */
+    #sidebar { 
+      width: 400px; 
+      background: white; 
+      border-right: 1px solid #e2e8f0; 
+      display: flex; 
+      flex-direction: column; 
+      z-index: 20; 
+      box-shadow: 4px 0 6px -1px rgba(0, 0, 0, 0.05);
+      flex-shrink: 0;
+    }
+    
+    /* 画布区域 */
+    #canvas-wrapper { 
+      flex: 1; 
+      position: relative; 
+      overflow: hidden; 
+      background-color: #f1f5f9; 
+      cursor: crosshair; 
+      touch-action: none;
+    }
+
+    /* 悬浮引导卡片 (Guided Overlay) */
+    #guided-overlay {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 90%;
+      max-width: 600px;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(8px);
+      border-radius: 12px;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+      border: 1px solid #e2e8f0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transition: opacity 0.3s, transform 0.3s;
+      pointer-events: auto;
+      z-index: 30;
+      opacity: 0; /* 初始透明 */
+      transform: translateX(-50%) translateY(-10px);
+    }
+    #guided-overlay.active {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+    
+    .overlay-header {
+      padding: 12px 16px;
+      background: #f8fafc;
+      border-bottom: 1px solid #e2e8f0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+      min-height: 48px;
+    }
+    
+    .overlay-body { padding: 16px; max-height: 250px; overflow-y: auto; }
+    
+    /* MathJax 容器: 默认可见，防止闪烁导致完全消失 */
+    .math-content { min-height: 20px; }
+
+    /* 控件样式 */
+    .mode-tab { padding: 12px; text-align: center; cursor: pointer; border-bottom: 2px solid transparent; font-weight: 500; color: #64748b; transition: all 0.2s; }
+    .mode-tab.active { color: #2563eb; border-bottom-color: #2563eb; background: #eff6ff; }
+    .toggle-item { display: flex; align-items: center; padding: 8px 12px; border-radius: 6px; cursor: pointer; transition: background 0.2s; }
+    .toggle-item:hover { background: #f1f5f9; }
+    .toggle-item input { margin-right: 10px; accent-color: #2563eb; }
+    .color-dot { width: 10px; height: 10px; border-radius: 50%; margin-left: auto; }
+    .btn-group { display: flex; border-radius: 6px; overflow: hidden; border: 1px solid #e2e8f0; }
+    .btn-group-item { flex: 1; padding: 8px; text-align: center; cursor: pointer; background: #fff; color: #64748b; font-size: 0.9rem; border-right: 1px solid #e2e8f0; }
+    .btn-group-item:last-child { border-right: none; }
+    .btn-group-item.active { background: #2563eb; color: white; }
+    
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<div id="app-container">
+  
+  <aside id="sidebar">
+    <div class="p-4 border-b border-gray-200 bg-white">
+      <h2 class="text-sm font-bold text-gray-500 mb-1">当前课题 (Topic)</h2>
+      <div id="problem-text" class="text-gray-800 font-medium text-base">
+        几何综合探索：三角形四心性质与作图原理
+      </div>
+    </div>
+
+    <div class="flex border-b border-gray-200 bg-gray-50">
+      <div class="mode-tab flex-1 active" onclick="switchMode('centers')" id="tab-centers">四心探索</div>
+      <div class="mode-tab flex-1" onclick="switchMode('construction')" id="tab-construction">作图演示</div>
+    </div>
+
+    <div class="flex-1 overflow-y-auto p-4 space-y-6">
+      
+      <div id="panel-centers" class="space-y-4">
+        <div class="text-sm text-gray-500 bg-blue-50 p-3 rounded border border-blue-100">
+          <strong>操作提示：</strong>
+          <ul class="list-disc pl-4 space-y-1 mt-1">
+            <li>拖动顶点 A, B, C 可自由改变形状。</li>
+            <li>观察高线在钝角三角形中的变化（自动延长底边）。</li>
+            <li>选中下方复选框显示对应几何概念。</li>
+          </ul>
+        </div>
+        <div class="space-y-1">
+          <label class="toggle-item" onclick="updateCenterExplain('median')"><input type="checkbox" id="chk-median"> <span>重心 (G) & 中线</span><div class="color-dot bg-orange-500"></div></label>
+          <label class="toggle-item" onclick="updateCenterExplain('altitude')"><input type="checkbox" id="chk-altitude"> <span>垂心 (H) & 高线</span><div class="color-dot bg-red-500"></div></label>
+          <label class="toggle-item" onclick="updateCenterExplain('perp')"><input type="checkbox" id="chk-perp"> <span>外心 (O) & 中垂线</span><div class="color-dot bg-blue-500"></div></label>
+          <label class="toggle-item" onclick="updateCenterExplain('angle')"><input type="checkbox" id="chk-angle"> <span>内心 (I) & 角平分线</span><div class="color-dot bg-green-500"></div></label>
+          <div class="h-px bg-gray-200 my-2"></div>
+          <label class="toggle-item" onclick="updateCenterExplain('euler')"><input type="checkbox" id="chk-euler"> <span class="font-bold text-purple-600">欧拉线 (Euler Line)</span><div class="color-dot bg-purple-500"></div></label>
+        </div>
+        
+        <label class="block text-sm font-medium text-gray-700 mb-1 mt-4">快速预设形状:</label>
+        <div class="grid grid-cols-2 gap-2">
+          <button onclick="resetTriangle('acute')" class="text-xs py-1 px-2 bg-gray-100 hover:bg-gray-200 rounded">锐角三角形</button>
+          <button onclick="resetTriangle('right')" class="text-xs py-1 px-2 bg-gray-100 hover:bg-gray-200 rounded">直角三角形</button>
+          <button onclick="resetTriangle('obtuse')" class="text-xs py-1 px-2 bg-gray-100 hover:bg-gray-200 rounded font-bold text-blue-600 border-blue-200">钝角三角形</button>
+          <button onclick="resetTriangle('isosceles')" class="text-xs py-1 px-2 bg-purple-100 hover:bg-purple-200 rounded font-bold text-purple-700 border-purple-300">等腰三角形</button>
+          <button onclick="resetTriangle('equilateral')" class="text-xs py-1 px-2 bg-gray-100 hover:bg-gray-200 rounded col-span-2">正三角形</button>
+        </div>
+      </div>
+
+      <div id="panel-construction" class="hidden space-y-5">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">作图目标</label>
+          <div class="btn-group">
+            <div class="btn-group-item active" onclick="setConstructionTarget('angle')" id="target-angle">角平分线</div>
+            <div class="btn-group-item" onclick="setConstructionTarget('perp')" id="target-perp">线段中垂线</div>
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">工具方法</label>
+          <div class="btn-group">
+            <div class="btn-group-item active" onclick="setConstructionMethod('compass')" id="btn-compass">📐 尺规作图</div>
+            <div class="btn-group-item" onclick="setConstructionMethod('ruler')" id="btn-ruler">📏 刻度尺作图</div>
+          </div>
+        </div>
+        <div class="bg-gray-50 p-3 rounded border border-gray-200" id="param-control">
+          <label class="block text-sm font-medium text-gray-700 mb-1"><span id="slider-label">角度大小</span>: <span id="param-display" class="text-blue-600">60°</span></label>
+          <input type="range" id="param-slider" min="30" max="150" value="60" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+        </div>
+        <div class="space-y-2">
+           <label class="flex items-center space-x-2 text-sm cursor-pointer"><input type="checkbox" id="chk-anim-toggle" checked> <span>启用动画过渡</span></label>
+        </div>
+        <div class="flex gap-2 mt-2">
+            <button onclick="stepAction('prev')" class="flex-1 py-2 border border-gray-300 rounded hover:bg-gray-50 text-sm">上一步</button>
+            <button onclick="stepAction('next')" class="flex-1 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-bold">下一步</button>
+        </div>
+        <button onclick="stepAction('reset')" class="w-full py-2 border border-red-200 text-red-600 rounded hover:bg-red-50 text-sm">重置演示</button>
+      </div>
+    </div>
+
+    <div class="p-4 border-t border-gray-200 bg-gray-50 text-xs text-gray-500 font-mono">
+      <div class="flex justify-between items-center mb-2">
+        <span class="font-bold">状态监控 (Monitor)</span>
+        <span id="verification-status" class="px-2 py-0.5 rounded bg-green-100 text-green-700">OK</span>
+      </div>
+      <div id="verification-log" class="h-12 overflow-y-auto bg-white border p-2 rounded">Ready.</div>
+    </div>
+  </aside>
+
+  <div id="canvas-wrapper">
+    <div id="p5-canvas-target" class="w-full h-full"></div>
+    <div id="guided-overlay">
+      <div class="overlay-header">
+        <span class="font-bold text-gray-800 text-lg" id="overlay-title">几何探索</span>
+        <span class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full hidden" id="step-counter">0/4</span>
+      </div>
+      <div class="overlay-body">
+        <div id="overlay-content" class="text-gray-700 text-sm leading-relaxed math-content">请在左侧勾选几何概念，或切换到“作图演示”模式。</div>
+      </div>
+    </div>
+    <button onclick="resetViewport()" class="absolute bottom-4 right-4 bg-white p-2 rounded shadow border hover:bg-gray-50 text-gray-600 z-10 text-sm" title="重置视图">⟲ 重置视图</button>
+  </div>
+</div>
+
+<script>
+class ViewTransform {
+  constructor() { this.scale = 1.0; this.offsetX = 0; this.offsetY = 0; this.isDragging = false; this.startX = 0; this.startY = 0; }
+  apply() { translate(this.offsetX, this.offsetY); scale(this.scale); }
+  toWorld(sx, sy) { return createVector((sx - this.offsetX)/this.scale, (sy - this.offsetY)/this.scale); }
+  handleWheel(e) {
+    const zoomFactor = 1.1; const oldScale = this.scale; const newScale = e.deltaY < 0 ? oldScale * zoomFactor : oldScale / zoomFactor;
+    const clampedScale = constrain(newScale, 0.4, 5.0);
+    const wx = (mouseX - this.offsetX) / oldScale; const wy = (mouseY - this.offsetY) / oldScale;
+    this.offsetX = mouseX - wx * clampedScale; this.offsetY = mouseY - wy * clampedScale; this.scale = clampedScale;
+  }
+  handleDragStart() { this.isDragging = true; this.startX = mouseX - this.offsetX; this.startY = mouseY - this.offsetY; }
+  handleDrag() { if (this.isDragging) { this.offsetX = mouseX - this.startX; this.offsetY = mouseY - this.startY; } }
+  handleDragEnd() { this.isDragging = false; }
+  reset() { this.scale = 1.0; this.offsetX = 0; this.offsetY = 0; }
+}
+
+const STATE = {
+  mode: 'centers',
+  triangle: { A: null, B: null, C: null, dragIdx: -1 },
+  flags: { median: false, altitude: false, perp: false, angle: false, euler: false },
+  const: {
+    target: 'angle', method: 'compass', param: 60, step: 0, maxSteps: 4, animProgress: 0, isAnimating: false, targetStep: 0,
+    O: null, A: null, B: null, M: null, N: null, P: null, Q: null, radius: 180
+  },
+  view: new ViewTransform()
+};
+
+let mathJaxTimeout = null;
+function renderMath(elementId, latex) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  // 直接设置HTML，不要隐藏元素，防止闪烁或消失
+  el.innerHTML = latex; 
+  // 异步渲染
+  if (window.MathJax && window.MathJax.typesetPromise) {
+    if (mathJaxTimeout) clearTimeout(mathJaxTimeout);
+    mathJaxTimeout = setTimeout(() => {
+      MathJax.typesetPromise([el]).catch(e => console.error(e));
+    }, 10);
+  }
+}
+
+function setup() {
+  const wrapper = document.getElementById('canvas-wrapper');
+  const cvs = createCanvas(wrapper.clientWidth, wrapper.clientHeight);
+  cvs.parent('p5-canvas-target');
+  resetTriangle('acute'); 
+  cvs.elt.addEventListener('wheel', (e) => { e.preventDefault(); STATE.view.handleWheel(e); }, { passive: false });
+  document.getElementById('param-slider').addEventListener('input', (e) => { STATE.const.param = parseInt(e.target.value); updateParamLabel(); recalcConstruction(); });
+  textFont("Noto Sans SC");
+  
+  // Show Overlay
+  setTimeout(() => {
+    document.getElementById('guided-overlay').classList.add('active');
+    updateCenterExplain('none'); // Init text
+  }, 300);
+}
+
+function windowResized() { const wrapper = document.getElementById('canvas-wrapper'); resizeCanvas(wrapper.clientWidth, wrapper.clientHeight); }
+
+function draw() {
+  background(248, 250, 252);
+  push(); STATE.view.apply(); drawGrid();
+  if (STATE.mode === 'centers') drawCentersMode(); else drawConstructionMode();
+  pop();
+  if (STATE.const.isAnimating) {
+    STATE.const.animProgress += 0.015;
+    if (STATE.const.animProgress >= 1) { STATE.const.animProgress = 1; STATE.const.isAnimating = false; STATE.const.step = STATE.const.targetStep; updateConstructionOverlay(); }
+  }
+  verifyState();
+}
+
+function isPointOnSegment(p, a, b) {
+  const d1 = p5.Vector.dist(p, a); const d2 = p5.Vector.dist(p, b); const len = p5.Vector.dist(a, b);
+  return Math.abs(d1 + d2 - len) < 0.1;
+}
+
+function drawCentersMode() {
+  const { A, B, C } = STATE.triangle; const flags = STATE.flags;
+  stroke(51, 65, 85); strokeWeight(3); noFill(); triangle(A.x, A.y, B.x, B.y, C.x, C.y);
+  let G, H, O, I;
+  
+  if (flags.median || flags.euler) {
+    const mA = p5.Vector.add(B, C).div(2), mB = p5.Vector.add(A, C).div(2), mC = p5.Vector.add(A, B).div(2);
+    G = p5.Vector.add(A, B).add(C).div(3);
+    if (flags.median) { stroke(249, 115, 22); strokeWeight(1); setLineDash([5, 5]); line(A.x, A.y, mA.x, mA.y); line(B.x, B.y, mB.x, mB.y); line(C.x, C.y, mC.x, mC.y); setLineDash([]); drawPoint(G, "G", "#f97316"); }
+  }
+  
+  if (flags.altitude || flags.euler) {
+    const pA = getProjection(A, B, C), pB = getProjection(B, A, C), pC = getProjection(C, A, B);
+    H = getIntersect(A, pA, B, pB);
+    if (flags.altitude) {
+      stroke(239, 68, 68); strokeWeight(1);
+      const drawAlt = (V, Foot, Base1, Base2, H_point) => {
+        if (H_point && !isPointOnSegment(H_point, V, Foot)) { setLineDash([3, 3]); line(Foot.x, Foot.y, H_point.x, H_point.y); setLineDash([]); }
+        line(V.x, V.y, Foot.x, Foot.y);
+        if (!isPointOnSegment(Foot, Base1, Base2)) { setLineDash([3, 3]); if (p5.Vector.dist(Foot, Base1) < p5.Vector.dist(Foot, Base2)) line(Base1.x, Base1.y, Foot.x, Foot.y); else line(Base2.x, Base2.y, Foot.x, Foot.y); setLineDash([]); }
+        drawRightAngle(Foot, V, 10);
+      };
+      drawAlt(A, pA, B, C, H); drawAlt(B, pB, A, C, H); drawAlt(C, pC, A, B, H);
+      if (H) drawPoint(H, "H", "#ef4444");
+    }
+  }
+  
+  if (flags.perp || flags.euler) {
+    O = getCircumcenter(A, B, C);
+    if (flags.perp && O) {
+      stroke(59, 130, 246); strokeWeight(1); noFill(); const R = p5.Vector.dist(O, A); circle(O.x, O.y, R * 2);
+      const mAB = p5.Vector.add(A, B).div(2), mBC = p5.Vector.add(B, C).div(2), mAC = p5.Vector.add(A, C).div(2);
+      const drawFullPerp = (mid, center) => {
+        const dir = p5.Vector.sub(center, mid).normalize(); if (dir.mag() === 0) return; 
+        const p1 = p5.Vector.sub(mid, p5.Vector.mult(dir, 100)); const p2 = p5.Vector.add(center, p5.Vector.mult(dir, 200)); 
+        line(p1.x, p1.y, p2.x, p2.y); drawRightAngle(mid, center, 10);
+      };
+      drawFullPerp(mAB, O); drawFullPerp(mBC, O); drawFullPerp(mAC, O); drawPoint(O, "O", "#3b82f6");
+    }
+  }
+  if (flags.angle) {
+    const a = p5.Vector.dist(B, C), b = p5.Vector.dist(A, C), c = p5.Vector.dist(A, B); const P = a + b + c;
+    I = createVector((a*A.x + b*B.x + c*C.x)/P, (a*A.y + b*B.y + c*C.y)/P);
+    stroke(34, 197, 94); strokeWeight(1); line(A.x, A.y, I.x, I.y); line(B.x, B.y, I.x, I.y); line(C.x, C.y, I.x, I.y);
+    const s = P/2, r = Math.sqrt(s*(s-a)*(s-b)*(s-c))/s; noFill(); circle(I.x, I.y, r*2); drawPoint(I, "I", "#22c55e");
+  }
+  if (flags.euler && O && G && H) {
+    stroke(168, 85, 247); strokeWeight(3); const dir = p5.Vector.sub(H, O);
+    if (dir.mag() > 0.1) { dir.normalize(); const start = p5.Vector.sub(O, p5.Vector.mult(dir, 10000)); const end = p5.Vector.add(O, p5.Vector.mult(dir, 10000)); line(start.x, start.y, end.x, end.y); }
+    drawPoint(O, "O", "#3b82f6"); drawPoint(G, "G", "#f97316"); drawPoint(H, "H", "#ef4444");
+    fill(168, 85, 247); noStroke(); text("Euler Line", (O.x+H.x)/2+10, (O.y+H.y)/2);
+  }
+  drawPoint(A, "A", "#1e293b", 12); drawPoint(B, "B", "#1e293b", 12); drawPoint(C, "C", "#1e293b", 12);
+}
+
+function drawConstructionMode() {
+  recalcConstruction();
+  const { method, target } = STATE.const;
+  const getP = (stepNum) => {
+    const {step, animProgress, isAnimating, targetStep} = STATE.const;
+    if (step > stepNum) return 1.0;
+    if (isAnimating && targetStep === stepNum + 1) return animProgress;
+    return 0;
+  };
+  if (target === 'angle') drawAngleBase(); else drawSegmentBase();
+  if (target === 'angle') { if (method === 'compass') drawAngleCompass(getP); else drawAngleRuler(getP); }
+  else { if (method === 'compass') drawPerpCompass(getP); else drawPerpRuler(getP); }
+}
+
+function drawAngleBase() {
+  const { O, A, B } = STATE.const; stroke(30); strokeWeight(3); line(O.x, O.y, A.x, A.y); line(O.x, O.y, B.x, B.y); drawPoint(O, "O", "#000"); text("A", A.x+10, A.y); text("B", B.x+10, B.y);
+}
+function drawSegmentBase() {
+  const { A, B } = STATE.const; stroke(30); strokeWeight(3); line(A.x, A.y, B.x, B.y); drawPoint(A, "A", "#000"); drawPoint(B, "B", "#000");
+}
+
+function drawAngleCompass(getP) {
+  const { O, M, N, P, radius } = STATE.const;
+  let p1 = getP(0);
+  if (p1 > 0) {
+    const s = p5.Vector.sub(STATE.const.B, O).heading(), e = p5.Vector.sub(STATE.const.A, O).heading();
+    let sA = s, eA = e; if(eA<sA) eA+=TWO_PI; if(eA-sA>PI) { let t=sA;sA=eA-TWO_PI;eA=t; }
+    noFill(); stroke(239,68,68); strokeWeight(2); arc(O.x,O.y,radius*2,radius*2, sA, lerp(sA,eA,p1));
+    if(STATE.const.isAnimating && STATE.const.targetStep===1) drawCompassTool(O, radius, lerp(sA,eA,p1));
+    if(p1>0.9) { drawPoint(M,"M","#ef4444"); drawPoint(N,"N","#ef4444"); }
+  }
+  let p2 = getP(1), p3 = getP(2); const r2 = radius * 0.8;
+  if (p2 > 0) {
+    const a = p5.Vector.sub(P,M).heading(); noFill(); stroke(59,130,246); strokeWeight(2); arc(M.x,M.y,r2*2,r2*2, a-0.4, lerp(a-0.4,a+0.4,p2));
+    if(STATE.const.isAnimating && STATE.const.targetStep===2) drawCompassTool(M, r2, lerp(a-0.4,a+0.4,p2));
+  }
+  if (p3 > 0) {
+    const a = p5.Vector.sub(P,N).heading(); noFill(); stroke(59,130,246); strokeWeight(2); arc(N.x,N.y,r2*2,r2*2, lerp(a+0.4,a-0.4,p3), a+0.4);
+    if(STATE.const.isAnimating && STATE.const.targetStep===3) drawCompassTool(N, r2, lerp(a+0.4,a-0.4,p3));
+    if(p3>0.9) drawPoint(P,"P","#3b82f6");
+  }
+  let p4 = getP(3);
+  if (p4 > 0) { stroke(16,185,129); strokeWeight(4); const end = p5.Vector.lerp(O, P, p4*1.5); line(O.x,O.y, end.x,end.y); }
+}
+
+function drawAngleRuler(getP) {
+  const {O, M, N, P} = STATE.const; 
+  let p1 = getP(0), p2 = getP(1);
+  if(p1>0) { if(p1>0.9) {drawPoint(M,"C","#ef4444"); drawTick(M,O);} if(STATE.const.isAnimating&&STATE.const.targetStep===1) drawRulerTool(O, STATE.const.A, p1); }
+  if(p2>0) { if(p2>0.9) {drawPoint(N,"D","#ef4444"); drawTick(N,O);} if(STATE.const.isAnimating&&STATE.const.targetStep===2) drawRulerTool(O, STATE.const.B, p2); }
+  let p3 = getP(2);
+  if(p3>0) {
+    stroke(150); setLineDash([5,5]); strokeWeight(1); line(M.x,M.y, lerp(M.x,N.x,p3), lerp(M.y,N.y,p3)); setLineDash([]);
+    if(p3>0.9) drawPoint(P,"M","#3b82f6"); 
+    if(STATE.const.isAnimating&&STATE.const.targetStep===3) drawRulerTool(M, N, p3);
+  }
+  let p4 = getP(3);
+  if(p4>0) { stroke(16,185,129); strokeWeight(4); const t = p5.Vector.sub(P,O).setMag(400).add(O); const end = p5.Vector.lerp(O,t,p4); line(O.x,O.y,end.x,end.y); if(STATE.const.isAnimating&&STATE.const.targetStep===4) drawRulerTool(O, t, p4); }
+}
+
+function drawPerpCompass(getP) {
+  const {A, B, P, Q, radius} = STATE.const;
+  let p1 = getP(0);
+  if(p1>0) {
+    const ang = p5.Vector.sub(B,A).heading(); const s = ang - 1.0, e = ang + 1.0; noFill(); stroke(239,68,68); strokeWeight(2); arc(A.x,A.y, radius*2, radius*2, s, lerp(s,e,p1));
+    if(STATE.const.isAnimating&&STATE.const.targetStep===1) drawCompassTool(A, radius, lerp(s,e,p1));
+  }
+  let p2 = getP(1);
+  if(p2>0) {
+    const ang = p5.Vector.sub(A,B).heading(); const s = ang - 1.0, e = ang + 1.0; noFill(); stroke(239,68,68); strokeWeight(2); arc(B.x,B.y, radius*2, radius*2, s, lerp(s,e,p2));
+    if(STATE.const.isAnimating&&STATE.const.targetStep===2) drawCompassTool(B, radius, lerp(s,e,p2));
+    if(p2>0.9) { drawPoint(P,"P","#ef4444"); drawPoint(Q,"Q","#ef4444"); }
+  }
+  let p3 = getP(2);
+  if(p3>0) { stroke(59,130,246); strokeWeight(4); line(P.x,P.y, lerp(P.x,Q.x,p3), lerp(P.y,Q.y,p3)); }
+}
+
+function drawPerpRuler(getP) {
+  const {A, B, P} = STATE.const; 
+  let p1 = getP(0);
+  if(p1>0) { if(STATE.const.isAnimating&&STATE.const.targetStep===1) drawRulerTool(A, B, p1); }
+  let p2 = getP(1);
+  if(p2>0) { if(p2>0.9) drawPoint(P, "M", "#ef4444"); }
+  let p3 = getP(2);
+  if(p3>0) {
+    stroke(16,185,129); strokeWeight(4);
+    const dir = p5.Vector.sub(B,A).rotate(-HALF_PI).normalize();
+    const top = p5.Vector.add(P, p5.Vector.mult(dir, 150));
+    const bot = p5.Vector.add(P, p5.Vector.mult(dir, -150));
+    const curTop = p5.Vector.lerp(P, top, p3);
+    const curBot = p5.Vector.lerp(P, bot, p3);
+    line(curBot.x, curBot.y, curTop.x, curTop.y);
+    if(STATE.const.isAnimating&&STATE.const.targetStep===3) {
+      const slidePos = p5.Vector.lerp(A, P, p3); 
+      drawSetSquareTool(A, B, slidePos, 150);
+    }
+  }
+}
+
+function recalcConstruction() {
+  const {target, param} = STATE.const; STATE.const.O = createVector(0, 200);
+  if (target === 'angle') {
+    const r = 350; const ang = radians(param);
+    STATE.const.A = createVector(r, 200); STATE.const.B = createVector(r*cos(-ang), 200 + r*sin(-ang)); STATE.const.radius = 180;
+    const {O,A,B,radius} = STATE.const;
+    STATE.const.M = p5.Vector.sub(A,O).setMag(radius).add(O); STATE.const.N = p5.Vector.sub(B,O).setMag(radius).add(O);
+    const midMN = p5.Vector.add(STATE.const.M, STATE.const.N).div(2);
+    if(STATE.const.method === 'ruler') STATE.const.P = midMN; 
+    else { const h = sqrt(pow(radius*0.8,2) - pow(p5.Vector.dist(STATE.const.M, STATE.const.N)/2, 2)); STATE.const.P = p5.Vector.add(midMN, p5.Vector.sub(midMN,O).normalize().mult(h)); }
+  } else {
+    const L = 300; STATE.const.A = createVector(-L/2, 200); STATE.const.B = createVector(L/2, 200); 
+    if(STATE.const.method === 'compass') { STATE.const.radius = L * 0.7; const dx = sqrt(pow(STATE.const.radius, 2) - pow(L/2, 2)); STATE.const.P = createVector(0, 200 - dx); STATE.const.Q = createVector(0, 200 + dx); }
+    else STATE.const.P = createVector(0, 200);
+  }
+}
+
+function mousePressed() {
+  if (mouseY < 0 || mouseX > width) return;
+  const m = STATE.view.toWorld(mouseX, mouseY);
+  if (STATE.mode === 'centers') {
+    const {A,B,C} = STATE.triangle; const r = 20/STATE.view.scale;
+    if (p5.Vector.dist(m,A)<r) STATE.triangle.dragIdx=0; else if (p5.Vector.dist(m,B)<r) STATE.triangle.dragIdx=1; else if (p5.Vector.dist(m,C)<r) STATE.triangle.dragIdx=2; else STATE.view.handleDragStart();
+  } else STATE.view.handleDragStart();
+}
+function mouseDragged() {
+  const m = STATE.view.toWorld(mouseX, mouseY);
+  if (STATE.mode==='centers' && STATE.triangle.dragIdx!==-1) { const i = STATE.triangle.dragIdx; if(i===0) STATE.triangle.A.set(m); if(i===1) STATE.triangle.B.set(m); if(i===2) STATE.triangle.C.set(m); } else STATE.view.handleDrag();
+}
+function mouseReleased() { 
+  STATE.triangle.dragIdx = -1; STATE.view.handleDragEnd(); 
+  if(STATE.mode === 'centers') updateCenterExplain('none'); // Update text on release
+}
+
+function drawPoint(p,l,c,s=10) { fill(c); noStroke(); circle(p.x,p.y,s); if(l){fill(0);textSize(14);textStyle(BOLD);text(l,p.x+10,p.y-10);} }
+function drawGrid() { stroke(226,232,240); strokeWeight(1); const s=STATE.view.toWorld(0,0), e=STATE.view.toWorld(width,height); for(let x=Math.floor(s.x/50)*50;x<e.x;x+=50) line(x,s.y,x,e.y); for(let y=Math.floor(s.y/50)*50;y<e.y;y+=50) line(s.x,y,e.x,y); }
+function drawTick(p, ref) { const v = p5.Vector.sub(ref,p).rotate(HALF_PI).setMag(8); stroke(0); strokeWeight(2); line(p.x-v.x,p.y-v.y,p.x+v.x,p.y+v.y); }
+function drawRightAngle(p, ref, size) { push(); translate(p.x,p.y); rotate(p5.Vector.sub(ref,p).heading()); noFill(); stroke(100); strokeWeight(1); line(0,size,size,size); line(size,size,size,0); pop(); }
+
+function drawCompassTool(pivot, r, ang) {
+  push(); translate(pivot.x,pivot.y); stroke(100); strokeWeight(4); fill(150);
+  const tx=r*cos(ang), ty=r*sin(ang); line(0,0,tx/2,ty/2-100); line(tx,ty,tx/2,ty/2-100);
+  fill(50); circle(tx/2,ty/2-100,8); fill(255,0,0); noStroke(); circle(tx,ty,4); pop();
+}
+function drawRulerTool(s, e, p) {
+  const len = p5.Vector.dist(s,e) * p + 40; push(); translate(s.x,s.y); rotate(p5.Vector.sub(e,s).heading());
+  fill(252,211,77,200); noStroke(); rect(-20,10,len,30,2); stroke(180,83,9); strokeWeight(1); for(let i=0;i<len-10;i+=10) line(i,10,i,10+(i%50==0?15:8)); pop();
+}
+
+function drawSetSquareTool(lineStart, lineEnd, currentPos, height) {
+  const dir = p5.Vector.sub(lineEnd, lineStart).normalize(); const angle = dir.heading(); 
+  push(); translate(currentPos.x, currentPos.y); rotate(angle); translate(0, -2);
+  const baseLen = height * 0.6;
+  fill(0, 160, 255, 100); stroke(0, 100, 200); strokeWeight(2); beginShape(); vertex(0, 0); vertex(-baseLen, 0); vertex(0, -height); endShape(CLOSE);
+  stroke(0, 50, 150); strokeWeight(3); line(0, 0, -baseLen, 0);
+  fill(255, 255, 255, 50); noStroke(); beginShape(); vertex(-10, -15); vertex(-baseLen + 20, -15); vertex(-10, -height + 30); endShape(CLOSE);
+  stroke(0, 80, 180); strokeWeight(1); for(let y=10; y<height; y+=10) { let w = (y%50===0) ? 10 : 5; line(0, -y, -w, -y); }
+  pop();
+}
+
+function setLineDash(l) { drawingContext.setLineDash(l); }
+function getProjection(P,A,B) { let AB=p5.Vector.sub(B,A); return p5.Vector.add(A,p5.Vector.mult(AB,p5.Vector.sub(P,A).dot(AB)/AB.magSq())); }
+function getIntersect(p1,p2,p3,p4) { const d=(p1.x-p2.x)*(p3.y-p4.y)-(p1.y-p2.y)*(p3.x-p4.x); if(d==0)return null; const t=((p1.x-p3.x)*(p3.y-p4.y)-(p1.y-p3.y)*(p3.x-p4.x))/d; return createVector(p1.x+t*(p2.x-p1.x), p1.y+t*(p2.y-p1.y)); }
+function getCircumcenter(A,B,C) { const D=2*(A.x*(B.y-C.y)+B.x*(C.y-A.y)+C.x*(A.y-B.y)); if(abs(D)<0.001)return null; return createVector(((A.magSq()*(B.y-C.y)+B.magSq()*(C.y-A.y)+C.magSq()*(A.y-B.y))/D), ((A.magSq()*(C.x-B.x)+B.magSq()*(A.x-C.x)+C.magSq()*(B.x-A.x))/D)); }
+
+function switchMode(mode) {
+  STATE.mode = mode;
+  document.getElementById('tab-centers').classList.toggle('active', mode==='centers');
+  document.getElementById('tab-construction').classList.toggle('active', mode==='construction');
+  document.getElementById('panel-centers').classList.toggle('hidden', mode!=='centers');
+  document.getElementById('panel-construction').classList.toggle('hidden', mode!=='construction');
+  STATE.view.reset();
+  if(mode==='construction') { STATE.view.offsetX=width/2-150; STATE.view.offsetY=50; document.getElementById('step-counter').classList.remove('hidden'); updateConstructionOverlay(); }
+  else { STATE.view.offsetX=width/2; STATE.view.offsetY=height/2; document.getElementById('step-counter').classList.add('hidden'); updateCenterExplain('none'); }
+}
+
+function updateCenterExplain(type) {
+  if (type!=='none') STATE.flags[type] = document.getElementById('chk-'+type).checked;
+  const {A,B,C} = STATE.triangle;
+  const a = p5.Vector.dist(B,C), b = p5.Vector.dist(A,C), c = p5.Vector.dist(A,B);
+  const sides = [a,b,c].sort((x,y)=>x-y);
+  const isEquilateral = (sides[2]-sides[0]) < 1;
+  const isIsosceles = !isEquilateral && (Math.abs(a-b)<1 || Math.abs(b-c)<1 || Math.abs(a-c)<1);
+  let note = "";
+  if(isEquilateral) note = "<br><span style='color:#7c3aed;font-weight:bold;'>正三角形：四心合一（重心、垂心、外心、内心重合）。</span>";
+  else if(isIsosceles) note = "<br><span style='color:#db2777;font-weight:bold;'>等腰三角形：底边上的高、中线、角平分线和中垂线“四线合一”。</span>";
+  const map = {
+    median: {t:"重心 (Centroid)", d:String.raw`三角形三条中线的交点 \(G\)。${note}`},
+    altitude: {t:"垂心 (Orthocenter)", d:String.raw`三角形三条高线的交点 \(H\)。${note}`},
+    perp: {t:"外心 (Circumcenter)", d:String.raw`三条垂直平分线的交点 \(O\)。${note}`},
+    angle: {t:"内心 (Incenter)", d:String.raw`三条角平分线的交点 \(I\)。${note}`},
+    euler: {t:"欧拉线 (Euler Line)", d:String.raw`外心 \(O\)、重心 \(G\)、垂心 \(H\) 共线。${note}`}
+  };
+  const activeKey = ['median','altitude','perp','angle','euler'].reverse().find(k=>STATE.flags[k]);
+  const data = activeKey ? map[activeKey] : {t:"几何探索", d:`请在左侧勾选几何概念。${note}`};
+  document.getElementById('overlay-title').innerText = data.t; renderMath('overlay-content', data.d);
+}
+
+function setConstructionTarget(t) {
+  STATE.const.target = t;
+  document.getElementById('target-angle').classList.toggle('active', t==='angle');
+  document.getElementById('target-perp').classList.toggle('active', t==='perp');
+  const sliderDiv = document.getElementById('param-control');
+  if(t === 'angle') { sliderDiv.classList.remove('hidden'); document.getElementById('slider-label').innerText = "角度大小"; document.getElementById('param-slider').value = 60; STATE.const.param = 60; } 
+  else { sliderDiv.classList.add('hidden'); STATE.const.param = 200; }
+  updateParamLabel(); stepAction('reset');
+}
+
+function setConstructionMethod(m) {
+  STATE.const.method = m;
+  document.getElementById('btn-compass').classList.toggle('active', m==='compass');
+  document.getElementById('btn-ruler').classList.toggle('active', m==='ruler');
+  stepAction('reset');
+}
+
+function updateParamLabel() { const val = STATE.const.param; document.getElementById('param-display').innerText = STATE.const.target==='angle' ? val+"°" : ""; }
+
+function stepAction(action) {
+  const c = STATE.const;
+  if(action==='reset') { c.step=0; c.targetStep=0; c.animProgress=0; c.isAnimating=false; }
+  else if(action==='next') { if(c.step<c.maxSteps) { c.targetStep=c.step+1; c.animProgress=0; c.isAnimating=document.getElementById('chk-anim-toggle').checked; if(!c.isAnimating)c.step=c.targetStep; } }
+  else if(action==='prev') { if(c.step>0) { c.step--; c.targetStep=c.step; c.animProgress=1; c.isAnimating=false; } }
+  updateConstructionOverlay();
+}
+
+function updateConstructionOverlay() {
+  const {target, method, step, targetStep, isAnimating} = STATE.const; const idx = isAnimating ? targetStep : step;
+  let steps = [];
+  if (target === 'angle') {
+    if (method === 'compass') {
+      STATE.const.maxSteps = 4;
+      steps = [{t:"准备", d:"设定角度 \\(\\angle AOB\\)。"}, {t:"第一步", d:"以 \\(O\\) 为圆心，任意长为半径画弧，交两边于 \\(M, N\\)。"}, {t:"第二步", d:"以 \\(M\\) 为圆心，大于 \\(\\frac{1}{2}MN\\) 长为半径画弧。"}, {t:"第三步", d:"以 \\(N\\) 为圆心，同长为半径画弧，交于点 \\(P\\)。"}, {t:"第四步", d:"作射线 \\(OP\\)，即为角平分线。"}];
+    } else {
+      STATE.const.maxSteps = 4;
+      steps = [{t:"准备", d:"准备直尺。"}, {t:"第一步", d:"在两边量取相等距离 \\(OC = OD\\)。"}, {t:"第二步", d:"连接 \\(CD\\) 并量出中点 \\(M\\)。"}, {t:"第三步", d:"连接 \\(OM\\)。"}, {t:"第四步", d:"根据等腰三角形三线合一，\\(OM\\) 平分顶角。"}];
+    }
+  } else {
+    if (method === 'compass') {
+      STATE.const.maxSteps = 3;
+      steps = [{t:"准备", d:"已知线段 \\(AB\\)。"}, {t:"第一步", d:"分别以 \\(A, B\\) 为圆心，大于 \\(\\frac{1}{2}AB\\) 长为半径画弧。"}, {t:"第二步", d:"两弧相交于 \\(P, Q\\) 两点。"}, {t:"第三步", d:"连接 \\(PQ\\)，即为 \\(AB\\) 的垂直平分线。"}];
+    } else {
+      STATE.const.maxSteps = 3;
+      steps = [{t:"准备", d:"已知线段 \\(AB\\)。"}, {t:"第一步", d:"用刻度尺测量 \\(AB\\) 长度。"}, {t:"第二步", d:"取中点 \\(M\\)。"}, {t:"第三步", d:"放置三角尺，直角边贴合直线，另一直角边过 \\(M\\) 作垂线。"}];
+    }
+  }
+  const info = steps[idx] || {t:"完成", d:"演示结束"};
+  document.getElementById('overlay-title').innerText = info.t;
+  document.getElementById('step-counter').innerText = `${idx}/${STATE.const.maxSteps}`;
+  renderMath('overlay-content', info.d);
+}
+
+function verifyState() {
+  const el = document.getElementById('verification-log');
+  if(STATE.mode==='centers') { if(STATE.flags.euler) el.innerText = "Check O-G-H collinearity visually."; else el.innerText = "Drag vertices to explore."; }
+  else { el.innerText = `${STATE.const.target.toUpperCase()} | ${STATE.const.method} | Step ${STATE.const.step}`; }
+}
+
+function resetTriangle(type) {
+  if (type === 'acute') { STATE.triangle.A = createVector(0, -180); STATE.triangle.B = createVector(-120, 120); STATE.triangle.C = createVector(150, 120); } 
+  else if (type === 'equilateral') { STATE.triangle.A = createVector(0, -300 * sqrt(3)/3); STATE.triangle.B = createVector(-150, 300 * sqrt(3)/6); STATE.triangle.C = createVector(150, 300 * sqrt(3)/6); } 
+  else if (type === 'isosceles') { STATE.triangle.A = createVector(0, -180); STATE.triangle.B = createVector(-120, 150); STATE.triangle.C = createVector(120, 150); } 
+  else if (type === 'right') { STATE.triangle.A = createVector(-100, -150); STATE.triangle.B = createVector(-100, 150); STATE.triangle.C = createVector(150, 150); } 
+  else if (type === 'obtuse') { STATE.triangle.A = createVector(-150, -80); STATE.triangle.B = createVector(100, 150); STATE.triangle.C = createVector(-50, 150); STATE.triangle.A = createVector(-100, -100); STATE.triangle.B = createVector(200, 100); STATE.triangle.C = createVector(-50, 100); }
+  resetViewport();
+  updateCenterExplain('none'); // Update Text
+}
+function resetViewport() { STATE.view.reset(); if(STATE.mode==='centers'){STATE.view.offsetX=width/2; STATE.view.offsetY=height/2;} else {STATE.view.offsetX=width/2; STATE.view.offsetY=height/2;} }
+function copyProblem() { navigator.clipboard.writeText("几何综合探索：三角形四心性质与作图原理"); }
+
+</script>
+</body>
+</html>

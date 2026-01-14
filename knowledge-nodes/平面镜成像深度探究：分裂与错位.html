@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>平面镜成像深度探究：分裂与错位</title>
+    <!-- 核心库 CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        /* 基础重置与布局 */
+        body { margin: 0; padding: 0; overflow: hidden; background-color: #0f172a; font-family: "Microsoft YaHei", sans-serif; }
+        
+        /* 界面层级管理 */
+        #app-container { position: relative; width: 100vw; height: 100vh; display: flex; }
+        #sidebar { width: 360px; background-color: #1e293b; color: #e2e8f0; display: flex; flex-direction: column; border-right: 1px solid #334155; z-index: 20; box-shadow: 4px 0 10px rgba(0,0,0,0.3); }
+        #canvas-stage { flex: 1; position: relative; overflow: hidden; cursor: crosshair; }
+        
+        /* 引导覆盖层 */
+        #guided-overlay {
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+            width: 480px; max-height: 85vh;
+            background-color: rgba(30, 41, 59, 0.95);
+            backdrop-filter: blur(8px);
+            border: 1px solid #475569; border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            display: flex; flex-direction: column;
+            z-index: 30; transition: opacity 0.3s;
+            pointer-events: auto;
+        }
+        #guided-header { padding: 16px; border-bottom: 1px solid #475569; flex-shrink: 0; display: flex; justify-content: space-between; items-center; }
+        #guided-body { padding: 20px; overflow-y: auto; color: #cbd5e1; font-size: 15px; line-height: 1.6; }
+        
+        /* 通用控件样式 */
+        .control-group { margin-bottom: 20px; padding: 0 20px; }
+        .control-label { display: flex; justify-content: space-between; font-size: 13px; color: #94a3b8; margin-bottom: 6px; }
+        .control-val { font-family: monospace; color: #38bdf8; }
+        input[type="range"] { width: 100%; accent-color: #38bdf8; background: #334155; height: 4px; border-radius: 2px; }
+        
+        /* 按钮样式 */
+        .btn-primary { background: #0ea5e9; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; transition: bg 0.2s; font-size: 13px; }
+        .btn-primary:hover { background: #0284c7; }
+        .btn-outline { background: transparent; border: 1px solid #475569; color: #cbd5e1; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+        .btn-outline:hover { border-color: #94a3b8; color: white; }
+        
+        /* 状态栏 */
+        .status-badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; margin-top: 8px; }
+        .status-ok { background: #065f46; color: #34d399; border: 1px solid #059669; }
+        .status-warn { background: #7f1d1d; color: #fca5a5; border: 1px solid #b91c1c; }
+        
+        /* MathJax 隐藏防闪烁 */
+        .tex-container { visibility: hidden; }
+        
+        /* 滚动条 */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+    </style>
+</head>
+<body>
+
+<div id="app-container">
+    <!-- 侧边栏 (阻断鼠标事件冒泡，防止拖动穿透) -->
+    <div id="sidebar" onmousedown="event.stopPropagation()">
+        <!-- 题面区域 (置顶) -->
+        <div class="p-5 border-b border-slate-700 bg-slate-800">
+            <div class="flex justify-between items-start mb-2">
+                <h3 class="font-bold text-white text-base">题目原题</h3>
+                <button onclick="copyProblem()" class="text-xs text-blue-400 hover:text-blue-300">复制</button>
+            </div>
+            <div id="problem-text" class="text-sm text-slate-300 leading-relaxed">
+                如图，将平面镜上下分为两部分。
+                (1) 若仅将两部分沿竖直方向上下分离（保持共面），成像有何变化？
+                (2) 若下半部分平面镜向后平移或转动，成像又如何？
+            </div>
+        </div>
+
+        <!-- 模式切换 -->
+        <div class="flex p-2 bg-slate-900 mx-4 mt-4 rounded-lg">
+            <button id="mode-guided" onclick="setMode('guided')" class="flex-1 py-1.5 text-sm rounded transition-colors text-white bg-slate-700 font-bold shadow">引导探究</button>
+            <button id="mode-sandbox" onclick="setMode('sandbox')" class="flex-1 py-1.5 text-sm rounded transition-colors text-slate-400 hover:text-white">自由实验</button>
+        </div>
+
+        <!-- 自由模式控件 (默认隐藏，JS控制显示) -->
+        <div id="sandbox-controls" class="flex-1 overflow-y-auto py-6 hidden">
+            <div class="control-group">
+                <div class="control-label"><span>裂缝宽度 (Split)</span><span id="val-gap" class="control-val">0 px</span></div>
+                <input type="range" id="input-gap" min="0" max="200" step="1" value="0">
+                <p class="text-xs text-slate-500 mt-1">仅上下分离，镜面仍在同一平面</p>
+            </div>
+
+            <div class="control-group">
+                <div class="control-label"><span>下镜后退 (Depth)</span><span id="val-depth" class="control-val">0 px</span></div>
+                <input type="range" id="input-depth" min="0" max="150" step="1" value="0">
+                <p class="text-xs text-slate-500 mt-1">下半部分镜子向后错位</p>
+            </div>
+
+            <div class="control-group">
+                <div class="control-label"><span>下镜旋转 (Tilt)</span><span id="val-tilt" class="control-val">0°</span></div>
+                <input type="range" id="input-tilt" min="-45" max="45" step="1" value="0">
+                <p class="text-xs text-slate-500 mt-1">下半部分镜子绕中心旋转</p>
+            </div>
+
+            <div class="px-5 pt-4 border-t border-slate-700">
+                <label class="flex items-center space-x-2 cursor-pointer">
+                    <input type="checkbox" id="check-misconception" class="accent-red-500">
+                    <span class="text-sm text-red-300">显示常见错误认识</span>
+                </label>
+                <p class="text-xs text-slate-500 mt-1 pl-6">错误认为：镜子裂开，像也会断开</p>
+            </div>
+            
+            <div class="px-5 mt-4">
+                 <button onclick="resetParams()" class="w-full btn-outline border-dashed">重置所有参数</button>
+            </div>
+        </div>
+
+        <!-- 验证面板 (常驻) -->
+        <div class="p-4 border-t border-slate-700 bg-slate-900">
+            <h4 class="text-xs font-bold text-slate-500 uppercase mb-2">成像状态验证</h4>
+            <div id="verify-box"></div>
+        </div>
+    </div>
+
+    <!-- 画布区域 -->
+    <div id="canvas-stage">
+        <!-- 引导模式覆盖层 (同样阻止冒泡，防止拖拽文字导致平移) -->
+        <div id="guided-overlay" onmousedown="event.stopPropagation()">
+            <div id="guided-header">
+                <div class="flex items-center gap-2">
+                    <span id="step-count" class="bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full font-mono">1/4</span>
+                    <span id="step-title" class="font-bold text-white">初始状态</span>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="prevStep()" class="btn-outline">上一步</button>
+                    <button onclick="nextStep()" class="btn-primary">下一步</button>
+                </div>
+            </div>
+            <div id="guided-body">
+                <div id="step-reasoning" class="mb-3"></div>
+                <div id="step-math" class="tex-container bg-slate-800/50 p-2 rounded border border-slate-600/30"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+/**
+ * 核心逻辑：基于 p5.js 的单文件实现
+ * 遵循 V3.1.5 规范：逻辑优先，单一数据源，Type_B 演示
+ */
+
+// --- 1. 全局状态与配置 ---
+const CONFIG = {
+    objX: -150,      // 物体X坐标 (世界系)
+    objH: 100,       // 物体高度 (稍微调高一点，适合小人)
+    mirrorX: 50,     // 镜子基准X
+    mirrorH: 120,    // 单片镜子高度
+    colors: {
+        obj: '#f8fafc',    // 物体白
+        img1: '#ef4444',   // 像1 红 (上)
+        img2: '#3b82f6',   // 像2 蓝 (下)
+        ray1: 'rgba(239, 68, 68, 0.4)',
+        ray2: 'rgba(59, 130, 246, 0.4)',
+        mirror: '#06b6d4',
+        axis: '#475569'
+    }
+};
+
+const STATE = {
+    mode: 'guided', // 'guided' | 'sandbox'
+    stepIndex: 0,
+    // 物理参数
+    gap: 0,         // 上下裂缝
+    depth: 0,       // 下镜错位
+    tilt: 0,        // 下镜旋转 (角度)
+    showMisconception: false,
+    
+    // 视图变换
+    view: { scale: 1.1, offX: 80, offY: 0 },
+    
+    // 计算缓存
+    geometry: null
+};
+
+// 引导步骤定义
+const PLAN_STEPS = [
+    {
+        titleCN: "初始状态：完整平面镜",
+        reasoningCN: "首先观察完整的平面镜成像。小人发出光线，经镜面反射进入人眼。反向延长线汇聚于虚像点。此时上下两部分镜面共面，成一个完整的虚像（小人）。",
+        checkItemNameCN: "像的完整性",
+        params: { gap: 0, depth: 0, tilt: 0 },
+        formulasTeX: [String.raw`S_{image} \text{ 与 } S_{object} \text{ 关于平面镜对称}`]
+    },
+    {
+        titleCN: "实验一：竖直分裂",
+        reasoningCN: "将镜子沿竖直方向上下拉开。虽然物理上镜子断开了，但只要它们仍在**同一个平面**内，所有反射光线的反向延长线依然汇聚在同一个点。小人的像位置没有移动，也不会断裂。",
+        checkItemNameCN: "像是否共点",
+        params: { gap: 100, depth: 0, tilt: 0 },
+        formulasTeX: [String.raw`\text{共面条件：} \Delta x = 0, \Delta \theta = 0 \implies \text{像重合}`]
+    },
+    {
+        titleCN: "实验二：前后错位",
+        reasoningCN: "保持上下分离，将下半部分镜子向后平移。此时，下半部分的反射面后退了。根据平面镜成像规律（像距等于物距），下半部分的像也随之后退。此时观察者会看到两个前后分离的小人像。",
+        checkItemNameCN: "像的分离",
+        params: { gap: 100, depth: 80, tilt: 0 },
+        formulasTeX: [String.raw`\text{像距} = \text{物距} \implies \text{镜后退 } d, \text{像后退 } 2d`]
+    },
+    {
+        titleCN: "实验三：角度倾斜",
+        reasoningCN: "将下半部分镜子旋转一定角度。由于像是关于镜面对称的，当对称轴（镜面）偏转时，像也会发生偏转。此时不仅位置错开，下方的小人像还会发生倾斜（歪了）。",
+        checkItemNameCN: "像的偏转",
+        params: { gap: 100, depth: 0, tilt: -20 },
+        formulasTeX: [String.raw`\text{镜转 } \alpha \implies \text{像转 } 2\alpha`]
+    }
+];
+
+// --- 2. 几何计算引擎 (Logic First) ---
+
+class GeometrySolver {
+    // 基础向量反射
+    static reflectPoint(pt, lineStart, lineEnd) {
+        const x0 = pt.x, y0 = pt.y;
+        const x1 = lineStart.x, y1 = lineStart.y;
+        const x2 = lineEnd.x, y2 = lineEnd.y;
+        
+        // 直线方程 Ax + By + C = 0
+        const A = y2 - y1;
+        const B = x1 - x2;
+        const C = -A*x1 - B*y1;
+        
+        const den = A*A + B*B;
+        if (den < 1e-9) return { ...pt };
+        
+        const factor = -2 * (A*x0 + B*y0 + C) / den;
+        return {
+            x: x0 + A * factor,
+            y: y0 + B * factor
+        };
+    }
+
+    static calculate(state) {
+        // 1. 定义物体 (小人)
+        // Base 是脚底，Top 是头顶
+        const objBase = { x: CONFIG.objX, y: 0 };
+        const objTop = { x: CONFIG.objX, y: -CONFIG.objH };
+        
+        // 2. 定义镜子几何
+        // Mirror 1 (Top): 固定X，只随Gap上移
+        const m1P1 = { x: CONFIG.mirrorX, y: -state.gap/2 };
+        const m1P2 = { x: CONFIG.mirrorX, y: -state.gap/2 - CONFIG.mirrorH };
+        
+        // Mirror 2 (Bottom): 可错位(Depth)，可旋转(Tilt)
+        // 旋转中心设在下镜的顶端 (0, gap/2) 以模拟“掰弯”。
+        const m2Pivot = { x: CONFIG.mirrorX + state.depth, y: state.gap/2 };
+        const m2H = CONFIG.mirrorH;
+        const rad = state.tilt * Math.PI / 180;
+        
+        // 注意 Y 向下为正。
+        const dx = -Math.sin(rad) * m2H;
+        const dy = Math.cos(rad) * m2H;
+        
+        const m2P1 = { ...m2Pivot };
+        const m2P2 = { x: m2Pivot.x + dx, y: m2Pivot.y + dy };
+        
+        // 3. 计算像
+        // 计算头和脚的像，这样整个身体就能确定，并且会自动处理旋转
+        const img1Top = this.reflectPoint(objTop, m1P1, m1P2);
+        const img1Base = this.reflectPoint(objBase, m1P1, m1P2);
+        
+        const img2Top = this.reflectPoint(objTop, m2P1, m2P2);
+        const img2Base = this.reflectPoint(objBase, m2P1, m2P2);
+
+        // 4. 验证数据
+        // 比较两像是否重合 (距离 < threshold)
+        const distTop = Math.hypot(img1Top.x - img2Top.x, img1Top.y - img2Top.y);
+        const distBase = Math.hypot(img1Base.x - img2Base.x, img1Base.y - img2Base.y);
+        const isCoincident = (distTop < 1 && distBase < 1);
+
+        return {
+            obj: { base: objBase, top: objTop },
+            m1: { start: m1P1, end: m1P2 },
+            m2: { start: m2P1, end: m2P2 },
+            img1: { base: img1Base, top: img1Top },
+            img2: { base: img2Base, top: img2Top },
+            isCoincident,
+            diff: Math.max(distTop, distBase)
+        };
+    }
+}
+
+// --- 3. 视图变换助手 ---
+class ViewTransform {
+    constructor() {
+        this.reset();
+    }
+    reset() {
+        this.scale = 1.1;
+        this.offX = 80; // 默认稍微往右偏，因为物体在左边
+        this.offY = 0;
+    }
+    apply() {
+        translate(width/2 + this.offX, height/2 + this.offY);
+        scale(this.scale);
+    }
+    toWorld(mx, my) {
+        return {
+            x: (mx - width/2 - this.offX) / this.scale,
+            y: (my - height/2 - this.offY) / this.scale
+        };
+    }
+    // 滚轮缩放逻辑
+    handleWheel(e) {
+        const s = 1.05;
+        const oldScale = this.scale;
+        if (e.deltaY < 0) this.scale *= s;
+        else this.scale /= s;
+        this.scale = constrain(this.scale, 0.4, 4.0);
+    }
+}
+const view = new ViewTransform();
+
+// --- 4. p5.js 生命周期 ---
+
+function setup() {
+    const stage = document.getElementById('canvas-stage');
+    const canvas = createCanvas(stage.clientWidth, stage.clientHeight);
+    canvas.parent('canvas-stage');
+    
+    // 绑定事件
+    canvas.elt.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        view.handleWheel(e);
+    }, { passive: false });
+
+    // 初始化MathJax
+    updateGuidedOverlay();
+    
+    // 初始参数同步
+    syncInputsFromState();
+}
+
+function windowResized() {
+    const stage = document.getElementById('canvas-stage');
+    resizeCanvas(stage.clientWidth, stage.clientHeight);
+}
+
+function draw() {
+    background(15, 23, 42); // slate-900
+    
+    // 更新物理状态
+    STATE.geometry = GeometrySolver.calculate(STATE);
+    
+    // 绘制场景
+    push();
+    view.apply();
+    
+    drawGrid();
+    drawScene(STATE.geometry);
+    
+    pop();
+    
+    // 鼠标交互 (平移)
+    handlePan();
+    
+    // UI 更新频率控制
+    if (frameCount % 10 === 0) updateVerifyUI();
+}
+
+// --- 5. 绘图逻辑 ---
+
+function drawGrid() {
+    stroke(51, 65, 85); // slate-700
+    strokeWeight(1 / view.scale);
+    
+    // 轴线
+    line(-2000, 0, 2000, 0); // 光轴
+    
+    // 简单的网格点
+    fill(51, 65, 85);
+    noStroke();
+    const step = 50;
+    for(let x=-500; x<=500; x+=50) {
+        for(let y=-400; y<=400; y+=50) {
+            ellipse(x, y, 2/view.scale);
+        }
+    }
+}
+
+function drawScene(geom) {
+    const { obj, m1, m2, img1, img2, isCoincident } = geom;
+    
+    // 1. 绘制物体 (白色小人)
+    // 注意：物体始终是垂直的，也可以用 drawPerson，它会自动算出垂直身体
+    drawPerson(obj.base, obj.top, CONFIG.colors.obj, false);
+    drawLabel("物", obj.top.x, obj.top.y - 25, CONFIG.colors.obj);
+
+    // 2. 绘制像
+    // 像2 (下镜像) - 仅当不重合时显示差异
+    if (!isCoincident) {
+        // 像2 是虚像，用虚线
+        drawPerson(img2.base, img2.top, CONFIG.colors.img2, true);
+        drawLabel("像2", img2.top.x, img2.top.y - 25, CONFIG.colors.img2);
+        
+        // 像2 的虚像连线 (光路辅助) - 确保只连到对应的镜像部分
+        // 这里只是简单的连线，真正的光路在 drawRayBundle 里
+    }
+    
+    // 像1 (上镜像 - 永远存在)
+    drawPerson(img1.base, img1.top, CONFIG.colors.img1, true);
+    drawLabel(isCoincident ? "像" : "像1", img1.top.x, img1.top.y - (isCoincident?35:25), CONFIG.colors.img1);
+    
+    // 3. 错误概念展示 (Misconception)
+    if (STATE.mode === 'sandbox' && STATE.showMisconception && STATE.gap > 20) {
+        push();
+        stroke('rgba(255,0,0,0.5)');
+        fill('rgba(255,0,0,0.2)');
+        textAlign(CENTER);
+        textSize(12/view.scale);
+        
+        // 在裂缝中间画一个问号或“断裂”示意
+        text("错误认识：像会断开", img1.base.x + 80, 0);
+        // 画一个叉
+        strokeWeight(2/view.scale);
+        line(img1.base.x + 60, -10, img1.base.x + 100, 10);
+        line(img1.base.x + 100, -10, img1.base.x + 60, 10);
+        pop();
+    }
+
+    // 4. 绘制镜子
+    drawMirror(m1.start, m1.end, CONFIG.colors.mirror);
+    drawMirror(m2.start, m2.end, CONFIG.colors.mirror);
+    
+    // 5. 光束演示 (Ray Bundles) - 从头顶发出
+    // 为了不挡住小人，透明度设低一点
+    drawRayBundle(obj.top, m1.start, m1.end, img1.top, CONFIG.colors.ray1);
+    drawRayBundle(obj.top, m2.start, m2.end, img2.top, CONFIG.colors.ray2);
+}
+
+// --- 绘图组件升级：火柴人 ---
+
+function drawPerson(base, top, col, isDashed) {
+    push();
+    stroke(col);
+    strokeWeight(3/view.scale); // 线条稍微粗一点
+    if (isDashed) {
+        drawingContext.setLineDash([4/view.scale, 4/view.scale]);
+        // 虚像稍微透明一点
+        stroke(red(col), green(col), blue(col), 180);
+        fill(red(col), green(col), blue(col), 180);
+    } else {
+        drawingContext.setLineDash([]);
+        fill(col);
+    }
+
+    // 1. 计算身体向量
+    const vBody = p5.Vector.sub(createVector(base.x, base.y), createVector(top.x, top.y));
+    const len = vBody.mag();
+    const unit = vBody.copy().normalize();
+    
+    // 2. 关键点计算
+    // 假设比例：头半径 R=len/8
+    const rHead = len / 8;
+    // 脖子：从top往下 R*2 处
+    const neck = p5.Vector.add(createVector(top.x, top.y), p5.Vector.mult(unit, rHead * 2));
+    // 胯部：从top往下 len*0.6 处
+    const crotch = p5.Vector.add(createVector(top.x, top.y), p5.Vector.mult(unit, len * 0.65));
+    
+    // 3. 画头
+    // Top是头顶，圆心应该往下移 rHead
+    const headCenter = p5.Vector.add(createVector(top.x, top.y), p5.Vector.mult(unit, rHead));
+    // 对于虚像，头要是空心的或者半透明实心
+    if(isDashed) noFill(); 
+    circle(headCenter.x, headCenter.y, rHead * 2);
+
+    // 4. 画躯干 (脖子 -> 胯部)
+    line(neck.x, neck.y, crotch.x, crotch.y);
+
+    // 5. 画手
+    // 垂直于身体的向量
+    const armSpan = len * 0.3;
+    const vArm = createVector(-unit.y, unit.x).mult(armSpan); // 左手向量
+    const shoulder = p5.Vector.add(neck, p5.Vector.mult(unit, len * 0.05)); // 肩膀略低于脖子
+    
+    line(shoulder.x - vArm.x, shoulder.y - vArm.y, shoulder.x + vArm.x, shoulder.y + vArm.y);
+
+    // 6. 画腿
+    // 脚底是 base，岔开一点
+    const legSpan = len * 0.2;
+    const vLeg = createVector(-unit.y, unit.x).mult(legSpan);
+    
+    // 左脚
+    line(crotch.x, crotch.y, base.x - vLeg.x, base.y - vLeg.y);
+    // 右脚
+    line(crotch.x, crotch.y, base.x + vLeg.x, base.y + vLeg.y);
+
+    pop();
+    drawingContext.setLineDash([]); // Reset
+}
+
+function drawMirror(p1, p2, col) {
+    stroke(col);
+    strokeWeight(4/view.scale);
+    line(p1.x, p1.y, p2.x, p2.y);
+    
+    // 背纹
+    stroke(100);
+    strokeWeight(1/view.scale);
+    const vec = createVector(p2.x - p1.x, p2.y - p1.y);
+    const len = vec.mag();
+    const count = floor(len / 10);
+    const unit = vec.copy().normalize();
+    const norm = createVector(-unit.y, unit.x); // 法向
+    
+    for(let i=0; i<=count; i++) {
+        const p = p5.Vector.add(createVector(p1.x, p1.y), p5.Vector.mult(unit, i * 10));
+        const back = p5.Vector.add(p, p5.Vector.mult(norm, -6)); // 往右(背)画
+        line(p.x, p.y, back.x, back.y);
+    }
+}
+
+function drawLabel(txt, x, y, col) {
+    noStroke();
+    fill(col);
+    textSize(14/view.scale);
+    textAlign(CENTER);
+    text(txt, x, y);
+}
+
+// 修复：增强光路显示
+function drawRayBundle(src, mStart, mEnd, vImg, col) {
+    const steps = 3; 
+    stroke(col);
+    strokeWeight(1/view.scale);
+    
+    for(let i=0; i<=steps; i++) {
+        const t = i/steps;
+        const mx = lerp(mStart.x, mEnd.x, t);
+        const my = lerp(mStart.y, mEnd.y, t);
+        
+        // 1. 入射光 (Source -> Mirror)
+        drawingContext.setLineDash([]);
+        line(src.x, src.y, mx, my);
+        
+        // 2. 虚像延长线 (Virtual Image -> Mirror) - 关键修改：更清晰的虚线
+        push();
+        // 确保虚线从虚像指到镜面点，表明反射光“看起来”是从虚像发出的
+        drawingContext.setLineDash([6/view.scale, 4/view.scale]);
+        stroke(col);
+        // 稍微降低透明度，但比原来清楚
+        // strokeAlpha(0.6); // Removed to fix error
+        drawingContext.globalAlpha = 0.6; 
+        line(vImg.x, vImg.y, mx, my);
+        pop();
+
+        // 3. 反射光 (Mirror -> Outwards)
+        // 方向是 (mx - vImg.x, my - vImg.y)
+        const dir = createVector(mx - vImg.x, my - vImg.y).normalize();
+        const ext = p5.Vector.add(createVector(mx, my), p5.Vector.mult(dir, 150));
+        
+        drawingContext.setLineDash([]);
+        line(mx, my, ext.x, ext.y);
+        
+        // 加一个小箭头表示光线方向
+        drawRayArrow(createVector(mx, my), ext);
+    }
+}
+
+function drawRayArrow(p1, p2) {
+    push();
+    const mid = p5.Vector.lerp(p1, p2, 0.3); // 在反射光路前段画箭头
+    const angle = atan2(p2.y - p1.y, p2.x - p1.x);
+    translate(mid.x, mid.y);
+    rotate(angle);
+    const size = 6/view.scale;
+    noFill();
+    strokeWeight(1/view.scale);
+    line(-size, size, 0, 0);
+    line(-size, -size, 0, 0);
+    pop();
+}
+
+// --- 6. 交互逻辑 (修复：拖动隔离) ---
+
+let isDragging = false;
+let lastMouse = {x:0, y:0};
+let isCanvasActive = false;
+
+// 替换掉原先全局的 handlePan，改用 p5 的事件钩子
+function mousePressed() {
+    // 检查鼠标是否在 Canvas 范围内
+    if (mouseX > 0 && mouseX < width && mouseY > 0 && mouseY < height) {
+        isDragging = true;
+        isCanvasActive = true;
+        lastMouse = {x: mouseX, y: mouseY};
+    } else {
+        isCanvasActive = false;
+    }
+}
+
+function mouseReleased() {
+    isDragging = false;
+}
+
+function handlePan() {
+    // 只有当明确是在画布上开始拖动时，才允许平移
+    if (isDragging && mouseIsPressed && isCanvasActive) {
+        const dx = mouseX - lastMouse.x;
+        const dy = mouseY - lastMouse.y;
+        view.offX += dx;
+        view.offY += dy;
+        lastMouse = {x: mouseX, y: mouseY};
+    }
+}
+
+// UI 绑定与逻辑控制
+function setMode(m) {
+    STATE.mode = m;
+    
+    const guidedBtn = document.getElementById('mode-guided');
+    const sandboxBtn = document.getElementById('mode-sandbox');
+    const overlay = document.getElementById('guided-overlay');
+    const controls = document.getElementById('sandbox-controls');
+    
+    if (m === 'guided') {
+        guidedBtn.className = "flex-1 py-1.5 text-sm rounded transition-colors text-white bg-slate-700 font-bold shadow";
+        sandboxBtn.className = "flex-1 py-1.5 text-sm rounded transition-colors text-slate-400 hover:text-white";
+        overlay.style.display = 'flex';
+        controls.classList.add('hidden');
+        loadStep(STATE.stepIndex); // 恢复当前步骤参数
+    } else {
+        sandboxBtn.className = "flex-1 py-1.5 text-sm rounded transition-colors text-white bg-slate-700 font-bold shadow";
+        guidedBtn.className = "flex-1 py-1.5 text-sm rounded transition-colors text-slate-400 hover:text-white";
+        overlay.style.display = 'none';
+        controls.classList.remove('hidden');
+        // 沙盒模式参数保留当前状态，不重置
+        syncInputsFromState();
+    }
+}
+
+function loadStep(idx) {
+    if (idx < 0 || idx >= PLAN_STEPS.length) return;
+    STATE.stepIndex = idx;
+    const step = PLAN_STEPS[idx];
+    
+    // 应用参数
+    STATE.gap = step.params.gap;
+    STATE.depth = step.params.depth;
+    STATE.tilt = step.params.tilt;
+    
+    updateGuidedOverlay();
+    updateVerifyUI(); // 立即刷新验证栏
+}
+
+function nextStep() {
+    if (STATE.stepIndex < PLAN_STEPS.length - 1) loadStep(STATE.stepIndex + 1);
+}
+
+function prevStep() {
+    if (STATE.stepIndex > 0) loadStep(STATE.stepIndex - 1);
+}
+
+function updateGuidedOverlay() {
+    const step = PLAN_STEPS[STATE.stepIndex];
+    document.getElementById('step-count').innerText = `${STATE.stepIndex + 1}/${PLAN_STEPS.length}`;
+    document.getElementById('step-title').innerText = step.titleCN;
+    document.getElementById('step-reasoning').innerText = step.reasoningCN;
+    
+    // MathJax 渲染
+    const mathEl = document.getElementById('step-math');
+    mathEl.innerHTML = ''; 
+    if (step.formulasTeX && step.formulasTeX.length > 0) {
+        mathEl.style.visibility = 'hidden';
+        let html = '';
+        step.formulasTeX.forEach(tex => {
+            html += `\\[ ${tex} \\]`;
+        });
+        mathEl.innerHTML = html;
+        MathJax.typesetPromise([mathEl]).then(() => {
+            mathEl.style.visibility = 'visible';
+        });
+    }
+}
+
+function updateVerifyUI() {
+    const geom = STATE.geometry;
+    if (!geom) return;
+    
+    const box = document.getElementById('verify-box');
+    
+    // 状态判定
+    const isSplit = !geom.isCoincident;
+    const isTilt = Math.abs(STATE.tilt) > 1;
+    const isDepth = STATE.depth > 1;
+    
+    let statusHTML = '';
+    
+    if (!isSplit) {
+        statusHTML = `
+            <div class="status-badge status-ok">像重合 (完整)</div>
+            <div class="text-xs text-slate-400 mt-2">
+                尽管镜子裂开 ${STATE.gap}px，但镜面共面，像点坐标一致。
+            </div>
+        `;
+    } else {
+        let reason = [];
+        if (isDepth) reason.push("前后错位");
+        if (isTilt) reason.push("角度偏转");
+        
+        statusHTML = `
+            <div class="status-badge status-warn">像分裂 (双像)</div>
+            <div class="text-xs text-slate-400 mt-2">
+                像点偏差: ${geom.diff.toFixed(1)} unit<br>
+                原因: ${reason.join(" + ")}
+            </div>
+        `;
+    }
+    box.innerHTML = statusHTML;
+}
+
+// 控件事件绑定
+document.getElementById('input-gap').addEventListener('input', (e) => { 
+    STATE.gap = +e.target.value; 
+    document.getElementById('val-gap').innerText = STATE.gap + ' px';
+});
+document.getElementById('input-depth').addEventListener('input', (e) => { 
+    STATE.depth = +e.target.value;
+    document.getElementById('val-depth').innerText = STATE.depth + ' px';
+});
+document.getElementById('input-tilt').addEventListener('input', (e) => { 
+    STATE.tilt = +e.target.value;
+    document.getElementById('val-tilt').innerText = STATE.tilt + '°';
+});
+document.getElementById('check-misconception').addEventListener('change', (e) => {
+    STATE.showMisconception = e.target.checked;
+});
+
+function syncInputsFromState() {
+    document.getElementById('input-gap').value = STATE.gap;
+    document.getElementById('val-gap').innerText = STATE.gap + ' px';
+    document.getElementById('input-depth').value = STATE.depth;
+    document.getElementById('val-depth').innerText = STATE.depth + ' px';
+    document.getElementById('input-tilt').value = STATE.tilt;
+    document.getElementById('val-tilt').innerText = STATE.tilt + '°';
+}
+
+function resetParams() {
+    STATE.gap = 0; STATE.depth = 0; STATE.tilt = 0;
+    syncInputsFromState();
+}
+
+function copyProblem() {
+    const text = document.getElementById('problem-text').innerText;
+    navigator.clipboard.writeText(text).then(() => alert("题面已复制"));
+}
+
+// 初始化
+setMode('guided');
+
+</script>
+</body>
+</html>
